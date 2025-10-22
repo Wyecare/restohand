@@ -103,7 +103,7 @@ variable "allow_unauthenticated_api" {
 variable "health_check_path" {
   description = "Health check path for API service"
   type        = string
-  default     = "/health"
+  default     = "/api/health"
 }
 
 # Network Configuration
