@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "restohand-dev": {
+      "hosting": {
+        "main": [
+          "restohand-dev"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
