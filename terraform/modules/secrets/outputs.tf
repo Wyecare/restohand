@@ -31,7 +31,6 @@ output "secret_names" {
     {
       jwt_secret    = google_secret_manager_secret.jwt_secret.secret_id
       database_url  = google_secret_manager_secret.database_url.secret_id
-      redis_url     = google_secret_manager_secret.redis_url.secret_id
       mail_from     = google_secret_manager_secret.mail_from.secret_id
     },
     var.frontend_url != null ? {

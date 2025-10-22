@@ -12,6 +12,8 @@ import { UpdateOrderPaymentDto } from './dtos/update-order-payment.dto';
 import { UpdateOrderStatusDto } from './dtos/update-order-status.dto';
 import { CreateOrderItemDto } from './dtos/create-order-item.dto';
 import { Order, OrderDocument } from './schemas/order.schema';
+import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import { OrdersGateway } from './orders.gateway';
 
 interface CalculatedTotals {
   subTotal: number;
@@ -24,7 +26,10 @@ interface CalculatedTotals {
 export class OrdersService {
   constructor(
     @InjectModel(Order.name)
-    private readonly orderModel: Model<OrderDocument>
+    private readonly orderModel: Model<OrderDocument>,
+    @InjectModel(Restaurant.name)
+    private readonly restaurantModel: Model<RestaurantDocument>,
+    private readonly ordersGateway: OrdersGateway
   ) {}
 
   async create(
@@ -33,6 +38,15 @@ export class OrdersService {
   ): Promise<OrderResponseDto> {
     const orderNumber = await this.generateOrderNumber(restaurantId);
     const totals = this.calculateTotals(dto.items);
+    const paymentMethod = dto.paymentMethod ?? 'upi';
+
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId, { upi: 1, name: 1, slug: 1 })
+      .lean();
+
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${restaurantId} not found`);
+    }
 
     const created = await this.orderModel.create({
       ...dto,
@@ -45,9 +59,25 @@ export class OrdersService {
       taxAmount: totals.tax,
       discountAmount: totals.discount,
       totalAmount: totals.total,
+      paymentMethod,
     });
 
-    return this.toDto(created);
+    const response = this.toDto(created);
+
+    if (paymentMethod === 'upi') {
+      const amount = totals.total.toFixed(2);
+      const params = new URLSearchParams({
+        pa: restaurant.upi.vpa,
+        pn: restaurant.upi.displayName,
+        am: amount,
+        cu: 'INR',
+        tn: `Order ${response.orderNumber}`,
+      });
+      response.paymentIntentUrl = `upi://pay?${params.toString()}`;
+    }
+
+    this.ordersGateway.emitOrderCreated(response);
+    return response;
   }
 
   async findAll(
@@ -157,7 +187,9 @@ export class OrdersService {
       );
     }
 
-    return this.toDto(updated);
+    const response = this.toDto(updated);
+    this.ordersGateway.emitOrderUpdated(response);
+    return response;
   }
 
   async updatePayment(
@@ -194,7 +226,9 @@ export class OrdersService {
       );
     }
 
-    return this.toDto(updated);
+    const response = this.toDto(updated);
+    this.ordersGateway.emitOrderUpdated(response);
+    return response;
   }
 
   private calculateTotals(items: CreateOrderItemDto[]): CalculatedTotals {
@@ -231,6 +265,7 @@ export class OrdersService {
       customerPhone: doc.customerPhone,
       status: doc.status,
       paymentStatus: doc.paymentStatus,
+      paymentMethod: doc.paymentMethod,
       progress: doc.progress,
       items: doc.items.map((item) => ({
         menuItemId: item.menuItemId?.toString(),

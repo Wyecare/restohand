@@ -2,7 +2,6 @@ import { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { firebaseConfig, FirebaseConfig } from '../config/firebase.config';
 
 export const FIREBASE_APP = Symbol('FIREBASE_APP');
 export const FIREBASE_AUTH = Symbol('FIREBASE_AUTH');
@@ -12,13 +11,13 @@ export const firebaseProviders: Provider[] = [
     provide: FIREBASE_APP,
     inject: [ConfigService],
     useFactory: (configService: ConfigService) => {
-      const config = configService.get<FirebaseConfig>(firebaseConfig.KEY, {
-        infer: true,
-      });
-
-      if (!config) {
-        throw new Error('Firebase configuration is not available');
-      }
+      const projectId =
+        configService.getOrThrow<string>('FIREBASE_PROJECT_ID');
+      const clientEmail =
+        configService.getOrThrow<string>('FIREBASE_CLIENT_EMAIL');
+      const privateKey = configService
+        .getOrThrow<string>('FIREBASE_PRIVATE_KEY')
+        .replace(/\\n/g, '\n');
 
       const existing = getApps().find((app) => app.name === '[DEFAULT]');
       if (existing) {
@@ -27,11 +26,11 @@ export const firebaseProviders: Provider[] = [
 
       return initializeApp({
         credential: cert({
-          projectId: config.projectId,
-          clientEmail: config.clientEmail,
-          privateKey: config.privateKey,
+          projectId,
+          clientEmail,
+          privateKey,
         }),
-        projectId: config.projectId,
+        projectId,
       });
     },
   },

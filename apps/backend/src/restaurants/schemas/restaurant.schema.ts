@@ -5,22 +5,22 @@ export type RestaurantDocument = Restaurant & Document;
 
 @Schema({ _id: false })
 class RestaurantAddress {
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   line1!: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   line2?: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   city!: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   state!: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   postalCode!: string;
 
-  @Prop({ required: true, trim: true, default: 'IN' })
+  @Prop({ type: String, required: true, trim: true, default: 'IN' })
   country!: string;
 }
 
@@ -28,10 +28,10 @@ const RestaurantAddressSchema = SchemaFactory.createForClass(RestaurantAddress);
 
 @Schema({ _id: false })
 class RestaurantUpiConfig {
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   vpa!: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   displayName!: string;
 
   @Prop({
@@ -47,16 +47,16 @@ const RestaurantUpiConfigSchema =
 
 @Schema({ _id: false })
 class RestaurantSettings {
-  @Prop({ default: 'ORD' })
+  @Prop({ type: String, default: 'ORD' })
   orderNumberPrefix!: string;
 
-  @Prop({ default: 'INR' })
+  @Prop({ type: String, default: 'INR' })
   currency!: string;
 
-  @Prop({ default: 'en-IN' })
+  @Prop({ type: String, default: 'en-IN' })
   locale!: string;
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   enableTax!: boolean;
 }
 
@@ -68,22 +68,22 @@ const RestaurantSettingsSchema =
   collection: 'restaurants',
 })
 export class Restaurant {
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   name!: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   legalName?: string;
 
-  @Prop({ required: true, unique: true, index: true, lowercase: true })
+  @Prop({ type: String, required: true, unique: true, index: true, lowercase: true })
   slug!: string;
 
-  @Prop({ trim: true, lowercase: true })
+  @Prop({ type: String, trim: true, lowercase: true })
   contactEmail?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   contactPhone?: string;
 
-  @Prop({ default: 'Asia/Kolkata' })
+  @Prop({ type: String, default: 'Asia/Kolkata' })
   timezone!: string;
 
   @Prop({ type: RestaurantAddressSchema, required: true })
@@ -98,7 +98,7 @@ export class Restaurant {
   @Prop({ type: [String], default: ['en', 'ml'] })
   languages!: string[];
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   isActive!: boolean;
 }
 

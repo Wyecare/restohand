@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
+  IsIn,
   IsMongoId,
   IsOptional,
   IsString,
@@ -10,6 +11,10 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateOrderItemDto } from './create-order-item.dto';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+
+const PAYMENT_METHODS = ['upi', 'cash'] as const;
+type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export class CreateOrderDto {
   @ApiProperty({
@@ -54,4 +59,9 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(300)
   notes?: string;
+
+  @ApiPropertyOptional({ enum: ['upi', 'cash'], default: 'upi' })
+  @IsOptional()
+  @IsIn(PAYMENT_METHODS)
+  paymentMethod?: PaymentMethod;
 }

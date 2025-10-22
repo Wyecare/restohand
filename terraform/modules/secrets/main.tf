@@ -77,6 +77,24 @@ resource "google_secret_manager_secret_version" "frontend_url" {
   secret_data = var.frontend_url
 }
 
+# Additional secrets from variables
+resource "google_secret_manager_secret" "additional" {
+  for_each  = var.additional_secrets
+  project   = var.project_id
+  secret_id = each.key
+
+  replication {
+    auto {}
+  }
+
+  labels = var.labels
+}
+
+resource "google_secret_manager_secret_version" "additional" {
+  for_each    = { for k, v in var.additional_secrets : k => v if v != "" }
+  secret      = google_secret_manager_secret.additional[each.key].id
+  secret_data = each.value
+}
 
 # Service Account for Secret Access
 resource "google_service_account" "secret_accessor" {
@@ -101,4 +119,20 @@ resource "google_secret_manager_secret_iam_member" "database_url_access" {
   secret_id = google_secret_manager_secret.database_url.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = var.secret_accessors[count.index]
+}
+
+
+resource "google_secret_manager_secret_iam_member" "additional_access" {
+  for_each = {
+    for pair in setproduct(keys(var.additional_secrets), var.secret_accessors) :
+    "${pair[0]}-${pair[1]}" => {
+      secret_id = pair[0]
+      member    = pair[1]
+    }
+  }
+
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.additional[each.value.secret_id].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = each.value.member
 }

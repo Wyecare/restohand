@@ -46,3 +46,131 @@ variable "api_image" {
   type        = string
   default     = "gcr.io/cloudrun/hello"
 }
+
+
+# Firebase Configuration
+variable "firebase_site_id" {
+  description = "Firebase Hosting site ID"
+  type        = string
+}
+
+# GitHub Configuration
+variable "github_repository" {
+  description = "GitHub repository for deployments"
+  type        = string
+}
+
+# Frontend URL
+variable "frontend_url" {
+  description = "Frontend application URL"
+  type        = string
+  default     = null
+}
+
+# SMTP Configuration
+variable "smtp_host" {
+  description = "SMTP host for email"
+  type        = string
+  default     = ""
+}
+
+variable "smtp_user" {
+  description = "SMTP username"
+  type        = string
+  default     = ""
+}
+
+variable "smtp_pass" {
+  description = "SMTP password"
+  type        = string
+  default     = ""
+}
+
+# Frontend URL
+variable "database_url" {
+  description = "Database connection URL"
+  type        = string
+  default     = null
+}
+
+
+# ========================================
+# FIREBASE AUTHENTICATION CONFIGURATION
+# ========================================
+
+# OAuth Configuration
+variable "auth_google_enabled" {
+  description = "Enable Google OAuth authentication"
+  type        = bool
+  default     = true
+}
+
+variable "auth_apple_enabled" {
+  description = "Enable Apple OAuth authentication"
+  type        = bool
+  default     = true
+}
+
+variable "auth_authorized_domains" {
+  description = "Authorized domains for authentication"
+  type        = list(string)
+  default     = ["localhost"]
+}
+
+# Google OAuth Credentials
+variable "google_oauth_client_id" {
+  description = "Google OAuth client ID"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_oauth_client_secret" {
+  description = "Google OAuth client secret"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# Apple OAuth Credentials
+variable "apple_oauth_client_id" {
+  description = "Apple OAuth client ID (Service ID)"
+  type        = string
+  default     = ""
+}
+
+variable "apple_oauth_key_id" {
+  description = "Apple OAuth key ID"
+  type        = string
+  default     = ""
+}
+
+variable "apple_oauth_private_key" {
+  description = "Apple OAuth private key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "apple_oauth_team_id" {
+  description = "Apple OAuth team ID"
+  type        = string
+  default     = ""
+}
+
+# ========================================
+# FIREBASE APP CHECK CONFIGURATION
+# ========================================
+
+variable "enable_app_check" {
+  description = "Enable Firebase App Check for enhanced security"
+  type        = bool
+  default     = false  # Start disabled for development
+}
+
+variable "recaptcha_site_secret" {
+  description = "reCAPTCHA site secret for App Check"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

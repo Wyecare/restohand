@@ -25,7 +25,12 @@ variable "frontend_url" {
   default     = null
 }
 
-
+variable "additional_secrets" {
+  description = "Additional secrets to create"
+  type        = map(string)
+  default     = {}
+  sensitive   = false  # Cannot use sensitive values in for_each
+}
 
 variable "secret_accessors" {
   description = "List of service accounts that need access to secrets"

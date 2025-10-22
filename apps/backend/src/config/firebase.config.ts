@@ -9,6 +9,8 @@ export interface FirebaseConfig {
 }
 
 export const firebaseConfig = registerAs<FirebaseConfig>('firebase', () => {
+  console.log('Loading Firebase configuration from environment variables');
+  console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID);
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -23,6 +25,6 @@ export const firebaseConfig = registerAs<FirebaseConfig>('firebase', () => {
     clientEmail,
     privateKey: privateKey.replace(/\\n/g, '\n'),
     webApiKey,
-    authEmulatorHost: process.env.FIREBASE_AUTH_EMULATOR_HOST,
+    // authEmulatorHost: process.env.FIREBASE_AUTH_EMULATOR_HOST,
   };
 });

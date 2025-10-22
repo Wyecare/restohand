@@ -28,7 +28,6 @@ import { UpdateOrderStatusDto } from './dtos/update-order-status.dto';
 import { OrdersService } from './orders.service';
 
 @ApiTags('orders')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
 @Controller('restaurants/:restaurantId/orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -36,7 +35,6 @@ export class OrdersController {
   @Post()
   @ApiParam({ name: 'restaurantId' })
   @ApiCreatedResponse({ type: OrderResponseDto })
-  @Roles(UserRole.Manager)
   async create(
     @Param('restaurantId') restaurantId: string,
     @Body() dto: CreateOrderDto
@@ -45,6 +43,7 @@ export class OrdersController {
   }
 
   @Get()
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'paymentStatus', required: false })
@@ -61,6 +60,7 @@ export class OrdersController {
   }
 
   @Get(':orderId')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: OrderResponseDto })
@@ -73,6 +73,7 @@ export class OrdersController {
   }
 
   @Patch(':orderId/status')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: OrderResponseDto })
@@ -86,6 +87,7 @@ export class OrdersController {
   }
 
   @Patch(':orderId/payment')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: OrderResponseDto })

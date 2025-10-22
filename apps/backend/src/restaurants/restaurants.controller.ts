@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -16,6 +17,7 @@ import {
   ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -36,8 +38,8 @@ export class RestaurantsController {
 
   @Post()
   @ApiCreatedResponse({ type: RestaurantResponseDto })
-  async create(@Body() dto: CreateRestaurantDto) {
-    return this.restaurantsService.create(dto);
+  async create(@Body() dto: CreateRestaurantDto, @Req() req: Request) {
+    return this.restaurantsService.create(dto, req.user);
   }
 
   @Get()
@@ -69,5 +71,15 @@ export class RestaurantsController {
   async remove(@Param('id') id: string) {
     await this.restaurantsService.remove(id);
     return { success: true };
+  }
+
+  @Get(':id/qrcode')
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiQuery({ name: 'table', required: false })
+  async generateQr(
+    @Param('id') id: string,
+    @Query('table') table?: string
+  ) {
+    return this.restaurantsService.generateQrCode(id, table);
   }
 }

@@ -17,16 +17,16 @@ export class Session {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   tableNumber?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   qrCodeId?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   customerName?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   customerPhone?: string;
 
   @Prop({
@@ -37,13 +37,13 @@ export class Session {
   })
   status!: SessionStatus;
 
-  @Prop()
+  @Prop({ type: Date })
   expiresAt?: Date;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   userAgent?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   ipAddress?: string;
 }
 

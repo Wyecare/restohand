@@ -35,6 +35,9 @@ export class OrderResponseDto {
   @ApiProperty({ enum: PaymentStatus })
   paymentStatus!: PaymentStatus;
 
+  @ApiProperty({ enum: ['upi', 'cash'] })
+  paymentMethod!: 'upi' | 'cash';
+
   @ApiProperty({ enum: OrderProgressStage })
   progress!: OrderProgressStage;
 
@@ -70,6 +73,9 @@ export class OrderResponseDto {
 
   @ApiProperty({ required: false })
   readyAt?: string;
+
+  @ApiProperty({ required: false })
+  paymentIntentUrl?: string;
 
   @ApiProperty()
   createdAt!: string;

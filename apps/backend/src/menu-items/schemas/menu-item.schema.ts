@@ -5,13 +5,13 @@ export type MenuItemDocument = MenuItem & Document;
 
 @Schema({ _id: false })
 class MenuItemPricing {
-  @Prop({ required: true, min: 0 })
+  @Prop({ type: Number, required: true, min: 0 })
   amount!: number;
 
-  @Prop({ required: true, default: 'INR' })
+  @Prop({ type: String, required: true, default: 'INR' })
   currency!: string;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isTaxInclusive!: boolean;
 }
 
@@ -25,13 +25,13 @@ export class MenuItem {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'MenuCategory', trim: true })
   categoryId?: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   name!: string;
 
-  @Prop({ trim: true, maxlength: 500 })
+  @Prop({ type: String, trim: true, maxlength: 500 })
   description?: string;
 
   @Prop({ type: MenuItemPricingSchema, required: true })
@@ -40,10 +40,10 @@ export class MenuItem {
   @Prop({ type: [String], default: [] })
   tags!: string[];
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   isAvailable!: boolean;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   displayOrder!: number;
 
   @Prop({ type: [String], default: [] })

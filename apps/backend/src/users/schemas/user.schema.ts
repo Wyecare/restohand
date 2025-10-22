@@ -12,19 +12,19 @@ export class User {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   name!: string;
 
-  @Prop({ trim: true, lowercase: true, index: true, sparse: true })
+  @Prop({ type: String, trim: true, lowercase: true, index: true, sparse: true })
   email?: string;
 
-  @Prop({ trim: true, index: true, sparse: true })
+  @Prop({ type: String, trim: true, index: true, sparse: true })
   phoneNumber?: string;
 
-  @Prop({ trim: true, lowercase: true, index: true, sparse: true })
+  @Prop({ type: String, trim: true, lowercase: true, index: true, sparse: true })
   googleId?: string;
 
-  @Prop({ trim: true, index: true, unique: true, sparse: true })
+  @Prop({ type: String, trim: true, index: true, unique: true, sparse: true })
   firebaseUid?: string;
 
   @Prop({
@@ -34,16 +34,16 @@ export class User {
   })
   roles!: UserRole[];
 
-  @Prop({ select: false })
+  @Prop({ type: String, select: false })
   pinHash?: string;
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   isActive!: boolean;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isPrimaryOwner!: boolean;
 
-  @Prop()
+  @Prop({ type: Date })
   lastLoginAt?: Date;
 }
 

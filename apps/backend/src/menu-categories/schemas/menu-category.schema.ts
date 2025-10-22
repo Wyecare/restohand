@@ -11,16 +11,16 @@ export class MenuCategory {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   name!: string;
 
-  @Prop({ trim: true, maxlength: 300 })
+  @Prop({ type: String, trim: true, maxlength: 300 })
   description?: string;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   displayOrder!: number;
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   isActive!: boolean;
 }
 

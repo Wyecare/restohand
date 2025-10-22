@@ -8,16 +8,16 @@ export type OrderDocument = Order & Document;
 
 @Schema({ _id: false })
 class OrderItemPricing {
-  @Prop({ required: true, min: 0 })
+  @Prop({ type: Number, required: true, min: 0 })
   unitAmount!: number;
 
-  @Prop({ required: true, default: 'INR' })
+  @Prop({ type: String, required: true, default: 'INR' })
   currency!: string;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   taxAmount!: number;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   discountAmount!: number;
 }
 
@@ -28,16 +28,16 @@ class OrderItem {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'MenuItem' })
   menuItemId!: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   name!: string;
 
-  @Prop({ required: true, min: 1 })
+  @Prop({ type: Number, required: true, min: 1 })
   quantity!: number;
 
   @Prop({ type: OrderItemPricingSchema, required: true })
   pricing!: OrderItemPricing;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   notes?: string;
 }
 
@@ -57,16 +57,16 @@ export class Order {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'User', index: true })
   createdBy?: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   orderNumber!: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   tableNumber?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   customerName?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   customerPhone?: string;
 
   @Prop({
@@ -87,7 +87,9 @@ export class Order {
 
   @Prop({
     type: Number,
-    enum: Object.values(OrderProgressStage),
+    enum: Object.values(OrderProgressStage).filter(
+      (value) => typeof value === 'number'
+    ),
     default: OrderProgressStage.NotStarted,
   })
   progress!: OrderProgressStage;
@@ -95,37 +97,44 @@ export class Order {
   @Prop({ type: [OrderItemSchema], default: [] })
   items!: OrderItem[];
 
-  @Prop({ min: 0, default: 0 })
+  @Prop({ type: Number, min: 0, default: 0 })
   subTotalAmount!: number;
 
-  @Prop({ min: 0, default: 0 })
+  @Prop({ type: Number, min: 0, default: 0 })
   taxAmount!: number;
 
-  @Prop({ min: 0, default: 0 })
+  @Prop({ type: Number, min: 0, default: 0 })
   discountAmount!: number;
 
-  @Prop({ min: 0, default: 0 })
+  @Prop({ type: Number, min: 0, default: 0 })
   totalAmount!: number;
 
-  @Prop({ trim: true })
+  @Prop({
+    type: String,
+    enum: ['upi', 'cash'],
+    default: 'upi',
+  })
+  paymentMethod!: 'upi' | 'cash';
+
+  @Prop({ type: String, trim: true })
   notes?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   statusNote?: string;
 
-  @Prop()
+  @Prop({ type: Date })
   paidAt?: Date;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   paymentProvider?: string;
 
-  @Prop({ trim: true })
+  @Prop({ type: String, trim: true })
   paymentTransactionId?: string;
 
-  @Prop()
+  @Prop({ type: Date })
   readyAt?: Date;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isArchived!: boolean;
 }
 

@@ -2,14 +2,19 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model } from 'mongoose';
+import * as QRCode from 'qrcode';
 import type { CreateRestaurantDto } from './dtos/create-restaurant.dto';
 import type { UpdateRestaurantDto } from './dtos/update-restaurant.dto';
 import type { QueryRestaurantsDto } from './dtos/query-restaurants.dto';
 import { Restaurant, RestaurantDocument } from './schemas/restaurant.schema';
 import { RestaurantResponseDto } from './dtos/restaurant-response.dto';
+import { UsersService } from '../users/users.service';
+import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { UserRole } from '../common/enums/user-role.enum';
 
 interface PaginatedRestaurants {
   data: RestaurantResponseDto[];
@@ -22,12 +27,25 @@ interface PaginatedRestaurants {
 export class RestaurantsService {
   constructor(
     @InjectModel(Restaurant.name)
-    private readonly restaurantModel: Model<RestaurantDocument>
+    private readonly restaurantModel: Model<RestaurantDocument>,
+    private readonly usersService: UsersService
   ) {}
 
-  async create(dto: CreateRestaurantDto): Promise<RestaurantResponseDto> {
+  async create(
+    dto: CreateRestaurantDto,
+    actor?: AuthenticatedUser
+  ): Promise<RestaurantResponseDto> {
+    if (!actor?.uid) {
+      throw new ForbiddenException('Unable to determine authenticated user');
+    }
+
     await this.ensureSlugUnique(dto.slug);
     const created = await this.restaurantModel.create(dto);
+
+    await this.usersService.attachRestaurantToUser(actor, created._id.toString(), [
+      UserRole.Manager,
+    ]);
+
     return this.toDto(created);
   }
 
@@ -71,6 +89,33 @@ export class RestaurantsService {
       throw new NotFoundException(`Restaurant ${id} not found`);
     }
     return this.toDto(restaurant);
+  }
+
+  async generateQrCode(restaurantId: string, table?: string) {
+    const restaurant = await this.restaurantModel.findById(restaurantId);
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${restaurantId} not found`);
+    }
+
+    const baseUrl = process.env.FRONTEND_BASE_URL ?? 'http://localhost:4200';
+    const slug = restaurant.slug;
+    const url = new URL(`${baseUrl.replace(/\/$/, '')}/c/${slug}`);
+    if (table) {
+      url.searchParams.set('table', table);
+    }
+
+    const dataUrl = await QRCode.toDataURL(url.toString(), {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      scale: 6,
+    });
+
+    return {
+      restaurant: this.toDto(restaurant),
+      table: table ?? null,
+      url: url.toString(),
+      dataUrl,
+    };
   }
 
   async update(

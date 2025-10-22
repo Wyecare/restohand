@@ -1,15 +1,3 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.25"
-    }
-    google-beta = {
-      source  = "hashicorp/google-beta"
-      version = "~> 5.25"
-    }
-  }
-}
 
 locals {
   api_service_name      = "${var.environment}-api"

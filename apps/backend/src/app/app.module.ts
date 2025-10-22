@@ -11,6 +11,9 @@ import { MenuItemsModule } from '../menu-items/menu-items.module';
 import { OrdersModule } from '../orders/orders.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
+import { PublicModule } from '../public/public.module';
+import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -25,10 +28,13 @@ import { AppService } from './app.service';
     DatabaseModule,
     AuthModule,
     HealthModule,
+    UsersModule,
     RestaurantsModule,
+    PublicModule,
     MenuCategoriesModule,
     MenuItemsModule,
     OrdersModule,
+    RestaurantTablesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

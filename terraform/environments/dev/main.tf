@@ -11,6 +11,10 @@ provider "google" {
     project = var.project_id
     region  = var.region
 }
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+}
 
 # Local values
 locals {
@@ -65,7 +69,6 @@ module "storage" {
   region      = var.region
   labels      = local.common_labels
 
-  storage_location       = "US"
   image_retention_days   = 7   # Shorter retention for dev
   asset_retention_days   = 30
   enable_versioning      = false
@@ -83,8 +86,7 @@ module "secrets" {
 
   project_id   = var.project_id
   environment  = "dev"
-  database_url = module.database.database_url
-  redis_url    = module.database.redis_url
+  database_url = var.database_url
   mail_from    = "Restohand Development"
   frontend_url = var.frontend_url
   labels       = local.common_labels
@@ -93,7 +95,6 @@ module "secrets" {
     "smtp-host"                   = var.smtp_host
     "smtp-user"                   = var.smtp_user
     "smtp-pass"                   = var.smtp_pass
-    "database_url"                = var.database_url
   }
 
   secret_accessors = []  # Will be configured after deployment
@@ -203,7 +204,7 @@ module "firebase" {
   hosting_site_id         = var.firebase_site_id
   enable_preview_channel  = true
   enable_firebase_storage = true  # Disable until domain verification completed
-  enable_firebase_auth    = true  # Disable until quota project is configured
+  enable_firebase_auth    = false  # Disable until quota project is configured
   enable_firestore       = false  # Use PostgreSQL instead
   environment             = "dev"
 
