@@ -3,126 +3,115 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useToast } from '@/components/ui/use-toast';
+import { Badge } from '@/components/ui/badge';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
 import { useCreateOrderMutation } from '@/store/api/ordersApi';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import type { MenuItemPricing } from '@/store/api/types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/components/ui/use-toast';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { ShoppingCart, Plus, Minus } from 'lucide-react';
+import TableDialog from './TableDialog';
 
 interface CartEntry {
   id: string;
   name: string;
-  pricing: MenuItemPricing;
+  pricing: {
+    amount: number;
+    currency?: string;
+  };
   quantity: number;
 }
 
-const formatCurrency = (pricing: MenuItemPricing) =>
+const formatCurrency = (amount: number, currency = 'INR') =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: pricing.currency ?? 'INR',
+    currency,
     maximumFractionDigits: 2,
-  }).format(pricing.amount);
+  }).format(amount);
 
-const CustomerMenuPage = () => {
+export default function CustomerMenuPage() {
   const params = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
-  const { toast } = useToast();
-  const slug = params.slug ?? '';
-  const table = searchParams.get('table') ?? undefined;
-
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const slug = params.slug ?? '';
+  const tableFromUrl = searchParams.get('table') ?? undefined;
 
   const { data, isLoading, isError } = useGetPublicMenuQuery(slug, {
     skip: !slug,
   });
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
 
+  const [step, setStep] = useState<'categories' | 'items'>('categories');
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<Record<string, CartEntry>>({});
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cash'>('upi');
-  const [tableNumber, setTableNumber] = useState(table ?? '');
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
 
-  useEffect(() => {
-    setTableNumber(table ?? '');
-  }, [table]);
-
+  const restaurant = data?.restaurant;
   const categories = data?.menu.categories ?? [];
   const uncategorised = data?.menu.uncategorised ?? [];
-  const restaurant = data?.restaurant;
 
-  const totalItems = useMemo(
-    () => Object.values(cart).reduce((sum, entry) => sum + entry.quantity, 0),
-    [cart]
+  const allProducts = useMemo(() => {
+    const grouped = categories.flatMap((c) =>
+      c.items.map((i) => ({ ...i, _categoryId: c.id, _categoryName: c.name }))
+    );
+    return [
+      ...grouped,
+      ...uncategorised.map((i) => ({ ...i, _categoryId: 'uncategorised' })),
+    ];
+  }, [categories, uncategorised]);
+
+  const activeItems = activeCategory
+    ? allProducts.filter((p) => p._categoryId === activeCategory)
+    : [];
+
+  const totalItems = Object.values(cart).reduce(
+    (sum, e) => sum + e.quantity,
+    0
+  );
+  const totalAmount = Object.values(cart).reduce(
+    (sum, e) => sum + e.quantity * e.pricing.amount,
+    0
   );
 
-  const totalAmount = useMemo(
-    () =>
-      Object.values(cart).reduce(
-        (sum, entry) => sum + entry.quantity * entry.pricing.amount,
-        0
-      ),
-    [cart]
-  );
-
-  const handleAdd = (id: string, name: string, pricing: MenuItemPricing) => {
-    setCart((prev) => {
-      const existing = prev[id];
-      return {
-        ...prev,
-        [id]: {
-          id,
-          name,
-          pricing,
-          quantity: existing ? existing.quantity + 1 : 1,
-        },
-      };
-    });
+  const handleAdd = (id: string, name: string, pricing: any) => {
+    setCart((prev) => ({
+      ...prev,
+      [id]: { id, name, pricing, quantity: (prev[id]?.quantity ?? 0) + 1 },
+    }));
   };
 
   const handleRemove = (id: string) => {
     setCart((prev) => {
-      const existing = prev[id];
-      if (!existing) return prev;
-      if (existing.quantity === 1) {
-        const { [id]: _removed, ...rest } = prev;
+      const current = prev[id];
+      if (!current) return prev;
+      if (current.quantity === 1) {
+        const { [id]: _, ...rest } = prev;
         return rest;
       }
-      return { ...prev, [id]: { ...existing, quantity: existing.quantity - 1 } };
+      return { ...prev, [id]: { ...current, quantity: current.quantity - 1 } };
     });
   };
 
-  const handleCheckout = async () => {
-    if (!totalItems) {
-      toast({ title: 'Cart is empty', description: 'Add items to continue.' });
-      return;
-    }
-
+  const handleConfirmOrder = async (
+    tableNumber: string,
+    paymentMethod: 'upi' | 'cash'
+  ) => {
     if (!restaurant) return;
-
-    if (!tableNumber.trim()) {
-      toast({
-        title: 'Table required',
-        description: 'Please tell us where you are seated so staff can deliver your order.',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     const payload = {
       restaurantId: restaurant.id,
@@ -135,8 +124,6 @@ const CustomerMenuPage = () => {
         pricing: {
           unitAmount: entry.pricing.amount,
           currency: entry.pricing.currency ?? 'INR',
-          taxAmount: entry.pricing.taxAmount ?? 0,
-          discountAmount: entry.pricing.discountAmount ?? 0,
         },
       })),
     };
@@ -146,232 +133,190 @@ const CustomerMenuPage = () => {
       setCart({});
       toast({
         title: 'Order placed',
-        description: `Ticket #${order.orderNumber} created`,
+        description: `Ticket #${order.orderNumber} created.`,
       });
-
       if (paymentMethod === 'upi' && order.paymentIntentUrl) {
         window.location.href = order.paymentIntentUrl;
       }
-
-      const params = new URLSearchParams();
-      if (tableNumber) params.set('table', tableNumber.trim());
-      const query = params.toString();
-      navigate(query ? `/c/${slug}/order/${order.id}?${query}` : `/c/${slug}/order/${order.id}`);
-    } catch (error) {
+      navigate(`/c/${slug}/order/${order.id}?table=${tableNumber}`);
+    } catch (err) {
       toast({
         title: 'Unable to place order',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+        description: err instanceof Error ? err.message : 'Unexpected error',
         variant: 'destructive',
       });
     }
   };
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <div className="flex min-h-screen items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     );
-  }
 
-  if (isError || !restaurant) {
+  if (isError || !restaurant)
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Unable to load menu right now. Please try again later.
+      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+        Unable to load menu. Please try again later.
       </div>
     );
-  }
-
-  const renderItems = (items: typeof uncategorised) => (
-    <div className="grid gap-4">
-      {items.map((item) => {
-        const entry = cart[item.id];
-        return (
-          <Card key={item.id} className="border shadow-sm">
-            <CardHeader className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-base font-semibold">
-                  {item.name}
-                </CardTitle>
-                <Badge variant="outline">{formatCurrency(item.pricing)}</Badge>
-              </div>
-              {item.description && (
-                <CardDescription className="text-sm">
-                  {item.description}
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent className="flex items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
-                {item.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                {entry && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleRemove(item.id)}
-                  >
-                    -
-                  </Button>
-                )}
-                <Button size="sm" onClick={() => handleAdd(item.id, item.name, item.pricing)}>
-                  {entry ? `Add more (${entry.quantity})` : 'Add'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-
-  const defaultTab = categories[0]?.id ?? (uncategorised.length ? 'uncategorised' : 'empty');
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 bg-background px-4 py-8">
-      <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">
-          {restaurant.name}
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {restaurant.upi.displayName} • {restaurant.upi.vpa}
-          {tableNumber ? ` • Table ${tableNumber}` : ''}
-        </p>
-      </div>
+    <div className="relative min-h-screen bg-background">
+      {/* Step 1 — Category Selection */}
+      {step === 'categories' && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 p-4 space-y-4">
+          <h1 className="text-center text-2xl font-bold">
+            What would you like today?
+          </h1>
+          <p className="text-center text-sm text-muted-foreground">
+            Choose a category to explore dishes
+          </p>
 
-      {!table && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Where are you seated?</CardTitle>
-            <CardDescription>
-              Tell us your table number so the staff can bring your order to the right spot.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-            <Input
-              value={tableNumber}
-              onChange={(event) => setTableNumber(event.target.value)}
-              placeholder="Table number"
-              className="md:w-48"
-            />
-            <p className="text-xs text-muted-foreground">
-              Not at a table? Enter takeaway, counter, or your name so staff can find you.
-            </p>
-          </CardContent>
-        </Card>
+          <ScrollArea className="w-full whitespace-nowrap mt-4">
+            <RadioGroup className="flex gap-3 flex-wrap justify-center">
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  onClick={() => {
+                    setActiveCategory(category.id);
+                    setStep('items');
+                  }}
+                  className="flex w-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-4 hover:bg-muted transition-all"
+                >
+                  <span className="text-3xl">{category.icon ?? '🍽️'}</span>
+                  <span className="text-sm font-medium">{category.name}</span>
+                </div>
+              ))}
+              {uncategorised.length > 0 && (
+                <div
+                  onClick={() => {
+                    setActiveCategory('uncategorised');
+                    setStep('items');
+                  }}
+                  className="flex w-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-4 hover:bg-muted transition-all"
+                >
+                  <span className="text-3xl">✨</span>
+                  <span className="text-sm font-medium">Others</span>
+                </div>
+              )}
+            </RadioGroup>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
       )}
 
-      <Tabs defaultValue={defaultTab} className="w-full">
-        <TabsList className="flex flex-wrap justify-start gap-2 overflow-x-auto">
-          {categories.map((category) => (
-            <TabsTrigger key={category.id} value={category.id}>
-              {category.name}
-            </TabsTrigger>
-          ))}
-          {uncategorised.length > 0 && (
-            <TabsTrigger value="uncategorised">Others</TabsTrigger>
-          )}
-        </TabsList>
-
-        {categories.map((category) => (
-          <TabsContent key={category.id} value={category.id} className="space-y-4">
-            {category.description && (
-              <p className="text-sm text-muted-foreground">{category.description}</p>
-            )}
-            {category.items.length ? (
-              renderItems(category.items)
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No items in this section yet.
-              </p>
-            )}
-          </TabsContent>
-        ))}
-
-        {uncategorised.length > 0 && (
-          <TabsContent value="uncategorised" className="space-y-4">
-            {renderItems(uncategorised)}
-          </TabsContent>
-        )}
-
-        {categories.length === 0 && uncategorised.length === 0 && (
-          <TabsContent value="empty">
-            <p className="text-sm text-muted-foreground">
-              Menu will appear here once the restaurant publishes dishes.
-            </p>
-          </TabsContent>
-        )}
-      </Tabs>
-
-      <Separator className="my-4" />
-
-      <div className="sticky bottom-4 rounded-xl border bg-card p-4 shadow-lg">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex gap-6">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                Items
-              </p>
-              <p className="text-lg font-semibold">{totalItems}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                Total
-              </p>
-              <p className="text-lg font-semibold">
-                ₹{totalAmount.toFixed(2)}
-              </p>
-            </div>
+      {/* Step 2 — Items */}
+      {step === 'items' && (
+        <div className="animate-in fade-in slide-in-from-right-2 space-y-4 p-4">
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" onClick={() => setStep('categories')}>
+              ← Back
+            </Button>
+            <h2 className="text-lg font-semibold">
+              {categories.find((c) => c.id === activeCategory)?.name ?? 'Menu'}
+            </h2>
+            <div className="w-16" /> {/* spacing */}
           </div>
 
-          <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-center md:gap-3">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs font-semibold uppercase text-muted-foreground">
-                Table
-              </Label>
-              <Input
-                value={tableNumber}
-                onChange={(event) => setTableNumber(event.target.value)}
-                placeholder="Table number"
-                disabled={!!table}
-                className="md:w-40"
-              />
-            </div>
-            <Select
-              value={paymentMethod}
-              onValueChange={(value) => setPaymentMethod(value as 'upi' | 'cash')}
-            >
-              <SelectTrigger className="md:w-40">
-                <SelectValue placeholder="Payment method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="upi">UPI</SelectItem>
-                <SelectItem value="cash">Cash</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              size="lg"
-              onClick={handleCheckout}
-              disabled={isPlacingOrder || totalItems === 0}
-            >
-              {isPlacingOrder
-                ? 'Placing order…'
-                : paymentMethod === 'cash'
-                  ? 'Place order'
-                  : 'Proceed to pay'}
-            </Button>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {activeItems.length ? (
+              activeItems.map((item) => {
+                const entry = cart[item.id];
+                return (
+                  <Card
+                    key={item.id}
+                    className="overflow-hidden border shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    <div className="relative aspect-[4/3] bg-muted">
+                      <img
+                        src={item.imageUrl || '/placeholder.svg'}
+                        alt={item.name}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    </div>
+                    <CardContent className="p-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">{item.name}</p>
+                        <Badge variant="secondary" className="text-xs">
+                          {formatCurrency(item.pricing.amount)}
+                        </Badge>
+                      </div>
+                      {entry ? (
+                        <div className="flex items-center justify-between pt-1">
+                          <div className="inline-flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-full"
+                              onClick={() => handleRemove(item.id)}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="w-6 text-center text-sm font-medium">
+                              {entry.quantity}
+                            </span>
+                            <Button
+                              size="icon"
+                              className="h-8 w-8 rounded-full"
+                              onClick={() =>
+                                handleAdd(item.id, item.name, item.pricing)
+                              }
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="w-full rounded-full mt-1"
+                          onClick={() =>
+                            handleAdd(item.id, item.name, item.pricing)
+                          }
+                        >
+                          Add
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            ) : (
+              <p className="col-span-full text-center text-muted-foreground py-10">
+                No items found in this category.
+              </p>
+            )}
           </div>
         </div>
+      )}
 
-      </div>
+      {/* Floating Cart */}
+      {totalItems > 0 && (
+        <Button
+          variant="outline"
+          size="icon"
+          className="bg-muted fixed bottom-4 right-4 z-40 rounded-full shadow-xl"
+          onClick={() => setTableDialogOpen(true)}
+        >
+          <span className="relative">
+            <ShoppingCart className="h-5 w-5" />
+            <Badge className="absolute -top-3 left-full min-w-5 -translate-x-1/2 rounded-full px-1">
+              {totalItems}
+            </Badge>
+          </span>
+        </Button>
+      )}
+
+      {/* Table Dialog */}
+      <TableDialog
+        open={tableDialogOpen}
+        onOpenChange={setTableDialogOpen}
+        totalAmount={totalAmount}
+        isPlacingOrder={isPlacingOrder}
+        onConfirm={handleConfirmOrder}
+      />
     </div>
   );
-};
-
-export default CustomerMenuPage;
+}

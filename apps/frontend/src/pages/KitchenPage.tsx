@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -11,12 +11,21 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
   useListOrdersQuery,
   useUpdateOrderStatusMutation,
 } from '@/store/api/ordersApi';
+import { useListRestaurantTablesQuery } from '@/store/api/restaurantsApi';
 import type { Order } from '@/store/api/types';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 
@@ -45,6 +54,11 @@ const KitchenPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const [updateStatus, { isLoading: isUpdating }] =
     useUpdateOrderStatusMutation();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'upi' | 'cash'>(
+    'all'
+  );
+  const [zoneFilter, setZoneFilter] = useState<string>('all');
 
   const orderArgs = restaurantId
     ? { restaurantId, limit: 20, page: 1 }
@@ -54,10 +68,62 @@ const KitchenPage = () => {
     skip: !restaurantId,
   });
 
-  const orders =
-    data?.data.filter((order) =>
-      statusesInKitchen.includes(order.status)
-    ) ?? [];
+  const tablesArgs = restaurantId
+    ? { restaurantId, includeInactive: false }
+    : skipToken;
+  const { data: tablesData } = useListRestaurantTablesQuery(tablesArgs, {
+    skip: !restaurantId,
+  });
+
+  const tableLookup = useMemo(() => {
+    const map = new Map<
+      string,
+      { displayName?: string; zone?: string; capacity?: number }
+    >();
+    tablesData?.forEach((table) => {
+      map.set(table.tableNumber.toLowerCase(), {
+        displayName: table.displayName ?? undefined,
+        zone: table.zone ?? undefined,
+        capacity: table.capacity ?? undefined,
+      });
+    });
+    return map;
+  }, [tablesData]);
+
+  const zones = useMemo(() => {
+    const unique = new Set<string>();
+    tablesData?.forEach((table) => {
+      if (table.zone) unique.add(table.zone);
+    });
+    return Array.from(unique);
+  }, [tablesData]);
+
+  const filteredOrders = useMemo(() => {
+    if (!data?.data) return [];
+
+    return data.data
+      .filter((order) => statusesInKitchen.includes(order.status))
+      .filter((order) => {
+        if (paymentFilter === 'all') return true;
+        return order.paymentMethod === paymentFilter;
+      })
+      .filter((order) => {
+        if (zoneFilter === 'all') return true;
+        const meta = order.tableNumber
+          ? tableLookup.get(order.tableNumber.toLowerCase())
+          : undefined;
+        return meta?.zone === zoneFilter;
+      })
+      .filter((order) => {
+        if (!searchTerm.trim()) return true;
+        const needle = searchTerm.trim().toLowerCase();
+        return (
+          order.orderNumber.toLowerCase().includes(needle) ||
+          (order.tableNumber ?? '').toLowerCase().includes(needle) ||
+          (order.customerName ?? '').toLowerCase().includes(needle)
+        );
+      });
+  }, [data?.data, paymentFilter, zoneFilter, searchTerm, tableLookup]);
 
   const grouped = useMemo(() => {
     const map: Record<string, Order[]> = {
@@ -65,11 +131,11 @@ const KitchenPage = () => {
       accepted: [],
       in_progress: [],
     };
-    orders.forEach((order) => {
+    filteredOrders.forEach((order) => {
       map[order.status]?.push(order);
     });
     return map;
-  }, [orders]);
+  }, [filteredOrders]);
 
   if (!restaurantId) {
     return <Navigate to="/onboarding" replace />;
@@ -104,7 +170,7 @@ const KitchenPage = () => {
         <div className="flex flex-1 items-center justify-center">
           <LoadingSpinner size="lg" />
         </div>
-      ) : orders.length === 0 ? (
+      ) : filteredOrders.length === 0 ? (
         <Card className="border-dashed">
           <CardHeader>
             <CardTitle>No live orders</CardTitle>
@@ -114,7 +180,70 @@ const KitchenPage = () => {
           </CardHeader>
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-3">
+        <>
+          <Card className="border-muted bg-card/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Filters</CardTitle>
+              <CardDescription>
+                Narrow the board by table, payment method, or zone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 md:flex-row md:items-center">
+              <div className="flex w-full flex-col gap-1 md:max-w-xs">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  Search ticket / table
+                </p>
+                <Input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="e.g. T4 or 102"
+                />
+              </div>
+              <div className="flex w-full flex-col gap-1 md:max-w-[200px]">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  Payment
+                </p>
+                <Select
+                  value={paymentFilter}
+                  onValueChange={(value) =>
+                    setPaymentFilter(value as 'all' | 'upi' | 'cash')
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Payment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex w-full flex-col gap-1 md:max-w-[220px]">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  Zone / section
+                </p>
+                <Select
+                  value={zoneFilter}
+                  onValueChange={setZoneFilter}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All zones" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All zones</SelectItem>
+                    {zones.map((zone) => (
+                      <SelectItem key={zone} value={zone}>
+                        {zone}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 lg:grid-cols-3">
           {statusesInKitchen.map((status) => (
             <Card key={status} className="flex flex-col">
               <CardHeader className="pb-3">
@@ -131,6 +260,12 @@ const KitchenPage = () => {
                     key={order.id}
                     className="rounded-xl border bg-card p-3 shadow-sm"
                   >
+                    {order.paymentMethod === 'cash' &&
+                      order.paymentStatus !== 'paid' && (
+                        <Badge className="mb-2 w-fit" variant="destructive">
+                          Collect cash at pickup
+                        </Badge>
+                      )}
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold">
@@ -140,7 +275,24 @@ const KitchenPage = () => {
                           {order.customerName ?? 'Guest'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Table {order.tableNumber ?? '—'} •{' '}
+                          Table {order.tableNumber ?? '—'}
+                          {(() => {
+                            if (!order.tableNumber) return null;
+                            const meta = tableLookup.get(
+                              order.tableNumber.toLowerCase()
+                            );
+                            if (!meta) return null;
+                            const parts: string[] = [];
+                            if (meta.displayName) parts.push(meta.displayName);
+                            if (meta.zone) parts.push(meta.zone);
+                            if (meta.capacity)
+                              parts.push(`${meta.capacity} covers`);
+                            return parts.length
+                              ? ` • ${parts.join(' • ')}`
+                              : null;
+                          })()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
                           {order.items.length} item(s)
                         </p>
                       </div>
@@ -196,16 +348,17 @@ const KitchenPage = () => {
                         className="w-full"
                         disabled={isUpdating}
                         onClick={() => handleUpdate(order.id, 'ready', 100)}
-                      >
-                        Ticket ready
-                      </Button>
+                        >
+                          Ticket ready
+                        </Button>
                     </div>
                   </div>
                 ))}
               </CardContent>
             </Card>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
