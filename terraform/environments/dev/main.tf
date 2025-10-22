@@ -217,7 +217,8 @@ module "iam" {
     "roles/iam.serviceAccountUser",
     "roles/firebase.admin",
     "roles/secretmanager.admin",
-    "roles/resourcemanager.projectIamAdmin"
+    "roles/resourcemanager.projectIamAdmin",
+    "roles/storage.admin"
   ]
 
   enable_monitoring_sa = true
