@@ -80,7 +80,7 @@ runs:
 
         # Create comprehensive environment file for frontend app
         cat > apps/frontend/.env << EOF
-        VITE_API_BASE_URL=${{ inputs.api-base-url }}
+        VITE_API_BASE_URL=${{ inputs.api-url }}
         VITE_APP_TIMEZONE=Asia/Kolkata
         VITE_FIREBASE_API_KEY=${{ inputs.firebase-api-key }}
         VITE_FIREBASE_AUTH_DOMAIN=${{ inputs.firebase-auth-domain }}

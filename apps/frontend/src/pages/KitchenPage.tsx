@@ -19,15 +19,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Copy, AlarmClock, Smartphone } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
   useListOrdersQuery,
   useUpdateOrderStatusMutation,
 } from '@/store/api/ordersApi';
-import { useListRestaurantTablesQuery } from '@/store/api/restaurantsApi';
+import {
+  useListRestaurantTablesQuery,
+  useGetRestaurantQuery,
+} from '@/store/api/restaurantsApi';
 import type { Order } from '@/store/api/types';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
+import { useToast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 
 const statusesInKitchen: Order['status'][] = [
   'pending',
@@ -52,6 +58,7 @@ const progressOptions = [
 
 const KitchenPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const { toast } = useToast();
   const [updateStatus, { isLoading: isUpdating }] =
     useUpdateOrderStatusMutation();
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,6 +81,10 @@ const KitchenPage = () => {
   const { data: tablesData } = useListRestaurantTablesQuery(tablesArgs, {
     skip: !restaurantId,
   });
+  const { data: restaurant } = useGetRestaurantQuery(
+    restaurantId ?? skipToken,
+    { skip: !restaurantId }
+  );
 
   const tableLookup = useMemo(() => {
     const map = new Map<
@@ -97,6 +108,52 @@ const KitchenPage = () => {
     });
     return Array.from(unique);
   }, [tablesData]);
+
+  const buildCustomerLink = useCallback(
+    (tableNumber: string) => {
+      if (!restaurant?.slug) return null;
+      const origin =
+        typeof window !== 'undefined' ? window.location.origin : '';
+      if (!origin) return null;
+      const base = `${origin}/c/${restaurant.slug}`;
+      return tableNumber ? `${base}?table=${encodeURIComponent(tableNumber)}` : base;
+    },
+    [restaurant?.slug]
+  );
+
+  const handleCopyLink = useCallback(
+    async (tableNumber?: string | null) => {
+      const link =
+        tableNumber && tableNumber.trim().length > 0
+          ? buildCustomerLink(tableNumber)
+          : buildCustomerLink('');
+      if (!link) {
+        toast({
+          title: 'Link unavailable',
+          description: 'Restaurant slug not loaded yet.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!navigator?.clipboard) {
+        toast({
+          title: 'Clipboard unavailable',
+          description: 'Copy manually: ' + link,
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(link);
+      toast({
+        title: 'Link copied',
+        description: tableNumber
+          ? `Customer link for table ${tableNumber}`
+          : 'Generic menu link copied',
+      });
+    },
+    [buildCustomerLink, toast]
+  );
 
   const filteredOrders = useMemo(() => {
     if (!data?.data) return [];
@@ -258,8 +315,41 @@ const KitchenPage = () => {
                 {(grouped[status] ?? []).map((order) => (
                   <div
                     key={order.id}
-                    className="rounded-xl border bg-card p-3 shadow-sm"
+                    className={cn(
+                      'rounded-xl border bg-card p-3 shadow-sm transition-colors',
+                      (() => {
+                        const createdAt = order.createdAt
+                          ? new Date(order.createdAt)
+                          : null;
+                        if (!createdAt) return '';
+                        const minutes = Math.floor(
+                          (Date.now() - createdAt.getTime()) / 60000
+                        );
+                        return status !== 'ready' && minutes >= 12
+                          ? 'border-destructive/50 bg-destructive/5'
+                          : '';
+                      })()
+                    )}
                   >
+                    {(() => {
+                      const createdAt = order.createdAt
+                        ? new Date(order.createdAt)
+                        : null;
+                      if (!createdAt) return null;
+                      const minutes = Math.floor(
+                        (Date.now() - createdAt.getTime()) / 60000
+                      );
+                      if (status === 'ready' || minutes < 12) return null;
+                      return (
+                        <Badge
+                          variant="outline"
+                          className="mb-2 w-fit border-destructive/60 text-destructive"
+                        >
+                          <AlarmClock className="mr-1 h-3 w-3" />
+                          Over {minutes} mins
+                        </Badge>
+                      );
+                    })()}
                     {order.paymentMethod === 'cash' &&
                       order.paymentStatus !== 'paid' && (
                         <Badge className="mb-2 w-fit" variant="destructive">
@@ -292,6 +382,28 @@ const KitchenPage = () => {
                               : null;
                           })()}
                         </p>
+                        {order.createdAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Placed{' '}
+                            {(() => {
+                              const minutes = Math.max(
+                                0,
+                                Math.floor(
+                                  (Date.now() -
+                                    new Date(order.createdAt).getTime()) /
+                                    60000
+                                )
+                              );
+                              if (minutes === 0) return 'just now';
+                              if (minutes < 60) return `${minutes} min ago`;
+                              const hours = Math.floor(minutes / 60);
+                              const remaining = minutes % 60;
+                              if (hours >= 4)
+                                return `${hours} hr${hours > 1 ? 's' : ''} ago`;
+                              return `${hours}h ${remaining}m ago`;
+                            })()}
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           {order.items.length} item(s)
                         </p>
@@ -309,6 +421,26 @@ const KitchenPage = () => {
                         >
                           {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
                         </Badge>
+                        <div className="flex gap-2">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => handleCopyLink(order.tableNumber)}
+                            title="Copy customer link"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => handleCopyLink('')}
+                            title="Generic menu link"
+                          >
+                            <Smartphone className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                     <div className="mt-3 space-y-2 text-sm text-muted-foreground">

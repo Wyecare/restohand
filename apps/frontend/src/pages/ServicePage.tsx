@@ -1,3 +1,4 @@
+import { useCallback, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -10,6 +11,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Copy, Smartphone } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -17,17 +27,25 @@ import {
   useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,
 } from '@/store/api/ordersApi';
+import {
+  useListRestaurantTablesQuery,
+  useGetRestaurantQuery,
+} from '@/store/api/restaurantsApi';
 import type { Order } from '@/store/api/types';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
-import { useCallback } from 'react';
+import { useToast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 
 const serviceStatuses: Order['status'][] = ['ready', 'completed'];
 
 const ServicePage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const { toast } = useToast();
+
   const orderArgs = restaurantId
-    ? { restaurantId, limit: 20, page: 1 }
+    ? { restaurantId, limit: 40, page: 1 }
     : skipToken;
+
   const { data, isLoading, refetch } = useListOrdersQuery(orderArgs, {
     skip: !restaurantId,
   });
@@ -36,12 +54,121 @@ const ServicePage = () => {
   const [updatePayment, { isLoading: updatingPayment }] =
     useUpdateOrderPaymentMutation();
 
+  const tablesArgs = restaurantId
+    ? { restaurantId, includeInactive: false }
+    : skipToken;
+  const { data: tablesData } = useListRestaurantTablesQuery(tablesArgs, {
+    skip: !restaurantId,
+  });
+  const { data: restaurant } = useGetRestaurantQuery(
+    restaurantId ?? skipToken,
+    { skip: !restaurantId }
+  );
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'upi' | 'cash'>(
+    'all'
+  );
+  const [zoneFilter, setZoneFilter] = useState<string>('all');
+
   if (!restaurantId) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  const orders =
-    data?.data.filter((order) => serviceStatuses.includes(order.status)) ?? [];
+  const tableLookup = useMemo(() => {
+    const map = new Map<
+      string,
+      { displayName?: string; zone?: string; capacity?: number }
+    >();
+    tablesData?.forEach((table) => {
+      map.set(table.tableNumber.toLowerCase(), {
+        displayName: table.displayName ?? undefined,
+        zone: table.zone ?? undefined,
+        capacity: table.capacity ?? undefined,
+      });
+    });
+    return map;
+  }, [tablesData]);
+
+  const zones = useMemo(() => {
+    const set = new Set<string>();
+    tablesData?.forEach((table) => {
+      if (table.zone) set.add(table.zone);
+    });
+    return Array.from(set);
+  }, [tablesData]);
+
+  const buildCustomerLink = useCallback(
+    (tableNumber: string) => {
+      if (!restaurant?.slug) return null;
+      const origin =
+        typeof window !== 'undefined' ? window.location.origin : '';
+      if (!origin) return null;
+      const base = `${origin}/c/${restaurant.slug}`;
+      return tableNumber ? `${base}?table=${encodeURIComponent(tableNumber)}` : base;
+    },
+    [restaurant?.slug]
+  );
+
+  const handleCopyLink = useCallback(
+    async (tableNumber?: string | null) => {
+      const link =
+        tableNumber && tableNumber.trim().length > 0
+          ? buildCustomerLink(tableNumber)
+          : buildCustomerLink('');
+      if (!link) {
+        toast({
+          title: 'Link unavailable',
+          description: 'Restaurant slug not loaded yet.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!navigator?.clipboard) {
+        toast({
+          title: 'Clipboard unavailable',
+          description: 'Copy manually: ' + link,
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(link);
+      toast({
+        title: 'Link copied',
+        description: tableNumber
+          ? `Customer link for table ${tableNumber}`
+          : 'Generic menu link copied',
+      });
+    },
+    [buildCustomerLink, toast]
+  );
+
+  const orders = useMemo(() => {
+    if (!data?.data) return [];
+    return data.data
+      .filter((order) => serviceStatuses.includes(order.status))
+      .filter((order) => {
+        if (paymentFilter === 'all') return true;
+        return order.paymentMethod === paymentFilter;
+      })
+      .filter((order) => {
+        if (zoneFilter === 'all') return true;
+        const meta = order.tableNumber
+          ? tableLookup.get(order.tableNumber.toLowerCase())
+          : undefined;
+        return meta?.zone === zoneFilter;
+      })
+      .filter((order) => {
+        if (!searchTerm.trim()) return true;
+        const needle = searchTerm.trim().toLowerCase();
+        return (
+          order.orderNumber.toLowerCase().includes(needle) ||
+          (order.tableNumber ?? '').toLowerCase().includes(needle) ||
+          (order.customerName ?? '').toLowerCase().includes(needle)
+        );
+      });
+  }, [data?.data, paymentFilter, zoneFilter, searchTerm, tableLookup]);
 
   const readyOrders = orders.filter((order) => order.status === 'ready');
   const completedOrders = orders.filter((order) => order.status === 'completed');
@@ -80,6 +207,65 @@ const ServicePage = () => {
         </p>
       </div>
 
+      <Card className="border-muted bg-card/60">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Filters</CardTitle>
+          <CardDescription>
+            Find tickets by table, zone, payment method, or guest.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="flex w-full flex-col gap-1 md:max-w-xs">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">
+              Search ticket / table
+            </p>
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="e.g. T2 or Patel"
+            />
+          </div>
+          <div className="flex w-full flex-col gap-1 md:max-w-[200px]">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">
+              Payment
+            </p>
+            <Select
+              value={paymentFilter}
+              onValueChange={(value) =>
+                setPaymentFilter(value as 'all' | 'upi' | 'cash')
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All payments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="upi">UPI</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex w-full flex-col gap-1 md:max-w-[220px]">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">
+              Zone / section
+            </p>
+            <Select value={zoneFilter} onValueChange={setZoneFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All zones" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All zones</SelectItem>
+                {zones.map((zone) => (
+                  <SelectItem key={zone} value={zone}>
+                    {zone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       {isLoading ? (
         <div className="flex flex-1 items-center justify-center">
           <LoadingSpinner size="lg" />
@@ -97,60 +283,106 @@ const ServicePage = () => {
             </CardHeader>
             <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
               {readyOrders.length ? (
-                readyOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="rounded-xl border bg-card p-3 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          #{order.orderNumber}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Table {order.tableNumber ?? '—'}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge variant="secondary">
-                          ₹{order.totalAmount.toFixed(2)}
-                        </Badge>
-                        <Badge
-                          variant={
-                            order.paymentMethod === 'cash'
-                              ? 'destructive'
-                              : 'outline'
-                          }
-                        >
-                          {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                      {order.items.map((item) => (
-                        <div
-                          key={`${order.id}-${item.menuItemId}-${item.name}`}
-                          className="flex items-center justify-between gap-2"
-                        >
-                          <span>{item.name}</span>
-                          <span className="font-medium text-foreground">
-                            ×{item.quantity}
-                          </span>
+                readyOrders.map((order) => {
+                  const meta = order.tableNumber
+                    ? tableLookup.get(order.tableNumber.toLowerCase())
+                    : undefined;
+                  return (
+                    <div
+                      key={order.id}
+                      className={cn(
+                        'rounded-xl border bg-card p-3 shadow-sm transition-colors',
+                        order.paymentMethod === 'cash' &&
+                          order.paymentStatus !== 'paid' &&
+                          'border-destructive/40 bg-destructive/5'
+                      )}
+                    >
+                      {order.paymentMethod === 'cash' &&
+                        order.paymentStatus !== 'paid' && (
+                          <Badge
+                            className="mb-2 w-fit"
+                            variant="destructive"
+                          >
+                            Collect cash before handoff
+                          </Badge>
+                        )}
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">
+                            #{order.orderNumber}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Table {order.tableNumber ?? '—'}
+                            {meta &&
+                              ` • ${[
+                                meta.displayName,
+                                meta.zone,
+                              ]
+                                .filter(Boolean)
+                                .join(' • ')}`}
+                          </p>
                         </div>
-                      ))}
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="secondary">
+                            ₹{order.totalAmount.toFixed(2)}
+                          </Badge>
+                          <Badge
+                            variant={
+                              order.paymentMethod === 'cash'
+                                ? 'destructive'
+                                : 'outline'
+                            }
+                          >
+                            {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
+                          </Badge>
+                          <div className="flex gap-2">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleCopyLink(order.tableNumber)}
+                              title="Copy customer link"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleCopyLink('')}
+                              title="Generic menu link"
+                            >
+                              <Smartphone className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                        {order.items.map((item) => (
+                          <div
+                            key={`${order.id}-${item.menuItemId}-${item.name}`}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span>{item.name}</span>
+                            <span className="font-medium text-foreground">
+                              ×{item.quantity}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          disabled={updatingStatus}
+                          onClick={() => handleComplete(order.id)}
+                        >
+                          Mark delivered
+                        </Button>
+                      </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        disabled={updatingStatus}
-                        onClick={() => handleComplete(order.id)}
-                      >
-                        Mark delivered
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <CardDescription>No ready orders at the moment.</CardDescription>
               )}
@@ -168,63 +400,109 @@ const ServicePage = () => {
             </CardHeader>
             <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
               {completedOrders.length ? (
-                completedOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="rounded-xl border bg-card p-3 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          #{order.orderNumber}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {order.customerName ?? 'Guest'}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge variant="outline">
-                          {order.paymentStatus === 'paid'
-                            ? 'Paid'
-                            : 'Awaiting Payment'}
-                        </Badge>
-                        <Badge
-                          variant={
-                            order.paymentMethod === 'cash'
-                              ? 'destructive'
-                              : 'secondary'
-                          }
-                        >
-                          {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                      {order.items.map((item) => (
-                        <div
-                          key={`${order.id}-${item.menuItemId}-${item.name}`}
-                          className="flex items-center justify-between gap-2"
-                        >
-                          <span>{item.name}</span>
-                          <span className="font-medium text-foreground">
-                            ×{item.quantity}
-                          </span>
+                completedOrders.map((order) => {
+                  const meta = order.tableNumber
+                    ? tableLookup.get(order.tableNumber.toLowerCase())
+                    : undefined;
+                  return (
+                    <div
+                      key={order.id}
+                      className="rounded-xl border bg-card p-3 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">
+                            #{order.orderNumber}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.customerName ?? 'Guest'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Table {order.tableNumber ?? '—'}
+                            {meta &&
+                              ` • ${[
+                                meta.displayName,
+                                meta.zone,
+                              ]
+                                .filter(Boolean)
+                                .join(' • ')}`}
+                          </p>
                         </div>
-                      ))}
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="outline">
+                            {order.paymentStatus === 'paid'
+                              ? 'Paid'
+                              : 'Awaiting Payment'}
+                          </Badge>
+                          <Badge
+                            variant={
+                              order.paymentMethod === 'cash'
+                                ? 'destructive'
+                                : 'secondary'
+                            }
+                          >
+                            {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
+                          </Badge>
+                          <div className="flex gap-2">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleCopyLink(order.tableNumber)}
+                              title="Copy customer link"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleCopyLink('')}
+                              title="Generic menu link"
+                            >
+                              <Smartphone className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                        {order.items.map((item) => (
+                          <div
+                            key={`${order.id}-${item.menuItemId}-${item.name}`}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span>{item.name}</span>
+                            <span className="font-medium text-foreground">
+                              ×{item.quantity}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="flex-1"
+                          disabled={
+                            updatingPayment || order.paymentStatus === 'paid'
+                          }
+                          onClick={() => handleMarkPaid(order.id)}
+                        >
+                          Mark as paid
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          disabled={updatingStatus}
+                          onClick={() => handleComplete(order.id)}
+                        >
+                          Close ticket
+                        </Button>
+                      </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="flex-1"
-                        disabled={updatingPayment || order.paymentStatus === 'paid'}
-                        onClick={() => handleMarkPaid(order.id)}
-                      >
-                        Mark as paid
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <CardDescription>
                   Closed tickets will accumulate here for reconciliation.

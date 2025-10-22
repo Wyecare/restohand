@@ -50,6 +50,11 @@ const MenuPage = () => {
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState('');
   const [itemDescription, setItemDescription] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState<
+    'all' | 'available' | 'unavailable'
+  >('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   if (!restaurantId) {
     return <Navigate to="/onboarding" replace />;
@@ -72,6 +77,38 @@ const MenuPage = () => {
     restaurantId ? { restaurantId, categoryId: categoryIdFilter } : skipToken
   );
   const menuItems = menuItemsResponse?.data ?? [];
+
+  const menuStats = useMemo(() => {
+    const total = menuItems.length;
+    const available = menuItems.filter((item) => item.isAvailable).length;
+    return {
+      total,
+      available,
+      unavailable: total - available,
+      categories: categories.length,
+    };
+  }, [menuItems, categories.length]);
+
+  const filteredItems = useMemo(() => {
+    return menuItems.filter((item) => {
+      if (availabilityFilter === 'available' && !item.isAvailable) {
+        return false;
+      }
+      if (availabilityFilter === 'unavailable' && item.isAvailable) {
+        return false;
+      }
+      if (searchTerm.trim().length) {
+        const needle = searchTerm.trim().toLowerCase();
+        if (
+          !item.name.toLowerCase().includes(needle) &&
+          !(item.description ?? '').toLowerCase().includes(needle)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [menuItems, availabilityFilter, searchTerm]);
 
   const [createCategory, { isLoading: isCreatingCategory }] =
     useCreateMenuCategoryMutation();
@@ -192,6 +229,35 @@ const MenuPage = () => {
     }
   };
 
+  const handleBulkAvailability = async (isAvailable: boolean) => {
+    if (!restaurantId || filteredItems.length === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(
+        filteredItems.map((item) =>
+          updateMenuItem({
+            restaurantId,
+            itemId: item.id,
+            body: { isAvailable },
+          }).unwrap()
+        )
+      );
+      toast({
+        title: isAvailable ? 'Items marked available' : 'Items paused',
+        description: `${filteredItems.length} item(s) updated`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Unable to bulk update items',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -199,6 +265,41 @@ const MenuPage = () => {
         <p className="text-muted-foreground">
           Create categories, add dishes, and control availability instantly.
         </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Total items</CardDescription>
+            <CardTitle className="text-3xl font-semibold">
+              {menuStats.total}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Available</CardDescription>
+            <CardTitle className="text-3xl font-semibold">
+              {menuStats.available}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Unavailable</CardDescription>
+            <CardTitle className="text-3xl font-semibold">
+              {menuStats.unavailable}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Categories</CardDescription>
+            <CardTitle className="text-3xl font-semibold">
+              {menuStats.categories}
+            </CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -358,54 +459,117 @@ const MenuPage = () => {
         <CardHeader>
           <CardTitle className="text-lg">Menu Items</CardTitle>
           <CardDescription>
-            Filter by category to focus on a section and keep availability in
-            sync.
+            Filter by category to focus on a section and keep availability in sync.
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex w-full flex-col gap-1 md:max-w-xs">
+              <Label className="text-xs uppercase text-muted-foreground">Search dishes</Label>
+              <Input
+                placeholder="e.g. dosa or filter"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
+            <div className="flex w-full flex-col gap-1 md:max-w-[200px]">
+              <Label className="text-xs uppercase text-muted-foreground">Availability</Label>
+              <Select value={availabilityFilter} onValueChange={(value) => setAvailabilityFilter(value as typeof availabilityFilter)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All items" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="unavailable">Unavailable</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex w-full flex-col gap-1 md:max-w-[220px]">
+              <Label className="text-xs uppercase text-muted-foreground">Category</Label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isBulkUpdating || filteredItems.length === 0}
+                onClick={() => handleBulkAvailability(true)}
+              >
+                Mark visible available
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isBulkUpdating || filteredItems.length === 0}
+                onClick={() => handleBulkAvailability(false)}
+              >
+                Pause visible items
+              </Button>
+            </div>
+          </div>
+
           {isItemsLoading || isItemsFetching ? (
             <div className="flex items-center justify-center py-10">
               <LoadingSpinner />
             </div>
-          ) : menuItems.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {menuItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>
-                      {categories.find((cat) => cat.id === item.categoryId)
-                        ?.name ?? 'Uncategorised'}
-                    </TableCell>
-                    <TableCell>₹{item.pricing.amount.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={item.isAvailable}
-                          onCheckedChange={(value) =>
-                            handleAvailabilityToggle(item.id, value)
-                          }
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {item.isAvailable ? 'Available' : 'Unavailable'}
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
+          ) : menuItems.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
               No items yet. Add your first dish using the form above.
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No dishes match the current filters.
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>
+                        {categories.find((cat) => cat.id === item.categoryId)?.name ??
+                          'Uncategorised'}
+                      </TableCell>
+                      <TableCell>₹{item.pricing.amount.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={item.isAvailable}
+                            onCheckedChange={(value) =>
+                              handleAvailabilityToggle(item.id, value)
+                            }
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {item.isAvailable ? 'Available' : 'Unavailable'}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>

@@ -17,6 +17,7 @@ import StaffLoginPage from '@/pages/StaffLoginPage';
 import ForbiddenPage from '@/pages/ForbiddenPage';
 import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
 import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
+import ReportsPage from '@/pages/ReportsPage';
 
 const AppRouter = () => {
   return (
@@ -71,6 +72,7 @@ const AppRouter = () => {
           <Route path="menu" element={<MenuPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />
+          <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

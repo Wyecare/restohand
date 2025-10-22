@@ -22,6 +22,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { CreateOrderDto } from './dtos/create-order.dto';
 import { OrderListResponseDto } from './dtos/order-list-response.dto';
 import { OrderResponseDto } from './dtos/order-response.dto';
+import { OrderEventResponseDto } from './dtos/order-event-response.dto';
 import { QueryOrdersDto } from './dtos/query-orders.dto';
 import { UpdateOrderPaymentDto } from './dtos/update-order-payment.dto';
 import { UpdateOrderStatusDto } from './dtos/update-order-status.dto';
@@ -98,5 +99,18 @@ export class OrdersController {
     @Body() dto: UpdateOrderPaymentDto
   ) {
     return this.ordersService.updatePayment(restaurantId, orderId, dto);
+  }
+
+  @Get(':orderId/events')
+  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiOkResponse({ type: [OrderEventResponseDto] })
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  async listEvents(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string
+  ) {
+    return this.ordersService.listEvents(restaurantId, orderId);
   }
 }

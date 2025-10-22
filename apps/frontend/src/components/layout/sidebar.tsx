@@ -27,6 +27,7 @@ const managerLinks: NavLink[] = [
   { title: 'Menu', href: '/menu' },
   { title: 'Staff', href: '/staff' },
   { title: 'Tables', href: '/tables' },
+  { title: 'Reports', href: '/reports' },
   { title: 'Settings', href: '/settings' },
 ];
 

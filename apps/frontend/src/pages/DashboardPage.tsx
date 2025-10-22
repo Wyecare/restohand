@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -25,7 +26,14 @@ import {
 } from '@/store/slices/authSlice';
 import { useGetRestaurantQuery } from '@/store/api/restaurantsApi';
 import { useListOrdersQuery } from '@/store/api/ordersApi';
-import { RefreshCw, CreditCard, ShoppingBag, QrCode } from 'lucide-react';
+import {
+  RefreshCw,
+  CreditCard,
+  ShoppingBag,
+  QrCode,
+  Wallet,
+  TrendingUp,
+} from 'lucide-react';
 
 const formatCurrency = (amount: number, currency: string) =>
   new Intl.NumberFormat('en-IN', {
@@ -58,6 +66,36 @@ const DashboardPage = () => {
     0
   );
 
+  const paymentSummary = useMemo(() => {
+    let cashTickets = 0;
+    let upiTickets = 0;
+    let cashAmount = 0;
+    let upiAmount = 0;
+
+    recentOrders?.data.forEach((order) => {
+      if (order.paymentMethod === 'cash') {
+        cashTickets += 1;
+        cashAmount += order.totalAmount;
+      } else {
+        upiTickets += 1;
+        upiAmount += order.totalAmount;
+      }
+    });
+
+    const totalTickets = cashTickets + upiTickets;
+    return {
+      cashTickets,
+      upiTickets,
+      cashAmount,
+      upiAmount,
+      cashPercent: totalTickets ? Math.round((cashTickets / totalTickets) * 100) : 0,
+      upiPercent: totalTickets ? Math.round((upiTickets / totalTickets) * 100) : 0,
+    };
+  }, [recentOrders]);
+
+  const averageTicket =
+    totalOrders > 0 ? (totalRevenue ?? 0) / totalOrders : 0;
+
   const restaurantCurrency = restaurant?.upi.mode === 'dynamic' ? 'INR' : 'INR';
 
   if (!session?.restaurantId) return <Navigate to="/onboarding" replace />;
@@ -87,7 +125,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="hover:shadow-md transition-all border-border/60">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -137,6 +175,62 @@ const DashboardPage = () => {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               QR workflow in use
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-all border-border/60">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-primary" />
+              Payment mix
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-baseline justify-between text-sm">
+              <span>Cash</span>
+              <span className="font-semibold">
+                {paymentSummary.cashTickets} •{' '}
+                {formatCurrency(paymentSummary.cashAmount, restaurantCurrency)}
+                {paymentSummary.cashTickets > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {' '}
+                    ({paymentSummary.cashPercent}%)
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between text-sm">
+              <span>UPI</span>
+              <span className="font-semibold">
+                {paymentSummary.upiTickets} •{' '}
+                {formatCurrency(paymentSummary.upiAmount, restaurantCurrency)}
+                {paymentSummary.upiTickets > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {' '}
+                    ({paymentSummary.upiPercent}%)
+                  </span>
+                )}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-all border-border/60">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Avg. ticket size
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold">
+              {isOrdersLoading
+                ? '—'
+                : formatCurrency(averageTicket ?? 0, restaurantCurrency)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Based on recent orders pulled
             </p>
           </CardContent>
         </Card>

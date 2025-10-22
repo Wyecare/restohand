@@ -13,6 +13,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
@@ -48,6 +55,7 @@ const TablesPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
   const [showInactive, setShowInactive] = useState(false);
+  const [zoneFilter, setZoneFilter] = useState<string>('all');
   const [form, setForm] = useState<TableFormState>(emptyForm);
   const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -78,6 +86,26 @@ const TablesPage = () => {
     useReactivateRestaurantTableMutation();
   const [generateQr, { isLoading: isGeneratingQr }] =
     useGenerateRestaurantTableQrMutation();
+
+  const zones = useMemo(() => {
+    const unique = new Set<string>();
+    tables.forEach((table) => {
+      if (table.zone) unique.add(table.zone);
+    });
+    return Array.from(unique);
+  }, [tables]);
+
+  const filteredTables = useMemo(() => {
+    return tables.filter((table) => {
+      if (zoneFilter !== 'all' && table.zone !== zoneFilter) {
+        return false;
+      }
+      if (!showInactive && !table.isActive) {
+        return false;
+      }
+      return true;
+    });
+  }, [tables, zoneFilter, showInactive]);
 
   const stats = useMemo(() => {
     const active = tables.filter((table) => table.isActive).length;
@@ -353,15 +381,30 @@ const TablesPage = () => {
               Manage seating assignments and keep QR codes in sync with table numbers.
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              id="show-inactive"
-              checked={showInactive}
-              onCheckedChange={setShowInactive}
-            />
-            <Label htmlFor="show-inactive" className="text-sm">
-              Show inactive tables
-            </Label>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-inactive"
+                checked={showInactive}
+                onCheckedChange={setShowInactive}
+              />
+              <Label htmlFor="show-inactive" className="text-sm">
+                Show inactive tables
+              </Label>
+            </div>
+            <Select value={zoneFilter} onValueChange={setZoneFilter}>
+              <SelectTrigger className="md:w-48">
+                <SelectValue placeholder="Filter by zone" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All zones</SelectItem>
+                {zones.map((zone) => (
+                  <SelectItem key={zone} value={zone}>
+                    {zone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -373,9 +416,13 @@ const TablesPage = () => {
             <div className="py-10 text-center text-sm text-muted-foreground">
               No tables yet. Add your first table to begin printing QR codes.
             </div>
+          ) : filteredTables.length === 0 ? (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No tables match the current filters.
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {tables.map((table) => (
+              {filteredTables.map((table) => (
                 <Card
                   key={table.id}
                   className={`border ${table.isActive ? 'border-muted' : 'border-dashed border-muted-foreground/40 bg-muted/20'}`}

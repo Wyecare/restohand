@@ -5,6 +5,7 @@ import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restauran
 import { MenuCategory, MenuCategoryDocument } from '../menu-categories/schemas/menu-category.schema';
 import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
+import { OrdersService } from '../orders/orders.service';
 
 @Injectable()
 export class PublicService {
@@ -16,7 +17,8 @@ export class PublicService {
     @InjectModel(MenuItem.name)
     private readonly itemModel: Model<MenuItemDocument>,
     @InjectModel(Order.name)
-    private readonly orderModel: Model<OrderDocument>
+    private readonly orderModel: Model<OrderDocument>,
+    private readonly ordersService: OrdersService
   ) {}
 
   async getRestaurantBySlug(slug: string) {
@@ -119,5 +121,16 @@ export class PublicService {
         pricing: item.pricing,
       })),
     };
+  }
+
+  async getInvoice(slug: string, orderId: string) {
+    const restaurant = await this.restaurantModel.findOne({ slug }).lean();
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${slug} not found`);
+    }
+    return this.ordersService.generateInvoiceHtml(
+      restaurant._id.toString(),
+      orderId
+    );
   }
 }

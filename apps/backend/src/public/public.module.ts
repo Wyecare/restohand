@@ -6,6 +6,7 @@ import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema
 import { Order, OrderSchema } from '../orders/schemas/order.schema';
 import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { PublicService } from './public.service';
       { name: MenuItem.name, schema: MenuItemSchema },
       { name: Order.name, schema: OrderSchema },
     ]),
+    OrdersModule,
   ],
   controllers: [PublicController],
   providers: [PublicService],

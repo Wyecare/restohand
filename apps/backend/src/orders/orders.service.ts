@@ -13,6 +13,8 @@ import { UpdateOrderStatusDto } from './dtos/update-order-status.dto';
 import { CreateOrderItemDto } from './dtos/create-order-item.dto';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import { OrderEvent, OrderEventDocument } from './schemas/order-event.schema';
+import { OrderEventResponseDto } from './dtos/order-event-response.dto';
 import { OrdersGateway } from './orders.gateway';
 
 interface CalculatedTotals {
@@ -29,6 +31,8 @@ export class OrdersService {
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(Restaurant.name)
     private readonly restaurantModel: Model<RestaurantDocument>,
+    @InjectModel(OrderEvent.name)
+    private readonly eventModel: Model<OrderEventDocument>,
     private readonly ordersGateway: OrdersGateway
   ) {}
 
@@ -63,6 +67,10 @@ export class OrdersService {
     });
 
     const response = this.toDto(created);
+    await this.recordEvent(created._id.toString(), restaurantId, 'order.created', {
+      totalAmount: response.totalAmount,
+      paymentMethod: response.paymentMethod,
+    });
 
     if (paymentMethod === 'upi') {
       const amount = totals.total.toFixed(2);
@@ -188,6 +196,11 @@ export class OrdersService {
     }
 
     const response = this.toDto(updated);
+    await this.recordEvent(orderId, restaurantId, 'order.status.updated', {
+      status: response.status,
+      progress: response.progress,
+      statusNote: response.statusNote,
+    });
     this.ordersGateway.emitOrderUpdated(response);
     return response;
   }
@@ -227,8 +240,117 @@ export class OrdersService {
     }
 
     const response = this.toDto(updated);
+    await this.recordEvent(orderId, restaurantId, 'order.payment.updated', {
+      paymentStatus: response.paymentStatus,
+      paymentMethod: response.paymentMethod,
+      paidAt: response.paidAt,
+    });
     this.ordersGateway.emitOrderUpdated(response);
     return response;
+  }
+
+  async listEvents(
+    restaurantId: string,
+    orderId: string
+  ): Promise<OrderEventResponseDto[]> {
+    const events = await this.eventModel
+      .find({ orderId, restaurantId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return events.map((event) => ({
+      id: event._id.toString(),
+      type: event.type,
+      payload: event.payload ?? undefined,
+      createdAt: event.createdAt
+        ? event.createdAt.toISOString()
+        : new Date().toISOString(),
+    }));
+  }
+
+  async generateInvoiceHtml(
+    restaurantId: string,
+    orderId: string
+  ): Promise<{ filename: string; html: string }> {
+    const order = await this.orderModel
+      .findOne({ _id: orderId, restaurantId })
+      .populate([{ path: 'restaurantId', select: ['name'] }])
+      .lean();
+
+    if (!order) {
+      throw new NotFoundException(
+        `Order ${orderId} not found for restaurant ${restaurantId}`
+      );
+    }
+
+    const restaurantName =
+      (order.restaurantId as any)?.name ?? 'Restohand Restaurant';
+    const itemsRows = order.items
+      .map(
+        (item) =>
+          `<tr><td>${item.name}</td><td style="text-align:right;">${item.quantity}</td><td style="text-align:right;">₹${item.pricing.unitAmount.toFixed(
+            2
+          )}</td></tr>`
+      )
+      .join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Invoice #${order.orderNumber}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 40px; color: #111827; }
+      h1 { margin-bottom: 0; }
+      table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+      th, td { padding: 8px 4px; border-bottom: 1px solid #E5E7EB; }
+      th { text-align: left; background-color: #F3F4F6; }
+      .totals { margin-top: 24px; }
+    </style>
+  </head>
+  <body>
+    <h1>${restaurantName}</h1>
+    <p>Ticket #${order.orderNumber}</p>
+    <p>Placed on ${new Date(order.createdAt).toLocaleString()}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th style="text-align:right;">Qty</th>
+          <th style="text-align:right;">Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+      </tbody>
+    </table>
+    <div class="totals">
+      <p><strong>Subtotal:</strong> ₹${order.subTotalAmount?.toFixed(2) ?? order.totalAmount.toFixed(2)}</p>
+      <p><strong>Total:</strong> ₹${order.totalAmount.toFixed(2)}</p>
+      <p><strong>Payment method:</strong> ${order.paymentMethod}</p>
+      <p><strong>Status:</strong> ${order.paymentStatus}</p>
+    </div>
+  </body>
+</html>`;
+
+    return {
+      filename: `invoice-${order.orderNumber}.html`,
+      html,
+    };
+  }
+
+  private async recordEvent(
+    orderId: string,
+    restaurantId: string,
+    type: string,
+    payload?: Record<string, unknown>
+  ) {
+    await this.eventModel.create({
+      orderId,
+      restaurantId,
+      type,
+      payload,
+    });
   }
 
   private calculateTotals(items: CreateOrderItemDto[]): CalculatedTotals {
