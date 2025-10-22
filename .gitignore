@@ -77,11 +77,12 @@ config/**/service-account-key.json
 **/*-key.json
 config/firebase-service-account.json
 config/*service-account*.json
-**/*.json
 !package.json
 !package-lock.json
-!tsconfig.json
 !firebase.json
+!tsconfig.json
+!/apps/**/tsconfig.json
+!/libs/**/tsconfig.json
 
 # Environment files
 .env

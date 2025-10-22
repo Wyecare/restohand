@@ -12,7 +12,6 @@ COPY tsconfig.json ./
 COPY tsconfig.base.json ./
 COPY jest.preset.js ./
 COPY eslint.config.mjs ./
-COPY libs ./libs
 COPY apps ./apps
 # Skip config directory - Google Cloud Storage uses Application Default Credentials
 
