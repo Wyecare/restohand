@@ -123,8 +123,8 @@ jobs:
     needs: setup
     if: needs.setup.outputs.should-deploy-infra == 'true'
     outputs:
-      backend-service-url: ${{ steps.deploy.outputs.backend-service-url }}
-      firebase-backend-key: ${{ steps.deploy.outputs.firebase-backend-key }}
+      api-service-url: ${{ steps.deploy.outputs.api-service-url }}
+      firebase-api-key: ${{ steps.deploy.outputs.firebase-api-key }}
       firebase-auth-domain: ${{ steps.deploy.outputs.firebase-auth-domain }}
       firebase-project-id: ${{ steps.deploy.outputs.firebase-project-id }}
       firebase-storage-bucket: ${{ steps.deploy.outputs.firebase-storage-bucket }}
@@ -179,7 +179,7 @@ jobs:
         with:
           environment: ${{ needs.setup.outputs.environment }}
           app-name: 'backend'
-          dockerfile: 'Dockerfile.backend'
+          dockerfile: 'Dockerfile.api'
           gcp-service-account: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_SERVICE_ACCOUNT_PROD || secrets.GCP_SERVICE_ACCOUNT_DEV }}
           workload-identity-provider: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_PROD || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
 
@@ -200,7 +200,7 @@ jobs:
 
       - name: 🚀 Deploy backend to Cloud Run
         id: deploy
-        uses: ./.github/actions/backend-deploy
+        uses: ./.github/actions/api-deploy
         with:
           environment: ${{ needs.setup.outputs.environment }}
           image-url: ${{ needs.docker-build.outputs.backend-image-url }}
@@ -229,8 +229,8 @@ jobs:
           environment: ${{ needs.setup.outputs.environment }}
           firebase-service-account: ${{ needs.setup.outputs.environment == 'prod' && secrets.FIREBASE_SERVICE_ACCOUNT_PROD || secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}
           firebase-vapid-key: ${{ needs.setup.outputs.environment == 'prod' && secrets.FIREBASE_VAPID_KEY_PROD || secrets.FIREBASE_VAPID_KEY_DEV }}
-          backend-url: ${{ needs.infrastructure.outputs.backend-service-url }}
-          firebase-backend-key: ${{ needs.infrastructure.outputs.firebase-backend-key }}
+          api-url: ${{ needs.infrastructure.outputs.api-service-url }}
+          firebase-api-key: ${{ needs.infrastructure.outputs.firebase-api-key }}
           firebase-auth-domain: ${{ needs.infrastructure.outputs.firebase-auth-domain }}
           firebase-project-id: ${{ needs.infrastructure.outputs.firebase-project-id }}
           firebase-storage-bucket: ${{ needs.infrastructure.outputs.firebase-storage-bucket }}
