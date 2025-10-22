@@ -218,6 +218,7 @@ module "iam" {
     "roles/firebase.admin",
     "roles/secretmanager.admin",
     "roles/resourcemanager.projectIamAdmin",
+    "roles/vpcaccess.admin",
     "roles/storage.admin",
     "roles/iam.workloadIdentityPoolAdmin",
     "roles/iam.serviceAccountAdmin",
