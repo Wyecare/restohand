@@ -35,16 +35,15 @@ output "artifact_registry_url" {
 #   value       = module.storage.assets_bucket_name
 # }
 
-# Compute Outputs
-# output "api_service_url" {
-#   description = "API service URL"
-#   value       = module.compute.api_service_url
-# }
+output "api_service_url" {
+  description = "API service URL"
+  value       = module.run_api.api_service_url
+}
 
-# output "worker_service_url" {
-#   description = "Worker service URL (if enabled)"
-#   value       = module.compute.worker_service_url
-# }
+output "api_service_account_email" {
+  description = "API service account email"
+  value       = module.run_api.api_service_account_email
+}
 
 # Firebase Outputs
 output "firebase_config" {
@@ -81,8 +80,7 @@ output "github_secrets_setup" {
     workload_identity_provider = module.iam.workload_identity_provider_name
     service_account_email      = module.iam.github_service_account_email
     artifact_registry_url      = module.storage.artifact_registry_url
-    # api_service_name          = module.compute.api_service_name
-    # worker_service_name       = module.compute.worker_service_name
+    api_service_name           = module.run_api.api_service_name
   }
 }
 
@@ -90,12 +88,10 @@ output "github_secrets_setup" {
 output "deployment_summary" {
   description = "Complete deployment summary"
   value = {
-    environment     = "dev"
-    project_id      = module.project.project_id
-    region          = var.region
-    # api_url         = module.compute.api_service_url
-    # worker_url      = module.compute.worker_service_url
-    firebase_site   = module.firebase.hosting_site_id
-    # separate_worker = var.enable_separate_worker
+    environment   = "dev"
+    project_id    = module.project.project_id
+    region        = var.region
+    api_url       = module.run_api.api_service_url
+    firebase_site = module.firebase.hosting_site_id
   }
 }

@@ -1,0 +1,114 @@
+name: 'API Deployment'
+description: 'Deploy API to Cloud Run'
+inputs:
+  environment:
+    description: 'Environment (dev/prod)'
+    required: true
+  image-url:
+    description: 'Docker image URL'
+    required: true
+  gcp-service-account:
+    description: 'GCP Service Account JSON'
+    required: true
+  workload-identity-provider:
+    description: 'GCP Workload Identity Provider'
+    required: true
+  region:
+    description: 'GCP region'
+    required: false
+    default: 'asia-south1'
+outputs:
+  service-url:
+    description: 'Cloud Run service URL'
+    value: ${{ steps.deploy.outputs.service-url }}
+  deployment-status:
+    description: 'Deployment status'
+    value: ${{ steps.deploy.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+        service_account: ${{ inputs.gcp-service-account }}
+
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-dev' }}
+
+    - name: Deploy to Cloud Run
+      id: deploy
+      shell: bash
+      run: |
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-dev' }}"
+        SERVICE_NAME="${{ inputs.environment }}-api"
+
+        # Deploy to Cloud Run
+        gcloud run deploy $SERVICE_NAME \
+          --image="${{ inputs.image-url }}:${{ github.sha }}" \
+          --region=${{ inputs.region }} \
+          --project=$PROJECT_ID \
+          --platform=managed \
+          --allow-unauthenticated \
+          --memory=1Gi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=10 \
+          --timeout=300 \
+          --port=3000 \
+          --set-env-vars="NODE_ENV=production" \
+          --set-env-vars="ENVIRONMENT=${{ inputs.environment }}" \
+          --set-env-vars="FIREBASE_PROJECT_ID=restohand-${{ inputs.environment }}" \
+          --set-env-vars="FIREBASE_STORAGE_BUCKET=restohand-${{ inputs.environment }}-firebase" \
+          --quiet
+
+        # Get service URL
+        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME \
+          --region=${{ inputs.region }} \
+          --project=$PROJECT_ID \
+          --format="value(status.url)")
+
+        echo "service-url=$SERVICE_URL" >> $GITHUB_OUTPUT
+        echo "✅ API deployed successfully to: $SERVICE_URL"
+
+    - name: Health Check
+      shell: bash
+      run: |
+        SERVICE_URL="${{ steps.deploy.outputs.service-url }}"
+
+        # Wait for service to be ready
+        echo "🔄 Waiting for service to be ready..."
+        sleep 30
+
+        # Health check with retries
+        for i in {1..5}; do
+          echo "🩺 Health check attempt $i/5..."
+          if curl -f --max-time 30 "$SERVICE_URL/health" || curl -f --max-time 30 "$SERVICE_URL/api/health"; then
+            echo "✅ Health check passed!"
+            break
+          elif [ $i -eq 5 ]; then
+            echo "❌ Health check failed after 5 attempts"
+            exit 1
+          else
+            echo "⏳ Retrying in 15 seconds..."
+            sleep 15
+          fi
+        done
+
+    - name: Update Traffic
+      shell: bash
+      run: |
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-dev' }}"
+        SERVICE_NAME="${{ inputs.environment }}-api"
+
+        # Update traffic to latest revision
+        gcloud run services update-traffic $SERVICE_NAME \
+          --region=${{ inputs.region }} \
+          --project=$PROJECT_ID \
+          --to-latest \
+          --quiet
+
+        echo "✅ Traffic updated to latest revision"

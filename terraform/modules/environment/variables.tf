@@ -58,7 +58,7 @@ variable "artifact_registry_repository" {
 variable "artifact_registry_description" {
   description = "Description for the Artifact Registry repository"
   type        = string
-  default     = "Container images for Wyecare platform"
+  default     = "Container images for Restohand platform"
 }
 
 variable "api_image" {
@@ -71,7 +71,7 @@ variable "api_image" {
 variable "api_service_name" {
   description = "Cloud Run service name for the API"
   type        = string
-  default     = "wyecare-api"
+  default     = "restohand-api"
 }
 
 # REMOVED: worker_service_name variable - no longer needed
@@ -79,7 +79,7 @@ variable "api_service_name" {
 variable "database_instance_name" {
   description = "Cloud SQL instance name"
   type        = string
-  default     = "wyecare-sql"
+  default     = "restohand-sql"
 }
 
 variable "database_tier" {
@@ -97,19 +97,19 @@ variable "database_version" {
 variable "database_name" {
   description = "Default database name"
   type        = string
-  default     = "wyecare"
+  default     = "restohand"
 }
 
 variable "database_user" {
   description = "Application database user"
   type        = string
-  default     = "wyecare_app"
+  default     = "restohand_app"
 }
 
 variable "redis_instance_name" {
   description = "Memorystore Redis instance ID"
   type        = string
-  default     = "wyecare-redis"
+  default     = "restohand-redis"
 }
 
 variable "redis_memory_size_gb" {
@@ -143,7 +143,7 @@ variable "firebase_site_id" {
 variable "firebase_web_app_display_name" {
   description = "Display name for the Firebase web app"
   type        = string
-  default     = "Wyecare Web"
+  default     = "Restohand Web"
 }
 
 variable "timezone" {
@@ -206,7 +206,7 @@ variable "environment" {
 variable "mail_from" {
   description = "Default email sender name"
   type        = string
-  default     = "Wyecare Solutions"
+  default     = "Restohand"
 }
 
 variable "frontend_url" {

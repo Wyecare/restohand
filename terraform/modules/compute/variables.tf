@@ -25,26 +25,12 @@ variable "api_image" {
   type        = string
 }
 
-variable "worker_image" {
-  description = "Container image for the worker service (optional, defaults to api_image)"
-  type        = string
-  default     = null
+variable "labels" {
+  description = "Labels to apply to Cloud Run resources"
+  type        = map(string)
+  default     = {}
 }
 
-# Service Configuration
-variable "enable_separate_worker" {
-  description = "Deploy worker as a separate Cloud Run service"
-  type        = bool
-  default     = false
-}
-
-variable "worker_type" {
-  description = "Type of worker (workforce, resident, all)"
-  type        = string
-  default     = "all"
-}
-
-# API Configuration
 variable "api_min_instances" {
   description = "Minimum instances for API service"
   type        = number
@@ -60,13 +46,13 @@ variable "api_max_instances" {
 variable "api_cpu_limit" {
   description = "CPU limit for API service"
   type        = string
-  default     = "2"
+  default     = "1"
 }
 
 variable "api_memory_limit" {
   description = "Memory limit for API service"
   type        = string
-  default     = "4Gi"
+  default     = "1Gi"
 }
 
 variable "api_cpu_idle" {
@@ -79,6 +65,12 @@ variable "api_startup_cpu_boost" {
   description = "Enable startup CPU boost for API"
   type        = bool
   default     = true
+}
+
+variable "api_concurrency" {
+  description = "Maximum number of concurrent requests per instance"
+  type        = number
+  default     = 80
 }
 
 variable "api_port" {
@@ -107,31 +99,6 @@ variable "allow_unauthenticated_api" {
   default     = true
 }
 
-# Worker Configuration
-variable "worker_min_instances" {
-  description = "Minimum instances for worker service"
-  type        = number
-  default     = 1
-}
-
-variable "worker_max_instances" {
-  description = "Maximum instances for worker service"
-  type        = number
-  default     = 5
-}
-
-variable "worker_cpu_limit" {
-  description = "CPU limit for worker service"
-  type        = string
-  default     = "2"
-}
-
-variable "worker_memory_limit" {
-  description = "Memory limit for worker service"
-  type        = string
-  default     = "4Gi"
-}
-
 # Health Checks
 variable "health_check_path" {
   description = "Health check path for API service"
@@ -139,21 +106,23 @@ variable "health_check_path" {
   default     = "/health"
 }
 
-variable "worker_health_check_path" {
-  description = "Health check path for worker service (optional)"
-  type        = string
-  default     = null
-}
-
 # Network Configuration
 variable "vpc_connector_name" {
-  description = "VPC connector name"
+  description = "VPC connector resource path (projects/PROJECT/locations/REGION/connectors/NAME)"
   type        = string
+  default     = ""
 }
 
 variable "cloudsql_connection_name" {
   description = "Cloud SQL connection name"
   type        = string
+  default     = ""
+}
+
+variable "vpc_egress" {
+  description = "VPC egress setting when connector is used"
+  type        = string
+  default     = "PRIVATE_RANGES_ONLY"
 }
 
 # Environment Variables
@@ -181,25 +150,6 @@ variable "worker_env_vars" {
 # Annotations
 variable "additional_annotations" {
   description = "Additional annotations for Cloud Run services"
-  type        = map(string)
-  default     = {}
-}
-
-# Cloud Scheduler Jobs
-variable "scheduler_jobs" {
-  description = "Cloud Scheduler jobs configuration"
-  type = map(object({
-    description = string
-    schedule    = string
-    path        = string
-    payload     = map(any)
-    retry_count = number
-  }))
-  default = {}
-}
-
-variable "labels" {
-  description = "Labels to apply to compute resources"
   type        = map(string)
   default     = {}
 }

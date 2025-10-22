@@ -1,0 +1,148 @@
+name: 'Frontend Deployment'
+description: 'Deploy frontend to Firebase Hosting'
+inputs:
+  environment:
+    description: 'Environment (dev/prod)'
+    required: true
+  firebase-service-account:
+    description: 'Firebase Service Account JSON'
+    required: true
+  api-url:
+    description: 'API service URL from Terraform'
+    required: true
+  firebase-api-key:
+    description: 'Firebase API key'
+    required: true
+  firebase-auth-domain:
+    description: 'Firebase auth domain'
+    required: true
+  firebase-project-id:
+    description: 'Firebase project ID'
+    required: true
+  firebase-storage-bucket:
+    description: 'Firebase storage bucket'
+    required: true
+  firebase-messaging-sender-id:
+    description: 'Firebase messaging sender ID'
+    required: true
+  firebase-app-id:
+    description: 'Firebase app ID'
+    required: true
+  firebase-measurement-id:
+    description: 'Firebase measurement ID'
+    required: true
+  firebase-vapid-key:
+    description: 'Firebase VAPID Key'
+    required: true
+  project-id:
+    description: 'Firebase Project ID'
+    required: false
+    default: 'restohand-solutions'
+outputs:
+  hosting-url:
+    description: 'Firebase Hosting URL'
+    value: ${{ steps.deploy.outputs.details_url || format('https://{0}.frontend.app', inputs.project-id) }}
+  deployment-status:
+    description: 'Deployment status'
+    value: ${{ steps.deploy.outcome }}
+  firebase-preview-url:
+    description: 'Firebase preview URL (for non-prod deployments)'
+    value: ${{ steps.deploy.outputs.details_url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Cache Nx
+      uses: actions/cache@v4
+      with:
+        path: .nx/cache
+        key: nx-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('nx.json', 'workspace.json', 'apps/*/project.json', 'libs/*/project.json') }}
+        restore-keys: |
+          nx-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-
+          nx-${{ runner.os }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        npm install
+        echo "✅ Dependencies installed"
+
+    - name: Setup environment variables
+      shell: bash
+      run: |
+        # Use individual Firebase configuration values from inputs
+
+        # Create comprehensive environment file for frontend app
+        cat > apps/frontend/.env << EOF
+        VITE_APP_API_URL=${{ inputs.api-url }}
+        VITE_APP_TIMEZONE=Asia/Kolkata
+        VITE_FIREBASE_API_KEY=${{ inputs.firebase-api-key }}
+        VITE_FIREBASE_AUTH_DOMAIN=${{ inputs.firebase-auth-domain }}
+        VITE_FIREBASE_PROJECT_ID=${{ inputs.firebase-project-id }}
+        VITE_FIREBASE_STORAGE_BUCKET=${{ inputs.firebase-storage-bucket }}
+        VITE_FIREBASE_MESSAGING_SENDER_ID=${{ inputs.firebase-messaging-sender-id }}
+        VITE_FIREBASE_APP_ID=${{ inputs.firebase-app-id }}
+        VITE_FIREBASE_MEASUREMENT_ID=${{ inputs.firebase-measurement-id }}
+        VITE_FIREBASE_VAPID_KEY=${{ inputs.firebase-vapid-key }}
+        VITE_ENVIRONMENT=${{ inputs.environment }}
+        EOF
+        echo "✅ Environment variables configured"
+        echo "📋 Environment file contents:"
+        cat apps/frontend/.env
+
+    - name: Build frontend app
+      shell: bash
+      run: |
+        # Build frontend app with production configuration
+        npx nx build frontend
+        echo "✅ frontend app built successfully"
+
+        # Verify build output
+        ls -la apps/frontend/dist/
+        echo "📦 Build artifacts ready for deployment"
+
+    - name: Deploy to Firebase Hosting
+      id: deploy
+      uses: FirebaseExtended/action-hosting-deploy@v0
+      with:
+        repoToken: ${{ github.token }}
+        firebaseServiceAccount: ${{ inputs.firebase-service-account }}
+        projectId: ${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-dev' }}
+        channelId: live
+        target: main
+
+    - name: Verify deployment
+      shell: bash
+      run: |
+        HOSTING_URL="${{ steps.deploy.outputs.details_url || format('https://{0}.frontend.app', inputs.project-id) }}"
+
+        # Wait for deployment to be ready
+        echo "🔄 Waiting for deployment to be ready..."
+        sleep 15
+
+        # Verify deployment with retries
+        for i in {1..3}; do
+          echo "🔍 Verification attempt $i/3..."
+          if curl -f --max-time 30 "$HOSTING_URL" > /dev/null 2>&1; then
+            echo "✅ Deployment verified successfully!"
+            break
+          elif [ $i -eq 3 ]; then
+            echo "⚠️ Verification failed, but deployment may still be propagating"
+          else
+            echo "⏳ Retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
+
+    - name: Cleanup
+      shell: bash
+      if: always()
+      run: |
+        rm -f apps/frontend/.env
+        echo "✅ Cleanup completed"

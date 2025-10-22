@@ -299,7 +299,7 @@ resource "google_secret_manager_secret_version" "additional" {
 resource "google_service_account" "api" {
   project      = local.project_id
   account_id   = "${var.environment}-api"
-  display_name = "Wyecare API runtime (includes background workers)"
+  display_name = "Restohand API runtime (includes background workers)"
 }
 
 # REMOVED: worker service account - functionality integrated into API service

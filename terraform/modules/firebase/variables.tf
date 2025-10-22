@@ -168,13 +168,13 @@ variable "enable_ios_app" {
 variable "android_app_display_name" {
   description = "Display name for the Android app"
   type        = string
-  default     = "Wyecare"
+  default     = "Restohand"
 }
 
 variable "android_package_name" {
   description = "Android package name"
   type        = string
-  default     = "com.wyecare.app"
+  default     = "com.restohand.app"
 }
 
 variable "android_sha1_hashes" {
@@ -192,13 +192,13 @@ variable "android_sha256_hashes" {
 variable "ios_app_display_name" {
   description = "Display name for the iOS app"
   type        = string
-  default     = "Wyecare"
+  default     = "Restohand"
 }
 
 variable "ios_bundle_id" {
   description = "iOS bundle identifier"
   type        = string
-  default     = "com.wyecare.app"
+  default     = "com.restohand.app"
 }
 
 variable "ios_app_store_id" {

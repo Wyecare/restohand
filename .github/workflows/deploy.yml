@@ -1,0 +1,288 @@
+name: 🚀 Deploy to Environment
+
+on:
+  push:
+    branches: [dev, prod]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  NODE_VERSION: '20'
+  REGISTRY: 'asia-south1-docker.pkg.dev'
+
+jobs:
+  setup:
+    name: 🏗️ Setup and Analysis
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      affected-apps: ${{ steps.affected.outputs.affected-apps }}
+      should-deploy-backend: ${{ steps.affected.outputs.should-deploy-backend }}
+      should-deploy-frontend: ${{ steps.affected.outputs.should-deploy-frontend }}
+      should-deploy-infra: ${{ steps.affected.outputs.should-deploy-infra }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🎯 Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref_name }}" == "prod" ]]; then
+            ENV="prod"
+          else
+            ENV="dev"
+          fi
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "🎯 Environment: $ENV"
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📋 Install dependencies
+        run: |
+          npm install
+          echo "✅ Dependencies installed"
+
+      - name: 🔍 Check affected projects
+        id: affected
+        run: |
+          # Get affected apps using new Nx 19+ command
+          set +e  # Don't fail if no affected projects
+          AFFECTED_APPS=$(npx nx show projects --affected --type=app --base=origin/main --head=HEAD 2>/dev/null | paste -sd "," -)
+          set -e
+
+          # Fallback to HEAD~1 if origin/main doesn't exist or no changes
+          if [[ -z "$AFFECTED_APPS" || "$AFFECTED_APPS" == "" ]]; then
+            set +e
+            AFFECTED_APPS=$(npx nx show projects --affected --type=app --base=HEAD~1 --head=HEAD 2>/dev/null | paste -sd "," -)
+            set -e
+          fi
+
+          # If still no affected apps, check if there are any changes at all
+          if [[ -z "$AFFECTED_APPS" ]]; then
+            # For manual deployments or when there are file changes, deploy everything
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || [[ $(git diff --name-only HEAD~1 HEAD | wc -l) -gt 0 ]]; then
+              AFFECTED_APPS="@restohand/backend,@restohand/frontend"
+            else
+              AFFECTED_APPS=""
+            fi
+          fi
+
+          # Check if specific apps are affected (looking for scoped names)
+          SHOULD_DEPLOY_API="false"
+          SHOULD_DEPLOY_FRONTEND="false"
+          SHOULD_DEPLOY_INFRA="false"
+
+          if echo "$AFFECTED_APPS" | grep -q "@restohand/backend" || [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SHOULD_DEPLOY_API="true"
+          fi
+
+          if echo "$AFFECTED_APPS" | grep -q "@restohand/frontend" || [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SHOULD_DEPLOY_FRONTEND="true"
+          fi
+
+          # Always run infrastructure to get outputs (safe - no changes if terraform unchanged)
+          SHOULD_DEPLOY_INFRA="true"
+
+          echo "affected-apps=$AFFECTED_APPS" >> $GITHUB_OUTPUT
+          echo "should-deploy-backend=$SHOULD_DEPLOY_API" >> $GITHUB_OUTPUT
+          echo "should-deploy-frontend=$SHOULD_DEPLOY_FRONTEND" >> $GITHUB_OUTPUT
+          echo "should-deploy-infra=$SHOULD_DEPLOY_INFRA" >> $GITHUB_OUTPUT
+
+          echo "📋 Affected apps: $AFFECTED_APPS"
+          echo "🔧 Deploy backend: $SHOULD_DEPLOY_API"
+          echo "🌐 Deploy Frontend: $SHOULD_DEPLOY_FRONTEND"
+          echo "🏗️ Deploy Infrastructure: $SHOULD_DEPLOY_INFRA"
+
+  infrastructure:
+    name: 🏗️ Infrastructure
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.should-deploy-infra == 'true'
+    outputs:
+      backend-service-url: ${{ steps.deploy.outputs.backend-service-url }}
+      firebase-backend-key: ${{ steps.deploy.outputs.firebase-backend-key }}
+      firebase-auth-domain: ${{ steps.deploy.outputs.firebase-auth-domain }}
+      firebase-project-id: ${{ steps.deploy.outputs.firebase-project-id }}
+      firebase-storage-bucket: ${{ steps.deploy.outputs.firebase-storage-bucket }}
+      firebase-messaging-sender-id: ${{ steps.deploy.outputs.firebase-messaging-sender-id }}
+      firebase-app-id: ${{ steps.deploy.outputs.firebase-app-id }}
+      firebase-measurement-id: ${{ steps.deploy.outputs.firebase-measurement-id }}
+      success: ${{ steps.deploy.outputs.success }}
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Deploy Infrastructure
+        id: deploy
+        uses: ./.github/actions/infra-deploy
+        with:
+          environment: ${{ needs.setup.outputs.environment }}
+          gcp-service-account: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_SERVICE_ACCOUNT_PROD || secrets.GCP_SERVICE_ACCOUNT_DEV }}
+          workload-identity-provider: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_PROD || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          tf-vars-b64: ${{ needs.setup.outputs.environment == 'prod' && secrets.TF_VARS_PROD_B64 || secrets.TF_VARS_DEV_B64 }}
+
+  docker-build:
+    name: 🐳 Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [setup, infrastructure]
+    if: |
+      always() &&
+      (needs.infrastructure.result == 'success' || needs.infrastructure.result == 'skipped') &&
+      (needs.setup.outputs.should-deploy-backend == 'true')
+    outputs:
+      backend-image-url: ${{ steps.backend-build.outputs.image-url }}
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📋 Install dependencies
+        run: |
+          npm install
+          echo "✅ Dependencies installed"
+
+      - name: 🐳 Build backend Docker Image
+        id: backend-build
+        if: needs.setup.outputs.should-deploy-backend == 'true'
+        uses: ./.github/actions/docker-build-push
+        with:
+          environment: ${{ needs.setup.outputs.environment }}
+          app-name: 'backend'
+          dockerfile: 'Dockerfile.backend'
+          gcp-service-account: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_SERVICE_ACCOUNT_PROD || secrets.GCP_SERVICE_ACCOUNT_DEV }}
+          workload-identity-provider: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_PROD || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+
+  deploy-backend:
+    name: 🚀 Deploy backend
+    runs-on: ubuntu-latest
+    needs: [setup, infrastructure, docker-build]
+    if: |
+      always() &&
+      needs.docker-build.result == 'success' &&
+      needs.setup.outputs.should-deploy-backend == 'true'
+    outputs:
+      backend-url: ${{ steps.deploy.outputs.service-url }}
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy backend to Cloud Run
+        id: deploy
+        uses: ./.github/actions/backend-deploy
+        with:
+          environment: ${{ needs.setup.outputs.environment }}
+          image-url: ${{ needs.docker-build.outputs.backend-image-url }}
+          gcp-service-account: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_SERVICE_ACCOUNT_PROD || secrets.GCP_SERVICE_ACCOUNT_DEV }}
+          workload-identity-provider: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_PROD || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+
+  deploy-frontend:
+    name: 🌐 Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: [setup, infrastructure]
+    if: |
+      always() &&
+      (needs.infrastructure.result == 'success' || needs.infrastructure.result == 'skipped') &&
+      needs.setup.outputs.should-deploy-frontend == 'true'
+    outputs:
+      frontend-url: ${{ steps.deploy.outputs.hosting-url }}
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🌐 Deploy Frontend to Firebase
+        id: deploy
+        uses: ./.github/actions/frontend-deploy
+        with:
+          environment: ${{ needs.setup.outputs.environment }}
+          firebase-service-account: ${{ needs.setup.outputs.environment == 'prod' && secrets.FIREBASE_SERVICE_ACCOUNT_PROD || secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}
+          firebase-vapid-key: ${{ needs.setup.outputs.environment == 'prod' && secrets.FIREBASE_VAPID_KEY_PROD || secrets.FIREBASE_VAPID_KEY_DEV }}
+          backend-url: ${{ needs.infrastructure.outputs.backend-service-url }}
+          firebase-backend-key: ${{ needs.infrastructure.outputs.firebase-backend-key }}
+          firebase-auth-domain: ${{ needs.infrastructure.outputs.firebase-auth-domain }}
+          firebase-project-id: ${{ needs.infrastructure.outputs.firebase-project-id }}
+          firebase-storage-bucket: ${{ needs.infrastructure.outputs.firebase-storage-bucket }}
+          firebase-messaging-sender-id: ${{ needs.infrastructure.outputs.firebase-messaging-sender-id }}
+          firebase-app-id: ${{ needs.infrastructure.outputs.firebase-app-id }}
+          firebase-measurement-id: ${{ needs.infrastructure.outputs.firebase-measurement-id }}
+          project-id: ${{ needs.setup.outputs.environment == 'prod' && 'restohand-prod' || 'restohand-dev' }}
+
+  summary:
+    name: 📊 Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [setup, infrastructure, deploy-backend, deploy-frontend]
+    if: always()
+    steps:
+      - name: 📊 Generate Summary
+        run: |
+          echo "# 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎯 Environment: \`${{ needs.setup.outputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Infrastructure
+          if [[ "${{ needs.infrastructure.result }}" == "success" ]]; then
+            echo "✅ **Infrastructure**: Deployed successfully" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.infrastructure.result }}" == "skipped" ]]; then
+            echo "⏭️ **Infrastructure**: Skipped (no changes)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Infrastructure**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # backend
+          if [[ "${{ needs.deploy-backend.result }}" == "success" ]]; then
+            echo "✅ **backend**: Deployed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "   - URL: ${{ needs.deploy-backend.outputs.backend-url }}" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.deploy-backend.result }}" == "skipped" ]]; then
+            echo "⏭️ **backend**: Skipped (no changes)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **backend**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Frontend
+          if [[ "${{ needs.deploy-frontend.result }}" == "success" ]]; then
+            echo "✅ **Frontend**: Deployed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "   - URL: ${{ needs.deploy-frontend.outputs.frontend-url }}" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.deploy-frontend.result }}" == "skipped" ]]; then
+            echo "⏭️ **Frontend**: Skipped (no changes)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Frontend**: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Affected Applications" >> $GITHUB_STEP_SUMMARY
+          echo "\`${{ needs.setup.outputs.affected-apps }}\`" >> $GITHUB_STEP_SUMMARY

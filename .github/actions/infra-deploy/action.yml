@@ -1,0 +1,141 @@
+name: 'Infrastructure Deployment'
+description: 'Deploy infrastructure using Terraform'
+inputs:
+  environment:
+    description: 'Environment to deploy (dev/prod)'
+    required: true
+  gcp-service-account:
+    description: 'GCP Service Account JSON'
+    required: true
+  workload-identity-provider:
+    description: 'GCP Workload Identity Provider'
+    required: true
+  tf-vars-b64:
+    description: 'Base64 encoded Terraform variables'
+    required: true
+  working-directory:
+    description: 'Terraform working directory'
+    required: false
+    default: 'terraform/environments'
+  outputs-only:
+    description: 'Only get outputs, skip terraform plan/apply'
+    required: false
+    default: 'false'
+outputs:
+  api-service-url:
+    description: 'API service URL'
+    value: ${{ steps.outputs.outputs.api_service_url }}
+  firebase-api-key:
+    description: 'Firebase API key'
+    value: ${{ steps.outputs.outputs.firebase_api_key }}
+  firebase-auth-domain:
+    description: 'Firebase auth domain'
+    value: ${{ steps.outputs.outputs.firebase_auth_domain }}
+  firebase-project-id:
+    description: 'Firebase project ID'
+    value: ${{ steps.outputs.outputs.firebase_project_id }}
+  firebase-storage-bucket:
+    description: 'Firebase storage bucket'
+    value: ${{ steps.outputs.outputs.firebase_storage_bucket }}
+  firebase-messaging-sender-id:
+    description: 'Firebase messaging sender ID'
+    value: ${{ steps.outputs.outputs.firebase_messaging_sender_id }}
+  firebase-app-id:
+    description: 'Firebase app ID'
+    value: ${{ steps.outputs.outputs.firebase_app_id }}
+  firebase-measurement-id:
+    description: 'Firebase measurement ID'
+    value: ${{ steps.outputs.outputs.firebase_measurement_id }}
+  success:
+    description: 'Whether terraform succeeded'
+    value: ${{ steps.apply.outcome }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: '~1.8.0'
+        terraform_wrapper: false
+
+    - name: Cache Terraform
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ inputs.working-directory }}/${{ inputs.environment }}/.terraform
+          ${{ inputs.working-directory }}/${{ inputs.environment }}/.terraform.lock.hcl
+        key: terraform-${{ inputs.environment }}-${{ hashFiles(format('{0}/{1}/**/*.tf', inputs.working-directory, inputs.environment)) }}
+        restore-keys: |
+          terraform-${{ inputs.environment }}-
+
+    - name: Authenticate to Google Cloud
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+        service_account: ${{ inputs.gcp-service-account }}
+
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-dev' }}
+
+    - name: Decode Terraform Variables
+      shell: bash
+      run: |
+        echo "${{ inputs.tf-vars-b64 }}" | base64 -d > ${{ inputs.working-directory }}/${{ inputs.environment }}/terraform.tfvars
+        echo "✅ Terraform variables decoded"
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}/${{ inputs.environment }}
+      run: |
+        terraform init
+        echo "✅ Terraform initialized"
+
+    - name: Terraform Plan
+      if: inputs.outputs-only != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}/${{ inputs.environment }}
+      run: |
+        terraform plan -var-file="terraform.tfvars" -out=tfplan
+        echo "✅ Terraform plan created"
+
+    - name: Terraform Apply
+      id: apply
+      if: inputs.outputs-only != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}/${{ inputs.environment }}
+      run: |
+        terraform apply -auto-approve tfplan
+        echo "✅ Terraform applied successfully"
+
+    - name: Get Terraform Outputs
+      id: outputs
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}/${{ inputs.environment }}
+      run: |
+        # Get all outputs at once to avoid multiple terraform commands
+        echo "Fetching all Terraform outputs..."
+        ALL_OUTPUTS=$(terraform output -json)
+
+        # Extract individual values using jq
+        echo "api_service_url=$(echo $ALL_OUTPUTS | jq -r '.api_service_url.value // ""')" >> $GITHUB_OUTPUT
+        echo "firebase_api_key=$(echo $ALL_OUTPUTS | jq -r '.firebase_config.value.api_key // ""')" >> $GITHUB_OUTPUT
+        echo "firebase_auth_domain=$(echo $ALL_OUTPUTS | jq -r '.firebase_config.value.auth_domain // ""')" >> $GITHUB_OUTPUT
+        echo "firebase_project_id=$(echo $ALL_OUTPUTS | jq -r '.firebase_config.value.project_id // ""')" >> $GITHUB_OUTPUT
+        echo "firebase_storage_bucket=$(echo $ALL_OUTPUTS | jq -r '.firebase_config.value.storage_bucket // ""')" >> $GITHUB_OUTPUT
+        echo "firebase_messaging_sender_id=$(echo $ALL_OUTPUTS | jq -r '.firebase_config.value.messaging_sender_id // ""')" >> $GITHUB_OUTPUT
+        echo "firebase_app_id=$(echo $ALL_OUTPUTS | jq -r '.firebase_config.value.app_id // ""')" >> $GITHUB_OUTPUT
+        echo "firebase_measurement_id=$(echo $ALL_OUTPUTS | jq -r '.firebase_config.value.measurement_id // ""')" >> $GITHUB_OUTPUT
+
+        echo "✅ Terraform outputs captured"
+
+    - name: Cleanup
+      shell: bash
+      if: always()
+      run: |
+        rm -f ${{ inputs.working-directory }}/${{ inputs.environment }}/terraform.tfvars
+        rm -f ${{ inputs.working-directory }}/${{ inputs.environment }}/tfplan
+        echo "✅ Cleanup completed"
