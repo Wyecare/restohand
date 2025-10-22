@@ -7,7 +7,7 @@ inputs:
   firebase-service-account:
     description: 'Firebase Service Account JSON'
     required: true
-  api-base-url:
+  api-url:
     description: 'API base URL from Terraform'
     required: true
   firebase-api-key:
