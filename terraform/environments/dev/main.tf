@@ -92,9 +92,13 @@ module "secrets" {
   labels       = local.common_labels
 
   additional_secrets = {
-    "smtp-host" = var.smtp_host
-    "smtp-user" = var.smtp_user
-    "smtp-pass" = var.smtp_pass
+    "smtp-host"             = var.smtp_host
+    "smtp-user"             = var.smtp_user
+    "smtp-pass"             = var.smtp_pass
+    "firebase-project-id"   = var.firebase_project_id
+    "firebase-client-email" = var.firebase_client_email
+    "firebase-private-key"  = var.firebase_private_key
+    "firebase-web-api-key"  = var.firebase_web_api_key
   }
 
   secret_accessors = [] # Will be configured after deployment
@@ -127,6 +131,10 @@ module "run_api" {
         secret_name = module.secrets.database_url_secret_id
         version     = "latest"
       }
+      MONGODB_URI = {
+        secret_name = module.secrets.database_url_secret_id
+        version     = "latest"
+      }
       JWT_SECRET = {
         secret_name = module.secrets.jwt_secret_id
         version     = "latest"
@@ -153,6 +161,22 @@ module "run_api" {
       }
       SMTP_PASS = {
         secret_name = module.secrets.secret_names["smtp-pass"]
+        version     = "latest"
+      }
+      FIREBASE_PROJECT_ID = {
+        secret_name = module.secrets.secret_names["firebase-project-id"]
+        version     = "latest"
+      }
+      FIREBASE_CLIENT_EMAIL = {
+        secret_name = module.secrets.secret_names["firebase-client-email"]
+        version     = "latest"
+      }
+      FIREBASE_PRIVATE_KEY = {
+        secret_name = module.secrets.secret_names["firebase-private-key"]
+        version     = "latest"
+      }
+      FIREBASE_WEB_API_KEY = {
+        secret_name = module.secrets.secret_names["firebase-web-api-key"]
         version     = "latest"
       }
     }
@@ -224,7 +248,7 @@ module "iam" {
     "roles/iam.serviceAccountAdmin",
     "roles/compute.networkAdmin",
     "roles/iam.roleAdmin"
- ]
+  ]
 
 
   enable_monitoring_sa = true

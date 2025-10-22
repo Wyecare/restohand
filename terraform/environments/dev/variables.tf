@@ -86,11 +86,35 @@ variable "smtp_pass" {
   default     = ""
 }
 
-# Frontend URL
+# Database / Firebase configuration
 variable "database_url" {
   description = "Database connection URL"
   type        = string
   default     = null
+}
+
+variable "firebase_project_id" {
+  description = "Firebase project ID"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_client_email" {
+  description = "Firebase client email"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_private_key" {
+  description = "Firebase private key"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_web_api_key" {
+  description = "Firebase web API key"
+  type        = string
+  default     = ""
 }
 
 
@@ -165,7 +189,7 @@ variable "apple_oauth_team_id" {
 variable "enable_app_check" {
   description = "Enable Firebase App Check for enhanced security"
   type        = bool
-  default     = false  # Start disabled for development
+  default     = false # Start disabled for development
 }
 
 variable "recaptcha_site_secret" {
