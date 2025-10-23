@@ -44,6 +44,11 @@ export interface RestaurantTable {
   zone?: string;
   displayOrder: number;
   isActive: boolean;
+  layoutX?: number;
+  layoutY?: number;
+  layoutWidth?: number;
+  layoutHeight?: number;
+  layoutRotation?: number;
   createdAt: string;
   updatedAt: string;
 }

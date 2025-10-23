@@ -25,6 +25,21 @@ export class RestaurantTableResponseDto {
   @ApiProperty({ default: true })
   isActive!: boolean;
 
+  @ApiProperty({ required: false })
+  layoutX?: number;
+
+  @ApiProperty({ required: false })
+  layoutY?: number;
+
+  @ApiProperty({ required: false })
+  layoutWidth?: number;
+
+  @ApiProperty({ required: false })
+  layoutHeight?: number;
+
+  @ApiProperty({ required: false })
+  layoutRotation?: number;
+
   @ApiProperty()
   createdAt!: string;
 

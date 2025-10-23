@@ -113,10 +113,10 @@ export class FloorPlan {
   @Prop({ type: Date })
   lastUsedAt?: Date;
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'User' })
+  @Prop({ type: String, trim: true })
   createdBy?: string;
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'User' })
+  @Prop({ type: String, trim: true })
   lastModifiedBy?: string;
 }
 

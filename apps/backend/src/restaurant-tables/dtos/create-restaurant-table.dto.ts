@@ -58,4 +58,59 @@ export class CreateRestaurantTableDto {
   @Min(0)
   @Max(999)
   displayOrder?: number;
+
+  @ApiProperty({
+    example: 200,
+    required: false,
+    description: 'X position in layout canvas',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(2000)
+  layoutX?: number;
+
+  @ApiProperty({
+    example: 150,
+    required: false,
+    description: 'Y position in layout canvas',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1500)
+  layoutY?: number;
+
+  @ApiProperty({
+    example: 120,
+    required: false,
+    description: 'Width in layout canvas',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(40)
+  @Max(300)
+  layoutWidth?: number;
+
+  @ApiProperty({
+    example: 80,
+    required: false,
+    description: 'Height in layout canvas',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(40)
+  @Max(300)
+  layoutHeight?: number;
+
+  @ApiProperty({
+    example: 0,
+    required: false,
+    description: 'Rotation angle in degrees',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(360)
+  layoutRotation?: number;
 }

@@ -78,15 +78,16 @@ export interface FloorPlan {
   name: string;
   description?: string;
   tables: FloorPlanTable[];
-  sections: FloorPlanSection[];
-  dividers: FloorPlanDivider[];
-  decorations: FloorPlanDecoration[];
-  metadata: FloorPlanMetadata;
+  metadata: {
+    canvasWidth: number;
+    canvasHeight: number;
+    backgroundColor?: string;
+    gridSize?: number;
+    showGrid?: boolean;
+    zoomLevel?: number;
+  };
   isActive: boolean;
   version?: string;
-  lastUsedAt?: string;
-  createdBy?: string;
-  lastModifiedBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -94,13 +95,16 @@ export interface FloorPlan {
 export interface CreateFloorPlanRequest {
   name: string;
   description?: string;
-  tables: Omit<FloorPlanTable, 'id'>[];
-  sections: Omit<FloorPlanSection, 'id'>[];
-  dividers: Omit<FloorPlanDivider, 'id'>[];
-  decorations: Omit<FloorPlanDecoration, 'id'>[];
-  metadata: FloorPlanMetadata;
+  tables: FloorPlanTable[];
+  metadata: {
+    canvasWidth: number;
+    canvasHeight: number;
+    backgroundColor?: string;
+    gridSize?: number;
+    showGrid?: boolean;
+    zoomLevel?: number;
+  };
   isActive?: boolean;
-  version?: string;
 }
 
 export interface UpdateFloorPlanRequest extends Partial<CreateFloorPlanRequest> {}

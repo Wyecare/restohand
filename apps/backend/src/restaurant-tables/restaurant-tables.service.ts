@@ -59,6 +59,11 @@ export class RestaurantTablesService {
       capacity: dto.capacity,
       zone: dto.zone?.trim() || undefined,
       displayOrder: dto.displayOrder ?? 0,
+      layoutX: dto.layoutX,
+      layoutY: dto.layoutY,
+      layoutWidth: dto.layoutWidth,
+      layoutHeight: dto.layoutHeight,
+      layoutRotation: dto.layoutRotation,
     });
     return this.toDto(created);
   }
@@ -104,6 +109,21 @@ export class RestaurantTablesService {
     }
     if (dto.displayOrder !== undefined) {
       table.displayOrder = dto.displayOrder;
+    }
+    if (dto.layoutX !== undefined) {
+      table.layoutX = dto.layoutX;
+    }
+    if (dto.layoutY !== undefined) {
+      table.layoutY = dto.layoutY;
+    }
+    if (dto.layoutWidth !== undefined) {
+      table.layoutWidth = dto.layoutWidth;
+    }
+    if (dto.layoutHeight !== undefined) {
+      table.layoutHeight = dto.layoutHeight;
+    }
+    if (dto.layoutRotation !== undefined) {
+      table.layoutRotation = dto.layoutRotation;
     }
 
     await table.save();
@@ -162,6 +182,11 @@ export class RestaurantTablesService {
       zone: doc.zone,
       displayOrder: doc.displayOrder ?? 0,
       isActive: doc.isActive,
+      layoutX: doc.layoutX,
+      layoutY: doc.layoutY,
+      layoutWidth: doc.layoutWidth,
+      layoutHeight: doc.layoutHeight,
+      layoutRotation: doc.layoutRotation,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };

@@ -62,6 +62,11 @@ export interface CreateRestaurantTablePayload {
   capacity?: number;
   zone?: string;
   displayOrder?: number;
+  layoutX?: number;
+  layoutY?: number;
+  layoutWidth?: number;
+  layoutHeight?: number;
+  layoutRotation?: number;
 }
 
 export type UpdateRestaurantTablePayload = Partial<CreateRestaurantTablePayload> & {

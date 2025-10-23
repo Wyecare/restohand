@@ -28,6 +28,22 @@ export class RestaurantTable {
 
   @Prop({ type: Boolean, default: true, index: true })
   isActive!: boolean;
+
+  // Layout positioning fields
+  @Prop({ type: Number, default: 0 })
+  layoutX?: number;
+
+  @Prop({ type: Number, default: 0 })
+  layoutY?: number;
+
+  @Prop({ type: Number, default: 120 })
+  layoutWidth?: number;
+
+  @Prop({ type: Number, default: 80 })
+  layoutHeight?: number;
+
+  @Prop({ type: Number, default: 0 })
+  layoutRotation?: number;
 }
 
 export const RestaurantTableSchema = SchemaFactory.createForClass(RestaurantTable);

@@ -129,11 +129,14 @@ export default function Sidebar() {
                     asChild
                     tooltip={link.title}
                     isActive={isActive}
-                    className="hover:text-foreground active:text-foreground hover:bg-primary/10 active:bg-primary/10"
+                    className="hover:text-foreground active:text-foreground hover:bg-primary/10 active:bg-primary/10 
+             group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
                   >
                     <Link to={link.href}>
                       <Icon className="size-4" />
-                      <span>{link.title}</span>
+                      <span className="group-data-[collapsible=icon]:hidden">
+                        {link.title}
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
