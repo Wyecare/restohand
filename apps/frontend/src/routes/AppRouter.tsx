@@ -7,7 +7,7 @@ import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import OrdersPage from '@/pages/OrdersPage';
 import MenuPage from '@/pages/MenuPage';
-import SettingsPage from '@/pages/SettingsPage';
+import SettingsPageNew from '@/pages/SettingsPageNew';
 import OnboardingPage from '@/pages/OnboardingPage';
 import StaffPage from '@/pages/StaffPage';
 import TablesPage from '@/pages/TablesPage';
@@ -18,6 +18,9 @@ import ForbiddenPage from '@/pages/ForbiddenPage';
 import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
 import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
 import ReportsPage from '@/pages/ReportsPage';
+import GstSettingsPage from '@/pages/GstSettingsPage';
+import CustomerQrPage from '@/pages/CustomerQrPage';
+import FloorPlanPage from '@/pages/floor-plan';
 
 const AppRouter = () => {
   return (
@@ -72,8 +75,12 @@ const AppRouter = () => {
           <Route path="menu" element={<MenuPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />
+          <Route path="customer-qr" element={<CustomerQrPage />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings" element={<SettingsPageNew />} />
+          {/* floor plan */}
+          <Route path="floor-plan" element={<FloorPlanPage />} />
+          <Route path="settings/gst" element={<SettingsPageNew />} />
         </Route>
 
         <Route
@@ -104,7 +111,10 @@ const AppRouter = () => {
           }
         />
         <Route path="/c/:slug" element={<CustomerMenuPage />} />
-        <Route path="/c/:slug/order/:orderId" element={<CustomerOrderStatusPage />} />
+        <Route
+          path="/c/:slug/order/:orderId"
+          element={<CustomerOrderStatusPage />}
+        />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

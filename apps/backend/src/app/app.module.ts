@@ -14,6 +14,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { PublicModule } from '../public/public.module';
 import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
+import { GstModule } from '../gst/gst.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -35,6 +36,7 @@ import { AppService } from './app.service';
     MenuItemsModule,
     OrdersModule,
     RestaurantTablesModule,
+    GstModule,
   ],
   controllers: [AppController],
   providers: [AppService],

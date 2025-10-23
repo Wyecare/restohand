@@ -21,7 +21,29 @@ class OrderItemPricing {
   discountAmount!: number;
 }
 
+@Schema({ _id: false })
+class OrderItemGst {
+  @Prop({ type: String, trim: true })
+  hsnCode?: string;
+
+  @Prop({ type: Number, default: 0, min: 0, max: 100 })
+  gstRate!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  cgstAmount!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  sgstAmount!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  igstAmount!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  totalTaxAmount!: number;
+}
+
 const OrderItemPricingSchema = SchemaFactory.createForClass(OrderItemPricing);
+const OrderItemGstSchema = SchemaFactory.createForClass(OrderItemGst);
 
 @Schema({ _id: false })
 class OrderItem {
@@ -36,6 +58,9 @@ class OrderItem {
 
   @Prop({ type: OrderItemPricingSchema, required: true })
   pricing!: OrderItemPricing;
+
+  @Prop({ type: OrderItemGstSchema, required: true })
+  gst!: OrderItemGst;
 
   @Prop({ type: String, trim: true })
   notes?: string;
@@ -104,7 +129,22 @@ export class Order {
   taxAmount!: number;
 
   @Prop({ type: Number, min: 0, default: 0 })
+  cgstAmount!: number; // Total CGST for all items
+
+  @Prop({ type: Number, min: 0, default: 0 })
+  sgstAmount!: number; // Total SGST for all items
+
+  @Prop({ type: Number, min: 0, default: 0 })
+  igstAmount!: number; // Total IGST for all items
+
+  @Prop({ type: String, enum: ['intra-state', 'inter-state'] })
+  taxType?: 'intra-state' | 'inter-state'; // Type of GST applied
+
+  @Prop({ type: Number, min: 0, default: 0 })
   discountAmount!: number;
+
+  @Prop({ type: Number, min: 0, default: 0 })
+  roundOffAmount!: number; // Rounding adjustment
 
   @Prop({ type: Number, min: 0, default: 0 })
   totalAmount!: number;
@@ -133,6 +173,12 @@ export class Order {
 
   @Prop({ type: Date })
   readyAt?: Date;
+
+  @Prop({ type: String, trim: true })
+  taxInvoiceNumber?: string; // Reference to generated tax invoice
+
+  @Prop({ type: Date })
+  taxInvoiceGeneratedAt?: Date;
 
   @Prop({ type: Boolean, default: false })
   isArchived!: boolean;

@@ -34,6 +34,9 @@ export const baseApi = createApi({
     'Session',
     'Staff',
     'RestaurantTable',
+    'GstRate',
+    'HsnCode',
+    'TaxInvoice',
   ],
   endpoints: () => ({}),
 });

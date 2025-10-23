@@ -27,17 +27,15 @@ const managerLinks: NavLink[] = [
   { title: 'Menu', href: '/menu' },
   { title: 'Staff', href: '/staff' },
   { title: 'Tables', href: '/tables' },
+  { title: 'Customer QR', href: '/customer-qr' },
   { title: 'Reports', href: '/reports' },
   { title: 'Settings', href: '/settings' },
+  { title: 'Floor Plan', href: '/floor-plan' },
 ];
 
-const kitchenLinks: NavLink[] = [
-  { title: 'Kitchen Board', href: '/kitchen' },
-];
+const kitchenLinks: NavLink[] = [{ title: 'Kitchen Board', href: '/kitchen' }];
 
-const serviceLinks: NavLink[] = [
-  { title: 'Service Board', href: '/service' },
-];
+const serviceLinks: NavLink[] = [{ title: 'Service Board', href: '/service' }];
 
 export default function Sidebar() {
   const location = useLocation();
@@ -65,12 +63,14 @@ export default function Sidebar() {
     return [];
   }, [roles]);
 
-  const displayName = session?.displayName ?? user?.displayName ?? user?.email ?? 'User';
-  const initials = displayName
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'U';
+  const displayName =
+    session?.displayName ?? user?.displayName ?? user?.email ?? 'User';
+  const initials =
+    displayName
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'U';
 
   return (
     <SidebarContainer collapsible="icon" variant="floating">
@@ -100,7 +100,11 @@ export default function Sidebar() {
                 (link.href !== '/' && location.pathname.startsWith(link.href));
               return (
                 <SidebarMenuItem key={link.href}>
-                  <SidebarMenuButton asChild isActive={isActive} tooltip={link.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive}
+                    tooltip={link.title}
+                  >
                     <Link to={link.href}>{link.title}</Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

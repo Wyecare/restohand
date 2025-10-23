@@ -6,12 +6,12 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get()
-  check() {
+  async check() {
     return this.healthService.check();
   }
 
   @Get('ready')
-  readiness() {
+  async readiness() {
     return this.healthService.check();
   }
 }

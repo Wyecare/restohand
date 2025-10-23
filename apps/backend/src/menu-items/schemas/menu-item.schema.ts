@@ -48,6 +48,15 @@ export class MenuItem {
 
   @Prop({ type: [String], default: [] })
   imageUrls!: string[];
+
+  @Prop({ type: String, trim: true })
+  hsnCode?: string; // HSN code for GST calculation
+
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'GstRate' })
+  gstRateId?: string; // Reference to specific GST rate
+
+  @Prop({ type: Number, min: 0, max: 100 })
+  gstRate?: number; // Cached GST rate for quick calculation
 }
 
 export const MenuItemSchema = SchemaFactory.createForClass(MenuItem);
