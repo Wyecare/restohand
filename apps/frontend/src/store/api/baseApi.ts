@@ -37,6 +37,9 @@ export const baseApi = createApi({
     'GstRate',
     'HsnCode',
     'TaxInvoice',
+    'FloorPlan',
+    'TableStatus',
+    'FloorPlanOverview',
   ],
   endpoints: () => ({}),
 });

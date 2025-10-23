@@ -15,27 +15,46 @@ import { useSidebar } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthProvider';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession, selectUserRoles } from '@/store/slices/authSlice';
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  UtensilsCrossed,
+  Users,
+  Table,
+  Map,
+  QrCode,
+  BarChart3,
+  Settings,
+  ChefHat,
+  ClipboardList,
+  Coffee,
+} from 'lucide-react';
 
 interface NavLink {
   title: string;
   href: string;
+  icon: React.ElementType;
 }
 
 const managerLinks: NavLink[] = [
-  { title: 'Dashboard', href: '/dashboard' },
-  { title: 'Orders', href: '/orders' },
-  { title: 'Menu', href: '/menu' },
-  { title: 'Staff', href: '/staff' },
-  { title: 'Tables', href: '/tables' },
-  { title: 'Customer QR', href: '/customer-qr' },
-  { title: 'Reports', href: '/reports' },
-  { title: 'Settings', href: '/settings' },
-  { title: 'Floor Plan', href: '/floor-plan' },
+  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { title: 'Orders', href: '/orders', icon: ShoppingBag },
+  { title: 'Floor Plan', href: '/floor-plan', icon: Map },
+  { title: 'Menu', href: '/menu', icon: UtensilsCrossed },
+  { title: 'Tables', href: '/tables', icon: Table },
+  { title: 'Staff', href: '/staff', icon: Users },
+  { title: 'Customer QR', href: '/customer-qr', icon: QrCode },
+  { title: 'Reports', href: '/reports', icon: BarChart3 },
+  { title: 'Settings', href: '/settings', icon: Settings },
 ];
 
-const kitchenLinks: NavLink[] = [{ title: 'Kitchen Board', href: '/kitchen' }];
+const kitchenLinks: NavLink[] = [
+  { title: 'Kitchen Board', href: '/kitchen', icon: ChefHat },
+];
 
-const serviceLinks: NavLink[] = [{ title: 'Service Board', href: '/service' }];
+const serviceLinks: NavLink[] = [
+  { title: 'Service Board', href: '/service', icon: Coffee },
+];
 
 export default function Sidebar() {
   const location = useLocation();
@@ -45,21 +64,14 @@ export default function Sidebar() {
   const roles = useAppSelector(selectUserRoles);
 
   useEffect(() => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
+    if (isMobile) setOpenMobile(false);
   }, [location.pathname, isMobile, setOpenMobile]);
 
   const navLinks = useMemo(() => {
-    if (roles.includes('manager')) {
-      return managerLinks;
-    }
-    if (roles.includes('chef')) {
-      return kitchenLinks;
-    }
-    if (roles.includes('waiter') || roles.includes('cashier')) {
+    if (roles.includes('manager')) return managerLinks;
+    if (roles.includes('chef')) return kitchenLinks;
+    if (roles.includes('waiter') || roles.includes('cashier'))
       return serviceLinks;
-    }
     return [];
   }, [roles]);
 
@@ -73,39 +85,56 @@ export default function Sidebar() {
       .join('') || 'U';
 
   return (
-    <SidebarContainer collapsible="icon" variant="floating">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="size-9">
-            <AvatarImage src={user?.photoURL ?? undefined} alt={displayName} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-semibold truncate">{displayName}</p>
-            {session?.roles && (
-              <p className="text-xs text-muted-foreground truncate">
-                {session.roles.join(', ')}
-              </p>
-            )}
-          </div>
-        </div>
+    <SidebarContainer
+      collapsible="icon"
+      variant="floating"
+      className="bg-background"
+    >
+      {/* Header */}
+      <SidebarHeader className="items-center justify-center pt-3 transition-all group-data-[collapsible=icon]:pt-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton className="hover:text-foreground group-data-[collapsible=icon]:px-0! hover:bg-primary/10">
+              <Avatar className="size-8">
+                <AvatarImage
+                  src={user?.photoURL ?? undefined}
+                  alt={displayName}
+                />
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-bold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="truncate font-semibold group-data-[collapsible=icon]:hidden">
+                {displayName}
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent>
-        <ScrollArea className="h-full px-2">
-          <SidebarMenu>
+      {/* Scrollable menu */}
+      <SidebarContent className="overflow-hidden">
+        <ScrollArea className="h-full">
+          <SidebarMenu className="space-y-1">
             {navLinks.map((link) => {
               const isActive =
                 location.pathname === link.href ||
                 (link.href !== '/' && location.pathname.startsWith(link.href));
+
+              const Icon = link.icon;
+
               return (
                 <SidebarMenuItem key={link.href}>
                   <SidebarMenuButton
                     asChild
-                    isActive={isActive}
                     tooltip={link.title}
+                    isActive={isActive}
+                    className="hover:text-foreground active:text-foreground hover:bg-primary/10 active:bg-primary/10"
                   >
-                    <Link to={link.href}>{link.title}</Link>
+                    <Link to={link.href}>
+                      <Icon className="size-4" />
+                      <span>{link.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
@@ -114,6 +143,7 @@ export default function Sidebar() {
         </ScrollArea>
       </SidebarContent>
 
+      {/* Footer */}
       <SidebarFooter className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
         Restohand POS
       </SidebarFooter>

@@ -20,7 +20,8 @@ import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
 import ReportsPage from '@/pages/ReportsPage';
 import GstSettingsPage from '@/pages/GstSettingsPage';
 import CustomerQrPage from '@/pages/CustomerQrPage';
-import FloorPlanPage from '@/pages/floor-plan';
+import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
+import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
 
 const AppRouter = () => {
   return (
@@ -79,7 +80,8 @@ const AppRouter = () => {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="settings" element={<SettingsPageNew />} />
           {/* floor plan */}
-          <Route path="floor-plan" element={<FloorPlanPage />} />
+          <Route path="floor-plan" element={<FloorPlanDashboardPage />} />
+          <Route path="floor-plan/config" element={<FloorPlanConfigPage />} />
           <Route path="settings/gst" element={<SettingsPageNew />} />
         </Route>
 

@@ -15,6 +15,7 @@ import { UsersModule } from '../users/users.module';
 import { PublicModule } from '../public/public.module';
 import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
 import { GstModule } from '../gst/gst.module';
+import { FloorPlansModule } from '../floor-plans/floor-plans.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -37,6 +38,7 @@ import { AppService } from './app.service';
     OrdersModule,
     RestaurantTablesModule,
     GstModule,
+    FloorPlansModule,
   ],
   controllers: [AppController],
   providers: [AppService],
