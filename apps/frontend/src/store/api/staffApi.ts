@@ -15,6 +15,20 @@ export interface UpdateStaffPayload {
   isActive?: boolean;
 }
 
+export interface StaffInvitation {
+  id: string;
+  restaurantId: string;
+  name: string;
+  phoneNumber: string;
+  email?: string;
+  role: string;
+  invitationToken: string;
+  expiresAt: string;
+  isUsed: boolean;
+  createdAt: string;
+  usedAt?: string;
+}
+
 export const staffApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listStaff: builder.query<StaffMember[], void>({
@@ -59,6 +73,20 @@ export const staffApi = baseApi.injectEndpoints({
         { type: 'Staff', id: 'LIST' },
       ],
     }),
+
+    // New invitation-based endpoints
+    listStaffInvitations: builder.query<StaffInvitation[], void>({
+      query: () => ({ url: '/users/invitations' }),
+      providesTags: [{ type: 'StaffInvitation', id: 'LIST' }],
+    }),
+
+    revokeStaffInvitation: builder.mutation<void, string>({
+      query: (invitationId) => ({
+        url: `/users/invitations/${invitationId}/revoke`,
+        method: 'POST',
+      }),
+      invalidatesTags: [{ type: 'StaffInvitation', id: 'LIST' }],
+    }),
   }),
 });
 
@@ -67,4 +95,6 @@ export const {
   useInviteStaffMutation,
   useUpdateStaffMutation,
   useResetStaffPinMutation,
+  useListStaffInvitationsQuery,
+  useRevokeStaffInvitationMutation,
 } = staffApi;

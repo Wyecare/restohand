@@ -33,6 +33,7 @@ export const baseApi = createApi({
     'Profile',
     'Session',
     'Staff',
+    'StaffInvitation',
     'RestaurantTable',
     'GstRate',
     'HsnCode',

@@ -16,6 +16,7 @@ import TablesPage from '@/pages/TablesPage';
 import KitchenPage from '@/pages/KitchenPage';
 import ServicePage from '@/pages/ServicePage';
 import StaffLoginPage from '@/pages/StaffLoginPage';
+import StaffSignupPage from '@/pages/StaffSignupPage';
 import ForbiddenPage from '@/pages/ForbiddenPage';
 import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
 import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
@@ -53,6 +54,8 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
+
+        <Route path="/staff-signup" element={<StaffSignupPage />} />
 
         <Route
           path="/onboarding"

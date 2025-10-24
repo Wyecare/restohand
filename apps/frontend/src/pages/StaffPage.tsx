@@ -1,13 +1,30 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { Copy, Share2, Mail, Phone, Clock4, RefreshCcw, X } from 'lucide-react';
+import * as React from 'react';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+  ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  SortingState,
+  useReactTable,
+} from '@tanstack/react-table';
+import {
+  Copy,
+  Share2,
+  Filter,
+  Mail,
+  Phone,
+  Clock4,
+  RefreshCcw,
+  X,
+  UserPlus2,
+  Users,
+  QrCode,
+} from 'lucide-react';
+import { skipToken } from '@reduxjs/toolkit/query';
+
+import { Navigate } from 'react-router-dom';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,19 +35,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '@/components/ui/popover';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
+
+import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
+
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+
 import {
   useInviteStaffMutation,
   useListStaffQuery,
   useResetStaffPinMutation,
   useUpdateStaffMutation,
 } from '@/store/api/staffApi';
+
 import type { StaffMember } from '@/store/api/types';
+import { StaffQrGenerator } from '@/components/staff/StaffQrGenerator';
 
 const roleOptions = [
   { label: 'Chef', value: 'chef' },
@@ -48,257 +91,428 @@ type InviteShareContext = {
   action: 'invite' | 'reset';
 };
 
-const StaffPage = () => {
+export default function StaffPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [role, setRole] = useState(roleOptions[0].value);
-  const [shareContext, setShareContext] = useState<InviteShareContext | null>(null);
-  const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set());
 
+  // block unauth'd restaurant
+  if (!restaurantId) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  // --- Queries & mutations ---
   const {
     data: staff = [],
-    isLoading,
+    isFetching,
     isError,
-  } = useListStaffQuery(undefined, { skip: !restaurantId });
+    refetch,
+  } = useListStaffQuery(undefined, {
+    skip: !restaurantId,
+  });
+
   const [inviteStaff, { isLoading: isInviting }] = useInviteStaffMutation();
   const [resetStaffPin] = useResetStaffPinMutation();
   const [updateStaff] = useUpdateStaffMutation();
 
-  const stats = useMemo(() => {
+  // --- Local state ---
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [statusFilter, setStatusFilter] = React.useState<
+    'all' | 'active' | 'inactive'
+  >('all');
+  const [roleFilter, setRoleFilter] = React.useState<'all' | string>('all');
+
+  const [shareContext, setShareContext] =
+    React.useState<InviteShareContext | null>(null);
+
+  // invite dialog state
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [qrDialogOpen, setQrDialogOpen] = React.useState(false);
+  const [inviteName, setInviteName] = React.useState('');
+  const [inviteEmail, setInviteEmail] = React.useState('');
+  const [invitePhone, setInvitePhone] = React.useState('');
+  const [inviteRole, setInviteRole] = React.useState(roleOptions[0].value);
+
+  // track per-row async updates
+  const [updatingIds, setUpdatingIds] = React.useState<Set<string>>(
+    () => new Set()
+  );
+
+  const markUpdating = (id: string) =>
+    setUpdatingIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+
+  const clearUpdating = (id: string) =>
+    setUpdatingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
+  // --- Metrics ---
+  const stats = React.useMemo(() => {
     const total = staff.length;
-    const active = staff.filter((member) => member.isActive).length;
+    const active = staff.filter((m) => m.isActive).length;
     const inactive = total - active;
-    const roleTotals = staff.reduce<Record<string, number>>((acc, member) => {
-      member.roles.forEach((memberRole) => {
-        acc[memberRole] = (acc[memberRole] ?? 0) + 1;
+    const roleTotals = staff.reduce<Record<string, number>>((acc, m) => {
+      m.roles.forEach((r) => {
+        acc[r] = (acc[r] ?? 0) + 1;
       });
       return acc;
     }, {});
-
     return { total, active, inactive, roleTotals };
   }, [staff]);
 
-  const shareMessage = useMemo(() => {
-    if (!shareContext) {
-      return '';
+  // --- Filters applied to staff list ---
+  const filteredStaff = React.useMemo(() => {
+    return staff.filter((member) => {
+      const matchStatus =
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'active'
+          ? member.isActive
+          : !member.isActive;
+
+      const matchRole =
+        roleFilter === 'all' ? true : member.roles.includes(roleFilter);
+
+      return matchStatus && matchRole;
+    });
+  }, [staff, statusFilter, roleFilter]);
+
+  // --- Invite flow ---
+  async function handleInviteSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!inviteName.trim()) {
+      toast({
+        title: 'Name required',
+        description: 'Please enter a staff name.',
+        variant: 'destructive',
+      });
+      return;
     }
 
+    try {
+      const res = await inviteStaff({
+        name: inviteName,
+        email: inviteEmail || undefined,
+        phoneNumber: invitePhone || undefined,
+        role: inviteRole,
+      }).unwrap();
+
+      toast({
+        title: 'Staff invited',
+        description: 'Temporary PIN generated. Share it so they can log in.',
+      });
+
+      setShareContext({
+        id: res.staff.id,
+        name: res.staff.name,
+        email: res.staff.email,
+        phoneNumber: res.staff.phoneNumber,
+        role: res.staff.roles[0] ?? inviteRole,
+        temporaryPin: res.temporaryPin,
+        action: 'invite',
+      });
+
+      setDialogOpen(false);
+      setInviteName('');
+      setInviteEmail('');
+      setInvitePhone('');
+      setInviteRole(roleOptions[0].value);
+    } catch (err) {
+      toast({
+        title: 'Unable to invite staff',
+        description:
+          err instanceof Error ? err.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  }
+
+  // --- Row actions ---
+  async function handleResetPin(member: StaffMember) {
+    markUpdating(member.id);
+    try {
+      const res = await resetStaffPin(member.id).unwrap();
+
+      toast({
+        title: 'PIN reset',
+        description: 'Share the new PIN so they can log back in.',
+      });
+
+      setShareContext({
+        id: res.staff.id,
+        name: res.staff.name,
+        email: res.staff.email,
+        phoneNumber: res.staff.phoneNumber,
+        role: res.staff.roles[0] ?? member.roles[0],
+        temporaryPin: res.temporaryPin,
+        action: 'reset',
+      });
+    } catch (err) {
+      toast({
+        title: 'Unable to reset PIN',
+        description:
+          err instanceof Error ? err.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      clearUpdating(member.id);
+    }
+  }
+
+  async function handleRoleChange(member: StaffMember, nextRole: string) {
+    if (member.roles[0] === nextRole) return;
+    markUpdating(member.id);
+
+    try {
+      await updateStaff({
+        id: member.id,
+        roles: [nextRole],
+      }).unwrap();
+
+      const roleLabel =
+        roleOptions.find((o) => o.value === nextRole)?.label ?? nextRole;
+
+      toast({
+        title: 'Role updated',
+        description: `${member.name} is now ${roleLabel}.`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Unable to update role',
+        description:
+          err instanceof Error ? err.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      clearUpdating(member.id);
+    }
+  }
+
+  async function handleActiveToggle(member: StaffMember, isActive: boolean) {
+    markUpdating(member.id);
+
+    try {
+      await updateStaff({
+        id: member.id,
+        isActive,
+      }).unwrap();
+
+      toast({
+        title: isActive ? 'Staff activated' : 'Staff deactivated',
+      });
+    } catch (err) {
+      toast({
+        title: 'Unable to update status',
+        description:
+          err instanceof Error ? err.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      clearUpdating(member.id);
+    }
+  }
+
+  // --- Table columns (TanStack style, but using our own row/table markup) ---
+  const columns = React.useMemo<ColumnDef<StaffMember>[]>(
+    () => [
+      {
+        accessorKey: 'name',
+        header: 'Name',
+        cell: ({ row }) => {
+          const m = row.original;
+          return (
+            <div className="min-w-[8rem]">
+              <div className="font-medium leading-tight">{m.name}</div>
+              <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Clock4 className="h-3.5 w-3.5" />
+                {m.lastLoginAt
+                  ? `Last login ${new Date(m.lastLoginAt).toLocaleString()}`
+                  : 'No login yet'}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'roles',
+        header: 'Role',
+        cell: ({ row }) => {
+          const m = row.original;
+          const currentRole = m.roles[0] ?? roleOptions[0].value;
+          return (
+            <Select
+              value={currentRole}
+              onValueChange={(value) => handleRoleChange(m, value)}
+              disabled={updatingIds.has(m.id)}
+            >
+              <SelectTrigger className="h-8 w-[110px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {roleOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        },
+      },
+      {
+        id: 'contact',
+        header: 'Contact',
+        cell: ({ row }) => {
+          const m = row.original;
+          return (
+            <div className="text-xs text-muted-foreground leading-relaxed">
+              {m.phoneNumber && (
+                <div className="flex items-center gap-1 break-all">
+                  <Phone className="h-3.5 w-3.5" />
+                  {m.phoneNumber}
+                </div>
+              )}
+              {m.email && (
+                <div className="flex items-center gap-1 break-all">
+                  <Mail className="h-3.5 w-3.5" />
+                  {m.email}
+                </div>
+              )}
+              {!m.phoneNumber && !m.email && (
+                <div className="italic text-muted-foreground/70">
+                  No contact details
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        cell: ({ row }) => {
+          const m = row.original;
+          return (
+            <div className="flex items-center gap-2">
+              <Switch
+                id={`active-${m.id}`}
+                checked={m.isActive}
+                onCheckedChange={(checked) => handleActiveToggle(m, checked)}
+                disabled={updatingIds.has(m.id)}
+              />
+              <Label
+                htmlFor={`active-${m.id}`}
+                className="text-xs text-muted-foreground"
+              >
+                {m.isActive ? 'Active' : 'Inactive'}
+              </Label>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => {
+          const m = row.original;
+          return (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleResetPin(m)}
+              disabled={updatingIds.has(m.id)}
+              className="h-8 px-2 text-xs"
+            >
+              <RefreshCcw className="h-4 w-4 mr-1" />
+              Reset PIN
+            </Button>
+          );
+        },
+      },
+    ],
+    [handleActiveToggle, handleResetPin, handleRoleChange, updatingIds]
+  );
+
+  // --- TanStack table instance ---
+  const table = useReactTable({
+    data: filteredStaff,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  // --- share message for Invite / Reset PIN ---
+  const shareMessage = React.useMemo(() => {
+    if (!shareContext) return '';
+
     const roleLabel =
-      roleOptions.find((option) => option.value === shareContext.role)?.label ??
+      roleOptions.find((r) => r.value === shareContext.role)?.label ??
       shareContext.role;
-    const firstName = shareContext.name?.split?.(' ')?.[0] ?? shareContext.name;
+
     const loginUrl =
       typeof window !== 'undefined'
         ? `${window.location.origin}/staff-login`
         : 'https://restohand.app/staff-login';
+
     const contactLine = shareContext.phoneNumber
-      ? `Sign in with phone: ${shareContext.phoneNumber}`
+      ? `Login with phone: ${shareContext.phoneNumber}`
       : shareContext.email
-        ? `Sign in with email: ${shareContext.email}`
-        : undefined;
+      ? `Login with email: ${shareContext.email}`
+      : undefined;
+
     const intro =
       shareContext.action === 'invite'
         ? `You're invited to Restohand as ${roleLabel}.`
         : `Your Restohand PIN has been reset for the ${roleLabel} dashboard.`;
 
-    const lines = [
+    const firstName = shareContext.name?.split?.(' ')?.[0] ?? shareContext.name;
+
+    const msgLines = [
       `Hi ${firstName},`,
       intro,
-      `Use PIN ${shareContext.temporaryPin} to log in.`,
+      `Use PIN ${shareContext.temporaryPin} to sign in.`,
       contactLine,
       `Dashboard: ${loginUrl}`,
       '',
       'Need help? Ask your manager.',
     ].filter(Boolean) as string[];
 
-    return lines.join('\n');
+    return msgLines.join('\n');
   }, [shareContext]);
 
-  const canAttemptClipboard =
-    typeof navigator !== 'undefined' && !!navigator.clipboard;
-  const canAttemptNativeShare =
-    typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-
-  const markUpdating = useCallback((id: string) => {
-    setUpdatingIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-  }, []);
-
-  const clearUpdating = useCallback((id: string) => {
-    setUpdatingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, []);
-
-  if (!restaurantId) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  const handleInvite = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!name) {
-      toast({
-        title: 'Name required',
-        description: 'Please provide the staff member name.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const response = await inviteStaff({
-        name,
-        email: email || undefined,
-        phoneNumber: phone || undefined,
-        role,
-      }).unwrap();
-      toast({
-        title: 'Staff invited',
-        description:
-          'Temporary PIN generated. Share the details with your teammate.',
-      });
-      setShareContext({
-        id: response.staff.id,
-        name: response.staff.name,
-        email: response.staff.email,
-        phoneNumber: response.staff.phoneNumber,
-        role: response.staff.roles[0] ?? role,
-        temporaryPin: response.temporaryPin,
-        action: 'invite',
-      });
-      setName('');
-      setEmail('');
-      setPhone('');
-      setRole(roleOptions[0].value);
-    } catch (error) {
-      toast({
-        title: 'Unable to invite staff',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleToggleActive = async (user: StaffMember, isActive: boolean) => {
-    markUpdating(user.id);
-    try {
-      await updateStaff({ id: user.id, isActive }).unwrap();
-      toast({
-        title: isActive ? 'Staff activated' : 'Staff deactivated',
-      });
-    } catch (error) {
-      toast({
-        title: 'Unable to update staff',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    } finally {
-      clearUpdating(user.id);
-    }
-  };
-
-  const handleRoleChange = async (user: StaffMember, nextRole: string) => {
-    if (user.roles[0] === nextRole) {
-      return;
-    }
-
-    markUpdating(user.id);
-    try {
-      await updateStaff({ id: user.id, roles: [nextRole] }).unwrap();
-      const roleLabel =
-        roleOptions.find((option) => option.value === nextRole)?.label ??
-        nextRole;
-      toast({
-        title: 'Role updated',
-        description: `${user.name} is now set as ${roleLabel}.`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Unable to update role',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    } finally {
-      clearUpdating(user.id);
-    }
-  };
-
-  const handleResetPin = async (user: StaffMember) => {
-    markUpdating(user.id);
-    try {
-      const response = await resetStaffPin(user.id).unwrap();
-      toast({
-        title: 'PIN reset',
-        description: 'Share the new PIN so your teammate can log back in.',
-      });
-      setShareContext({
-        id: response.staff.id,
-        name: response.staff.name,
-        email: response.staff.email,
-        phoneNumber: response.staff.phoneNumber,
-        role: response.staff.roles[0] ?? user.roles[0],
-        temporaryPin: response.temporaryPin,
-        action: 'reset',
-      });
-    } catch (error) {
-      toast({
-        title: 'Unable to reset PIN',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    } finally {
-      clearUpdating(user.id);
-    }
-  };
-
-  const handleCopyShare = useCallback(async () => {
-    if (!shareContext || !shareMessage) {
-      return;
-    }
-
-    if (typeof navigator === 'undefined' || !navigator.clipboard) {
-      toast({
-        title: 'Copy unavailable',
-        description: 'Clipboard access is not supported on this device.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const handleCopyShare = async () => {
+    if (!shareMessage) return;
     try {
       await navigator.clipboard.writeText(shareMessage);
       toast({
         title: 'Copied to clipboard',
-        description: 'Invite message ready to paste anywhere.',
+        description: 'Message ready to paste in WhatsApp / SMS.',
       });
-    } catch (error) {
+    } catch (err) {
       toast({
         title: 'Unable to copy',
         description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+          err instanceof Error ? err.message : 'Clipboard not available',
         variant: 'destructive',
       });
     }
-  }, [shareContext, shareMessage, toast]);
+  };
 
-  const handleNativeShare = useCallback(async () => {
-    if (!shareContext || !shareMessage) {
-      return;
-    }
+  const handleNativeShare = async () => {
+    if (!shareMessage) return;
 
-    if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+    const canShare =
+      typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+    if (!canShare) {
       await handleCopyShare();
       return;
     }
@@ -306,130 +520,363 @@ const StaffPage = () => {
     try {
       await navigator.share({
         title:
-          shareContext.action === 'invite'
+          shareContext?.action === 'invite'
             ? 'Restohand staff invite'
             : 'Restohand staff PIN reset',
         text: shareMessage,
       });
-    } catch (error) {
-      if ((error as Error)?.name === 'AbortError') {
-        return;
-      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
       toast({
         title: 'Unable to share',
         description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+          err instanceof Error ? err.message : 'Unexpected error occurred',
         variant: 'destructive',
       });
     }
-  }, [handleCopyShare, shareContext, shareMessage, toast]);
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Staff management</h1>
-        <p className="text-muted-foreground">
-          Invite kitchen and floor staff. Share the temporary PIN for their first login.
-        </p>
+      {/* Page header row */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold leading-tight">
+            Staff Management
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Invite staff, update roles, and control access.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {/* Filter popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-56 space-y-3"
+              sideOffset={8}
+            >
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Status
+                </Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(next: 'all' | 'active' | 'inactive') =>
+                    setStatusFilter(next)
+                  }
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Role
+                </Label>
+                <Select
+                  value={roleFilter}
+                  onValueChange={(next) => setRoleFilter(next)}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All roles</SelectItem>
+                    {roleOptions.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* QR Code invite button (NEW PRIMARY METHOD) */}
+          <Button size="sm" onClick={() => setQrDialogOpen(true)}>
+            <QrCode className="h-4 w-4 mr-2" />
+            Generate QR
+          </Button>
+
+          {/* Legacy invite button (SMS method) */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDialogOpen(true)}
+          >
+            <UserPlus2 className="h-4 w-4 mr-2" />
+            Legacy Invite
+          </Button>
+
+          {/* Refresh button */}
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Active team members</CardDescription>
-            <CardTitle className="text-3xl font-semibold">{stats.active}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Staff currently able to access their dashboards.
-            </p>
-          </CardContent>
-        </Card>
+      {/* Metrics row */}
+      <MetricsGrid columns={3}>
+        <MetricsCard
+          title="Active Staff"
+          value={stats.active}
+          description="Currently allowed to log in"
+          icon={Users}
+          iconColor="green"
+        />
+        <MetricsCard
+          title="Inactive"
+          value={stats.inactive}
+          description="Access turned off"
+          icon={Users}
+          iconColor="red"
+          badge={
+            stats.inactive > 0
+              ? { text: 'Check', variant: 'destructive' }
+              : undefined
+          }
+        />
+        <MetricsCard
+          title="Total Staff"
+          value={stats.total}
+          description="All registered members"
+          icon={Users}
+          iconColor="blue"
+        />
+      </MetricsGrid>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Inactive team</CardDescription>
-            <CardTitle className="text-3xl font-semibold">{stats.inactive}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Toggle them back on when they rejoin the shift.
-            </p>
-          </CardContent>
-        </Card>
+      {/* Staff table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-semibold">Team Roster</CardTitle>
+          <CardDescription className="text-sm">
+            Roles, contact info, and access status.
+          </CardDescription>
+        </CardHeader>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Role coverage</CardDescription>
-            <CardTitle className="text-lg font-semibold">Kitchen &amp; Service</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {roleOptions.map((option) => (
-                <Badge
-                  key={option.value}
-                  variant={stats.roleTotals[option.value] ? 'default' : 'secondary'}
-                  className="capitalize"
-                >
-                  {option.label}: {stats.roleTotals[option.value] ?? 0}
+        <CardContent>
+          {isFetching ? (
+            <div className="flex justify-center py-10">
+              <LoadingSpinner /> {JSON.stringify(isFetching)}
+            </div>
+          ) : isError ? (
+            <div className="text-center text-sm text-destructive py-10">
+              Unable to load staff members.
+            </div>
+          ) : filteredStaff.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-10">
+              No staff found. Try changing filters or invite your first staff
+              member.
+            </div>
+          ) : (
+            <>
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm">
+                  <thead className="bg-muted/50">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="text-left px-4 py-2 font-medium text-xs text-muted-foreground uppercase tracking-wide"
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="border-t hover:bg-muted/30 transition-colors"
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="px-4 py-3 align-top">
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination footer */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4 text-xs text-muted-foreground">
+                <div>
+                  Showing {table.getRowModel().rows.length} of{' '}
+                  {table.getRowCount()} staff
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2 text-xs"
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Share block (after invite / pin reset) */}
+      {shareContext && (
+        <Card className="border-primary/40 border-dashed bg-primary/5">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <CardTitle className="text-base font-semibold">
+                  Share staff access
+                </CardTitle>
+                <Badge variant="outline" className="capitalize text-xs">
+                  {shareContext.action === 'invite'
+                    ? 'New invite'
+                    : 'PIN reset'}
                 </Badge>
-              ))}
+              </div>
+              <CardDescription className="text-sm">
+                Send this message to {shareContext.name} so they can log in.
+              </CardDescription>
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Dismiss share prompt"
+              onClick={() => setShareContext(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="text-xs"
+                onClick={handleCopyShare}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy message
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={handleNativeShare}
+              >
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
+              </Button>
+            </div>
+
+            <div className="whitespace-pre-wrap rounded-md border border-dashed border-muted-foreground/40 bg-background p-4 text-xs font-mono leading-relaxed text-muted-foreground">
+              {shareMessage}
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Invite staff</CardTitle>
-          <CardDescription>
-            Generate a temporary PIN to share with your team member.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-6" onSubmit={handleInvite}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium" htmlFor="staff-name">
+      {/* Invite Staff Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite Staff</DialogTitle>
+            <DialogDescription className="text-sm">
+              Generate a one-time PIN and share it with your teammate so they
+              can log in.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleInviteSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="text-sm font-medium" htmlFor="invite-name">
                   Full name
                 </Label>
                 <Input
-                  id="staff-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  id="invite-name"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
                   placeholder="Anita Chef"
                   required
                 />
               </div>
+
               <div className="space-y-2">
-                <Label className="text-sm font-medium" htmlFor="staff-email">
+                <Label className="text-sm font-medium" htmlFor="invite-email">
                   Email (optional)
                 </Label>
                 <Input
-                  id="staff-email"
+                  id="invite-email"
                   type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="chef@restohand.in"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label className="text-sm font-medium" htmlFor="staff-phone">
+                <Label className="text-sm font-medium" htmlFor="invite-phone">
                   Phone (optional)
                 </Label>
                 <Input
-                  id="staff-phone"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  id="invite-phone"
+                  value={invitePhone}
+                  onChange={(e) => setInvitePhone(e.target.value)}
                   placeholder="+91..."
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium" htmlFor="staff-role">
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="text-sm font-medium" htmlFor="invite-role">
                   Role
                 </Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger id="staff-role">
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger id="invite-role">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -442,209 +889,30 @@ const StaffPage = () => {
                 </Select>
               </div>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                We generate a one-time PIN. Share it with your teammate to complete their first login.
-              </p>
-              <Button type="submit" disabled={isInviting}>
-                {isInviting ? 'Inviting...' : 'Invite staff'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
 
-      {shareContext && shareMessage && (
-        <Card className="border-dashed border-primary/40 bg-primary/5">
-          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-lg">Share staff access</CardTitle>
-                <Badge variant="outline" className="capitalize">
-                  {shareContext.action === 'invite' ? 'New invite' : 'PIN reset'}
-                </Badge>
-              </div>
-              <CardDescription>
-                Send this message to {shareContext.name} so they can log in immediately.
-              </CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Dismiss share prompt"
-              onClick={() => setShareContext(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                onClick={handleCopyShare}
-                disabled={!canAttemptClipboard}
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Copy message
-              </Button>
+            <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                onClick={handleNativeShare}
-                disabled={!canAttemptNativeShare && !canAttemptClipboard}
+                onClick={() => setDialogOpen(false)}
+                className="sm:min-w-[90px]"
               >
-                <Share2 className="mr-2 h-4 w-4" />
-                Share
+                Cancel
               </Button>
-            </div>
-            <div className="whitespace-pre-wrap rounded-md border border-dashed border-muted-foreground/40 bg-background p-4 text-sm font-mono leading-relaxed text-muted-foreground">
-              {shareMessage}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              <Button
+                type="submit"
+                disabled={isInviting}
+                className="sm:min-w-[120px]"
+              >
+                {isInviting ? 'Inviting...' : 'Send Invite'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Team roster</CardTitle>
-          <CardDescription>
-            Active staff who can access the kitchen or service dashboards.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isLoading && (
-            <div className="flex items-center justify-center py-10">
-              <LoadingSpinner />
-            </div>
-          )}
-
-          {isError && !isLoading && (
-            <div className="py-10 text-center text-sm text-destructive">
-              Unable to load staff members.
-            </div>
-          )}
-
-          {!isLoading && !isError && staff.length === 0 && (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              No staff yet. Invite your kitchen and service team above.
-            </div>
-          )}
-
-          {!isLoading && !isError && staff.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {staff.map((member) => {
-                const primaryRole = member.roles[0] ?? roleOptions[0].value;
-                const isUpdating = updatingIds.has(member.id);
-                return (
-                  <Card key={member.id} className="border-muted-foreground/20">
-                    <CardHeader className="space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <CardTitle className="text-base font-semibold">
-                            {member.name}
-                          </CardTitle>
-                          <CardDescription>
-                            Joined {new Date(member.createdAt).toLocaleDateString()}
-                          </CardDescription>
-                        </div>
-                        <Badge variant={member.isActive ? 'default' : 'secondary'}>
-                          {member.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </div>
-                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock4 className="h-3.5 w-3.5" />
-                        {member.lastLoginAt
-                          ? `Last login ${new Date(member.lastLoginAt).toLocaleString()}`
-                          : 'No login activity yet'}
-                      </p>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        {member.phoneNumber && (
-                          <p className="flex items-center gap-2 break-all">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            {member.phoneNumber}
-                          </p>
-                        )}
-                        {member.email && (
-                          <p className="flex items-center gap-2 break-all">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
-                            {member.email}
-                          </p>
-                        )}
-                        {!member.phoneNumber && !member.email && (
-                          <p className="text-xs italic">
-                            No contact details provided.
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor={`role-${member.id}`}
-                          className="text-xs font-semibold uppercase text-muted-foreground"
-                        >
-                          Role
-                        </Label>
-                        <Select
-                          value={primaryRole}
-                          onValueChange={(value) => handleRoleChange(member, value)}
-                          disabled={isUpdating}
-                        >
-                          <SelectTrigger id={`role-${member.id}`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roleOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleResetPin(member)}
-                          disabled={isUpdating}
-                        >
-                          <RefreshCcw className="mr-2 h-4 w-4" />
-                          Reset PIN
-                        </Button>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id={`active-${member.id}`}
-                            checked={member.isActive}
-                            onCheckedChange={(checked) =>
-                              handleToggleActive(member, checked)
-                            }
-                            disabled={isUpdating}
-                          />
-                          <Label
-                            htmlFor={`active-${member.id}`}
-                            className="text-sm text-muted-foreground"
-                          >
-                            {member.isActive ? 'Active' : 'Inactive'}
-                          </Label>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* QR Code Generator Dialog */}
+      <StaffQrGenerator isOpen={qrDialogOpen} onOpenChange={setQrDialogOpen} />
     </div>
   );
-};
-
-export default StaffPage;
+}
