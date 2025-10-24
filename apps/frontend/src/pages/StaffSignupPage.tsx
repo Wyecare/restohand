@@ -172,10 +172,17 @@ export default function StaffSignupPage() {
             break;
           case 'auth/recaptcha-not-enabled':
           case 'auth/missing-recaptcha-token':
-            errorMessage = 'reCAPTCHA verification failed. Please try again.';
+            errorMessage = process.env.NODE_ENV === 'development'
+              ? 'reCAPTCHA failed on localhost. Try test numbers: +1 650-555-3434 or use hosted version.'
+              : 'reCAPTCHA verification failed. Please try again.';
             break;
           case 'auth/quota-exceeded':
             errorMessage = 'Daily SMS quota exceeded. Please try again tomorrow.';
+            break;
+          case 'auth/app-not-authorized':
+            errorMessage = process.env.NODE_ENV === 'development'
+              ? 'Domain not authorized. Add localhost to Firebase Console authorized domains.'
+              : 'App not authorized for this domain.';
             break;
           default:
             errorMessage = firebaseError.message || 'Failed to send verification code';
@@ -229,6 +236,13 @@ export default function StaffSignupPage() {
         phoneNumber: normalizedPhone,
         displayName: displayName.trim() || undefined,
       }).unwrap();
+
+      // Force Firebase token refresh to get updated custom claims
+      if (auth.currentUser) {
+        await auth.currentUser.getIdToken(true); // Force refresh
+        // Wait a bit for claims to propagate
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
 
       setStep('success');
 
@@ -382,6 +396,11 @@ export default function StaffSignupPage() {
               onChange={(e) => setPhoneNumber(e.target.value)}
               disabled={verificationId !== ''}
             />
+            {process.env.NODE_ENV === 'development' && (
+              <p className="text-xs text-muted-foreground">
+                For testing: +1 650-555-3434 or +91 98765 43210
+              </p>
+            )}
           </div>
 
           {verificationId && (

@@ -73,9 +73,26 @@ export function AuthGuard({
     allowedRoles.length > 0 &&
     !roles.some((role) => allowedRoles.includes(role))
   ) {
-    if (needsOnboarding && allowedRoles.includes('manager')) {
-      console.log('[AuthGuard] redirecting to onboarding due to missing roles');
-      return <Navigate to="/onboarding" replace />;
+    // Special case: if user just authenticated but has no roles yet,
+    // it might be a timing issue with Firebase custom claims propagation
+    if (needsOnboarding) {
+      // Only redirect to onboarding if this route allows manager role
+      if (allowedRoles.includes('manager')) {
+        console.log('[AuthGuard] redirecting to onboarding due to missing roles (manager route)');
+        return <Navigate to="/onboarding" replace />;
+      } else {
+        // For staff routes (chef, waiter, cashier), show loading instead of forbidden
+        // This gives time for claims to propagate
+        console.log('[AuthGuard] waiting for role claims to propagate for staff route');
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-background">
+            <div className="text-center space-y-4">
+              <LoadingSpinner size="lg" />
+              <p className="text-sm text-muted-foreground">Setting up your account...</p>
+            </div>
+          </div>
+        );
+      }
     }
     console.log('[AuthGuard] access forbidden for roles', roles);
     return <Navigate to="/forbidden" replace />;
