@@ -10,10 +10,13 @@ import { GstRate, GstRateDocument } from './schemas/gst-rate.schema';
 import { HsnCode, HsnCodeDocument } from './schemas/hsn-code.schema';
 import { TaxInvoice, TaxInvoiceDocument } from './schemas/tax-invoice.schema';
 import { CreateGstRateDto } from './dtos/create-gst-rate.dto';
+import { QueryGstRatesDto } from './dtos/query-gst-rates.dto';
 import { UpdateGstRateDto } from './dtos/update-gst-rate.dto';
 import { CreateHsnCodeDto } from './dtos/create-hsn-code.dto';
+import { QueryHsnCodesDto } from './dtos/query-hsn-codes.dto';
 import { GstRateResponseDto, GstRateListResponseDto } from './dtos/gst-rate-response.dto';
 import { HsnCodeResponseDto, HsnCodeListResponseDto } from './dtos/hsn-code-response.dto';
+import { PaginationUtil } from '../common/utils/pagination.util';
 
 export interface TaxCalculation {
   subtotal: number;
@@ -77,15 +80,32 @@ export class GstService {
     return this.toGstRateDto(gstRate);
   }
 
-  async findGstRates(restaurantId: string): Promise<GstRateListResponseDto> {
-    const gstRates = await this.gstRateModel
-      .find({ restaurantId })
-      .sort({ isDefault: -1, effectiveFrom: -1 });
+  async findGstRates(
+    restaurantId: string,
+    query: QueryGstRatesDto = {}
+  ): Promise<GstRateListResponseDto> {
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query);
 
-    return {
-      data: gstRates.map(rate => this.toGstRateDto(rate)),
-      total: gstRates.length,
-    };
+    // Build filter
+    const filter: FilterQuery<GstRateDocument> = { restaurantId };
+
+    if (query.search) {
+      filter.category = { $regex: query.search, $options: 'i' };
+    }
+
+    // Execute queries in parallel
+    const [total, gstRates] = await Promise.all([
+      this.gstRateModel.countDocuments(filter),
+      this.gstRateModel
+        .find(filter)
+        .sort({ isDefault: -1, effectiveFrom: -1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    const data = gstRates.map(rate => this.toGstRateDto(rate));
+
+    return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
 
   async findGstRateById(id: string): Promise<GstRateResponseDto> {
@@ -176,42 +196,42 @@ export class GstService {
     return this.toHsnCodeDto(hsnCode);
   }
 
-  async findHsnCodes(query?: {
-    search?: string;
-    category?: string;
-    isPopular?: boolean;
-  }): Promise<HsnCodeListResponseDto> {
+  async findHsnCodes(query: QueryHsnCodesDto = {}): Promise<HsnCodeListResponseDto> {
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query, 50);
+
+    // Build filter
     const filter: FilterQuery<HsnCodeDocument> = { isActive: true };
 
-    if (query?.category) {
+    if (query.category) {
       filter.category = query.category;
     }
 
-    if (query?.isPopular !== undefined) {
-      filter.isPopular = query.isPopular;
-    }
-
-    let mongoQuery = this.hsnCodeModel.find(filter);
-
-    if (query?.search) {
-      // Use text search if available, otherwise regex search
-      mongoQuery = mongoQuery.find({
+    // Build search query
+    let searchFilter = {};
+    if (query.search) {
+      searchFilter = {
         $or: [
-          { $text: { $search: query.search } },
           { description: { $regex: query.search, $options: 'i' } },
           { code: { $regex: query.search, $options: 'i' } },
         ]
-      });
+      };
     }
 
-    const hsnCodes = await mongoQuery
-      .sort({ isPopular: -1, code: 1 })
-      .limit(100); // Limit results for performance
+    const finalFilter = { ...filter, ...searchFilter };
 
-    return {
-      data: hsnCodes.map(code => this.toHsnCodeDto(code)),
-      total: hsnCodes.length,
-    };
+    // Execute queries in parallel
+    const [total, hsnCodes] = await Promise.all([
+      this.hsnCodeModel.countDocuments(finalFilter),
+      this.hsnCodeModel
+        .find(finalFilter)
+        .sort({ isPopular: -1, code: 1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    const data = hsnCodes.map(code => this.toHsnCodeDto(code));
+
+    return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
 
   async findHsnCodeById(id: string): Promise<HsnCodeResponseDto> {

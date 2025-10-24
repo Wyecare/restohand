@@ -28,6 +28,8 @@ import { GstService } from './gst.service';
 import { CreateGstRateDto } from './dtos/create-gst-rate.dto';
 import { UpdateGstRateDto } from './dtos/update-gst-rate.dto';
 import { CreateHsnCodeDto } from './dtos/create-hsn-code.dto';
+import { QueryGstRatesDto } from './dtos/query-gst-rates.dto';
+import { QueryHsnCodesDto } from './dtos/query-hsn-codes.dto';
 import {
   GstRateResponseDto,
   GstRateListResponseDto,
@@ -71,6 +73,7 @@ export class GstController {
   @ApiOkResponse({ type: GstRateListResponseDto })
   async getGstRates(
     @Param('restaurantId') restaurantId: string,
+    @Query() query: QueryGstRatesDto,
     @Req() req: Request
   ): Promise<GstRateListResponseDto> {
     const user = req.user as AuthenticatedUser;
@@ -79,7 +82,7 @@ export class GstController {
       throw new Error('Unauthorized access to restaurant GST rates');
     }
 
-    return this.gstService.findGstRates(restaurantId);
+    return this.gstService.findGstRates(restaurantId, query);
   }
 
   @Get('rates/default')
@@ -213,20 +216,9 @@ export class HsnCodeController {
 
   @Get()
   @ApiOperation({ summary: 'Search HSN codes' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search term' })
-  @ApiQuery({ name: 'category', required: false, description: 'Category filter' })
-  @ApiQuery({ name: 'isPopular', required: false, type: Boolean, description: 'Show only popular codes' })
   @ApiOkResponse({ type: HsnCodeListResponseDto })
-  async getHsnCodes(
-    @Query('search') search?: string,
-    @Query('category') category?: string,
-    @Query('isPopular') isPopular?: string
-  ): Promise<HsnCodeListResponseDto> {
-    return this.gstService.findHsnCodes({
-      search,
-      category,
-      isPopular: isPopular === 'true',
-    });
+  async getHsnCodes(@Query() query: QueryHsnCodesDto): Promise<HsnCodeListResponseDto> {
+    return this.gstService.findHsnCodes(query);
   }
 
   @Get(':id')

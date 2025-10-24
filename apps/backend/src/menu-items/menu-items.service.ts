@@ -7,6 +7,7 @@ import { MenuItemResponseDto } from './dtos/menu-item-response.dto';
 import { QueryMenuItemsDto } from './dtos/query-menu-items.dto';
 import { UpdateMenuItemDto } from './dtos/update-menu-item.dto';
 import { MenuItem, MenuItemDocument } from './schemas/menu-item.schema';
+import { PaginationUtil } from '../common/utils/pagination.util';
 
 @Injectable()
 export class MenuItemsService {
@@ -30,6 +31,8 @@ export class MenuItemsService {
     restaurantId: string,
     query: QueryMenuItemsDto
   ): Promise<MenuItemListResponseDto> {
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query, 50);
+
     const filter: FilterQuery<MenuItemDocument> = { restaurantId };
 
     if (query.categoryId) {
@@ -45,13 +48,19 @@ export class MenuItemsService {
       filter.$or = [{ name: regex }, { description: regex }, { tags: regex }];
     }
 
-    const items = await this.menuItemModel
-      .find(filter)
-      .sort({ displayOrder: 1, name: 1 });
+    // Execute queries in parallel
+    const [total, items] = await Promise.all([
+      this.menuItemModel.countDocuments(filter),
+      this.menuItemModel
+        .find(filter)
+        .sort({ displayOrder: 1, name: 1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
 
-    return {
-      data: items.map((item) => this.toDto(item)),
-    };
+    const data = items.map((item) => this.toDto(item));
+
+    return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
 
   async findOne(

@@ -8,8 +8,8 @@ import { FilterQuery, Model } from 'mongoose';
 import { RestaurantsService } from '../restaurants/restaurants.service';
 import { RestaurantTable, RestaurantTableDocument } from './schemas/restaurant-table.schema';
 import { CreateRestaurantTableDto } from './dtos/create-restaurant-table.dto';
-import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
 import { RestaurantTableResponseDto } from './dtos/restaurant-table-response.dto';
+import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
 
 @Injectable()
 export class RestaurantTablesService {
@@ -19,19 +19,15 @@ export class RestaurantTablesService {
     private readonly restaurantsService: RestaurantsService
   ) {}
 
-  async list(
-    restaurantId: string,
-    includeInactive = false
-  ): Promise<RestaurantTableResponseDto[]> {
-    const filter: FilterQuery<RestaurantTableDocument> = { restaurantId };
-    if (!includeInactive) {
-      filter.isActive = true;
-    }
-
+  async list(restaurantId: string): Promise<RestaurantTableResponseDto[]> {
     const tables = await this.tableModel
-      .find(filter)
+      .find({
+        restaurantId,
+        isActive: true,
+      })
       .sort({ displayOrder: 1, tableNumber: 1 })
       .exec();
+
     return tables.map((table) => this.toDto(table));
   }
 

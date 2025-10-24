@@ -59,8 +59,8 @@ class OrderItem {
   @Prop({ type: OrderItemPricingSchema, required: true })
   pricing!: OrderItemPricing;
 
-  @Prop({ type: OrderItemGstSchema, required: true })
-  gst!: OrderItemGst;
+  @Prop({ type: OrderItemGstSchema, required: false })
+  gst?: OrderItemGst;
 
   @Prop({ type: String, trim: true })
   notes?: string;

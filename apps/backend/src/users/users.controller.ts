@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { UsersService } from './users.service';
+import { QueryStaffDto } from './dtos/query-staff.dto';
+import { StaffListResponseDto } from './dtos/staff-list-response.dto';
 import { StaffResponseDto, StaffInviteResponseDto } from './dtos/staff-response.dto';
 import { InviteStaffRequestDto } from './dtos/invite-staff.request';
 import { UpdateStaffDto } from './dtos/update-staff.dto';
@@ -28,11 +31,11 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @ApiOkResponse({ type: [StaffResponseDto] })
-  @ApiOperation({ summary: 'List staff members for the manager’s restaurant' })
-  list(@Req() req: Request) {
+  @ApiOkResponse({ type: StaffListResponseDto })
+  @ApiOperation({ summary: 'List staff members for the managers restaurant' })
+  list(@Req() req: Request, @Query() query: QueryStaffDto) {
     const actor = req.user as AuthenticatedUser;
-    return this.usersService.listForRestaurant(actor.restaurantId!);
+    return this.usersService.listForRestaurant(actor.restaurantId!, query);
   }
 
   @Post()

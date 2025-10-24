@@ -2,6 +2,14 @@ export interface PaginationMeta {
   total: number;
   page: number;
   limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: PaginationMeta;
 }
 
 export interface RestaurantUpiConfig {
@@ -146,9 +154,6 @@ export interface Order {
   updatedAt: string;
 }
 
-export interface PaginatedResponse<T> extends PaginationMeta {
-  data: T[];
-}
 
 export interface SessionInfo {
   restaurantId: string;

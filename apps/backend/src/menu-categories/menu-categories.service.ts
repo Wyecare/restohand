@@ -2,12 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { MenuCategoryResponseDto } from './dtos/menu-category-response.dto';
+import { MenuCategoryListResponseDto } from './dtos/menu-category-list-response.dto';
 import { CreateMenuCategoryDto } from './dtos/create-menu-category.dto';
+import { QueryMenuCategoriesDto } from './dtos/query-menu-categories.dto';
 import { UpdateMenuCategoryDto } from './dtos/update-menu-category.dto';
 import {
   MenuCategory,
   MenuCategoryDocument,
 } from './schemas/menu-category.schema';
+import { PaginationUtil } from '../common/utils/pagination.util';
 
 @Injectable()
 export class MenuCategoriesService {
@@ -27,11 +30,36 @@ export class MenuCategoriesService {
     return this.toDto(created);
   }
 
-  async findAll(restaurantId: string): Promise<MenuCategoryResponseDto[]> {
-    const items = await this.menuCategoryModel
-      .find({ restaurantId })
-      .sort({ displayOrder: 1, createdAt: 1 });
-    return items.map((item) => this.toDto(item));
+  async findAll(
+    restaurantId: string,
+    query: QueryMenuCategoriesDto = {},
+  ): Promise<MenuCategoryListResponseDto> {
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query);
+
+    // Build filter
+    const filter: any = { restaurantId };
+
+    if (query.search) {
+      filter.name = { $regex: query.search, $options: 'i' };
+    }
+
+    if (query.isActive !== undefined) {
+      filter.isActive = query.isActive === 'true';
+    }
+
+    // Execute queries in parallel
+    const [total, items] = await Promise.all([
+      this.menuCategoryModel.countDocuments(filter),
+      this.menuCategoryModel
+        .find(filter)
+        .sort({ displayOrder: 1, createdAt: 1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    const data = items.map((item) => this.toDto(item));
+
+    return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
 
   async update(

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { PaginatedResponseDto, PaginationMetaDto } from '../../common/dtos/pagination.dto';
 
 export class HsnCodeResponseDto {
   @ApiProperty({ description: 'HSN code ID' })
@@ -38,10 +39,10 @@ export class HsnCodeResponseDto {
   updatedAt!: string;
 }
 
-export class HsnCodeListResponseDto {
+export class HsnCodeListResponseDto extends PaginatedResponseDto<HsnCodeResponseDto> {
   @ApiProperty({ type: [HsnCodeResponseDto] })
-  data!: HsnCodeResponseDto[];
+  override data!: HsnCodeResponseDto[];
 
-  @ApiProperty({ description: 'Total number of HSN codes' })
-  total!: number;
+  @ApiProperty({ type: PaginationMetaDto })
+  meta!: PaginationMetaDto;
 }

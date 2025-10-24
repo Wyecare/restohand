@@ -16,7 +16,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableCaption,
 } from '@/components/ui/table';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAppSelector } from '@/store/hooks';
@@ -26,6 +25,7 @@ import {
 } from '@/store/slices/authSlice';
 import { useGetRestaurantQuery } from '@/store/api/restaurantsApi';
 import { useListOrdersQuery } from '@/store/api/ordersApi';
+import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import {
   RefreshCw,
   CreditCard,
@@ -33,6 +33,8 @@ import {
   QrCode,
   Wallet,
   TrendingUp,
+  Clock,
+  UtensilsCrossed,
 } from 'lucide-react';
 
 const formatCurrency = (amount: number, currency: string) =>
@@ -88,13 +90,16 @@ const DashboardPage = () => {
       upiTickets,
       cashAmount,
       upiAmount,
-      cashPercent: totalTickets ? Math.round((cashTickets / totalTickets) * 100) : 0,
-      upiPercent: totalTickets ? Math.round((upiTickets / totalTickets) * 100) : 0,
+      cashPercent: totalTickets
+        ? Math.round((cashTickets / totalTickets) * 100)
+        : 0,
+      upiPercent: totalTickets
+        ? Math.round((upiTickets / totalTickets) * 100)
+        : 0,
     };
   }, [recentOrders]);
 
-  const averageTicket =
-    totalOrders > 0 ? (totalRevenue ?? 0) / totalOrders : 0;
+  const averageTicket = totalOrders > 0 ? (totalRevenue ?? 0) / totalOrders : 0;
 
   const restaurantCurrency = restaurant?.upi.mode === 'dynamic' ? 'INR' : 'INR';
 
@@ -115,196 +120,176 @@ const DashboardPage = () => {
     );
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
       {/* Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">{restaurant.name}</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {session.displayName ?? session.email ?? 'manager'} 👋
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {restaurant.name}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Welcome back, {session.displayName ?? session.email ?? 'Manager'} 👋
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={refetchOrders}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
-      {/* Metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="hover:shadow-md transition-all border-border/60">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-primary" />
-              Live Orders
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">
-              {isOrdersLoading ? '—' : totalOrders}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Active orders in last sync
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-all border-border/60">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-primary" />
-              Revenue Snapshot
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">
-              {isOrdersLoading
-                ? '—'
-                : formatCurrency(totalRevenue ?? 0, restaurantCurrency)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Sum of captured payments
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-all border-border/60">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <QrCode className="h-4 w-4 text-primary" />
-              UPI Mode
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold capitalize">
-              {restaurant.upi.mode}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              QR workflow in use
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-all border-border/60">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-primary" />
-              Payment mix
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-baseline justify-between text-sm">
-              <span>Cash</span>
-              <span className="font-semibold">
-                {paymentSummary.cashTickets} •{' '}
-                {formatCurrency(paymentSummary.cashAmount, restaurantCurrency)}
-                {paymentSummary.cashTickets > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {' '}
-                    ({paymentSummary.cashPercent}%)
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="flex items-baseline justify-between text-sm">
-              <span>UPI</span>
-              <span className="font-semibold">
-                {paymentSummary.upiTickets} •{' '}
-                {formatCurrency(paymentSummary.upiAmount, restaurantCurrency)}
-                {paymentSummary.upiTickets > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {' '}
-                    ({paymentSummary.upiPercent}%)
-                  </span>
-                )}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-all border-border/60">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Avg. ticket size
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">
-              {isOrdersLoading
-                ? '—'
-                : formatCurrency(averageTicket ?? 0, restaurantCurrency)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Based on recent orders pulled
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Restaurant Quick Stats */}
+      <MetricsGrid columns={3}>
+        <MetricsCard
+          title="Live Orders"
+          value={isOrdersLoading ? '—' : totalOrders}
+          description="Currently active orders"
+          icon={ShoppingBag}
+          iconColor="blue"
+          loading={isOrdersLoading}
+        />
+        <MetricsCard
+          title="Revenue"
+          value={
+            isOrdersLoading
+              ? '—'
+              : formatCurrency(totalRevenue ?? 0, restaurantCurrency)
+          }
+          description="Captured payments"
+          icon={CreditCard}
+          iconColor="green"
+          loading={isOrdersLoading}
+        />
+        <MetricsCard
+          title="UPI Mode"
+          value={restaurant.upi.mode}
+          description="QR workflow in use"
+          icon={QrCode}
+          iconColor="purple"
+        />
+        <MetricsCard
+          title="Cash Payments"
+          value={`${paymentSummary.cashTickets}`}
+          description={`${paymentSummary.cashPercent}% of tickets`}
+          icon={Wallet}
+          iconColor="orange"
+        />
+        <MetricsCard
+          title="UPI Payments"
+          value={`${paymentSummary.upiTickets}`}
+          description={`${paymentSummary.upiPercent}% of tickets`}
+          icon={TrendingUp}
+          iconColor="blue"
+        />
+        <MetricsCard
+          title="Avg. Ticket"
+          value={formatCurrency(averageTicket ?? 0, restaurantCurrency)}
+          description="Average order value"
+          icon={UtensilsCrossed}
+          iconColor="gray"
+        />
+      </MetricsGrid>
 
       {/* Recent Orders */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
               Recent Orders
             </CardTitle>
-            <CardDescription>Last five placed via QR and POS</CardDescription>
+            <CardDescription>Last 5 placed via QR or POS</CardDescription>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={refetchOrders}
-            className="flex items-center gap-1"
+            className="gap-1"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
         </CardHeader>
-        <CardContent>
+
+        <CardContent className="p-0 overflow-x-auto">
           {isOrdersLoading ? (
             <div className="flex items-center justify-center py-10">
               <LoadingSpinner />
             </div>
           ) : recentOrders && recentOrders.data.length > 0 ? (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order #</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentOrders.data.map((order) => (
-                    <TableRow
-                      key={order.id}
-                      className="hover:bg-muted/40 transition-colors cursor-pointer"
-                    >
-                      <TableCell>{order.orderNumber}</TableCell>
-                      <TableCell>{order.customerName ?? 'Walk-in'}</TableCell>
-                      <TableCell className="capitalize">
+            <Table className="min-w-[700px]">
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Order</TableHead>
+                  <TableHead>Table</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentOrders.data.map((order) => (
+                  <TableRow
+                    key={order.id}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    as={Link}
+                    to={`/orders/${order.id}`}
+                  >
+                    <TableCell className="font-medium">
+                      {order.orderNumber}
+                    </TableCell>
+                    <TableCell>{order.tableNumber ?? '-'}</TableCell>
+                    <TableCell className="capitalize">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs ${
+                          order.status === 'pending'
+                            ? 'bg-orange-100 text-orange-700'
+                            : order.status === 'ready'
+                            ? 'bg-green-100 text-green-700'
+                            : order.status === 'completed'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
                         {order.status.replace('_', ' ')}
-                      </TableCell>
-                      <TableCell className="capitalize">
+                      </span>
+                    </TableCell>
+                    <TableCell className="capitalize">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs ${
+                          order.paymentStatus === 'paid'
+                            ? 'bg-green-100 text-green-700'
+                            : order.paymentStatus === 'pending'
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
                         {order.paymentStatus.replace('_', ' ')}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(order.totalAmount, restaurantCurrency)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-                <TableCaption>
-                  <Link to="/orders" className="text-primary hover:underline">
-                    View all orders
-                  </Link>
-                </TableCaption>
-              </Table>
-            </div>
+                      </span>
+                    </TableCell>
+                    <TableCell>{order.paymentMethod.toUpperCase()}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(order.totalAmount, restaurantCurrency)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : (
-            <p className="text-sm text-muted-foreground py-6 text-center">
+            <div className="text-center py-8 text-sm text-muted-foreground">
               No orders yet. Share your QR code to start accepting orders.
-            </p>
+            </div>
           )}
         </CardContent>
+
+        <div className="flex justify-center py-4">
+          <Link
+            to="/orders"
+            className="text-primary text-sm hover:underline font-medium"
+          >
+            View all orders →
+          </Link>
+        </div>
       </Card>
     </div>
   );

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,6 +22,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { CreateMenuCategoryDto } from './dtos/create-menu-category.dto';
 import { MenuCategoryListResponseDto } from './dtos/menu-category-list-response.dto';
 import { MenuCategoryResponseDto } from './dtos/menu-category-response.dto';
+import { QueryMenuCategoriesDto } from './dtos/query-menu-categories.dto';
 import { UpdateMenuCategoryDto } from './dtos/update-menu-category.dto';
 import { MenuCategoriesService } from './menu-categories.service';
 
@@ -44,9 +46,11 @@ export class MenuCategoriesController {
   @Get()
   @ApiParam({ name: 'restaurantId' })
   @ApiOkResponse({ type: MenuCategoryListResponseDto })
-  async findAll(@Param('restaurantId') restaurantId: string) {
-    const data = await this.menuCategoriesService.findAll(restaurantId);
-    return { data };
+  async findAll(
+    @Param('restaurantId') restaurantId: string,
+    @Query() query: QueryMenuCategoriesDto,
+  ) {
+    return this.menuCategoriesService.findAll(restaurantId, query);
   }
 
   @Patch(':categoryId')

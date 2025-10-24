@@ -4,6 +4,9 @@ import {
   Sidebar as SidebarContainer,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -21,12 +24,10 @@ import {
   UtensilsCrossed,
   Users,
   Table,
-  Map,
   QrCode,
   BarChart3,
   Settings,
   ChefHat,
-  ClipboardList,
   Coffee,
 } from 'lucide-react';
 
@@ -39,7 +40,6 @@ interface NavLink {
 const managerLinks: NavLink[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Orders', href: '/orders', icon: ShoppingBag },
-  { title: 'Floor Plan', href: '/floor-plan', icon: Map },
   { title: 'Menu', href: '/menu', icon: UtensilsCrossed },
   { title: 'Tables', href: '/tables', icon: Table },
   { title: 'Staff', href: '/staff', icon: Users },
@@ -84,6 +84,12 @@ export default function Sidebar() {
       .map((part) => part[0]?.toUpperCase())
       .join('') || 'U';
 
+  const isRouteActive = (href: string) => {
+    if (href === location.pathname) return true;
+    if (href !== '/' && location.pathname.startsWith(href)) return true;
+    return false;
+  };
+
   return (
     <SidebarContainer
       collapsible="icon"
@@ -112,43 +118,66 @@ export default function Sidebar() {
         </SidebarMenu>
       </SidebarHeader>
 
-      {/* Scrollable menu */}
+      {/* Content with proper group structure */}
       <SidebarContent className="overflow-hidden">
         <ScrollArea className="h-full">
-          <SidebarMenu className="space-y-1">
-            {navLinks.map((link) => {
-              const isActive =
-                location.pathname === link.href ||
-                (link.href !== '/' && location.pathname.startsWith(link.href));
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-xs tracking-wider uppercase">
+              Navigation
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="space-y-1">
+                {navLinks.map((link) => {
+                  const Icon = link.icon;
 
-              const Icon = link.icon;
-
-              return (
-                <SidebarMenuItem key={link.href}>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={link.title}
-                    isActive={isActive}
-                    className="hover:text-foreground active:text-foreground hover:bg-primary/10 active:bg-primary/10 
-             group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-                  >
-                    <Link to={link.href}>
-                      <Icon className="size-4" />
-                      <span className="group-data-[collapsible=icon]:hidden">
-                        {link.title}
-                      </span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
+                  return (
+                    <SidebarMenuItem key={link.href}>
+                      <SidebarMenuButton
+                        className="hover:text-foreground active:text-foreground hover:bg-primary/10 active:bg-primary/10"
+                        asChild
+                        tooltip={link.title}
+                        isActive={isRouteActive(link.href)}
+                      >
+                        <Link to={link.href}>
+                          <Icon className="size-4" />
+                          <span>{link.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </ScrollArea>
       </SidebarContent>
 
       {/* Footer */}
-      <SidebarFooter className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-        Restohand POS
+      <SidebarFooter className="border-t border-border/40">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton className="hover:bg-transparent group-data-[collapsible=icon]:px-0!">
+              {/* Logo - always visible */}
+              <div className="flex-shrink-0">
+                <img
+                  src="/wyecare-logo.png"
+                  alt="Wyecare Solutions"
+                  className="size-8 object-contain"
+                />
+              </div>
+
+              {/* Text - only visible when expanded */}
+              <div className="flex flex-col group-data-[collapsible=icon]:hidden">
+                <span className="text-sm font-semibold text-foreground">
+                  Restohand POS
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  from Wyecare Solutions
+                </span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </SidebarContainer>
   );

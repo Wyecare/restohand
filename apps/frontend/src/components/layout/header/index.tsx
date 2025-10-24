@@ -1,15 +1,15 @@
 'use client';
-
 import * as React from 'react';
 import { PanelLeftIcon } from 'lucide-react';
-
 import { useSidebar } from '@/components/ui/sidebar';
 import UserMenu from '@/components/layout/header/user-menu';
+import ThemeSwitch from '@/components/layout/header/theme-switch';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthProvider';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession } from '@/store/slices/authSlice';
 import { useToast } from '@/components/ui/use-toast';
+import { ThemeCustomizerPanel } from '@/components/theme-customizer';
 
 export default function Header() {
   const { toggleSidebar } = useSidebar();
@@ -38,6 +38,10 @@ export default function Header() {
         >
           <PanelLeftIcon />
         </Button>
+
+        {/* Theme switch and UserMenu pushed to the right */}
+        <ThemeSwitch />
+        <ThemeCustomizerPanel />
         <UserMenu
           user={derivedUser}
           onLogout={async () => {

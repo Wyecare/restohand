@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { PaginatedResponseDto, PaginationMetaDto } from '../../common/dtos/pagination.dto';
 
 export class GstRateResponseDto {
   @ApiProperty({ description: 'GST rate ID' })
@@ -47,10 +48,10 @@ export class GstRateResponseDto {
   updatedAt!: string;
 }
 
-export class GstRateListResponseDto {
+export class GstRateListResponseDto extends PaginatedResponseDto<GstRateResponseDto> {
   @ApiProperty({ type: [GstRateResponseDto] })
-  data!: GstRateResponseDto[];
+  override data!: GstRateResponseDto[];
 
-  @ApiProperty({ description: 'Total number of GST rates' })
-  total!: number;
+  @ApiProperty({ type: PaginationMetaDto })
+  meta!: PaginationMetaDto;
 }

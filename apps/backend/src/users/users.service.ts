@@ -1,14 +1,17 @@
 import { createHash, randomInt } from 'crypto';
 import { Injectable, NotFoundException, ForbiddenException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, FilterQuery } from 'mongoose';
 import { AuthService } from '../auth/auth.service';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { UserRole } from '../common/enums/user-role.enum';
 import { User, UserDocument } from './schemas/user.schema';
 import { InviteStaffRequestDto } from './dtos/invite-staff.request';
+import { QueryStaffDto } from './dtos/query-staff.dto';
+import { StaffListResponseDto } from './dtos/staff-list-response.dto';
 import { StaffResponseDto } from './dtos/staff-response.dto';
 import { UpdateStaffDto } from './dtos/update-staff.dto';
+import { PaginationUtil } from '../common/utils/pagination.util';
 
 @Injectable()
 export class UsersService {
@@ -46,14 +49,51 @@ export class UsersService {
     });
   }
 
-  async listForRestaurant(restaurantId: string): Promise<StaffResponseDto[]> {
+  async listForRestaurant(
+    restaurantId: string,
+    query: QueryStaffDto = {}
+  ): Promise<StaffListResponseDto> {
     if (!restaurantId) {
       throw new ForbiddenException('No restaurant associated with user');
     }
-    const users = await this.userModel
-      .find({ restaurantId, isPrimaryOwner: { $ne: true } })
-      .sort({ createdAt: -1 });
-    return users.map((doc) => this.toDto(doc));
+
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query);
+
+    // Build filter
+    const filter: FilterQuery<UserDocument> = {
+      restaurantId,
+      isPrimaryOwner: { $ne: true }
+    };
+
+    if (query.search) {
+      const regex = new RegExp(query.search, 'i');
+      filter.$or = [
+        { name: regex },
+        { email: regex },
+      ];
+    }
+
+    if (query.role) {
+      filter.roles = { $in: [query.role] };
+    }
+
+    if (query.isActive !== undefined) {
+      filter.isActive = query.isActive === 'true';
+    }
+
+    // Execute queries in parallel
+    const [total, users] = await Promise.all([
+      this.userModel.countDocuments(filter),
+      this.userModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    const data = users.map((doc) => this.toDto(doc));
+
+    return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
 
   async inviteStaff(

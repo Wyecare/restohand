@@ -22,8 +22,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../common/enums/user-role.enum';
 import { RestaurantTablesService } from './restaurant-tables.service';
 import { CreateRestaurantTableDto } from './dtos/create-restaurant-table.dto';
-import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
 import { RestaurantTableResponseDto } from './dtos/restaurant-table-response.dto';
+import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
 
 @ApiTags('restaurant-tables')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
@@ -34,18 +34,9 @@ export class RestaurantTablesController {
 
   @Get()
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
-  @ApiQuery({
-    name: 'includeInactive',
-    required: false,
-    description: 'Include archived tables in the response',
-  })
   @ApiOkResponse({ type: [RestaurantTableResponseDto] })
-  async list(
-    @Param('restaurantId') restaurantId: string,
-    @Query('includeInactive') includeInactive?: string
-  ) {
-    const include = includeInactive === 'true';
-    return this.tablesService.list(restaurantId, include);
+  async list(@Param('restaurantId') restaurantId: string) {
+    return this.tablesService.list(restaurantId);
   }
 
   @Post()

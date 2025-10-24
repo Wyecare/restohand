@@ -135,8 +135,17 @@ export const restaurantsApi = baseApi.injectEndpoints({
       ],
     }),
 
-    listMenuCategories: builder.query<{ data: MenuCategory[] }, string>({
-      query: (restaurantId) => `/restaurants/${restaurantId}/menu/categories`,
+    listMenuCategories: builder.query<
+      PaginatedResponse<MenuCategory>,
+      { restaurantId: string; page?: number; limit?: number; search?: string }
+    >({
+      query: ({ restaurantId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/menu/categories`,
+        params,
+      }),
+      providesTags: (_result, _error, { restaurantId }) => [
+        { type: 'MenuCategory', id: `LIST-${restaurantId}` },
+      ],
     }),
 
     createMenuCategory: builder.mutation<
@@ -186,18 +195,23 @@ export const restaurantsApi = baseApi.injectEndpoints({
       ],
     }),
     listMenuItems: builder.query<
-      { data: MenuItem[] },
+      PaginatedResponse<MenuItem>,
       {
         restaurantId: string;
         categoryId?: string;
         isAvailable?: boolean;
         search?: string;
+        page?: number;
+        limit?: number;
       }
     >({
       query: ({ restaurantId, ...params }) => ({
         url: `/restaurants/${restaurantId}/menu/items`,
         params,
       }),
+      providesTags: (_result, _error, { restaurantId }) => [
+        { type: 'MenuItem', id: `LIST-${restaurantId}` },
+      ],
     }),
 
     getMenuItem: builder.query<

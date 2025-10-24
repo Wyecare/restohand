@@ -41,7 +41,10 @@ export class OrdersService {
     dto: CreateOrderDto
   ): Promise<OrderResponseDto> {
     const orderNumber = await this.generateOrderNumber(restaurantId);
-    const totals = this.calculateTotals(dto.items);
+
+    // Normalize items to include default GST when missing
+    const normalizedItems = this.normalizeOrderItems(dto.items);
+    const totals = this.calculateTotals(normalizedItems);
     const paymentMethod = dto.paymentMethod ?? 'upi';
 
     const restaurant = await this.restaurantModel
@@ -54,6 +57,7 @@ export class OrdersService {
 
     const created = await this.orderModel.create({
       ...dto,
+      items: normalizedItems,
       restaurantId,
       orderNumber,
       status: OrderStatus.Pending,
@@ -353,7 +357,21 @@ export class OrdersService {
     });
   }
 
-  private calculateTotals(items: CreateOrderItemDto[]): CalculatedTotals {
+  private normalizeOrderItems(items: CreateOrderItemDto[]): any[] {
+    return items.map(item => ({
+      ...item,
+      gst: {
+        hsnCode: '',
+        gstRate: 0,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        igstAmount: 0,
+        totalTaxAmount: 0,
+      }
+    }));
+  }
+
+  private calculateTotals(items: any[]): CalculatedTotals {
     return items.reduce(
       (acc, item) => {
         const lineAmount = item.pricing.unitAmount * item.quantity;

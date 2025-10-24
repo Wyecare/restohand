@@ -21,7 +21,7 @@ export default function ThemeSwitch() {
     <Button
       size="icon"
       variant="outline"
-      className="relative"
+      className="relative ml-auto"
       onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
     >
       {theme === 'light' ? <SunIcon /> : <MoonIcon />}
