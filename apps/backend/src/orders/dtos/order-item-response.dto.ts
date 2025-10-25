@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { OrderItemPricingDto } from './order-item-pricing.dto';
+import { OrderItemGstDto } from './order-item-gst.dto';
 
 export class OrderItemResponseDto {
   @ApiProperty()
@@ -13,6 +14,9 @@ export class OrderItemResponseDto {
 
   @ApiProperty({ type: OrderItemPricingDto })
   pricing!: OrderItemPricingDto;
+
+  @ApiProperty({ type: OrderItemGstDto, required: false })
+  gst?: OrderItemGstDto;
 
   @ApiProperty({ required: false })
   notes?: string;

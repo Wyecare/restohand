@@ -32,6 +32,15 @@ export class MenuItemResponseDto {
   @ApiProperty({ type: [String] })
   imageUrls!: string[];
 
+  @ApiProperty({ required: false })
+  hsnCode?: string;
+
+  @ApiProperty({ required: false })
+  gstRateId?: string;
+
+  @ApiProperty({ required: false })
+  gstRate?: number;
+
   @ApiProperty()
   createdAt!: string;
 

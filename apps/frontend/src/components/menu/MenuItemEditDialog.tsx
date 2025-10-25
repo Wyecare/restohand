@@ -34,7 +34,9 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { MenuItemImageUpload } from './MenuItemImageUpload';
 import { useUpdateMenuItemMutation } from '@/store/api/restaurantsApi';
+import { useGetGstRatesQuery } from '@/store/api/gstApi';
 import type { MenuItem, MenuCategory } from '@/store/api/types';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const editMenuItemSchema = z.object({
   name: z
@@ -54,6 +56,18 @@ const editMenuItemSchema = z.object({
   isTaxInclusive: z.boolean().default(true),
   isAvailable: z.boolean().default(true),
   tags: z.string().optional(),
+  hsnCode: z
+    .string()
+    .regex(/^\d{4,8}$/, 'HSN code must be 4-8 digits')
+    .optional()
+    .or(z.literal('')),
+  gstRateId: z.string().optional(),
+  useCustomGst: z.boolean().default(false),
+  customGstRate: z
+    .number()
+    .min(0, 'GST rate cannot be negative')
+    .max(100, 'GST rate cannot exceed 100%')
+    .optional(),
 });
 
 type EditMenuItemFormData = z.infer<typeof editMenuItemSchema>;
@@ -79,6 +93,8 @@ export function MenuItemEditDialog({
   const [updateMenuItem, { isLoading }] = useUpdateMenuItemMutation();
   const [tagsInput, setTagsInput] = useState('');
   const [tags, setTags] = useState<string[]>(menuItem.tags || []);
+  const { data: gstRatesResponse, isLoading: gstRatesLoading } = useGetGstRatesQuery(restaurantId);
+  const gstRates = gstRatesResponse?.data ?? [];
 
   const form = useForm<EditMenuItemFormData>({
     resolver: zodResolver(editMenuItemSchema),
@@ -90,6 +106,13 @@ export function MenuItemEditDialog({
       isTaxInclusive: menuItem.pricing?.isTaxInclusive ?? true,
       isAvailable: menuItem.isAvailable,
       tags: menuItem.tags?.join(', ') || '',
+      hsnCode: menuItem.hsnCode ?? '',
+      gstRateId: menuItem.gstRateId ?? '',
+      useCustomGst: !menuItem.gstRateId,
+      customGstRate:
+        !menuItem.gstRateId && typeof menuItem.gstRate === 'number'
+          ? menuItem.gstRate
+          : undefined,
     },
   });
 
@@ -104,6 +127,13 @@ export function MenuItemEditDialog({
         isTaxInclusive: menuItem.pricing?.isTaxInclusive ?? true,
         isAvailable: menuItem.isAvailable,
         tags: menuItem.tags?.join(', ') || '',
+        hsnCode: menuItem.hsnCode ?? '',
+        gstRateId: menuItem.gstRateId ?? '',
+        useCustomGst: !menuItem.gstRateId,
+        customGstRate:
+          !menuItem.gstRateId && typeof menuItem.gstRate === 'number'
+            ? menuItem.gstRate
+            : undefined,
       });
       setTags(menuItem.tags || []);
       setTagsInput('');
@@ -122,7 +152,47 @@ export function MenuItemEditDialog({
     setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
+  const useCustomGst = form.watch('useCustomGst');
+
+  useEffect(() => {
+    if (!useCustomGst && gstRates.length > 0) {
+      const current = form.getValues('gstRateId');
+      if (!current) {
+        const defaultRate =
+          gstRates.find((rate) => rate.isDefault) ?? gstRates[0];
+        form.setValue('gstRateId', defaultRate.id);
+      }
+    }
+  }, [gstRates, useCustomGst, form]);
+
   const onSubmit = async (data: EditMenuItemFormData) => {
+    const trimmedHsn = data.hsnCode?.trim() ?? '';
+    if (trimmedHsn && !/^\d{4,8}$/.test(trimmedHsn)) {
+      toast({
+        title: 'Invalid HSN code',
+        description: 'HSN code must be 4 to 8 digits.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    let gstRateId: string | undefined;
+    let gstRate: number | undefined;
+
+    if (data.useCustomGst) {
+      if (data.customGstRate === undefined || Number.isNaN(data.customGstRate)) {
+        toast({
+          title: 'GST rate required',
+          description: 'Enter the GST percentage when using a custom rate.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      gstRate = data.customGstRate;
+    } else {
+      gstRateId = data.gstRateId || undefined;
+    }
+
     try {
       await updateMenuItem({
         restaurantId,
@@ -138,6 +208,9 @@ export function MenuItemEditDialog({
           },
           tags: tags,
           isAvailable: data.isAvailable,
+          hsnCode: trimmedHsn || undefined,
+          gstRateId,
+          gstRate,
         },
       }).unwrap();
 
@@ -306,6 +379,143 @@ export function MenuItemEditDialog({
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="hsnCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>HSN Code</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter 4-8 digit HSN code"
+                        maxLength={8}
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(e.target.value.replace(/\s+/g, ''))
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Used to classify this item for GST calculations. Leave blank if unsure.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <FormLabel>GST Rate</FormLabel>
+                  <FormField
+                    control={form.control}
+                    name="useCustomGst"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center gap-2">
+                        <FormDescription className="text-xs">
+                          Custom rate
+                        </FormDescription>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked);
+                              if (checked) {
+                                form.setValue('gstRateId', '');
+                              } else if (gstRates.length) {
+                                const defaultRate =
+                                  gstRates.find((rate) => rate.isDefault) ?? gstRates[0];
+                                form.setValue('gstRateId', defaultRate.id);
+                              }
+                            }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {useCustomGst ? (
+                  <FormField
+                    control={form.control}
+                    name="customGstRate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.1"
+                            placeholder="Enter GST % (e.g., 5)"
+                            value={field.value ?? ''}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === ''
+                                  ? undefined
+                                  : parseFloat(e.target.value)
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Provide a total GST percentage when it differs from your saved rates.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="gstRateId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={gstRatesLoading || gstRates.length === 0}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  gstRatesLoading
+                                    ? 'Loading rates...'
+                                    : gstRates.length === 0
+                                    ? 'No GST rates found'
+                                    : 'Select GST rate'
+                                }
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {gstRates.map((rate) => (
+                              <SelectItem key={rate.id} value={rate.id}>
+                                {rate.categoryName} · {rate.totalGstRate}%{' '}
+                                {rate.isDefault ? '(Default)' : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription className="text-xs">
+                          Choose one of the GST rates configured for your restaurant.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+
+              {!useCustomGst && gstRates.length === 0 && (
+                <Alert>
+                  <AlertTitle>No GST rates configured</AlertTitle>
+                  <AlertDescription>
+                    Create a rate in Settings → GST or switch to a custom GST percentage for this item.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-2">
                 <FormLabel>Tags</FormLabel>

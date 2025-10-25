@@ -10,6 +10,7 @@ import { getFirebaseAuth } from '@/lib/firebase';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAppSelector } from '@/store/hooks';
 import { selectUserRoles } from '@/store/slices/authSlice';
+import { useStaffTranslation, useCommonTranslation } from '@/hooks/use-translation';
 
 const StaffLoginPage = () => {
   const [identifier, setIdentifier] = useState('');
@@ -18,6 +19,8 @@ const StaffLoginPage = () => {
   const navigate = useNavigate();
   const [staffLogin, { isLoading }] = useStaffLoginMutation();
   const roles = useAppSelector(selectUserRoles);
+  const { t: tStaff } = useStaffTranslation();
+  const { t: tCommon } = useCommonTranslation();
 
   if (roles.includes('chef')) {
     return <Navigate to="/kitchen" replace />;
@@ -31,8 +34,8 @@ const StaffLoginPage = () => {
     event.preventDefault();
     if (!identifier || !pin) {
       toast({
-        title: 'Missing details',
-        description: 'Enter your phone/email and PIN to continue.',
+        title: tStaff('login.missingDetails'),
+        description: tStaff('login.enterCredentials'),
         variant: 'destructive',
       });
       return;
@@ -41,7 +44,7 @@ const StaffLoginPage = () => {
     try {
       const { token, staff } = await staffLogin({ identifier, pin }).unwrap();
       await signInWithCustomToken(getFirebaseAuth(), token);
-      toast({ title: 'Welcome back!' });
+      toast({ title: tStaff('login.welcomeBack') });
       const destination = staff.roles.includes('chef')
         ? '/kitchen'
         : staff.roles.some((role) => role === 'waiter' || role === 'cashier')
@@ -50,9 +53,9 @@ const StaffLoginPage = () => {
       navigate(destination, { replace: true });
     } catch (error) {
       toast({
-        title: 'Login failed',
+        title: tCommon('messages.error'),
         description:
-          error instanceof Error ? error.message : 'Check your PIN and try again.',
+          error instanceof Error ? error.message : tCommon('messages.networkError'),
         variant: 'destructive',
       });
     }
@@ -62,16 +65,16 @@ const StaffLoginPage = () => {
     <div className="flex min-h-screen items-center justify-center bg-muted/15 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle>Staff login</CardTitle>
+          <CardTitle>{tStaff('login.title')}</CardTitle>
           <CardDescription>
-            Enter the contact information shared by your manager and the latest PIN.
+            {tStaff('login.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="staff-identifier">
-                Phone or email
+                {tStaff('login.phoneOrEmail')}
               </label>
               <Input
                 id="staff-identifier"
@@ -83,7 +86,7 @@ const StaffLoginPage = () => {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="staff-pin">
-                PIN
+                {tStaff('login.pin')}
               </label>
               <Input
                 id="staff-pin"
@@ -96,10 +99,10 @@ const StaffLoginPage = () => {
             <Button type="submit" disabled={isLoading}>
               {isLoading ? (
                 <span className="flex items-center gap-2">
-                  <LoadingSpinner size="sm" /> Signing in...
+                  <LoadingSpinner size="sm" /> {tStaff('login.loggingIn')}
                 </span>
               ) : (
-                'Sign in'
+                tStaff('login.login')
               )}
             </Button>
           </form>

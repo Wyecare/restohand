@@ -13,9 +13,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { QrCode, Download, Copy, Store, ExternalLink } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
-import {
-  useGetRestaurantQrCodeQuery,
-} from '@/store/api/restaurantsApi';
+import { useGetRestaurantQrCodeQuery } from '@/store/api/restaurantsApi';
+import { useCustomerTranslation } from '@/hooks/use-translation';
 
 interface QrCodeDisplayProps {
   title: string;
@@ -25,9 +24,19 @@ interface QrCodeDisplayProps {
   onCopyLink: () => void;
   onDownload: () => void;
   icon?: React.ReactNode;
+  t: (key: string, params?: any) => string;
 }
 
-const QrCodeDisplay = ({ title, description, qrCode, isLoading, onCopyLink, onDownload, icon }: QrCodeDisplayProps) => (
+const QrCodeDisplay = ({
+  title,
+  description,
+  qrCode,
+  isLoading,
+  onCopyLink,
+  onDownload,
+  icon,
+  t,
+}: QrCodeDisplayProps) => (
   <Card>
     <CardHeader>
       <CardTitle className="flex items-center gap-2">
@@ -51,7 +60,11 @@ const QrCodeDisplay = ({ title, description, qrCode, isLoading, onCopyLink, onDo
           <div className="text-center">
             <p className="font-medium text-sm">{qrCode.restaurant.name}</p>
             <p className="text-xs text-muted-foreground">
-              {qrCode.table ? `Table ${qrCode.table}` : 'General Access'}
+              {qrCode.table
+                ? t('qr.mainAccess.tableLabel', {
+                    number: qrCode.table,
+                  })
+                : t('qr.mainAccess.generalAccess')}
             </p>
           </div>
           <div className="flex gap-2">
@@ -62,7 +75,7 @@ const QrCodeDisplay = ({ title, description, qrCode, isLoading, onCopyLink, onDo
               className="text-xs"
             >
               <Copy className="mr-1 h-3 w-3" />
-              Copy
+              {t('qr.actions.copy')}
             </Button>
             <Button
               variant="outline"
@@ -71,7 +84,7 @@ const QrCodeDisplay = ({ title, description, qrCode, isLoading, onCopyLink, onDo
               className="text-xs"
             >
               <Download className="mr-1 h-3 w-3" />
-              Download
+              {t('qr.actions.download')}
             </Button>
           </div>
         </>
@@ -79,7 +92,9 @@ const QrCodeDisplay = ({ title, description, qrCode, isLoading, onCopyLink, onDo
         <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed">
           <div className="text-center">
             <QrCode className="mx-auto h-6 w-6 text-muted-foreground" />
-            <p className="mt-1 text-xs text-muted-foreground">No QR code</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t('qr.actions.noQrCode')}
+            </p>
           </div>
         </div>
       )}
@@ -90,20 +105,22 @@ const QrCodeDisplay = ({ title, description, qrCode, isLoading, onCopyLink, onDo
 const CustomerQrPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
+  const { t: tCustomer } = useCustomerTranslation();
 
   if (!restaurantId) {
     return <Navigate to="/onboarding" replace />;
   }
 
   // Main restaurant QR (no table specified)
-  const { data: mainQrCode, isFetching: isGeneratingMainQr } = useGetRestaurantQrCodeQuery(
-    restaurantId ? { restaurantId, table: undefined } : skipToken
-  );
+  const { data: mainQrCode, isFetching: isGeneratingMainQr } =
+    useGetRestaurantQrCodeQuery(
+      restaurantId ? { restaurantId, table: undefined } : skipToken
+    );
 
   const handleCopyLink = (qrCode: any) => {
     if (qrCode) {
       navigator.clipboard.writeText(qrCode.url);
-      toast({ title: 'Link copied to clipboard!' });
+      toast({ title: tCustomer('qr.messages.linkCopied') });
     }
   };
 
@@ -115,52 +132,118 @@ const CustomerQrPage = () => {
         qrCode.table ? `-table-${qrCode.table}` : '-main'
       }.png`;
       link.click();
-      toast({ title: 'QR code downloaded!' });
+      toast({ title: tCustomer('qr.messages.qrDownloaded') });
     }
   };
-
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Customer QR Code</h1>
-        <p className="text-muted-foreground">
-          Your main QR code for customers to access the digital menu and place orders.
-        </p>
+        <h1 className="text-2xl font-semibold">{tCustomer('qr.title')}</h1>
+        <p className="text-muted-foreground">{tCustomer('qr.subtitle')}</p>
       </div>
 
       {/* Main Restaurant QR Code */}
       <div className="space-y-4">
         <div className="max-w-md">
           <QrCodeDisplay
-            title="Restaurant Menu Access"
-            description="Customers can select their table after scanning"
+            title={tCustomer('qr.mainAccess.title')}
+            description={tCustomer('qr.mainAccess.description')}
             qrCode={mainQrCode}
             isLoading={isGeneratingMainQr}
             onCopyLink={() => handleCopyLink(mainQrCode)}
             onDownload={() => handleDownloadQr(mainQrCode)}
             icon={<Store className="h-5 w-5" />}
+            t={tCustomer}
           />
         </div>
       </div>
 
-      {/* Table QR Codes Reference */}
-      <Card>
+      {/* How QR Codes Work - Explanatory Section */}
+      <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
         <CardHeader>
-          <CardTitle>Table QR Codes</CardTitle>
-          <CardDescription>
-            Need individual QR codes for each table?
+          <CardTitle className="flex items-center gap-2 text-blue-900">
+            <QrCode className="h-5 w-5" />
+            {tCustomer('qr.usage.title')}
+          </CardTitle>
+          <CardDescription className="text-blue-700">
+            {tCustomer('qr.usage.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <h4 className="font-medium text-sm mb-3 text-blue-900">
+                {tCustomer('qr.usage.howItWorks')}
+              </h4>
+              <ul className="space-y-2 text-sm text-blue-800">
+                <li className="flex items-start gap-2">
+                  <span className="bg-blue-100 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold mt-0.5">
+                    1
+                  </span>
+                  {tCustomer('qr.usage.steps.scan')}
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="bg-blue-100 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold mt-0.5">
+                    2
+                  </span>
+                  {tCustomer('qr.usage.steps.browse')}
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="bg-blue-100 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold mt-0.5">
+                    3
+                  </span>
+                  {tCustomer('qr.usage.steps.order')}
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="bg-blue-100 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold mt-0.5">
+                    4
+                  </span>
+                  {tCustomer('qr.usage.steps.notify')}
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-medium text-sm mb-3 text-blue-900">
+                {tCustomer('qr.usage.benefits.title')}:
+              </h4>
+              <ul className="space-y-2 text-sm text-blue-800">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600">✓</span>
+                  {tCustomer('qr.usage.benefits.contactless')}
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600">✓</span>
+                  {tCustomer('qr.usage.benefits.efficient')}
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600">✓</span>
+                  {tCustomer('qr.usage.benefits.accurate')}
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-600">✓</span>
+                  {tCustomer('qr.usage.benefits.convenient')}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Table QR Codes Reference */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{tCustomer('qr.tableQr.title')}</CardTitle>
+          <CardDescription>{tCustomer('qr.tableQr.subtitle')}</CardDescription>
+        </CardHeader>
+        <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Table-specific QR codes can be configured and generated from the Tables page.
-            These QR codes pre-fill table information for a smoother customer experience.
+            {tCustomer('qr.tableQr.description')}
           </p>
           <Button variant="outline" asChild>
             <Link to="/tables">
               <ExternalLink className="mr-2 h-4 w-4" />
-              Configure Table QR Codes
+              {tCustomer('qr.tableQr.configureButton')}
             </Link>
           </Button>
         </CardContent>

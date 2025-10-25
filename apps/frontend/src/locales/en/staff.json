@@ -18,5 +18,145 @@
     "status": "Status",
     "joinDate": "Join Date",
     "permissions": "Permissions"
+  },
+  "management": {
+    "title": "Staff Management",
+    "subtitle": "Invite staff, update roles, and control access.",
+    "teamRoster": "Team Roster",
+    "teamRosterDesc": "Roles, contact info, and access status.",
+    "shareAccess": "Share staff access",
+    "shareAccessDesc": "Send this message to {name} so they can log in."
+  },
+  "table": {
+    "name": "Name",
+    "role": "Role",
+    "contact": "Contact",
+    "status": "Status",
+    "actions": "Actions",
+    "noContactDetails": "No contact details",
+    "lastLogin": "Last login {date}",
+    "noLoginYet": "No login yet",
+    "active": "Active",
+    "inactive": "Inactive",
+    "resetPin": "Reset PIN",
+    "showingStaff": "Showing {showing} of {total} staff",
+    "prev": "Prev",
+    "next": "Next"
+  },
+  "filters": {
+    "title": "Filters",
+    "status": "Status",
+    "role": "Role",
+    "all": "All",
+    "allRoles": "All roles"
+  },
+  "metrics": {
+    "activeStaff": "Active Staff",
+    "activeStaffDesc": "Currently allowed to log in",
+    "inactive": "Inactive",
+    "inactiveDesc": "Access turned off",
+    "totalStaff": "Total Staff",
+    "totalStaffDesc": "All registered members",
+    "check": "Check"
+  },
+  "buttons": {
+    "filters": "Filters",
+    "generateQr": "Generate QR",
+    "legacyInvite": "Legacy Invite",
+    "refresh": "Refresh",
+    "copyMessage": "Copy message",
+    "share": "Share",
+    "cancel": "Cancel",
+    "sendInvite": "Send Invite",
+    "inviting": "Inviting...",
+    "close": "Close"
+  },
+  "invite": {
+    "title": "Invite Staff",
+    "description": "Generate a one-time PIN and share it with your teammate so they can log in.",
+    "fullName": "Full name",
+    "emailOptional": "Email (optional)",
+    "phoneOptional": "Phone (optional)",
+    "selectRole": "Select role"
+  },
+  "qr": {
+    "title": "Staff QR Code",
+    "roleRequired": "Role *",
+    "validity": "Validity",
+    "displayName": "Display Name",
+    "displayNamePlaceholder": "Optional label (e.g., Front Desk)",
+    "selectRole": "Select role",
+    "duration": "Duration",
+    "generate": "Generate",
+    "generating": "Generating...",
+    "details": "Details",
+    "expires": "Expires",
+    "copyUrl": "Copy URL",
+    "download": "Download",
+    "durations": {
+      "1hr": "1 hr",
+      "6hrs": "6 hrs",
+      "24hrs": "24 hrs",
+      "3days": "3 days",
+      "1week": "1 week"
+    }
+  },
+  "share": {
+    "newInvite": "New invite",
+    "pinReset": "PIN reset",
+    "dismissPrompt": "Dismiss share prompt"
+  },
+  "messages": {
+    "nameRequired": "Name required",
+    "enterStaffName": "Please enter a staff name.",
+    "staffInvited": "Staff invited",
+    "inviteSuccess": "Temporary PIN generated. Share it so they can log in.",
+    "unableToInvite": "Unable to invite staff",
+    "pinReset": "PIN reset",
+    "pinResetSuccess": "Share the new PIN so they can log back in.",
+    "unableToResetPin": "Unable to reset PIN",
+    "roleUpdated": "Role updated",
+    "roleUpdateSuccess": "{name} is now {role}.",
+    "unableToUpdateRole": "Unable to update role",
+    "staffActivated": "Staff activated",
+    "staffDeactivated": "Staff deactivated",
+    "unableToUpdateStatus": "Unable to update status",
+    "selectRole": "Select a role",
+    "failedToGenerate": "Failed to generate",
+    "tryAgainLater": "Try again later",
+    "copiedLink": "Copied link",
+    "signupUrlCopied": "Signup URL copied",
+    "qrDownloaded": "QR downloaded",
+    "savedToDevice": "Saved to device",
+    "copiedToClipboard": "Copied to clipboard",
+    "readyToPaste": "Message ready to paste in WhatsApp / SMS.",
+    "unableToCopy": "Unable to copy",
+    "clipboardNotAvailable": "Clipboard not available",
+    "unableToShare": "Unable to share",
+    "unexpectedError": "Unexpected error occurred"
+  },
+  "states": {
+    "loadingStaff": "Loading staff members...",
+    "errorLoadingStaff": "Unable to load staff members.",
+    "noStaffFound": "No staff found. Try changing filters or invite your first staff member."
+  },
+  "login": {
+    "title": "Staff Login",
+    "description": "Enter your credentials to access the staff dashboard",
+    "phoneOrEmail": "Phone or Email",
+    "pin": "PIN",
+    "login": "Login",
+    "loggingIn": "Logging in...",
+    "missingDetails": "Missing details",
+    "enterCredentials": "Enter your phone/email and PIN to continue.",
+    "welcomeBack": "Welcome back!"
+  },
+  "signup": {
+    "title": "Staff Signup",
+    "qrValidation": "QR Code Validation",
+    "phoneVerification": "Phone Verification",
+    "completing": "Completing",
+    "success": "Success",
+    "error": "Error"
   }
 }

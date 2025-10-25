@@ -29,6 +29,7 @@ export interface CreateRestaurantPayload {
   address: Restaurant['address'];
   upi: Restaurant['upi'];
   languages?: string[];
+  gstin?: string;
   isActive?: boolean;
 }
 
@@ -52,6 +53,9 @@ export interface CreateMenuItemPayload {
   isAvailable?: boolean;
   displayOrder?: number;
   imageUrls?: string[];
+  hsnCode?: string;
+  gstRateId?: string;
+  gstRate?: number;
 }
 
 export type UpdateMenuItemPayload = Partial<CreateMenuItemPayload>;

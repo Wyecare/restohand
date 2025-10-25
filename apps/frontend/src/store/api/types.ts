@@ -38,6 +38,7 @@ export interface Restaurant {
   address: RestaurantAddress;
   upi: RestaurantUpiConfig;
   languages: string[];
+  gstin?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -89,6 +90,9 @@ export interface MenuItem {
   isAvailable: boolean;
   displayOrder: number;
   imageUrls: string[];
+  hsnCode?: string;
+  gstRateId?: string;
+  gstRate?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -117,11 +121,26 @@ export interface OrderItemPricing {
   discountAmount?: number;
 }
 
+export interface OrderItemGst {
+  hsnCode?: string;
+  gstRateId?: string;
+  gstRate: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  totalTaxAmount: number;
+  taxableAmount: number;
+  totalWithTax: number;
+  grossAmount: number;
+  isTaxInclusive: boolean;
+}
+
 export interface OrderItem {
   menuItemId: string;
   name: string;
   quantity: number;
   pricing: OrderItemPricing;
+  gst?: OrderItemGst;
   notes?: string;
 }
 
@@ -134,6 +153,9 @@ export interface Order {
   tableNumber?: string;
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
+  customerGstin?: string;
+  customerState?: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: 'upi' | 'cash';
@@ -141,8 +163,14 @@ export interface Order {
   items: OrderItem[];
   subTotalAmount: number;
   taxAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
   discountAmount: number;
+  grossAmount: number;
   totalAmount: number;
+  roundOffAmount: number;
+  taxType?: 'intra-state' | 'inter-state';
   notes?: string;
   statusNote?: string;
   paidAt?: string;
@@ -150,6 +178,8 @@ export interface Order {
   paymentProvider?: string;
   paymentTransactionId?: string;
   paymentIntentUrl?: string;
+  taxInvoiceNumber?: string;
+  taxInvoiceGeneratedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

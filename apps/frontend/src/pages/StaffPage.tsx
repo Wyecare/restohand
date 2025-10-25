@@ -74,12 +74,9 @@ import {
 
 import type { StaffMember } from '@/store/api/types';
 import { StaffQrGenerator } from '@/components/staff/StaffQrGenerator';
+import { useStaffTranslation, useCommonTranslation } from '@/hooks/use-translation';
 
-const roleOptions = [
-  { label: 'Chef', value: 'chef' },
-  { label: 'Waiter', value: 'waiter' },
-  { label: 'Cashier', value: 'cashier' },
-];
+// Role options will be translated dynamically
 
 type InviteShareContext = {
   id: string;
@@ -94,6 +91,15 @@ type InviteShareContext = {
 export default function StaffPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
+  const { t: tStaff } = useStaffTranslation();
+  const { t: tCommon } = useCommonTranslation();
+
+  // Translated role options
+  const roleOptions = [
+    { label: tStaff('roles.chef'), value: 'chef' },
+    { label: tStaff('roles.waiter'), value: 'waiter' },
+    { label: tStaff('roles.cashier'), value: 'cashier' },
+  ];
 
   // block unauth'd restaurant
   if (!restaurantId) {
@@ -187,8 +193,8 @@ export default function StaffPage() {
     e.preventDefault();
     if (!inviteName.trim()) {
       toast({
-        title: 'Name required',
-        description: 'Please enter a staff name.',
+        title: tStaff('messages.nameRequired'),
+        description: tStaff('messages.enterStaffName'),
         variant: 'destructive',
       });
       return;
@@ -203,8 +209,8 @@ export default function StaffPage() {
       }).unwrap();
 
       toast({
-        title: 'Staff invited',
-        description: 'Temporary PIN generated. Share it so they can log in.',
+        title: tStaff('messages.staffInvited'),
+        description: tStaff('messages.inviteSuccess'),
       });
 
       setShareContext({
@@ -224,9 +230,9 @@ export default function StaffPage() {
       setInviteRole(roleOptions[0].value);
     } catch (err) {
       toast({
-        title: 'Unable to invite staff',
+        title: tStaff('messages.unableToInvite'),
         description:
-          err instanceof Error ? err.message : 'Unexpected error occurred',
+          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     }
@@ -239,8 +245,8 @@ export default function StaffPage() {
       const res = await resetStaffPin(member.id).unwrap();
 
       toast({
-        title: 'PIN reset',
-        description: 'Share the new PIN so they can log back in.',
+        title: tStaff('messages.pinReset'),
+        description: tStaff('messages.pinResetSuccess'),
       });
 
       setShareContext({
@@ -254,9 +260,9 @@ export default function StaffPage() {
       });
     } catch (err) {
       toast({
-        title: 'Unable to reset PIN',
+        title: tStaff('messages.unableToResetPin'),
         description:
-          err instanceof Error ? err.message : 'Unexpected error occurred',
+          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     } finally {
@@ -278,14 +284,14 @@ export default function StaffPage() {
         roleOptions.find((o) => o.value === nextRole)?.label ?? nextRole;
 
       toast({
-        title: 'Role updated',
-        description: `${member.name} is now ${roleLabel}.`,
+        title: tStaff('messages.roleUpdated'),
+        description: tStaff('messages.roleUpdateSuccess', { name: member.name, role: roleLabel }),
       });
     } catch (err) {
       toast({
-        title: 'Unable to update role',
+        title: tStaff('messages.unableToUpdateRole'),
         description:
-          err instanceof Error ? err.message : 'Unexpected error occurred',
+          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     } finally {
@@ -303,13 +309,13 @@ export default function StaffPage() {
       }).unwrap();
 
       toast({
-        title: isActive ? 'Staff activated' : 'Staff deactivated',
+        title: isActive ? tStaff('messages.staffActivated') : tStaff('messages.staffDeactivated'),
       });
     } catch (err) {
       toast({
-        title: 'Unable to update status',
+        title: tStaff('messages.unableToUpdateStatus'),
         description:
-          err instanceof Error ? err.message : 'Unexpected error occurred',
+          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     } finally {
@@ -322,7 +328,7 @@ export default function StaffPage() {
     () => [
       {
         accessorKey: 'name',
-        header: 'Name',
+        header: tStaff('table.name'),
         cell: ({ row }) => {
           const m = row.original;
           return (
@@ -331,8 +337,8 @@ export default function StaffPage() {
               <div className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <Clock4 className="h-3.5 w-3.5" />
                 {m.lastLoginAt
-                  ? `Last login ${new Date(m.lastLoginAt).toLocaleString()}`
-                  : 'No login yet'}
+                  ? tStaff('table.lastLogin', { date: new Date(m.lastLoginAt).toLocaleString() })
+                  : tStaff('table.noLoginYet')}
               </div>
             </div>
           );
@@ -340,7 +346,7 @@ export default function StaffPage() {
       },
       {
         accessorKey: 'roles',
-        header: 'Role',
+        header: tStaff('table.role'),
         cell: ({ row }) => {
           const m = row.original;
           const currentRole = m.roles[0] ?? roleOptions[0].value;
@@ -366,7 +372,7 @@ export default function StaffPage() {
       },
       {
         id: 'contact',
-        header: 'Contact',
+        header: tStaff('table.contact'),
         cell: ({ row }) => {
           const m = row.original;
           return (
@@ -385,7 +391,7 @@ export default function StaffPage() {
               )}
               {!m.phoneNumber && !m.email && (
                 <div className="italic text-muted-foreground/70">
-                  No contact details
+                  {tStaff('table.noContactDetails')}
                 </div>
               )}
             </div>
@@ -394,7 +400,7 @@ export default function StaffPage() {
       },
       {
         id: 'status',
-        header: 'Status',
+        header: tStaff('table.status'),
         cell: ({ row }) => {
           const m = row.original;
           return (
@@ -409,7 +415,7 @@ export default function StaffPage() {
                 htmlFor={`active-${m.id}`}
                 className="text-xs text-muted-foreground"
               >
-                {m.isActive ? 'Active' : 'Inactive'}
+                {m.isActive ? tStaff('table.active') : tStaff('table.inactive')}
               </Label>
             </div>
           );
@@ -417,7 +423,7 @@ export default function StaffPage() {
       },
       {
         id: 'actions',
-        header: 'Actions',
+        header: tStaff('table.actions'),
         cell: ({ row }) => {
           const m = row.original;
           return (
@@ -429,7 +435,7 @@ export default function StaffPage() {
               className="h-8 px-2 text-xs"
             >
               <RefreshCcw className="h-4 w-4 mr-1" />
-              Reset PIN
+              {tStaff('table.resetPin')}
             </Button>
           );
         },
@@ -493,14 +499,14 @@ export default function StaffPage() {
     try {
       await navigator.clipboard.writeText(shareMessage);
       toast({
-        title: 'Copied to clipboard',
-        description: 'Message ready to paste in WhatsApp / SMS.',
+        title: tStaff('messages.copiedToClipboard'),
+        description: tStaff('messages.readyToPaste'),
       });
     } catch (err) {
       toast({
-        title: 'Unable to copy',
+        title: tStaff('messages.unableToCopy'),
         description:
-          err instanceof Error ? err.message : 'Clipboard not available',
+          err instanceof Error ? err.message : tStaff('messages.clipboardNotAvailable'),
         variant: 'destructive',
       });
     }
@@ -528,9 +534,9 @@ export default function StaffPage() {
     } catch (err: any) {
       if (err?.name === 'AbortError') return;
       toast({
-        title: 'Unable to share',
+        title: tStaff('messages.unableToShare'),
         description:
-          err instanceof Error ? err.message : 'Unexpected error occurred',
+          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     }
@@ -542,10 +548,10 @@ export default function StaffPage() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold leading-tight">
-            Staff Management
+            {tStaff('management.title')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Invite staff, update roles, and control access.
+            {tStaff('management.subtitle')}
           </p>
         </div>
 
@@ -555,7 +561,7 @@ export default function StaffPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm">
                 <Filter className="h-4 w-4 mr-2" />
-                Filters
+                {tStaff('buttons.filters')}
               </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -565,7 +571,7 @@ export default function StaffPage() {
             >
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-muted-foreground">
-                  Status
+                  {tStaff('filters.status')}
                 </Label>
                 <Select
                   value={statusFilter}
@@ -577,16 +583,16 @@ export default function StaffPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="all">{tStaff('filters.all')}</SelectItem>
+                    <SelectItem value="active">{tStaff('table.active')}</SelectItem>
+                    <SelectItem value="inactive">{tStaff('table.inactive')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1">
                 <Label className="text-xs font-medium text-muted-foreground">
-                  Role
+                  {tStaff('filters.role')}
                 </Label>
                 <Select
                   value={roleFilter}
@@ -596,7 +602,7 @@ export default function StaffPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All roles</SelectItem>
+                    <SelectItem value="all">{tStaff('filters.allRoles')}</SelectItem>
                     {roleOptions.map((r) => (
                       <SelectItem key={r.value} value={r.value}>
                         {r.label}
@@ -611,7 +617,7 @@ export default function StaffPage() {
           {/* QR Code invite button (NEW PRIMARY METHOD) */}
           <Button size="sm" onClick={() => setQrDialogOpen(true)}>
             <QrCode className="h-4 w-4 mr-2" />
-            Generate QR
+            {tStaff('buttons.generateQr')}
           </Button>
 
           {/* Legacy invite button (SMS method) */}
@@ -621,13 +627,13 @@ export default function StaffPage() {
             onClick={() => setDialogOpen(true)}
           >
             <UserPlus2 className="h-4 w-4 mr-2" />
-            Legacy Invite
+            {tStaff('buttons.legacyInvite')}
           </Button>
 
           {/* Refresh button */}
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCcw className="h-4 w-4 mr-2" />
-            Refresh
+            {tStaff('buttons.refresh')}
           </Button>
         </div>
       </div>
@@ -635,28 +641,28 @@ export default function StaffPage() {
       {/* Metrics row */}
       <MetricsGrid columns={3}>
         <MetricsCard
-          title="Active Staff"
+          title={tStaff('metrics.activeStaff')}
           value={stats.active}
-          description="Currently allowed to log in"
+          description={tStaff('metrics.activeStaffDesc')}
           icon={Users}
           iconColor="green"
         />
         <MetricsCard
-          title="Inactive"
+          title={tStaff('metrics.inactive')}
           value={stats.inactive}
-          description="Access turned off"
+          description={tStaff('metrics.inactiveDesc')}
           icon={Users}
           iconColor="red"
           badge={
             stats.inactive > 0
-              ? { text: 'Check', variant: 'destructive' }
+              ? { text: tStaff('metrics.check'), variant: 'destructive' }
               : undefined
           }
         />
         <MetricsCard
-          title="Total Staff"
+          title={tStaff('metrics.totalStaff')}
           value={stats.total}
-          description="All registered members"
+          description={tStaff('metrics.totalStaffDesc')}
           icon={Users}
           iconColor="blue"
         />
@@ -665,9 +671,9 @@ export default function StaffPage() {
       {/* Staff table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Team Roster</CardTitle>
+          <CardTitle className="text-base font-semibold">{tStaff('management.teamRoster')}</CardTitle>
           <CardDescription className="text-sm">
-            Roles, contact info, and access status.
+            {tStaff('management.teamRosterDesc')}
           </CardDescription>
         </CardHeader>
 
@@ -678,12 +684,11 @@ export default function StaffPage() {
             </div>
           ) : isError ? (
             <div className="text-center text-sm text-destructive py-10">
-              Unable to load staff members.
+              {tStaff('states.errorLoadingStaff')}
             </div>
           ) : filteredStaff.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-10">
-              No staff found. Try changing filters or invite your first staff
-              member.
+              {tStaff('states.noStaffFound')}
             </div>
           ) : (
             <>
@@ -729,8 +734,10 @@ export default function StaffPage() {
               {/* Pagination footer */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4 text-xs text-muted-foreground">
                 <div>
-                  Showing {table.getRowModel().rows.length} of{' '}
-                  {table.getRowCount()} staff
+                  {tStaff('table.showingStaff', {
+                    showing: table.getRowModel().rows.length,
+                    total: table.getRowCount()
+                  })}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -740,7 +747,7 @@ export default function StaffPage() {
                     onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                   >
-                    Prev
+                    {tStaff('table.prev')}
                   </Button>
                   <Button
                     variant="outline"
@@ -749,7 +756,7 @@ export default function StaffPage() {
                     onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                   >
-                    Next
+                    {tStaff('table.next')}
                   </Button>
                 </div>
               </div>
@@ -765,16 +772,16 @@ export default function StaffPage() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <CardTitle className="text-base font-semibold">
-                  Share staff access
+                  {tStaff('management.shareAccess')}
                 </CardTitle>
                 <Badge variant="outline" className="capitalize text-xs">
                   {shareContext.action === 'invite'
-                    ? 'New invite'
-                    : 'PIN reset'}
+                    ? tStaff('share.newInvite')
+                    : tStaff('share.pinReset')}
                 </Badge>
               </div>
               <CardDescription className="text-sm">
-                Send this message to {shareContext.name} so they can log in.
+                {tStaff('management.shareAccessDesc', { name: shareContext.name })}
               </CardDescription>
             </div>
 
@@ -782,7 +789,7 @@ export default function StaffPage() {
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Dismiss share prompt"
+              aria-label={tStaff('share.dismissPrompt')}
               onClick={() => setShareContext(null)}
             >
               <X className="h-4 w-4" />
@@ -798,7 +805,7 @@ export default function StaffPage() {
                 onClick={handleCopyShare}
               >
                 <Copy className="mr-2 h-4 w-4" />
-                Copy message
+                {tStaff('buttons.copyMessage')}
               </Button>
 
               <Button
@@ -809,7 +816,7 @@ export default function StaffPage() {
                 onClick={handleNativeShare}
               >
                 <Share2 className="mr-2 h-4 w-4" />
-                Share
+                {tStaff('buttons.share')}
               </Button>
             </div>
 
@@ -824,10 +831,9 @@ export default function StaffPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Invite Staff</DialogTitle>
+            <DialogTitle>{tStaff('invite.title')}</DialogTitle>
             <DialogDescription className="text-sm">
-              Generate a one-time PIN and share it with your teammate so they
-              can log in.
+              {tStaff('invite.description')}
             </DialogDescription>
           </DialogHeader>
 
@@ -835,7 +841,7 @@ export default function StaffPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
                 <Label className="text-sm font-medium" htmlFor="invite-name">
-                  Full name
+                  {tStaff('invite.fullName')}
                 </Label>
                 <Input
                   id="invite-name"
@@ -848,7 +854,7 @@ export default function StaffPage() {
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium" htmlFor="invite-email">
-                  Email (optional)
+                  {tStaff('invite.emailOptional')}
                 </Label>
                 <Input
                   id="invite-email"
@@ -861,7 +867,7 @@ export default function StaffPage() {
 
               <div className="space-y-2">
                 <Label className="text-sm font-medium" htmlFor="invite-phone">
-                  Phone (optional)
+                  {tStaff('invite.phoneOptional')}
                 </Label>
                 <Input
                   id="invite-phone"
@@ -873,11 +879,11 @@ export default function StaffPage() {
 
               <div className="space-y-2 sm:col-span-2">
                 <Label className="text-sm font-medium" htmlFor="invite-role">
-                  Role
+                  {tStaff('table.role')}
                 </Label>
                 <Select value={inviteRole} onValueChange={setInviteRole}>
                   <SelectTrigger id="invite-role">
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder={tStaff('invite.selectRole')} />
                   </SelectTrigger>
                   <SelectContent>
                     {roleOptions.map((option) => (
@@ -897,14 +903,14 @@ export default function StaffPage() {
                 onClick={() => setDialogOpen(false)}
                 className="sm:min-w-[90px]"
               >
-                Cancel
+                {tStaff('buttons.cancel')}
               </Button>
               <Button
                 type="submit"
                 disabled={isInviting}
                 className="sm:min-w-[120px]"
               >
-                {isInviting ? 'Inviting...' : 'Send Invite'}
+                {isInviting ? tStaff('buttons.inviting') : tStaff('buttons.sendInvite')}
               </Button>
             </DialogFooter>
           </form>

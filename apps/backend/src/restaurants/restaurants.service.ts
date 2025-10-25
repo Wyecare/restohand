@@ -40,7 +40,10 @@ export class RestaurantsService {
     }
 
     await this.ensureSlugUnique(dto.slug);
-    const created = await this.restaurantModel.create(dto);
+    const created = await this.restaurantModel.create({
+      ...dto,
+      gstin: dto.gstin?.trim().toUpperCase(),
+    });
 
     await this.usersService.attachRestaurantToUser(actor, created._id.toString(), [
       UserRole.Manager,
@@ -128,7 +131,12 @@ export class RestaurantsService {
 
     const updated = await this.restaurantModel.findByIdAndUpdate(
       id,
-      { $set: dto },
+      {
+        $set: {
+          ...dto,
+          gstin: dto.gstin?.trim().toUpperCase() ?? dto.gstin,
+        },
+      },
       { new: true, runValidators: true }
     );
     if (!updated) {
@@ -169,6 +177,7 @@ export class RestaurantsService {
       address: json.address,
       upi: json.upi,
       languages: json.languages,
+      gstin: json.gstin,
       isActive: json.isActive,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),

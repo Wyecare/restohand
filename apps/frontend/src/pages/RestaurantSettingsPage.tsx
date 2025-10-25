@@ -29,8 +29,11 @@ const RestaurantSettingsPage = () => {
     return <Navigate to="/onboarding" replace />;
   }
 
-  const { data: restaurant, isLoading } = useGetRestaurantQuery(restaurantId ?? skipToken);
-  const [updateRestaurant, { isLoading: isUpdating }] = useUpdateRestaurantMutation();
+  const { data: restaurant, isLoading } = useGetRestaurantQuery(
+    restaurantId ?? skipToken
+  );
+  const [updateRestaurant, { isLoading: isUpdating }] =
+    useUpdateRestaurantMutation();
 
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
@@ -41,6 +44,7 @@ const RestaurantSettingsPage = () => {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
+  const [gstin, setGstin] = useState('');
 
   useEffect(() => {
     if (!restaurant) return;
@@ -53,11 +57,26 @@ const RestaurantSettingsPage = () => {
     setCity(restaurant.address.city);
     setState(restaurant.address.state);
     setPostalCode(restaurant.address.postalCode);
+    setGstin(restaurant.gstin ?? '');
   }, [restaurant]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!restaurantId) return;
+
+    const trimmedGstin = gstin.trim().toUpperCase();
+    const gstinPattern =
+      /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (trimmedGstin && !gstinPattern.test(trimmedGstin)) {
+      console.log('Invalid GSTIN format:', trimmedGstin);
+      toast({
+        title: 'Invalid GSTIN',
+        description:
+          'Please enter a valid 15-character GSTIN (e.g., 32ABCDE1234F1Z5).',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
       await updateRestaurant({
@@ -75,6 +94,7 @@ const RestaurantSettingsPage = () => {
             postalCode,
             country: restaurant?.address.country ?? 'IN',
           },
+          gstin: trimmedGstin || undefined,
         },
       }).unwrap();
       toast({ title: 'Restaurant settings updated successfully' });
@@ -114,7 +134,8 @@ const RestaurantSettingsPage = () => {
               Basic Information
             </CardTitle>
             <CardDescription>
-              Your restaurant's name and legal information for billing and receipts.
+              Your restaurant's name and legal information for billing and
+              receipts.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -141,9 +162,32 @@ const RestaurantSettingsPage = () => {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="gstin" className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  GSTIN
+                </Label>
+                <Input
+                  id="gstin"
+                  value={gstin}
+                  onChange={(event) =>
+                    setGstin(event.target.value.toUpperCase())
+                  }
+                  placeholder="32ABCDE1234F1Z5"
+                  maxLength={15}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Required for generating compliant tax invoices. Must match
+                  your registered GST number.
+                </p>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="contact-email" className="flex items-center gap-2">
+                  <Label
+                    htmlFor="contact-email"
+                    className="flex items-center gap-2"
+                  >
                     <Mail className="h-4 w-4" />
                     Contact Email
                   </Label>
@@ -156,7 +200,10 @@ const RestaurantSettingsPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="contact-phone" className="flex items-center gap-2">
+                  <Label
+                    htmlFor="contact-phone"
+                    className="flex items-center gap-2"
+                  >
                     <Phone className="h-4 w-4" />
                     Contact Phone
                   </Label>
@@ -190,9 +237,7 @@ const RestaurantSettingsPage = () => {
               <CreditCard className="h-5 w-5" />
               Payment Settings
             </CardTitle>
-            <CardDescription>
-              UPI and payment configuration
-            </CardDescription>
+            <CardDescription>UPI and payment configuration</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -214,7 +259,8 @@ const RestaurantSettingsPage = () => {
             Address Information
           </CardTitle>
           <CardDescription>
-            Your restaurant's physical location for delivery and customer visits.
+            Your restaurant's physical location for delivery and customer
+            visits.
           </CardDescription>
         </CardHeader>
         <CardContent>

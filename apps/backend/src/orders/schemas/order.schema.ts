@@ -26,6 +26,9 @@ class OrderItemGst {
   @Prop({ type: String, trim: true })
   hsnCode?: string;
 
+  @Prop({ type: String, trim: true })
+  gstRateId?: string;
+
   @Prop({ type: Number, default: 0, min: 0, max: 100 })
   gstRate!: number;
 
@@ -40,6 +43,18 @@ class OrderItemGst {
 
   @Prop({ type: Number, default: 0, min: 0 })
   totalTaxAmount!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  taxableAmount!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  totalWithTax!: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  grossAmount!: number;
+
+  @Prop({ type: Boolean, default: false })
+  isTaxInclusive!: boolean;
 }
 
 const OrderItemPricingSchema = SchemaFactory.createForClass(OrderItemPricing);
@@ -94,6 +109,15 @@ export class Order {
   @Prop({ type: String, trim: true })
   customerPhone?: string;
 
+  @Prop({ type: String, trim: true, lowercase: true })
+  customerEmail?: string;
+
+  @Prop({ type: String, trim: true, uppercase: true, match: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/ })
+  customerGstin?: string;
+
+  @Prop({ type: String, trim: true })
+  customerState?: string;
+
   @Prop({
     type: String,
     enum: Object.values(OrderStatus),
@@ -142,6 +166,9 @@ export class Order {
 
   @Prop({ type: Number, min: 0, default: 0 })
   discountAmount!: number;
+
+  @Prop({ type: Number, min: 0, default: 0 })
+  grossAmount!: number;
 
   @Prop({ type: Number, min: 0, default: 0 })
   roundOffAmount!: number; // Rounding adjustment

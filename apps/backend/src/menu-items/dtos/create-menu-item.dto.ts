@@ -5,13 +5,16 @@ import {
   IsArray,
   IsBoolean,
   IsInt,
+  IsMongoId,
+  IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
+  Max,
   Min,
   MinLength,
   ValidateNested,
-  IsMongoId,
   IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -77,4 +80,33 @@ export class CreateMenuItemDto {
   @ArrayUnique()
   @IsUrl(undefined, { each: true })
   imageUrls?: string[];
+
+  @ApiProperty({
+    example: '996331',
+    required: false,
+    description: '4-8 digit HSN code used for GST classification',
+  })
+  @IsOptional()
+  @Matches(/^\d{4,8}$/)
+  hsnCode?: string;
+
+  @ApiProperty({
+    example: '66f0e5ec2ed1f1a1c4f9c7e3',
+    required: false,
+    description: 'GST rate identifier defined via GST settings',
+  })
+  @IsOptional()
+  @IsMongoId()
+  gstRateId?: string;
+
+  @ApiProperty({
+    example: 5,
+    required: false,
+    description: 'Total GST percentage for quick lookups (falls back to linked GST rate).',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  gstRate?: number;
 }

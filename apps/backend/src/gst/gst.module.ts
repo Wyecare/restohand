@@ -6,6 +6,7 @@ import { GstService } from './gst.service';
 import { GstRate, GstRateSchema } from './schemas/gst-rate.schema';
 import { HsnCode, HsnCodeSchema } from './schemas/hsn-code.schema';
 import { TaxInvoice, TaxInvoiceSchema } from './schemas/tax-invoice.schema';
+import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { TaxInvoice, TaxInvoiceSchema } from './schemas/tax-invoice.schema';
       { name: GstRate.name, schema: GstRateSchema },
       { name: HsnCode.name, schema: HsnCodeSchema },
       { name: TaxInvoice.name, schema: TaxInvoiceSchema },
+      { name: Restaurant.name, schema: RestaurantSchema },
     ]),
     AuthModule,
   ],

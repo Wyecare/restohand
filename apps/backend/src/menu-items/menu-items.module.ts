@@ -6,12 +6,14 @@ import { MenuItemsController } from './menu-items.controller';
 import { MenuItemsService } from './menu-items.service';
 import { MenuItem, MenuItemSchema } from './schemas/menu-item.schema';
 import { ImageUploadService } from '../common/services/image-upload.service';
+import { GstRate, GstRateSchema } from '../gst/schemas/gst-rate.schema';
 
 @Module({
   imports: [
     AuthModule,
     MongooseModule.forFeature([
       { name: MenuItem.name, schema: MenuItemSchema },
+      { name: GstRate.name, schema: GstRateSchema },
     ]),
     MulterModule.register({
       limits: {

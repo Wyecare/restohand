@@ -30,6 +30,9 @@ export class RestaurantResponseDto {
   @ApiProperty({ type: RestaurantUpiConfigDto })
   upi!: RestaurantUpiConfigDto;
 
+  @ApiProperty({ required: false })
+  gstin?: string;
+
   @ApiProperty({ type: [String] })
   languages!: string[];
 

@@ -166,6 +166,36 @@ export function MenuItemsTable({
         ),
       },
       {
+        id: 'gst',
+        header: 'GST',
+        cell: ({ row }) => {
+          const item = row.original;
+          if (item.gstRateId || typeof item.gstRate === 'number') {
+            const rate =
+              typeof item.gstRate === 'number'
+                ? `${item.gstRate}%`
+                : 'Configured';
+            return (
+              <div className="flex flex-col gap-1">
+                <Badge variant="outline" className="text-xs font-medium">
+                  {rate}
+                </Badge>
+                {item.hsnCode && (
+                  <span className="text-[11px] text-muted-foreground">
+                    HSN {item.hsnCode}
+                  </span>
+                )}
+              </div>
+            );
+          }
+          return (
+            <Badge variant="destructive" className="text-xs font-medium">
+              Needs GST
+            </Badge>
+          );
+        },
+      },
+      {
         id: 'actions',
         enableHiding: false,
         cell: ({ row }) => {

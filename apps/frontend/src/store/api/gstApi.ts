@@ -64,19 +64,25 @@ export interface OrderItemWithTax {
   name: string;
   quantity: number;
   unitPrice: number;
-  totalAmount: number;
   hsnCode?: string;
+  gstRateId?: string;
   gstRate: number;
   cgstAmount: number;
   sgstAmount: number;
   igstAmount: number;
   totalTaxAmount: number;
+  discountAmount: number;
+  taxableAmount: number;
+  grossAmount: number;
   totalWithTax: number;
+  isTaxInclusive: boolean;
 }
 
 export interface TaxCalculationResponse {
   items: OrderItemWithTax[];
   summary: {
+    grossAmount: number;
+    discountAmount: number;
     subtotal: number;
     cgstAmount: number;
     sgstAmount: number;

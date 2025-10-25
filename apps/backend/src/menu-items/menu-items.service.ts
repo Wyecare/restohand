@@ -8,20 +8,28 @@ import { QueryMenuItemsDto } from './dtos/query-menu-items.dto';
 import { UpdateMenuItemDto } from './dtos/update-menu-item.dto';
 import { MenuItem, MenuItemDocument } from './schemas/menu-item.schema';
 import { PaginationUtil } from '../common/utils/pagination.util';
+import { GstRate, GstRateDocument } from '../gst/schemas/gst-rate.schema';
 
 @Injectable()
 export class MenuItemsService {
   constructor(
     @InjectModel(MenuItem.name)
-    private readonly menuItemModel: Model<MenuItemDocument>
+    private readonly menuItemModel: Model<MenuItemDocument>,
+    @InjectModel(GstRate.name)
+    private readonly gstRateModel: Model<GstRateDocument>
   ) {}
 
   async create(
     restaurantId: string,
     dto: CreateMenuItemDto
   ): Promise<MenuItemResponseDto> {
+    const gstMetadata = await this.resolveGstRate(restaurantId, dto.gstRateId);
+
     const created = await this.menuItemModel.create({
       ...dto,
+      hsnCode: dto.hsnCode?.trim(),
+      gstRateId: gstMetadata?.gstRateId ?? dto.gstRateId,
+      gstRate: dto.gstRate ?? gstMetadata?.gstRate,
       restaurantId,
     });
     return this.toDto(created);
@@ -81,9 +89,29 @@ export class MenuItemsService {
     id: string,
     dto: UpdateMenuItemDto
   ): Promise<MenuItemResponseDto> {
+    const updateData: Record<string, unknown> = {
+      ...dto,
+    };
+
+    if (dto.hsnCode !== undefined) {
+      updateData.hsnCode = dto.hsnCode?.trim();
+    }
+
+    if (dto.gstRateId !== undefined) {
+      const gstMetadata = await this.resolveGstRate(restaurantId, dto.gstRateId);
+      updateData.gstRateId = gstMetadata?.gstRateId ?? dto.gstRateId;
+      if (dto.gstRate === undefined && gstMetadata?.gstRate !== undefined) {
+        updateData.gstRate = gstMetadata.gstRate;
+      }
+    }
+
+    if (dto.gstRate !== undefined) {
+      updateData.gstRate = dto.gstRate;
+    }
+
     const updated = await this.menuItemModel.findOneAndUpdate(
       { _id: id, restaurantId },
-      { $set: dto },
+      { $set: updateData },
       { new: true }
     );
     if (!updated) {
@@ -122,8 +150,35 @@ export class MenuItemsService {
       isAvailable: doc.isAvailable,
       displayOrder: doc.displayOrder,
       imageUrls: doc.imageUrls,
+      hsnCode: doc.hsnCode,
+      gstRateId: doc.gstRateId,
+      gstRate: doc.gstRate,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
+    };
+  }
+
+  private async resolveGstRate(
+    restaurantId: string,
+    gstRateId?: string
+  ): Promise<{ gstRateId: string; gstRate: number } | null> {
+    if (!gstRateId) {
+      return null;
+    }
+
+    const rate = await this.gstRateModel
+      .findOne({ _id: gstRateId, restaurantId, isActive: true })
+      .lean();
+
+    if (!rate) {
+      throw new NotFoundException(
+        `GST rate ${gstRateId} not found for restaurant ${restaurantId}`
+      );
+    }
+
+    return {
+      gstRateId: rate._id.toString(),
+      gstRate: rate.totalGstRate,
     };
   }
 }

@@ -21,6 +21,7 @@ import { Copy, Download, QrCode, Clock, User } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useGenerateStaffQrMutation } from '@/store/api/staffQrApi';
+import { useStaffTranslation } from '@/hooks/use-translation';
 
 interface StaffQrGeneratorProps {
   isOpen: boolean;
@@ -37,10 +38,11 @@ export function StaffQrGenerator({
   const [qrResult, setQrResult] = useState<any>(null);
   const { toast } = useToast();
   const [generateQr, { isLoading }] = useGenerateStaffQrMutation();
+  const { t: tStaff } = useStaffTranslation();
 
   const handleGenerate = async () => {
     if (!role) {
-      toast({ title: 'Select a role', variant: 'destructive' });
+      toast({ title: tStaff('messages.selectRole'), variant: 'destructive' });
       return;
     }
     try {
@@ -52,8 +54,8 @@ export function StaffQrGenerator({
       setQrResult(result);
     } catch (error: any) {
       toast({
-        title: 'Failed to generate',
-        description: error.data?.message || 'Try again later',
+        title: tStaff('messages.failedToGenerate'),
+        description: error.data?.message || tStaff('messages.tryAgainLater'),
         variant: 'destructive',
       });
     }
@@ -62,7 +64,7 @@ export function StaffQrGenerator({
   const handleCopyUrl = () => {
     if (!qrResult?.signupUrl) return;
     navigator.clipboard.writeText(qrResult.signupUrl);
-    toast({ title: 'Copied link', description: 'Signup URL copied' });
+    toast({ title: tStaff('messages.copiedLink'), description: tStaff('messages.signupUrlCopied') });
   };
 
   const handleDownloadQr = () => {
@@ -73,7 +75,7 @@ export function StaffQrGenerator({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast({ title: 'QR downloaded', description: 'Saved to device' });
+    toast({ title: tStaff('messages.qrDownloaded'), description: tStaff('messages.savedToDevice') });
   };
 
   const handleClose = () => {
@@ -90,7 +92,7 @@ export function StaffQrGenerator({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="h-5 w-5" />
-            Staff QR Code
+            {tStaff('qr.title')}
           </DialogTitle>
         </DialogHeader>
 
@@ -98,39 +100,39 @@ export function StaffQrGenerator({
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Role *</Label>
+                <Label>{tStaff('qr.roleRequired')}</Label>
                 <Select value={role} onValueChange={setRole}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder={tStaff('qr.selectRole')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="chef">Chef</SelectItem>
-                    <SelectItem value="waiter">Waiter</SelectItem>
-                    <SelectItem value="cashier">Cashier</SelectItem>
+                    <SelectItem value="chef">{tStaff('roles.chef')}</SelectItem>
+                    <SelectItem value="waiter">{tStaff('roles.waiter')}</SelectItem>
+                    <SelectItem value="cashier">{tStaff('roles.cashier')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Validity</Label>
+                <Label>{tStaff('qr.validity')}</Label>
                 <Select value={validityHours} onValueChange={setValidityHours}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Duration" />
+                    <SelectValue placeholder={tStaff('qr.duration')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 hr</SelectItem>
-                    <SelectItem value="6">6 hrs</SelectItem>
-                    <SelectItem value="24">24 hrs</SelectItem>
-                    <SelectItem value="72">3 days</SelectItem>
-                    <SelectItem value="168">1 week</SelectItem>
+                    <SelectItem value="1">{tStaff('qr.durations.1hr')}</SelectItem>
+                    <SelectItem value="6">{tStaff('qr.durations.6hrs')}</SelectItem>
+                    <SelectItem value="24">{tStaff('qr.durations.24hrs')}</SelectItem>
+                    <SelectItem value="72">{tStaff('qr.durations.3days')}</SelectItem>
+                    <SelectItem value="168">{tStaff('qr.durations.1week')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Display Name</Label>
+              <Label>{tStaff('qr.displayName')}</Label>
               <Input
-                placeholder="Optional label (e.g., Front Desk)"
+                placeholder={tStaff('qr.displayNamePlaceholder')}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
               />
@@ -144,10 +146,10 @@ export function StaffQrGenerator({
               {isLoading ? (
                 <span className="flex items-center gap-2">
                   <LoadingSpinner size="sm" />
-                  Generating...
+                  {tStaff('qr.generating')}
                 </span>
               ) : (
-                'Generate'
+                tStaff('qr.generate')
               )}
             </Button>
           </div>
@@ -164,25 +166,25 @@ export function StaffQrGenerator({
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <User className="h-4 w-4" /> Details
+                  <User className="h-4 w-4" /> {tStaff('qr.details')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Role</span>
+                  <span className="text-muted-foreground">{tStaff('table.role')}</span>
                   <Badge variant="secondary" className="capitalize">
                     {qrResult.role}
                   </Badge>
                 </div>
                 {qrResult.displayName && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Name</span>
+                    <span className="text-muted-foreground">{tStaff('table.name')}</span>
                     <span>{qrResult.displayName}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="flex items-center gap-1 text-muted-foreground">
-                    <Clock className="h-3 w-3" /> Expires
+                    <Clock className="h-3 w-3" /> {tStaff('qr.expires')}
                   </span>
                   <span>{new Date(qrResult.expiresAt).toLocaleString()}</span>
                 </div>
@@ -192,11 +194,11 @@ export function StaffQrGenerator({
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={handleCopyUrl}>
                 <Copy className="mr-2 h-4 w-4" />
-                Copy URL
+                {tStaff('qr.copyUrl')}
               </Button>
               <Button variant="outline" onClick={handleDownloadQr}>
                 <Download className="mr-2 h-4 w-4" />
-                Download
+                {tStaff('qr.download')}
               </Button>
             </div>
 
@@ -205,7 +207,7 @@ export function StaffQrGenerator({
               variant="secondary"
               className="w-full"
             >
-              Close
+              {tStaff('buttons.close')}
             </Button>
           </div>
         )}

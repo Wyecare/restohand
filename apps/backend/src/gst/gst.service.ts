@@ -9,6 +9,7 @@ import { FilterQuery, Model } from 'mongoose';
 import { GstRate, GstRateDocument } from './schemas/gst-rate.schema';
 import { HsnCode, HsnCodeDocument } from './schemas/hsn-code.schema';
 import { TaxInvoice, TaxInvoiceDocument } from './schemas/tax-invoice.schema';
+import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 import { CreateGstRateDto } from './dtos/create-gst-rate.dto';
 import { QueryGstRatesDto } from './dtos/query-gst-rates.dto';
 import { UpdateGstRateDto } from './dtos/update-gst-rate.dto';
@@ -19,6 +20,8 @@ import { HsnCodeResponseDto, HsnCodeListResponseDto } from './dtos/hsn-code-resp
 import { PaginationUtil } from '../common/utils/pagination.util';
 
 export interface TaxCalculation {
+  grossAmount: number;
+  discountAmount: number;
   subtotal: number;
   cgstAmount: number;
   sgstAmount: number;
@@ -33,14 +36,18 @@ export interface OrderItemWithTax {
   name: string;
   quantity: number;
   unitPrice: number;
-  totalAmount: number;
   hsnCode?: string;
+  gstRateId?: string;
   gstRate: number;
   cgstAmount: number;
   sgstAmount: number;
   igstAmount: number;
   totalTaxAmount: number;
+  discountAmount: number;
+  taxableAmount: number;
+  grossAmount: number;
   totalWithTax: number;
+  isTaxInclusive: boolean;
 }
 
 @Injectable()
@@ -52,6 +59,8 @@ export class GstService {
     private readonly hsnCodeModel: Model<HsnCodeDocument>,
     @InjectModel(TaxInvoice.name)
     private readonly taxInvoiceModel: Model<TaxInvoiceDocument>,
+    @InjectModel(Restaurant.name)
+    private readonly restaurantModel: Model<RestaurantDocument>,
   ) {}
 
   // GST Rate Management
@@ -257,8 +266,11 @@ export class GstService {
       unitPrice: number;
       hsnCode?: string;
       gstRateId?: string;
+      gstRateOverride?: number;
+      discountAmount?: number;
+      isTaxInclusive?: boolean;
     }>,
-    customerState?: string // For determining intra-state vs inter-state
+    customerState?: string
   ): Promise<{
     items: OrderItemWithTax[];
     summary: TaxCalculation;
@@ -267,50 +279,120 @@ export class GstService {
     const taxType = this.determineTaxType(restaurant.state, customerState);
 
     const itemsWithTax: OrderItemWithTax[] = [];
-    let totalSubtotal = 0;
+    let totalGross = 0;
+    let totalDiscount = 0;
+    let totalTaxable = 0;
+    let totalTax = 0;
     let totalCgst = 0;
     let totalSgst = 0;
     let totalIgst = 0;
+    let totalWithTax = 0;
 
     for (const item of orderItems) {
       const gstRate = await this.getApplicableGstRate(
         restaurantId,
         item.gstRateId,
-        item.hsnCode
+        item.hsnCode,
+        item.gstRateOverride
       );
 
-      const totalAmount = item.quantity * item.unitPrice;
-      const taxCalculation = this.calculateItemTax(totalAmount, gstRate, taxType);
+      const grossAmount = this.roundToTwo(item.unitPrice * item.quantity);
+      const requestedDiscount = this.roundToTwo(item.discountAmount ?? 0);
+      const discountAmount = Math.min(requestedDiscount, grossAmount);
+      const amountAfterDiscount = this.roundToTwo(
+        Math.max(grossAmount - discountAmount, 0)
+      );
+
+      let taxableAmount: number;
+      let taxAmount: number;
+
+      if (gstRate.totalGstRate > 0) {
+        if (item.isTaxInclusive) {
+          const baseAmount = amountAfterDiscount / (1 + gstRate.totalGstRate / 100);
+          taxableAmount = this.roundToTwo(baseAmount);
+          taxAmount = this.roundToTwo(amountAfterDiscount - taxableAmount);
+        } else {
+          taxableAmount = amountAfterDiscount;
+          taxAmount = this.roundToTwo(
+            taxableAmount * (gstRate.totalGstRate / 100)
+          );
+        }
+      } else {
+        taxableAmount = amountAfterDiscount;
+        taxAmount = 0;
+      }
+
+      taxAmount = this.roundToTwo(Math.max(taxAmount, 0));
+
+      taxableAmount = this.roundToTwo(Math.max(taxableAmount, 0));
+
+      let cgstAmount = 0;
+      let sgstAmount = 0;
+      let igstAmount = 0;
+
+      if (taxType === 'intra-state') {
+        cgstAmount = this.roundToTwo(taxableAmount * (gstRate.cgstRate / 100));
+        sgstAmount = this.roundToTwo(taxableAmount * (gstRate.sgstRate / 100));
+        const combined = this.roundToTwo(cgstAmount + sgstAmount);
+        const diff = this.roundToTwo(taxAmount - combined);
+        if (Math.abs(diff) >= 0.01) {
+          sgstAmount = this.roundToTwo(sgstAmount + diff);
+        }
+        cgstAmount = this.roundToTwo(Math.max(cgstAmount, 0));
+        sgstAmount = this.roundToTwo(Math.max(sgstAmount, 0));
+      } else {
+        igstAmount = this.roundToTwo(taxableAmount * (gstRate.igstRate / 100));
+        const diff = this.roundToTwo(taxAmount - igstAmount);
+        if (Math.abs(diff) >= 0.01) {
+          igstAmount = this.roundToTwo(igstAmount + diff);
+        }
+        igstAmount = this.roundToTwo(Math.max(igstAmount, 0));
+      }
+
+      const lineTotalWithTax = item.isTaxInclusive
+        ? amountAfterDiscount
+        : this.roundToTwo(taxableAmount + taxAmount);
 
       const itemWithTax: OrderItemWithTax = {
         menuItemId: item.menuItemId,
         name: item.name,
         quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalAmount,
+        unitPrice: this.roundToTwo(item.unitPrice),
         hsnCode: item.hsnCode,
+        gstRateId: gstRate.gstRateId,
         gstRate: gstRate.totalGstRate,
-        cgstAmount: taxCalculation.cgstAmount,
-        sgstAmount: taxCalculation.sgstAmount,
-        igstAmount: taxCalculation.igstAmount,
-        totalTaxAmount: taxCalculation.totalTaxAmount,
-        totalWithTax: totalAmount + taxCalculation.totalTaxAmount,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        totalTaxAmount: taxAmount,
+        discountAmount,
+        taxableAmount,
+        grossAmount,
+        totalWithTax: lineTotalWithTax,
+        isTaxInclusive: !!item.isTaxInclusive,
       };
 
       itemsWithTax.push(itemWithTax);
-      totalSubtotal += totalAmount;
-      totalCgst += taxCalculation.cgstAmount;
-      totalSgst += taxCalculation.sgstAmount;
-      totalIgst += taxCalculation.igstAmount;
+
+      totalGross += grossAmount;
+      totalDiscount += discountAmount;
+      totalTaxable += taxableAmount;
+      totalTax += taxAmount;
+      totalCgst += cgstAmount;
+      totalSgst += sgstAmount;
+      totalIgst += igstAmount;
+      totalWithTax += lineTotalWithTax;
     }
 
     const summary: TaxCalculation = {
-      subtotal: totalSubtotal,
-      cgstAmount: totalCgst,
-      sgstAmount: totalSgst,
-      igstAmount: totalIgst,
-      totalTaxAmount: totalCgst + totalSgst + totalIgst,
-      totalAmount: totalSubtotal + totalCgst + totalSgst + totalIgst,
+      grossAmount: this.roundToTwo(totalGross),
+      discountAmount: this.roundToTwo(totalDiscount),
+      subtotal: this.roundToTwo(totalTaxable),
+      cgstAmount: this.roundToTwo(totalCgst),
+      sgstAmount: this.roundToTwo(totalSgst),
+      igstAmount: this.roundToTwo(totalIgst),
+      totalTaxAmount: this.roundToTwo(totalTax),
+      totalAmount: this.roundToTwo(totalWithTax),
       taxType,
     };
 
@@ -336,7 +418,7 @@ export class GstService {
     const restaurant = await this.getRestaurantDetails(restaurantId);
 
     const roundOffAmount = this.calculateRoundOff(orderData.summary.totalAmount);
-    const finalAmount = orderData.summary.totalAmount + roundOffAmount;
+    const finalAmount = this.roundToTwo(orderData.summary.totalAmount + roundOffAmount);
 
     await this.taxInvoiceModel.create({
       restaurantId,
@@ -353,8 +435,11 @@ export class GstService {
         hsnCode: item.hsnCode,
         quantity: item.quantity,
         unit: 'unit',
-        unitPrice: item.unitPrice,
-        totalAmount: item.totalAmount,
+        unitPrice:
+          item.quantity > 0
+            ? this.roundToTwo(item.taxableAmount / item.quantity)
+            : item.unitPrice,
+        totalAmount: item.taxableAmount,
         gstRate: item.gstRate,
         cgstAmount: item.cgstAmount,
         sgstAmount: item.sgstAmount,
@@ -368,7 +453,8 @@ export class GstService {
       totalIgstAmount: orderData.summary.igstAmount,
       totalTaxAmount: orderData.summary.totalTaxAmount,
       totalAmount: finalAmount,
-      discountAmount: orderData.discountAmount || 0,
+      discountAmount:
+        orderData.discountAmount ?? orderData.summary.discountAmount ?? 0,
       roundOffAmount,
       restaurantGstin: restaurant.gstin,
       restaurantName: restaurant.name,
@@ -402,67 +488,77 @@ export class GstService {
   private async getApplicableGstRate(
     restaurantId: string,
     gstRateId?: string,
-    hsnCode?: string
-  ): Promise<GstRateDocument> {
+    hsnCode?: string,
+    gstRateOverride?: number
+  ): Promise<{
+    gstRateId?: string;
+    totalGstRate: number;
+    cgstRate: number;
+    sgstRate: number;
+    igstRate: number;
+  }> {
     if (gstRateId) {
-      const rate = await this.gstRateModel.findById(gstRateId);
-      if (rate) return rate;
+      const rate = await this.gstRateModel.findOne({
+        _id: gstRateId,
+        restaurantId,
+        isActive: true,
+      });
+      if (rate) {
+        return {
+          gstRateId: rate._id.toString(),
+          totalGstRate: rate.totalGstRate,
+          cgstRate: rate.cgstRate,
+          sgstRate: rate.sgstRate,
+          igstRate: rate.igstRate,
+        };
+      }
     }
 
     if (hsnCode) {
-      const hsn = await this.hsnCodeModel.findOne({ code: hsnCode });
+      const hsn = await this.hsnCodeModel.findOne({ code: hsnCode, isActive: true });
       if (hsn) {
         const rate = await this.gstRateModel.findOne({
           restaurantId,
           totalGstRate: hsn.defaultGstRate,
           isActive: true,
         });
-        if (rate) return rate;
+        if (rate) {
+          return {
+            gstRateId: rate._id.toString(),
+            totalGstRate: rate.totalGstRate,
+            cgstRate: rate.cgstRate,
+            sgstRate: rate.sgstRate,
+            igstRate: rate.igstRate,
+          };
+        }
+        gstRateOverride = hsn.defaultGstRate;
       }
     }
 
-    // Fall back to default rate
     const defaultRate = await this.gstRateModel.findOne({
       restaurantId,
       isDefault: true,
       isActive: true,
     });
 
-    if (!defaultRate) {
-      throw new BadRequestException('No applicable GST rate found');
-    }
-
-    return defaultRate;
-  }
-
-  private calculateItemTax(
-    amount: number,
-    gstRate: GstRateDocument,
-    taxType: 'intra-state' | 'inter-state'
-  ): {
-    cgstAmount: number;
-    sgstAmount: number;
-    igstAmount: number;
-    totalTaxAmount: number;
-  } {
-    if (taxType === 'intra-state') {
-      const cgstAmount = (amount * gstRate.cgstRate) / 100;
-      const sgstAmount = (amount * gstRate.sgstRate) / 100;
+    if (defaultRate) {
       return {
-        cgstAmount: Math.round(cgstAmount * 100) / 100,
-        sgstAmount: Math.round(sgstAmount * 100) / 100,
-        igstAmount: 0,
-        totalTaxAmount: Math.round((cgstAmount + sgstAmount) * 100) / 100,
-      };
-    } else {
-      const igstAmount = (amount * gstRate.igstRate) / 100;
-      return {
-        cgstAmount: 0,
-        sgstAmount: 0,
-        igstAmount: Math.round(igstAmount * 100) / 100,
-        totalTaxAmount: Math.round(igstAmount * 100) / 100,
+        gstRateId: defaultRate._id.toString(),
+        totalGstRate: defaultRate.totalGstRate,
+        cgstRate: defaultRate.cgstRate,
+        sgstRate: defaultRate.sgstRate,
+        igstRate: defaultRate.igstRate,
       };
     }
+
+    if (typeof gstRateOverride === 'number') {
+      return {
+        gstRateId: undefined,
+        ...this.createRateFromTotal(gstRateOverride),
+      };
+    }
+
+    throw new BadRequestException('No applicable GST rate found');
   }
 
   private determineTaxType(
@@ -498,32 +594,71 @@ export class GstService {
 
   private calculateRoundOff(amount: number): number {
     const rounded = Math.round(amount);
-    return rounded - amount;
+    return this.roundToTwo(rounded - amount);
+  }
+
+  private roundToTwo(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private createRateFromTotal(total: number): {
+    totalGstRate: number;
+    cgstRate: number;
+    sgstRate: number;
+    igstRate: number;
+  } {
+    const normalizedTotal = Math.min(Math.max(total, 0), 100);
+    const roundedTotal = this.roundToTwo(normalizedTotal);
+    const half = this.roundToTwo(roundedTotal / 2);
+    return {
+      totalGstRate: roundedTotal,
+      cgstRate: half,
+      sgstRate: half,
+      igstRate: roundedTotal,
+    };
   }
 
   private async getRestaurantState(restaurantId: string): Promise<{ state: string }> {
-    // TODO: Integrate with restaurant service to get actual state
-    // For now, assume Kerala as default for testing
-    return { state: 'Kerala' };
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId, { address: 1 })
+      .lean();
+
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${restaurantId} not found`);
+    }
+
+    const state = restaurant.address?.state;
+    if (!state) {
+      throw new BadRequestException('Restaurant state information is missing');
+    }
+
+    return { state };
   }
 
   private async getRestaurantDetails(restaurantId: string): Promise<{
     gstin: string;
     name: string;
-    address: object;
+    address: Record<string, unknown>;
   }> {
-    // TODO: Integrate with restaurant service to get actual details
-    // For now, return placeholder data for testing
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId)
+      .lean();
+
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${restaurantId} not found`);
+    }
+
+    if (!restaurant.gstin) {
+      throw new BadRequestException('Restaurant GSTIN is not configured');
+    }
+
+    const { address } = restaurant;
+    const { _id, ...addressWithoutId } = (address as Record<string, unknown>) ?? {};
+
     return {
-      gstin: `32AAAAA0000A1Z${Math.floor(Math.random() * 10)}`, // Sample GSTIN format
-      name: 'Test Restaurant',
-      address: {
-        line1: 'Test Address Line 1',
-        city: 'Kochi',
-        state: 'Kerala',
-        postalCode: '682001',
-        country: 'IN'
-      },
+      gstin: restaurant.gstin,
+      name: restaurant.name,
+      address: addressWithoutId,
     };
   }
 

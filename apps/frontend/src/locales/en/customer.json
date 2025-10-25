@@ -53,5 +53,48 @@
     "estimatedTime": "Estimated time",
     "trackOrder": "Track Order",
     "orderNumber": "Order Number"
+  },
+  "qr": {
+    "title": "Customer QR Code",
+    "subtitle": "Your main QR code for customers to access the digital menu and place orders.",
+    "mainAccess": {
+      "title": "Restaurant Menu Access",
+      "description": "Customers can select their table after scanning",
+      "generalAccess": "General Access",
+      "tableLabel": "Table {number}"
+    },
+    "tableQr": {
+      "title": "Table QR Codes",
+      "subtitle": "Need individual QR codes for each table?",
+      "description": "Table-specific QR codes can be configured and generated from the Tables page. These QR codes pre-fill table information for a smoother customer experience.",
+      "configureButton": "Configure Table QR Codes"
+    },
+    "usage": {
+      "title": "How QR Codes Work",
+      "description": "These QR codes allow your customers to easily access your digital menu and place orders directly from their smartphones.",
+      "howItWorks": "How it works:",
+      "steps": {
+        "scan": "Customer scans the QR code with their phone camera",
+        "browse": "They browse your digital menu with prices and descriptions",
+        "order": "They place their order and pay directly through the app",
+        "notify": "You receive the order notification instantly"
+      },
+      "benefits": {
+        "title": "Benefits",
+        "contactless": "Contactless ordering experience",
+        "efficient": "Faster service and reduced waiting time",
+        "accurate": "Reduced order errors and miscommunication",
+        "convenient": "Customers can order at their own pace"
+      }
+    },
+    "actions": {
+      "copy": "Copy",
+      "download": "Download",
+      "noQrCode": "No QR code"
+    },
+    "messages": {
+      "linkCopied": "Link copied to clipboard!",
+      "qrDownloaded": "QR code downloaded!"
+    }
   }
 }

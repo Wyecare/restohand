@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -60,7 +61,7 @@ export class GstController {
 
     // Ensure user can only manage their restaurant's GST rates
     if (user.restaurantId !== restaurantId) {
-      throw new Error('Unauthorized access to restaurant GST rates');
+      throw new ForbiddenException('Unauthorized access to restaurant GST rates');
     }
 
     return this.gstService.createGstRate(restaurantId, dto);
@@ -79,7 +80,7 @@ export class GstController {
     const user = req.user as AuthenticatedUser;
 
     if (user.restaurantId !== restaurantId) {
-      throw new Error('Unauthorized access to restaurant GST rates');
+      throw new ForbiddenException('Unauthorized access to restaurant GST rates');
     }
 
     return this.gstService.findGstRates(restaurantId, query);
@@ -97,7 +98,7 @@ export class GstController {
     const user = req.user as AuthenticatedUser;
 
     if (user.restaurantId !== restaurantId) {
-      throw new Error('Unauthorized access to restaurant GST rates');
+      throw new ForbiddenException('Unauthorized access to restaurant GST rates');
     }
 
     return this.gstService.getDefaultGstRate(restaurantId);
@@ -117,7 +118,7 @@ export class GstController {
     const user = req.user as AuthenticatedUser;
 
     if (user.restaurantId !== restaurantId) {
-      throw new Error('Unauthorized access to restaurant GST rates');
+      throw new ForbiddenException('Unauthorized access to restaurant GST rates');
     }
 
     return this.gstService.findGstRateById(id);
@@ -138,7 +139,7 @@ export class GstController {
     const user = req.user as AuthenticatedUser;
 
     if (user.restaurantId !== restaurantId) {
-      throw new Error('Unauthorized access to restaurant GST rates');
+      throw new ForbiddenException('Unauthorized access to restaurant GST rates');
     }
 
     return this.gstService.updateGstRate(id, dto);
@@ -188,7 +189,7 @@ export class GstController {
     const user = req.user as AuthenticatedUser;
 
     if (user.restaurantId !== restaurantId) {
-      throw new Error('Unauthorized access to restaurant GST calculation');
+      throw new ForbiddenException('Unauthorized access to restaurant GST calculation');
     }
 
     return this.gstService.calculateOrderTax(

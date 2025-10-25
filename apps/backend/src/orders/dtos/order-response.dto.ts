@@ -29,6 +29,15 @@ export class OrderResponseDto {
   @ApiProperty({ required: false })
   customerPhone?: string;
 
+  @ApiProperty({ required: false })
+  customerEmail?: string;
+
+  @ApiProperty({ required: false })
+  customerGstin?: string;
+
+  @ApiProperty({ required: false })
+  customerState?: string;
+
   @ApiProperty({ enum: OrderStatus })
   status!: OrderStatus;
 
@@ -51,10 +60,28 @@ export class OrderResponseDto {
   taxAmount!: number;
 
   @ApiProperty()
+  cgstAmount!: number;
+
+  @ApiProperty()
+  sgstAmount!: number;
+
+  @ApiProperty()
+  igstAmount!: number;
+
+  @ApiProperty()
   discountAmount!: number;
 
   @ApiProperty()
+  grossAmount!: number;
+
+  @ApiProperty()
   totalAmount!: number;
+
+  @ApiProperty()
+  roundOffAmount!: number;
+
+  @ApiProperty({ required: false, enum: ['intra-state', 'inter-state'] })
+  taxType?: 'intra-state' | 'inter-state';
 
   @ApiProperty({ required: false })
   notes?: string;
@@ -76,6 +103,12 @@ export class OrderResponseDto {
 
   @ApiProperty({ required: false })
   paymentIntentUrl?: string;
+
+  @ApiProperty({ required: false })
+  taxInvoiceNumber?: string;
+
+  @ApiProperty({ required: false })
+  taxInvoiceGeneratedAt?: string;
 
   @ApiProperty()
   createdAt!: string;

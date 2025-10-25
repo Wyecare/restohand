@@ -111,6 +111,11 @@ export class PublicService {
       progress: order.progress,
       tableNumber: order.tableNumber,
       customerName: order.customerName,
+      taxAmount: order.taxAmount ?? 0,
+      cgstAmount: order.cgstAmount ?? 0,
+      sgstAmount: order.sgstAmount ?? 0,
+      igstAmount: order.igstAmount ?? 0,
+      discountAmount: order.discountAmount ?? 0,
       totalAmount: order.totalAmount,
       createdAt: order.createdAt,
       readyAt: order.readyAt,
@@ -119,6 +124,7 @@ export class PublicService {
         name: item.name,
         quantity: item.quantity,
         pricing: item.pricing,
+        gst: item.gst,
       })),
     };
   }

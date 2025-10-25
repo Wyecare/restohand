@@ -34,6 +34,7 @@ import { Switch } from '@/components/ui/switch';
 import { Plus, Edit2, Trash2, Star } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   useGetGstRatesQuery,
   useCreateGstRateMutation,
@@ -100,6 +101,7 @@ const GstRateForm = ({
     }
     return initialFormData;
   });
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +120,22 @@ const GstRateForm = ({
       notes: formData.notes || undefined,
     };
 
+    const cgst = parseFloat(formData.cgstRate);
+    const sgst = parseFloat(formData.sgstRate);
+    const igst = parseFloat(formData.igstRate);
+    const total = parseFloat(formData.totalGstRate);
+
+    const intraDiff = Math.abs(cgst + sgst - total);
+    const interDiff = Math.abs(igst - total);
+
+    if (Number.isFinite(total) && Number.isFinite(cgst) && Number.isFinite(sgst) && Number.isFinite(igst)) {
+      if (intraDiff > 0.05 && interDiff > 0.05) {
+        setFormError('Total GST should match CGST + SGST for intra-state or equal IGST for inter-state scenarios.');
+        return;
+      }
+    }
+
+    setFormError(null);
     onSubmit(payload);
   };
 
@@ -127,6 +145,13 @@ const GstRateForm = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {formError && (
+        <Alert variant="destructive">
+          <AlertTitle>Check GST percentages</AlertTitle>
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="categoryName">Category Name *</Label>
