@@ -25,6 +25,28 @@ import { useToast } from '@/components/ui/use-toast';
 import { SimpleCombobox } from '@/components/ui/simple-combobox';
 import { getCategorySuggestions } from '@/lib/kerala-menu-suggestions';
 import {
+  PREDEFINED_GST_RATES,
+  getDefaultGstRateForCategory,
+  formatGstRate,
+  formatGstBreakdown,
+  type GstRateOption
+} from '@/lib/gst-rates';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   useCreateMenuCategoryMutation,
   useUpdateMenuCategoryMutation,
 } from '@/store/api/restaurantsApi';
@@ -33,6 +55,7 @@ import type { MenuCategory } from '@/store/api/types';
 const schema = z.object({
   name: z.string().min(2, 'Category name is required'),
   description: z.string().optional(),
+  defaultGstRateId: z.string().min(1, 'Please select a GST rate'),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -65,6 +88,7 @@ export function MenuCategoryDialog({
     defaultValues: {
       name: editingCategory?.name ?? '',
       description: editingCategory?.description ?? '',
+      defaultGstRateId: editingCategory?.defaultGstRateId ?? '',
     },
   });
 
@@ -73,8 +97,33 @@ export function MenuCategoryDialog({
     ...categories.map((c) => c.name),
   ].filter((v, i, arr) => arr.indexOf(v) === i);
 
+  // Smart GST rate auto-selection based on category name
+  const handleCategoryNameChange = (name: string) => {
+    form.setValue('name', name);
+
+    // Only auto-select GST if not editing and no GST rate is selected
+    if (!editingCategory && !form.getValues('defaultGstRateId')) {
+      const suggestedGstRate = getDefaultGstRateForCategory(name);
+      form.setValue('defaultGstRateId', suggestedGstRate.id);
+    }
+  };
+
+  const selectedGstRate = PREDEFINED_GST_RATES.find(
+    rate => rate.id === form.watch('defaultGstRateId')
+  );
+
   const onSubmit = async (data: FormData) => {
     try {
+      const selectedRate = PREDEFINED_GST_RATES.find(rate => rate.id === data.defaultGstRateId);
+      if (!selectedRate) {
+        toast({
+          title: 'Error',
+          description: 'Please select a valid GST rate.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       if (editingCategory) {
         await updateCategory({
           restaurantId,
@@ -83,6 +132,9 @@ export function MenuCategoryDialog({
             name: data.name,
             description: data.description,
             isActive: true,
+            defaultGstRateId: data.defaultGstRateId,
+            defaultGstRate: selectedRate.totalGstRate,
+            gstCategoryType: selectedRate.categoryType,
           },
         }).unwrap();
         toast({
@@ -92,7 +144,14 @@ export function MenuCategoryDialog({
       } else {
         await createCategory({
           restaurantId,
-          body: { ...data, displayOrder: categories.length, isActive: true },
+          body: {
+            ...data,
+            displayOrder: categories.length,
+            isActive: true,
+            defaultGstRateId: data.defaultGstRateId,
+            defaultGstRate: selectedRate.totalGstRate,
+            gstCategoryType: selectedRate.categoryType,
+          },
         }).unwrap();
         toast({
           title: 'Category added',
@@ -136,12 +195,70 @@ export function MenuCategoryDialog({
                   <FormControl>
                     <SimpleCombobox
                       value={field.value}
-                      onValueChange={(v) => form.setValue('name', v)}
+                      onValueChange={handleCategoryNameChange}
                       suggestions={allSuggestions}
                       placeholder="e.g., Breakfast, Rice Items"
                       className="w-full"
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="defaultGstRateId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-2">
+                    GST Rate *
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Default GST rate for all items in this category.</p>
+                          <p>Individual items can override this rate if needed.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select GST rate" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PREDEFINED_GST_RATES.map((rate) => (
+                          <SelectItem key={rate.id} value={rate.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <div>
+                                <div className="font-medium">
+                                  {rate.totalGstRate}% - {rate.categoryType}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {formatGstBreakdown(rate)}
+                                </div>
+                              </div>
+                              {rate.isCommon && (
+                                <Badge variant="secondary" className="ml-2 text-xs">
+                                  Common
+                                </Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  {selectedGstRate && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      <div className="font-medium">{selectedGstRate.description}</div>
+                      <div>Examples: {selectedGstRate.examples.slice(0, 3).join(', ')}</div>
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

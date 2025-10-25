@@ -16,25 +16,45 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { CreditCard, Wallet } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { BillBreakdown } from '@/components/customer/BillBreakdown';
+import { calculateBillBreakdown } from '@/lib/billing';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   totalAmount: number;
+  itemCount: number;
   isPlacingOrder: boolean;
   onConfirm: (tableNumber: string, paymentMethod: 'upi' | 'cash') => void;
+  defaultTable?: string;
 }
 
 export default function TableDialog({
   open,
   onOpenChange,
   totalAmount,
+  itemCount,
   isPlacingOrder,
   onConfirm,
+  defaultTable,
 }: Props) {
-  const [table, setTable] = useState('');
+  const [table, setTable] = useState(defaultTable || '');
   const [payment, setPayment] = useState<'upi' | 'cash'>('upi');
+
+  // Update table state when defaultTable changes
+  useEffect(() => {
+    if (defaultTable && defaultTable !== table) {
+      setTable(defaultTable);
+    }
+  }, [defaultTable]);
+
+  // Calculate professional bill breakdown
+  const billBreakdown = calculateBillBreakdown(totalAmount, {
+    isDelivery: false,
+    serviceChargeRate: 3,
+    packagingFee: 0,
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,9 +100,14 @@ export default function TableDialog({
             </Select>
           </div>
 
+          {/* Professional Bill Breakdown */}
           <div className="border-t pt-3">
-            <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-bold">₹{totalAmount.toFixed(2)}</p>
+            <BillBreakdown
+              breakdown={billBreakdown}
+              itemCount={itemCount}
+              isDelivery={false}
+              isDetailed={true}
+            />
           </div>
         </div>
 

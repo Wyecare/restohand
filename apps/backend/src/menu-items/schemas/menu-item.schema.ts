@@ -52,8 +52,8 @@ export class MenuItem {
   @Prop({ type: String, trim: true })
   hsnCode?: string; // HSN code for GST calculation
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'GstRate' })
-  gstRateId?: string; // Reference to specific GST rate
+  @Prop({ type: String, trim: true })
+  gstRateId?: string; // Predefined GST rate identifier (e.g., "food-5", "beverages-12")
 
   @Prop({ type: Number, min: 0, max: 100 })
   gstRate?: number; // Cached GST rate for quick calculation

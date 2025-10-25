@@ -22,6 +22,16 @@ export class MenuCategory {
 
   @Prop({ type: Boolean, default: true })
   isActive!: boolean;
+
+  // GST Configuration for Category Default
+  @Prop({ type: String, trim: true })
+  defaultGstRateId?: string; // Predefined GST rate identifier (e.g., "food-5", "beverages-12")
+
+  @Prop({ type: Number, min: 0, max: 100 })
+  defaultGstRate?: number; // Default GST rate percentage for quick calculation
+
+  @Prop({ type: String, trim: true })
+  gstCategoryType?: string; // e.g., "Food", "Beverages", "Alcoholic Beverages"
 }
 
 export const MenuCategorySchema = SchemaFactory.createForClass(MenuCategory);

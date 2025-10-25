@@ -19,6 +19,16 @@ export class MenuCategoryResponseDto {
   @ApiProperty()
   isActive!: boolean;
 
+  // GST Configuration fields
+  @ApiProperty({ required: false })
+  defaultGstRateId?: string;
+
+  @ApiProperty({ required: false })
+  defaultGstRate?: number;
+
+  @ApiProperty({ required: false })
+  gstCategoryType?: string;
+
   @ApiProperty()
   createdAt!: string;
 

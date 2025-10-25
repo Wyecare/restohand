@@ -135,7 +135,10 @@ export default function CustomerOrderStatusPage() {
     };
 
     setDeviceOrders((prev) => {
-      const updated = [record, ...prev.filter((entry) => entry.orderId !== record.orderId)];
+      const updated = [
+        record,
+        ...prev.filter((entry) => entry.orderId !== record.orderId),
+      ];
       const trimmed = updated.slice(0, 5);
       localStorage.setItem('restohand:order-history', JSON.stringify(trimmed));
       return trimmed;
@@ -144,11 +147,11 @@ export default function CustomerOrderStatusPage() {
 
   const receiptUrl = useMemo(() => {
     if (!order) return null;
-    const template = import.meta.env.VITE_BILL_DOWNLOAD_URL as string | undefined;
+    const template = import.meta.env.VITE_BILL_DOWNLOAD_URL as
+      | string
+      | undefined;
     if (!template) return null;
-    return template
-      .replace(':slug', slug)
-      .replace(':orderId', order.id);
+    return template.replace(':slug', slug).replace(':orderId', order.id);
   }, [order, slug]);
 
   if (isLoading) {
@@ -193,7 +196,7 @@ export default function CustomerOrderStatusPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="absolute right-1/2 translate-x-1/2 mt-4 flex items-center justify-center gap-2 rounded-full bg-primary/10 px-4 py-1 text-sm text-primary shadow-sm"
+          className="absolute right-1/2 translate-x-1/2 mt-4 flex items-center justify-center gap-2 rounded-full bg-primary/10 px-4 py-1 text-sm text-primary shadow-sm z-50"
         >
           {progressIcon(progressValue)}
           <span>{progressDisplay(progressValue)}</span>
@@ -257,8 +260,9 @@ export default function CustomerOrderStatusPage() {
             </div>
             {isCashDue && (
               <div className="rounded-md bg-amber-50 text-amber-900 border border-amber-200 px-3 py-2 text-sm">
-                Please settle your bill with the staff when the order arrives. They
-                will confirm your ticket number #{order.orderNumber} before marking it paid.
+                Please settle your bill with the staff when the order arrives.
+                They will confirm your ticket number #{order.orderNumber} before
+                marking it paid.
               </div>
             )}
           </CardContent>

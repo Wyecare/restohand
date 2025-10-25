@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Card,
   CardContent,
@@ -11,19 +12,16 @@ import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
 import { useCreateOrderMutation } from '@/store/api/ordersApi';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import { ShoppingCart, Plus, Minus } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Star, Clock, Flame } from 'lucide-react';
 import TableDialog from './TableDialog';
+import { CartBottomBar } from '@/components/customer/CartBottomBar';
+import { CartPanel } from '@/components/customer/CartPanel';
+import { MenuSearch, FilterOptions } from '@/components/customer/MenuSearch';
 
 interface CartEntry {
   id: string;
@@ -56,10 +54,19 @@ export default function CustomerMenuPage() {
   });
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
 
-  const [step, setStep] = useState<'categories' | 'items'>('categories');
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'unified' | 'categories'>('unified');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const [cart, setCart] = useState<Record<string, CartEntry>>({});
+  const [cartPanelOpen, setCartPanelOpen] = useState(false);
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<FilterOptions>({
+    vegetarian: false,
+    nonVegetarian: false,
+    spicy: false,
+    popular: false,
+    quickPrep: false,
+  });
 
   const restaurant = data?.restaurant;
   const categories = data?.menu.categories ?? [];
@@ -67,17 +74,87 @@ export default function CustomerMenuPage() {
 
   const allProducts = useMemo(() => {
     const grouped = categories.flatMap((c) =>
-      c.items.map((i) => ({ ...i, _categoryId: c.id, _categoryName: c.name }))
+      c.items.map((i) => ({
+        ...i,
+        _categoryId: c.id,
+        _categoryName: c.name,
+        _isVegetarian: i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
+        _isPopular: i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
+      }))
     );
     return [
       ...grouped,
-      ...uncategorised.map((i) => ({ ...i, _categoryId: 'uncategorised' })),
+      ...uncategorised.map((i) => ({
+        ...i,
+        _categoryId: 'uncategorised',
+        _categoryName: 'Others',
+        _isVegetarian: i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
+        _isPopular: i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
+      })),
     ];
   }, [categories, uncategorised]);
 
-  const activeItems = activeCategory
-    ? allProducts.filter((p) => p._categoryId === activeCategory)
-    : [];
+  const filteredProducts = useMemo(() => {
+    let filtered = allProducts;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.name.toLowerCase().includes(query) ||
+          item.description?.toLowerCase().includes(query) ||
+          item._categoryName.toLowerCase().includes(query) ||
+          item.tags?.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply filters
+    if (filters.vegetarian && !filters.nonVegetarian) {
+      filtered = filtered.filter((item) => item._isVegetarian);
+    } else if (filters.nonVegetarian && !filters.vegetarian) {
+      filtered = filtered.filter((item) => !item._isVegetarian);
+    }
+
+    if (filters.spicy) {
+      filtered = filtered.filter((item) => item._isSpicy);
+    }
+
+    if (filters.popular) {
+      filtered = filtered.filter((item) => item._isPopular);
+    }
+
+    if (filters.quickPrep) {
+      filtered = filtered.filter((item) => item._isQuick);
+    }
+
+    return filtered;
+  }, [allProducts, searchQuery, filters]);
+
+  const displayItems = useMemo(() => {
+    if (activeCategory === 'all') {
+      return filteredProducts;
+    }
+    return filteredProducts.filter((p) => p._categoryId === activeCategory);
+  }, [filteredProducts, activeCategory]);
+
+  const availableCategories = useMemo(() => {
+    const categoriesWithItems = categories.filter(c =>
+      filteredProducts.some(item => item._categoryId === c.id)
+    );
+
+    const hasUncategorised = filteredProducts.some(item => item._categoryId === 'uncategorised');
+
+    return [
+      { id: 'all', name: 'All Items', icon: '🍽️' },
+      ...categoriesWithItems,
+      ...(hasUncategorised ? [{ id: 'uncategorised', name: 'Others', icon: '✨' }] : [])
+    ];
+  }, [categories, filteredProducts]);
 
   const totalItems = Object.values(cart).reduce(
     (sum, e) => sum + e.quantity,
@@ -105,6 +182,28 @@ export default function CustomerMenuPage() {
       }
       return { ...prev, [id]: { ...current, quantity: current.quantity - 1 } };
     });
+  };
+
+  const handleUpdateQuantity = (id: string, quantity: number) => {
+    if (quantity <= 0) {
+      handleRemoveItem(id);
+      return;
+    }
+    setCart((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], quantity },
+    }));
+  };
+
+  const handleRemoveItem = (id: string) => {
+    setCart((prev) => {
+      const { [id]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const handleClearCart = () => {
+    setCart({});
   };
 
   const handleConfirmOrder = async (
@@ -163,168 +262,266 @@ export default function CustomerMenuPage() {
     );
 
   return (
-    <div className="relative min-h-screen bg-background">
-      {/* Step 1 — Category Selection */}
-      {step === 'categories' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 p-4 space-y-4">
-          <h1 className="text-center text-2xl font-bold">
-            What would you like today?
-          </h1>
-          <p className="text-center text-sm text-muted-foreground">
-            Choose a category to explore dishes
-          </p>
-
-          <ScrollArea className="w-full whitespace-nowrap mt-4">
-            <RadioGroup className="flex gap-3 flex-wrap justify-center">
-              {categories.map((category) => (
-                <div
-                  key={category.id}
-                  onClick={() => {
-                    setActiveCategory(category.id);
-                    setStep('items');
-                  }}
-                  className="flex w-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-4 hover:bg-muted transition-all"
-                >
-                  <span className="text-3xl">{category.icon ?? '🍽️'}</span>
-                  <span className="text-sm font-medium">{category.name}</span>
-                </div>
-              ))}
-              {uncategorised.length > 0 && (
-                <div
-                  onClick={() => {
-                    setActiveCategory('uncategorised');
-                    setStep('items');
-                  }}
-                  className="flex w-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-4 hover:bg-muted transition-all"
-                >
-                  <span className="text-3xl">✨</span>
-                  <span className="text-sm font-medium">Others</span>
-                </div>
-              )}
-            </RadioGroup>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </div>
-      )}
-
-      {/* Step 2 — Items */}
-      {step === 'items' && (
-        <div className="animate-in fade-in slide-in-from-right-2 space-y-4 p-4">
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" onClick={() => setStep('categories')}>
-              ← Back
-            </Button>
-            <h2 className="text-lg font-semibold">
-              {categories.find((c) => c.id === activeCategory)?.name ?? 'Menu'}
-            </h2>
-            <div className="w-16" /> {/* spacing */}
+    <div className="relative min-h-screen bg-background pb-32">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b p-4"
+      >
+        <div className="max-w-lg mx-auto space-y-4">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">
+              {restaurant?.name || 'Menu'}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              What would you like today?
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {activeItems.length ? (
-              activeItems.map((item) => {
-                const entry = cart[item.id];
-                return (
-                  <Card
-                    key={item.id}
-                    className="overflow-hidden border shadow-sm hover:shadow-md transition-all duration-200"
+          {/* Search and Filters */}
+          <MenuSearch
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
+        </div>
+      </motion.div>
+
+      {/* Category Tabs */}
+      <div className="sticky top-[140px] z-20 bg-background/95 backdrop-blur-md border-b">
+        <ScrollArea className="w-full">
+          <div className="flex gap-2 p-4 max-w-lg mx-auto">
+            {availableCategories.map((category) => (
+              <Button
+                key={category.id}
+                variant={activeCategory === category.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setActiveCategory(category.id)}
+                className="shrink-0 flex items-center gap-2"
+              >
+                <span>{category.icon}</span>
+                {category.name}
+                {category.id !== 'all' && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {displayItems.filter(item =>
+                      category.id === 'uncategorised'
+                        ? item._categoryId === 'uncategorised'
+                        : item._categoryId === category.id
+                    ).length}
+                  </Badge>
+                )}
+              </Button>
+            ))}
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </div>
+
+      {/* Menu Items */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="p-4 max-w-lg mx-auto space-y-4"
+      >
+        {displayItems.length === 0 ? (
+          <div className="text-center py-12">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
+              {searchQuery || Object.values(filters).some(Boolean) ? (
+                <>
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-lg font-semibold mb-2">No matches found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Try adjusting your search or filters
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setFilters({
+                        vegetarian: false,
+                        nonVegetarian: false,
+                        spicy: false,
+                        popular: false,
+                        quickPrep: false,
+                      });
+                    }}
                   >
-                    <div className="relative aspect-[4/3] bg-muted">
-                      <img
-                        src={item.imageUrls?.[0] || '/placeholder.svg'}
-                        alt={item.name}
-                        className="absolute inset-0 h-full w-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgMTJMMTEgMTRMMTUgMTBNMjEgMTJDMjEgMTYuOTcwNiAxNi45NzA2IDIxIDEyIDIxQzcuMDI5NCAyMSAzIDE2Ljk3MDYgMyAxMkMzIDcuMDI5NCA3LjAyOTQgMyAxMiAzQzE2Ljk3MDYgMyAyMSA3LjAyOTQgMjEgMTJaIiBzdHJva2U9IiNhMWE5YjgiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+';
-                        }}
-                      />
-                      {item.imageUrls && item.imageUrls.length > 1 && (
-                        <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-                          +{item.imageUrls.length - 1}
-                        </div>
-                      )}
-                    </div>
-                    <CardContent className="p-3 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-sm">{item.name}</p>
-                        <Badge variant="secondary" className="text-xs">
-                          {formatCurrency(item.pricing.amount)}
-                        </Badge>
+                    Clear search & filters
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="text-6xl mb-4">🍽️</div>
+                  <h3 className="text-lg font-semibold mb-2">No items available</h3>
+                  <p className="text-muted-foreground">
+                    Check back later for delicious options!
+                  </p>
+                </>
+              )}
+            </motion.div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {displayItems.map((item, index) => {
+              const entry = cart[item.id];
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Card className="overflow-hidden border shadow-sm hover:shadow-md transition-all duration-200">
+                    <div className="flex gap-4 p-4">
+                      {/* Item Image */}
+                      <div className="relative w-20 h-20 bg-muted rounded-lg overflow-hidden shrink-0">
+                        <img
+                          src={item.imageUrls?.[0] || '/placeholder.svg'}
+                          alt={item.name}
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgMTJMMTEgMTRMMTUgMTBNMjEgMTJDMjEgMTYuOTcwNiAxNi45NzA2IDIxIDEyIDIxQzcuMDI5NCAyMSAzIDE2Ljk3MDYgMyAxMkMzIDcuMDI5NCA3LjAyOTQgMyAxMiAzQzE2Ljk3MDYgMyAyMSA3LjAyOTQgMjEgMTJaIiBzdHJva2U9IiNhMWE5YjgiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+';
+                          }}
+                        />
+                        {item.imageUrls && item.imageUrls.length > 1 && (
+                          <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+                            +{item.imageUrls.length - 1}
+                          </div>
+                        )}
                       </div>
-                      {entry ? (
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="inline-flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 rounded-full"
-                              onClick={() => handleRemove(item.id)}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-6 text-center text-sm font-medium">
-                              {entry.quantity}
-                            </span>
-                            <Button
-                              size="icon"
-                              className="h-8 w-8 rounded-full"
-                              onClick={() =>
-                                handleAdd(item.id, item.name, item.pricing)
-                              }
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
+
+                      {/* Item Details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0 mr-2">
+                            <h3 className="font-medium text-base truncate">{item.name}</h3>
+                            {item.description && (
+                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-bold text-lg">
+                              {formatCurrency(item.pricing.amount)}
+                            </p>
                           </div>
                         </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          className="w-full rounded-full mt-1"
-                          onClick={() =>
-                            handleAdd(item.id, item.name, item.pricing)
-                          }
-                        >
-                          Add
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })
-            ) : (
-              <p className="col-span-full text-center text-muted-foreground py-10">
-                No items found in this category.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Floating Cart */}
-      {totalItems > 0 && (
-        <Button
-          variant="outline"
-          size="icon"
-          className="bg-muted fixed bottom-4 right-4 z-40 rounded-full shadow-xl"
-          onClick={() => setTableDialogOpen(true)}
-        >
-          <span className="relative">
-            <ShoppingCart className="h-5 w-5" />
-            <Badge className="absolute -top-3 left-full min-w-5 -translate-x-1/2 rounded-full px-1">
-              {totalItems}
-            </Badge>
-          </span>
-        </Button>
-      )}
+                        {/* Tags */}
+                        <div className="flex items-center gap-1 mb-3">
+                          {item._isVegetarian && (
+                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                              🌱 Veg
+                            </Badge>
+                          )}
+                          {item._isSpicy && (
+                            <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                              🌶️ Spicy
+                            </Badge>
+                          )}
+                          {item._isPopular && (
+                            <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                              ⭐ Popular
+                            </Badge>
+                          )}
+                          {item._isQuick && (
+                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                              ⚡ Quick
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Add to Cart */}
+                        {entry ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => handleRemove(item.id)}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">
+                                {entry.quantity}
+                              </span>
+                              <Button
+                                size="icon"
+                                className="h-8 w-8 rounded-full"
+                                onClick={() =>
+                                  handleAdd(item.id, item.name, item.pricing)
+                                }
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <p className="text-sm font-medium">
+                              {formatCurrency(item.pricing.amount * entry.quantity)}
+                            </p>
+                          </div>
+                        ) : (
+                          <Button
+                            className="w-full"
+                            onClick={() =>
+                              handleAdd(item.id, item.name, item.pricing)
+                            }
+                          >
+                            Add to Cart
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Cart Bottom Bar */}
+      <AnimatePresence>
+        <CartBottomBar
+          cart={cart}
+          totalItems={totalItems}
+          totalAmount={totalAmount}
+          onViewCart={() => setCartPanelOpen(true)}
+          onCheckout={() => setTableDialogOpen(true)}
+        />
+      </AnimatePresence>
+
+      {/* Cart Panel */}
+      <CartPanel
+        open={cartPanelOpen}
+        onOpenChange={setCartPanelOpen}
+        cart={cart}
+        totalItems={totalItems}
+        totalAmount={totalAmount}
+        onUpdateQuantity={handleUpdateQuantity}
+        onRemoveItem={handleRemoveItem}
+        onCheckout={() => setTableDialogOpen(true)}
+        onClearCart={handleClearCart}
+      />
 
       {/* Table Dialog */}
       <TableDialog
         open={tableDialogOpen}
         onOpenChange={setTableDialogOpen}
         totalAmount={totalAmount}
+        itemCount={totalItems}
         isPlacingOrder={isPlacingOrder}
         onConfirm={handleConfirmOrder}
+        defaultTable={tableFromUrl}
       />
     </div>
   );

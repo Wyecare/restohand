@@ -29,6 +29,27 @@ import { useToast } from '@/components/ui/use-toast';
 import { SimpleCombobox } from '@/components/ui/simple-combobox';
 import { MenuItemImageUpload } from './MenuItemImageUpload';
 import {
+  PREDEFINED_GST_RATES,
+  getDefaultGstRateForCategory,
+  formatGstRate,
+  formatGstBreakdown,
+  type GstRateOption
+} from '@/lib/gst-rates';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Info, Inheritance } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   getCategorySuggestions,
   getMenuItemSuggestions,
   getPriceSuggestions,
@@ -44,6 +65,8 @@ const itemSchema = z.object({
   price: z.number().min(1, 'Price must be at least ₹1'),
   isTaxInclusive: z.boolean().default(true),
   isAvailable: z.boolean().default(true),
+  gstRateId: z.string().optional(),
+  useCustomGst: z.boolean().default(false),
 });
 
 type FormData = z.infer<typeof itemSchema>;
@@ -89,6 +112,8 @@ export function MenuItemCreateDialog({
       price: 0,
       isTaxInclusive: true,
       isAvailable: true,
+      gstRateId: '',
+      useCustomGst: false,
     },
   });
 
