@@ -231,10 +231,19 @@ export default function CustomerMenuPage() {
                   >
                     <div className="relative aspect-[4/3] bg-muted">
                       <img
-                        src={item.imageUrl || '/placeholder.svg'}
+                        src={item.imageUrls?.[0] || '/placeholder.svg'}
                         alt={item.name}
                         className="absolute inset-0 h-full w-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgMTJMMTEgMTRMMTUgMTBNMjEgMTJDMjEgMTYuOTcwNiAxNi45NzA2IDIxIDEyIDIxQzcuMDI5NCAyMSAzIDE2Ljk3MDYgMyAxMkMzIDcuMDI5NCA3LjAyOTQgMyAxMiAzQzE2Ljk3MDYgMyAyMSA3LjAyOTQgMjEgMTJaIiBzdHJva2U9IiNhMWE5YjgiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+';
+                        }}
                       />
+                      {item.imageUrls && item.imageUrls.length > 1 && (
+                        <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                          +{item.imageUrls.length - 1}
+                        </div>
+                      )}
                     </div>
                     <CardContent className="p-3 space-y-1">
                       <div className="flex items-center justify-between">

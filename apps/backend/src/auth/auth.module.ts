@@ -9,6 +9,11 @@ import { RolesGuard } from './guards/roles.guard';
 @Module({
   imports: [ConfigModule.forFeature(firebaseConfig)],
   providers: [...firebaseProviders, AuthService, FirebaseAuthGuard, RolesGuard],
-  exports: [AuthService, FirebaseAuthGuard, RolesGuard],
+  exports: [
+    ...firebaseProviders,
+    AuthService,
+    FirebaseAuthGuard,
+    RolesGuard
+  ],
 })
 export class AuthModule {}

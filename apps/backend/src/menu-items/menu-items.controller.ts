@@ -8,13 +8,20 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -26,13 +33,34 @@ import { MenuItemResponseDto } from './dtos/menu-item-response.dto';
 import { QueryMenuItemsDto } from './dtos/query-menu-items.dto';
 import { UpdateMenuItemDto } from './dtos/update-menu-item.dto';
 import { MenuItemsService } from './menu-items.service';
+import { ImageUploadService } from '../common/services/image-upload.service';
+import { memoryStorage } from 'multer';
+
+const multerConfig = {
+  storage: memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+  fileFilter: (req: any, file: any, callback: any) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+
+    if (allowedMimes.includes(file.mimetype)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Invalid file type: ${file.mimetype}. Only JPEG, PNG, and WebP images are allowed.`), false);
+    }
+  },
+};
 
 @ApiTags('menu-items')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 @Roles(UserRole.Manager)
 @Controller('restaurants/:restaurantId/menu/items')
 export class MenuItemsController {
-  constructor(private readonly menuItemsService: MenuItemsService) {}
+  constructor(
+    private readonly menuItemsService: MenuItemsService,
+    private readonly imageUploadService: ImageUploadService
+  ) {}
 
   @Post()
   @ApiParam({ name: 'restaurantId' })
@@ -89,6 +117,119 @@ export class MenuItemsController {
     @Param('itemId') itemId: string
   ) {
     await this.menuItemsService.remove(restaurantId, itemId);
+    return { success: true };
+  }
+
+  @Post(':itemId/upload-image')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 uploads per minute
+  @UseInterceptors(FileInterceptor('file', multerConfig))
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'itemId' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          // Changed from 'image' to 'file'
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description: 'Image uploaded successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        imageUrl: { type: 'string' },
+        fileName: { type: 'string' },
+      },
+    },
+  })
+  async uploadImage(
+    @Param('restaurantId') restaurantId: string,
+    @Param('itemId') itemId: string,
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    console.log('🚀 Upload endpoint hit!', { restaurantId, itemId });
+    console.log('📁 File received:', file ? 'YES' : 'NO');
+
+    if (!file) {
+      console.log('❌ No file provided');
+      throw new BadRequestException('No image file provided');
+    }
+
+    console.log('📋 File details:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+
+    // Upload image to Firebase Storage
+    const uploadResult = await this.imageUploadService.uploadMenuItemImage(
+      restaurantId,
+      itemId,
+      file.buffer,
+      file.originalname,
+      file.mimetype
+    );
+
+    // Update menu item with new image URL
+    const menuItem = await this.menuItemsService.findOne(restaurantId, itemId);
+    const updatedImageUrls = [
+      ...(menuItem.imageUrls || []),
+      uploadResult.publicUrl,
+    ];
+
+    await this.menuItemsService.update(restaurantId, itemId, {
+      imageUrls: updatedImageUrls,
+    });
+
+    return {
+      success: true,
+      imageUrl: uploadResult.publicUrl,
+      fileName: uploadResult.fileName,
+    };
+  }
+
+  @Delete(':itemId/images/:imageIndex')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'itemId' })
+  @ApiParam({ name: 'imageIndex', description: 'Index of image to delete' })
+  @ApiOkResponse({ description: 'Image deleted successfully' })
+  async removeImage(
+    @Param('restaurantId') restaurantId: string,
+    @Param('itemId') itemId: string,
+    @Param('imageIndex') imageIndex: string
+  ) {
+    const index = parseInt(imageIndex, 10);
+    if (isNaN(index)) {
+      throw new BadRequestException('Invalid image index');
+    }
+
+    const menuItem = await this.menuItemsService.findOne(restaurantId, itemId);
+    if (
+      !menuItem.imageUrls ||
+      index < 0 ||
+      index >= menuItem.imageUrls.length
+    ) {
+      throw new BadRequestException('Image index out of range');
+    }
+
+    // Remove image URL from array
+    const updatedImageUrls = menuItem.imageUrls.filter((_, i) => i !== index);
+
+    await this.menuItemsService.update(restaurantId, itemId, {
+      imageUrls: updatedImageUrls,
+    });
+
+    // Note: We could also delete the actual file from Firebase Storage here
+    // but keeping it for now in case of accidental deletions
+
     return { success: true };
   }
 }

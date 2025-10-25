@@ -21,6 +21,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
+  Utensils,
+  Camera,
 } from 'lucide-react';
 import {
   Table,
@@ -39,7 +41,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
 import type { MenuCategory, MenuItem } from '@/store/api/types';
 
 interface MenuItemsTableProps {
@@ -49,6 +50,7 @@ interface MenuItemsTableProps {
   onEdit?: (item: MenuItem) => void;
   onDelete?: (item: MenuItem) => void;
   onToggleAvailability?: (item: MenuItem) => void;
+  onManageImages?: (item: MenuItem) => void;
 }
 
 export function MenuItemsTable({
@@ -58,6 +60,7 @@ export function MenuItemsTable({
   onEdit,
   onDelete,
   onToggleAvailability,
+  onManageImages,
 }: MenuItemsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -174,11 +177,17 @@ export function MenuItemsTable({
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuContent align="end" className="w-48">
                 {onEdit && (
                   <DropdownMenuItem onClick={() => onEdit(item)}>
                     <Edit className="mr-2 h-4 w-4" />
-                    Edit
+                    Edit Details
+                  </DropdownMenuItem>
+                )}
+                {onManageImages && (
+                  <DropdownMenuItem onClick={() => onManageImages(item)}>
+                    <Camera className="mr-2 h-4 w-4" />
+                    Manage Images
                   </DropdownMenuItem>
                 )}
                 {onToggleAvailability && (
@@ -211,7 +220,7 @@ export function MenuItemsTable({
         },
       },
     ],
-    [categories, onEdit, onDelete, onToggleAvailability]
+    [categories, onEdit, onDelete, onToggleAvailability, onManageImages]
   );
 
   const table = useReactTable({

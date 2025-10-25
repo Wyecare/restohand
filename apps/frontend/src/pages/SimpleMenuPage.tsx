@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   useListMenuCategoriesQuery,
   useListMenuItemsQuery,
+  useUpdateMenuItemMutation,
+  useDeleteMenuItemMutation,
 } from '@/store/api/restaurantsApi';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { SimpleCategoryManager } from '@/components/menu/SimpleCategoryManager';
-import { SimpleMenuItemForm } from '@/components/menu/SimpleMenuItemForm';
+import { MenuItemCreateDialog } from '@/components/menu/MenuItemCreateDialog';
 import {
   Utensils,
   Grid3X3,
@@ -18,6 +20,8 @@ import {
   BarChart3,
   Layers,
   ShoppingBag,
+  ChefHat,
+  Settings,
 } from 'lucide-react';
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import {
@@ -27,27 +31,45 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { MenuItemsTable } from '@/components/menu/MenuItemsTable';
+import { MenuItemEditDialog } from '@/components/menu/MenuItemEditDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { useToast } from '@/components/ui/use-toast';
+import type { MenuItem } from '@/store/api/types';
 
 function SimpleMenuPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
-  const [activeTab, setActiveTab] = useState('overview');
-
-  if (!restaurantId) return <Navigate to="/onboarding" replace />;
+  const [activeTab, setActiveTab] = useState('management');
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<MenuItem | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  const { toast } = useToast();
 
   const { data: categoriesResponse, isLoading: categoriesLoading } =
     useListMenuCategoriesQuery(restaurantId ? { restaurantId } : skipToken);
 
   const { data: menuItemsResponse, isLoading: menuItemsLoading } =
     useListMenuItemsQuery(restaurantId ? { restaurantId } : skipToken);
+
+  const [updateMenuItem] = useUpdateMenuItemMutation();
+  const [deleteMenuItem] = useDeleteMenuItemMutation();
+
+  if (!restaurantId) return <Navigate to="/onboarding" replace />;
 
   const categories = categoriesResponse?.data ?? [];
   const menuItems = menuItemsResponse?.data ?? [];
@@ -64,6 +86,52 @@ function SimpleMenuPage() {
       (i) => i.categoryId === c.id && i.isAvailable
     ).length,
   }));
+
+  const handleEditItem = (item: MenuItem) => {
+    setEditingItem(item);
+  };
+
+  const handleManageImages = (item: MenuItem) => {
+    setEditingItem(item);
+  };
+
+  const handleToggleAvailability = async (item: MenuItem) => {
+    try {
+      await updateMenuItem({
+        restaurantId,
+        itemId: item.id,
+        body: { isAvailable: !item.isAvailable },
+      }).unwrap();
+      toast({
+        title: `Item ${!item.isAvailable ? 'marked available' : 'set unavailable'}`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Unable to update item',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteItem = async (item: MenuItem) => {
+    try {
+      await deleteMenuItem({ restaurantId, itemId: item.id }).unwrap();
+      toast({
+        title: 'Item deleted',
+        description: `${item.name} has been removed from your menu`,
+      });
+      setDeleteItem(null);
+    } catch (error) {
+      toast({
+        title: 'Failed to delete item',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
@@ -82,23 +150,119 @@ function SimpleMenuPage() {
         onValueChange={setActiveTab}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="overview">
-            <BarChart3 className="h-4 w-4 mr-1" /> Overview
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="management">
+            <ChefHat className="h-4 w-4 mr-1" /> Menu Management
           </TabsTrigger>
-          <TabsTrigger value="categories">
-            <Grid3X3 className="h-4 w-4 mr-1" /> Categories
-          </TabsTrigger>
-          <TabsTrigger value="add-item">
-            <PlusCircle className="h-4 w-4 mr-1" /> Add Item
-          </TabsTrigger>
-          <TabsTrigger value="menu-items">
-            <Utensils className="h-4 w-4 mr-1" /> Menu Items
+          <TabsTrigger value="analytics">
+            <BarChart3 className="h-4 w-4 mr-1" /> Analytics
           </TabsTrigger>
         </TabsList>
 
-        {/* 🧠 Overview */}
-        <TabsContent value="overview" className="space-y-6">
+        {/* Menu Management Tab */}
+        <TabsContent value="management" className="space-y-6">
+          {/* Quick Actions Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Menu Management</h2>
+              <p className="text-sm text-muted-foreground">
+                Create and manage your menu items and categories
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCategoriesExpanded(!categoriesExpanded)}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Categories
+              </Button>
+              <Button onClick={() => setCreateDialogOpen(true)}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Item
+              </Button>
+            </div>
+          </div>
+
+          {/* Collapsible Categories Section */}
+          <Collapsible open={categoriesExpanded} onOpenChange={setCategoriesExpanded}>
+            <CollapsibleContent className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Grid3X3 className="h-5 w-5" />
+                    Categories Management
+                  </CardTitle>
+                  <CardDescription>
+                    Organize your menu items into categories
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SimpleCategoryManager
+                    restaurantId={restaurantId}
+                    categories={categories}
+                    isLoading={categoriesLoading}
+                  />
+                </CardContent>
+              </Card>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Menu Items Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Utensils className="h-5 w-5" />
+                  Menu Items
+                </div>
+                <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+                  <PlusCircle className="h-4 w-4 mr-1" />
+                  Add Item
+                </Button>
+              </CardTitle>
+              <CardDescription>View and manage all your dishes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {menuItemsLoading ? (
+                <p className="text-center py-6 text-muted-foreground">
+                  Loading menu items...
+                </p>
+              ) : menuItems.length === 0 ? (
+                <div className="text-center py-8">
+                  <ChefHat className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-muted-foreground mb-4">
+                    No dishes yet. Add your first item to get started.
+                  </p>
+                  <Button onClick={() => setCreateDialogOpen(true)}>
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Add First Item
+                  </Button>
+                </div>
+              ) : (
+                <MenuItemsTable
+                  menuItems={menuItems}
+                  categories={categories}
+                  isLoading={menuItemsLoading}
+                  onEdit={handleEditItem}
+                  onDelete={setDeleteItem}
+                  onToggleAvailability={handleToggleAvailability}
+                  onManageImages={handleManageImages}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold">Menu Analytics</h2>
+            <p className="text-sm text-muted-foreground">
+              Insights and metrics about your menu performance
+            </p>
+          </div>
+
           <MetricsGrid columns={4}>
             <MetricsCard
               title="Total Items"
@@ -131,35 +295,40 @@ function SimpleMenuPage() {
             />
             <MetricsCard
               title="Quick Add"
-              value="Add Dish"
+              value="Add Item"
               icon={PlusCircle}
               iconColor="purple"
-              onClick={() => setActiveTab('add-item')}
+              onClick={() => setCreateDialogOpen(true)}
               className="cursor-pointer"
-              description="Add a new dish instantly"
+              description="Add a new item instantly"
             />
           </MetricsGrid>
 
           {/* Category Overview */}
           <Card>
             <CardHeader>
-              <CardTitle>Category Overview</CardTitle>
+              <CardTitle>Category Performance</CardTitle>
               <CardDescription>
-                Quick look at items and availability per category
+                Items and availability breakdown by category
               </CardDescription>
             </CardHeader>
             <CardContent>
               {categoryStats.length === 0 ? (
                 <div className="text-center py-8">
+                  <Grid3X3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                   <p className="text-muted-foreground mb-3">
                     No categories yet. Create one to organize your dishes.
                   </p>
-                  <button
-                    onClick={() => setActiveTab('categories')}
-                    className="text-sm font-medium text-primary hover:underline"
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActiveTab('management');
+                      setCategoriesExpanded(true);
+                    }}
                   >
-                    Create Category →
-                  </button>
+                    <Grid3X3 className="h-4 w-4 mr-2" />
+                    Create Category
+                  </Button>
                 </div>
               ) : (
                 <MetricsGrid columns={3}>
@@ -182,88 +351,57 @@ function SimpleMenuPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        {/* Categories */}
-        <TabsContent value="categories">
-          <SimpleCategoryManager
-            restaurantId={restaurantId}
-            categories={categories}
-            isLoading={categoriesLoading}
-          />
-        </TabsContent>
-
-        {/* Add Item */}
-        <TabsContent value="add-item">
-          {categories.length === 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Create a Category First</CardTitle>
-                <CardDescription>
-                  Add at least one category to start adding dishes.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <button
-                  onClick={() => setActiveTab('categories')}
-                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                  Go to Categories
-                </button>
-              </CardContent>
-            </Card>
-          ) : (
-            <SimpleMenuItemForm
-              restaurantId={restaurantId}
-              categories={categories}
-              onSuccess={() => setActiveTab('menu-items')}
-            />
-          )}
-        </TabsContent>
-
-        {/* Menu Items */}
-        <TabsContent value="menu-items">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Menu Items</CardTitle>
-              <CardDescription>View and manage all dishes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {menuItemsLoading ? (
-                <p className="text-center py-6 text-muted-foreground">
-                  Loading menu items...
-                </p>
-              ) : menuItems.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">
-                    No dishes yet. Add one to get started.
-                  </p>
-                  <button
-                    onClick={() => setActiveTab('add-item')}
-                    className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                    Add First Dish →
-                  </button>
-                </div>
-              ) : (
-                <TabsContent value="menu-items">
-                  <MenuItemsTable
-                    menuItems={menuItems}
-                    categories={categories}
-                    isLoading={menuItemsLoading}
-                    onEdit={(item) => console.log('Edit', item)}
-                    onDelete={(item) => console.log('Delete', item)}
-                    onToggleAvailability={(item) =>
-                      console.log('Toggle Availability', item)
-                    }
-                  />
-                </TabsContent>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* Create Item Dialog */}
+      <MenuItemCreateDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        restaurantId={restaurantId}
+        categories={categories}
+        onSuccess={() => {
+          // Refresh will happen automatically via RTK Query cache invalidation
+        }}
+      />
+
+      {/* Edit Dialog */}
+      {editingItem && (
+        <MenuItemEditDialog
+          open={!!editingItem}
+          onOpenChange={(open) => !open && setEditingItem(null)}
+          menuItem={editingItem}
+          restaurantId={restaurantId}
+          categories={categories}
+          onSuccess={() => {
+            // Refresh will happen automatically via RTK Query cache invalidation
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!deleteItem}
+        onOpenChange={(open) => !open && setDeleteItem(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Menu Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteItem?.name}"?
+              This action cannot be undone and will also remove all associated images.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteItem && handleDeleteItem(deleteItem)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

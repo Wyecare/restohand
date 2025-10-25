@@ -69,9 +69,10 @@ export interface CreateRestaurantTablePayload {
   layoutRotation?: number;
 }
 
-export type UpdateRestaurantTablePayload = Partial<CreateRestaurantTablePayload> & {
-  isActive?: boolean;
-};
+export type UpdateRestaurantTablePayload =
+  Partial<CreateRestaurantTablePayload> & {
+    isActive?: boolean;
+  };
 
 export const restaurantsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -363,16 +364,56 @@ export const restaurantsApi = baseApi.injectEndpoints({
       ],
     }),
 
+    uploadMenuItemImage: builder.mutation<
+      { success: boolean; imageUrl: string; fileName: string },
+      { restaurantId: string; itemId: string; image: File }
+    >({
+      query: ({ restaurantId, itemId, image }) => {
+        const formData = new FormData();
+        formData.append('file', image); // Changed from 'image' to 'file'
+
+        return {
+          url: `/restaurants/${restaurantId}/menu/items/${itemId}/upload-image`,
+          method: 'POST',
+          body: formData,
+        };
+      },
+      invalidatesTags: (_result, _error, { restaurantId, itemId }) => [
+        { type: 'MenuItem', id: itemId },
+        { type: 'MenuItem', id: `LIST-${restaurantId}` },
+      ],
+    }),
+    removeMenuItemImage: builder.mutation<
+      { success: boolean },
+      { restaurantId: string; itemId: string; imageIndex: number }
+    >({
+      query: ({ restaurantId, itemId, imageIndex }) => ({
+        url: `/restaurants/${restaurantId}/menu/items/${itemId}/images/${imageIndex}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, itemId }) => [
+        { type: 'MenuItem', id: itemId },
+        { type: 'MenuItem', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
     getPublicRestaurant: builder.query<PublicRestaurant, string>({
       query: (slug) => `/public/restaurants/${slug}`,
     }),
 
-    getPublicMenu: builder.query<{ restaurant: PublicRestaurant; menu: PublicMenuPayload }, string>({
+    getPublicMenu: builder.query<
+      { restaurant: PublicRestaurant; menu: PublicMenuPayload },
+      string
+    >({
       query: (slug) => `/public/restaurants/${slug}/menu`,
     }),
 
-    getPublicOrder: builder.query<PublicOrder, { slug: string; orderId: string }>({
-      query: ({ slug, orderId }) => `/public/restaurants/${slug}/orders/${orderId}`,
+    getPublicOrder: builder.query<
+      PublicOrder,
+      { slug: string; orderId: string }
+    >({
+      query: ({ slug, orderId }) =>
+        `/public/restaurants/${slug}/orders/${orderId}`,
     }),
 
     getRestaurantQrCode: builder.query<
@@ -403,6 +444,8 @@ export const {
   useCreateMenuItemMutation,
   useUpdateMenuItemMutation,
   useDeleteMenuItemMutation,
+  useUploadMenuItemImageMutation,
+  useRemoveMenuItemImageMutation,
   useListRestaurantTablesQuery,
   useCreateRestaurantTableMutation,
   useUpdateRestaurantTableMutation,

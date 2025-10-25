@@ -35,7 +35,7 @@ import {
   useDeleteMenuItemMutation,
 } from '@/store/api/restaurantsApi';
 import type { MenuCategory, MenuItem } from '@/store/api/types';
-import { Edit2, Trash2, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,8 +45,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { MenuItemsTable } from './MenuItemsTable';
+import { MenuItemEditDialog } from './MenuItemEditDialog';
 
 interface MenuItemManagerProps {
   restaurantId: string;
@@ -61,6 +62,8 @@ export function MenuItemManager({ restaurantId, categories }: MenuItemManagerPro
   >('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<MenuItem | null>(null);
 
   const categoryIdFilter = useMemo(
     () => (selectedCategory !== 'all' ? selectedCategory : undefined),
@@ -157,13 +160,14 @@ export function MenuItemManager({ restaurantId, categories }: MenuItemManagerPro
     }
   };
 
-  const handleDeleteItem = async (itemId: string, itemName: string) => {
+  const handleDeleteItem = async (item: MenuItem) => {
     try {
-      await deleteMenuItem({ restaurantId, itemId }).unwrap();
+      await deleteMenuItem({ restaurantId, itemId: item.id }).unwrap();
       toast({
         title: 'Item deleted',
-        description: `${itemName} has been removed from your menu`,
+        description: `${item.name} has been removed from your menu`,
       });
+      setDeleteItem(null);
     } catch (error) {
       toast({
         title: 'Failed to delete item',
@@ -172,6 +176,18 @@ export function MenuItemManager({ restaurantId, categories }: MenuItemManagerPro
         variant: 'destructive',
       });
     }
+  };
+
+  const handleEditItem = (item: MenuItem) => {
+    setEditingItem(item);
+  };
+
+  const handleManageImages = (item: MenuItem) => {
+    setEditingItem(item);
+  };
+
+  const handleToggleAvailability = (item: MenuItem) => {
+    handleAvailabilityToggle(item.id, !item.isAvailable);
   };
 
   const getCategoryName = (categoryId?: string) => {
@@ -273,125 +289,55 @@ export function MenuItemManager({ restaurantId, categories }: MenuItemManagerPro
         )}
 
         {/* Items Table */}
-        {isItemsLoading || isItemsFetching ? (
-          <div className="flex items-center justify-center py-10">
-            <LoadingSpinner />
-          </div>
-        ) : menuItems.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            No items yet. Add your first dish using the form above.
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            No items match the current filters.
-          </div>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Tags</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{item.name}</div>
-                        {item.description && (
-                          <div className="text-sm text-muted-foreground line-clamp-2">
-                            {item.description}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {getCategoryName(item.categoryId)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">
-                          ₹{item.pricing.amount.toFixed(2)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.pricing.isTaxInclusive ? 'Tax incl.' : 'Tax excl.'}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {item.tags.slice(0, 2).map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {item.tags.length > 2 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{item.tags.length - 2}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={item.isAvailable}
-                          onCheckedChange={(value) =>
-                            handleAvailabilityToggle(item.id, value)
-                          }
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {item.isAvailable ? 'Available' : 'Unavailable'}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm">
-                          <Edit2 className="h-3 w-3" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Menu Item</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete "{item.name}"?
-                                This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteItem(item.id, item.name)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        <MenuItemsTable
+          menuItems={filteredItems}
+          categories={categories}
+          isLoading={isItemsLoading || isItemsFetching}
+          onEdit={handleEditItem}
+          onDelete={setDeleteItem}
+          onToggleAvailability={handleToggleAvailability}
+          onManageImages={handleManageImages}
+        />
       </CardContent>
+
+      {/* Edit Dialog */}
+      {editingItem && (
+        <MenuItemEditDialog
+          open={!!editingItem}
+          onOpenChange={(open) => !open && setEditingItem(null)}
+          menuItem={editingItem}
+          restaurantId={restaurantId}
+          categories={categories}
+          onSuccess={() => {
+            // Refresh will happen automatically via RTK Query cache invalidation
+          }}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!deleteItem}
+        onOpenChange={(open) => !open && setDeleteItem(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Menu Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteItem?.name}"?
+              This action cannot be undone and will also remove all associated images.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteItem && handleDeleteItem(deleteItem)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
