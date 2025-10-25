@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMenuTranslation, useCommonTranslation } from '@/hooks/use-translation';
 import {
   Dialog,
   DialogContent,
@@ -52,13 +53,12 @@ import {
 } from '@/store/api/restaurantsApi';
 import type { MenuCategory } from '@/store/api/types';
 
-const schema = z.object({
-  name: z.string().min(2, 'Category name is required'),
-  description: z.string().optional(),
-  defaultGstRateId: z.string().min(1, 'Please select a GST rate'),
-});
-
-type FormData = z.infer<typeof schema>;
+// Schema will be created inside component to access translations
+type FormData = {
+  name: string;
+  description?: string;
+  defaultGstRateId: string;
+};
 
 interface MenuCategoryDialogProps {
   open: boolean;
@@ -78,10 +78,19 @@ export function MenuCategoryDialog({
   onSuccess,
 }: MenuCategoryDialogProps) {
   const { toast } = useToast();
+  const { t: tMenu } = useMenuTranslation();
+  const { t: tCommon } = useCommonTranslation();
   const [createCategory, { isLoading: creating }] =
     useCreateMenuCategoryMutation();
   const [updateCategory, { isLoading: updating }] =
     useUpdateMenuCategoryMutation();
+
+  // Create schema with translations
+  const schema = z.object({
+    name: z.string().min(2, tCommon('forms.required')),
+    description: z.string().optional(),
+    defaultGstRateId: z.string().min(1, tCommon('forms.selectOption')),
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -163,8 +172,8 @@ export function MenuCategoryDialog({
       onSuccess?.();
     } catch {
       toast({
-        title: 'Error',
-        description: 'Failed to save category. Please try again.',
+        title: tCommon('messages.error'),
+        description: tCommon('messages.networkError'),
         variant: 'destructive',
       });
     }
@@ -175,12 +184,12 @@ export function MenuCategoryDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {editingCategory ? 'Edit Category' : 'New Category'}
+            {editingCategory ? tMenu('categories.edit') : tMenu('categories.create')}
           </DialogTitle>
           <DialogDescription>
             {editingCategory
-              ? 'Update details for this category.'
-              : 'Create a new category to organize your dishes.'}
+              ? tMenu('categories.editDesc')
+              : tMenu('categories.createDesc')}
           </DialogDescription>
         </DialogHeader>
 

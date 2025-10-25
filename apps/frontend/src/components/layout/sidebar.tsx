@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useCommonTranslation } from '@/hooks/use-translation';
 import {
   Sidebar as SidebarContainer,
   SidebarContent,
@@ -32,28 +33,28 @@ import {
 } from 'lucide-react';
 
 interface NavLink {
-  title: string;
+  titleKey: string;
   href: string;
   icon: React.ElementType;
 }
 
 const managerLinks: NavLink[] = [
-  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Orders', href: '/orders', icon: ShoppingBag },
-  { title: 'Menu', href: '/menu', icon: UtensilsCrossed },
-  { title: 'Tables', href: '/tables', icon: Table },
-  { title: 'Staff', href: '/staff', icon: Users },
-  { title: 'Customer QR', href: '/customer-qr', icon: QrCode },
-  { title: 'Reports', href: '/reports', icon: BarChart3 },
-  { title: 'Settings', href: '/settings', icon: Settings },
+  { titleKey: 'navigation.dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { titleKey: 'navigation.orders', href: '/orders', icon: ShoppingBag },
+  { titleKey: 'navigation.menu', href: '/menu', icon: UtensilsCrossed },
+  { titleKey: 'navigation.tables', href: '/tables', icon: Table },
+  { titleKey: 'navigation.staff', href: '/staff', icon: Users },
+  { titleKey: 'navigation.customerQR', href: '/customer-qr', icon: QrCode },
+  { titleKey: 'navigation.reports', href: '/reports', icon: BarChart3 },
+  { titleKey: 'navigation.settings', href: '/settings', icon: Settings },
 ];
 
 const kitchenLinks: NavLink[] = [
-  { title: 'Kitchen Board', href: '/kitchen', icon: ChefHat },
+  { titleKey: 'navigation.kitchenBoard', href: '/kitchen', icon: ChefHat },
 ];
 
 const serviceLinks: NavLink[] = [
-  { title: 'Service Board', href: '/service', icon: Coffee },
+  { titleKey: 'navigation.serviceBoard', href: '/service', icon: Coffee },
 ];
 
 export default function Sidebar() {
@@ -62,6 +63,7 @@ export default function Sidebar() {
   const { user } = useAuth();
   const session = useAppSelector(selectAuthSession);
   const roles = useAppSelector(selectUserRoles);
+  const { t } = useCommonTranslation();
 
   useEffect(() => {
     if (isMobile) setOpenMobile(false);
@@ -123,7 +125,7 @@ export default function Sidebar() {
         <ScrollArea className="h-full">
           <SidebarGroup>
             <SidebarGroupLabel className="text-xs tracking-wider uppercase">
-              Navigation
+              {t('navigation.navigation')}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="space-y-1">
@@ -135,12 +137,12 @@ export default function Sidebar() {
                       <SidebarMenuButton
                         className="hover:text-foreground active:text-foreground hover:bg-primary/10 active:bg-primary/10"
                         asChild
-                        tooltip={link.title}
+                        tooltip={t(link.titleKey)}
                         isActive={isRouteActive(link.href)}
                       >
                         <Link to={link.href}>
                           <Icon className="size-4" />
-                          <span>{link.title}</span>
+                          <span>{t(link.titleKey)}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

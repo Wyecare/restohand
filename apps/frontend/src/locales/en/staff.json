@@ -1,0 +1,22 @@
+{
+  "roles": {
+    "owner": "Owner",
+    "manager": "Manager",
+    "chef": "Chef",
+    "waiter": "Waiter",
+    "cashier": "Cashier"
+  },
+  "title": "Staff Management",
+  "create": "Add Staff Member",
+  "edit": "Edit Staff",
+  "delete": "Remove Staff",
+  "details": {
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "role": "Role",
+    "status": "Status",
+    "joinDate": "Join Date",
+    "permissions": "Permissions"
+  }
+}

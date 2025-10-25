@@ -5,6 +5,7 @@ import { useSidebar } from '@/components/ui/sidebar';
 import UserMenu from '@/components/layout/header/user-menu';
 import ThemeSwitch from '@/components/layout/header/theme-switch';
 import { Button } from '@/components/ui/button';
+import { LanguageSwitcher } from '@/components/ui/language-switcher';
 import { useAuth } from '@/contexts/AuthProvider';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession } from '@/store/slices/authSlice';
@@ -30,33 +31,38 @@ export default function Header() {
   return (
     <div className="sticky top-0 z-50 flex flex-col">
       <header className="bg-background/50 flex h-14 items-center gap-3 px-4 backdrop-blur-xl lg:h-[60px]">
-        <Button
-          onClick={toggleSidebar}
-          size="icon"
-          variant="outline"
-          className="flex md:hidden lg:flex"
-        >
-          <PanelLeftIcon />
-        </Button>
+        <div className="flex flex-1 items-center gap-3">
+          <Button
+            onClick={toggleSidebar}
+            size="icon"
+            variant="outline"
+            className="flex md:hidden lg:flex"
+          >
+            <PanelLeftIcon />
+          </Button>
+        </div>
 
-        {/* Theme switch and UserMenu pushed to the right */}
-        <ThemeSwitch />
-        <ThemeCustomizerPanel />
-        <UserMenu
-          user={derivedUser}
-          onLogout={async () => {
-            try {
-              await logout();
-            } catch (error) {
-              toast({
-                title: 'Failed to log out',
-                description:
-                  error instanceof Error ? error.message : 'Please try again.',
-                variant: 'destructive',
-              });
-            }
-          }}
-        />
+        <div className="flex items-center gap-3">
+          {/* Language switcher, theme switch and UserMenu */}
+          <LanguageSwitcher />
+          <ThemeSwitch />
+          <ThemeCustomizerPanel />
+          <UserMenu
+            user={derivedUser}
+            onLogout={async () => {
+              try {
+                await logout();
+              } catch (error) {
+                toast({
+                  title: 'Failed to log out',
+                  description:
+                    error instanceof Error ? error.message : 'Please try again.',
+                  variant: 'destructive',
+                });
+              }
+            }}
+          />
+        </div>
       </header>
     </div>
   );

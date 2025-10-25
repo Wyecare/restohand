@@ -1,0 +1,47 @@
+{
+  "title": "Orders",
+  "status": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "preparing": "Preparing",
+    "ready": "Ready",
+    "served": "Served",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "actions": {
+    "accept": "Accept Order",
+    "reject": "Reject Order",
+    "startPreparing": "Start Preparing",
+    "markReady": "Mark Ready",
+    "markServed": "Mark Served",
+    "complete": "Complete Order",
+    "cancel": "Cancel Order",
+    "viewDetails": "View Details",
+    "printBill": "Print Bill",
+    "sendToKitchen": "Send to Kitchen"
+  },
+  "details": {
+    "orderNumber": "Order Number",
+    "tableNumber": "Table Number",
+    "customerName": "Customer Name",
+    "customerPhone": "Customer Phone",
+    "orderTime": "Order Time",
+    "items": "Items",
+    "quantity": "Quantity",
+    "subtotal": "Subtotal",
+    "gst": "GST",
+    "total": "Total",
+    "paymentMethod": "Payment Method",
+    "notes": "Special Notes",
+    "preparationTime": "Preparation Time"
+  },
+  "filters": {
+    "all": "All Orders",
+    "new": "New Orders",
+    "inProgress": "In Progress",
+    "completed": "Completed",
+    "today": "Today",
+    "thisWeek": "This Week"
+  }
+}

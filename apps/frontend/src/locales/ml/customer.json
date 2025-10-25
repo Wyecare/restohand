@@ -1,0 +1,57 @@
+{
+  "cart": {
+    "title": "നിങ്ങളുടെ കാർട്ട്",
+    "empty": "നിങ്ങളുടെ കാർട്ട് ശൂന്യമാണ്",
+    "addToCart": "കാർട്ടിൽ ചേർക്കുക",
+    "removeFromCart": "കാർട്ടിൽ നിന്ന് നീക്കം ചെയ്യുക",
+    "updateQuantity": "അളവ് അപ്‌ഡേറ്റ് ചെയ്യുക",
+    "quantity": "അളവ്",
+    "subtotal": "ഉപമൊത്തം",
+    "total": "ആകെ",
+    "checkout": "ചെക്കൗട്ടിലേക്ക് പോകുക",
+    "clearCart": "കാർട്ട് ക്ലിയർ ചെയ്യുക",
+    "continueShopping": "ഷോപ്പിംഗ് തുടരുക",
+    "item": "ഇനം",
+    "items": "ഇനങ്ങൾ",
+    "moreItems": "കൂടുതൽ ഇനങ്ങൾ",
+    "totalIncTax": "ആകെ (നികുതി ഉൾപ്പെടെ)"
+  },
+  "menu": {
+    "categories": "വിഭാഗങ്ങൾ",
+    "searchPlaceholder": "വിഭവങ്ങൾക്കായി തിരയുക...",
+    "noResults": "വിഭവങ്ങൾ കണ്ടെത്തിയില്ല",
+    "viewDetails": "വിശദാംശങ്ങൾ കാണുക",
+    "customize": "ഇഷ്ടാനുസൃതമാക്കുക",
+    "addToCart": "കാർട്ടിൽ ചേർക്കുക",
+    "outOfStock": "സ്റ്റോക്കില്ല",
+    "popular": "ജനപ്രിയം",
+    "recommended": "ഷെഫിന്റെ ശുപാർശ",
+    "new": "പുതിയത്"
+  },
+  "checkout": {
+    "title": "ചെക്കൗട്ട്",
+    "orderSummary": "ഓർഡർ സംഗ്രഹം",
+    "customerDetails": "ഉപഭോക്താവിന്റെ വിശദാംശങ്ങൾ",
+    "name": "പേര്",
+    "phone": "ഫോൺ നമ്പർ",
+    "email": "ഇമെയിൽ",
+    "tableNumber": "ടേബിൾ നമ്പർ",
+    "specialInstructions": "പ്രത്യേക നിർദ്ദേശങ്ങൾ",
+    "paymentMethod": "പേയ്‌മെന്റ് രീതി",
+    "cash": "പണം",
+    "card": "കാർഡ്",
+    "upi": "യുപിഐ",
+    "placeOrder": "ഓർഡർ നൽകുക",
+    "orderTotal": "ഓർഡർ ആകെ"
+  },
+  "orderStatus": {
+    "title": "ഓർഡർ സ്ഥിതി",
+    "orderPlaced": "ഓർഡർ നൽകി",
+    "preparing": "നിങ്ങളുടെ ഭക്ഷണം തയ്യാറാക്കുന്നു",
+    "ready": "നിങ്ങളുടെ ഓർഡർ തയ്യാറാണ്!",
+    "completed": "ഓർഡർ പൂർത്തിയായി",
+    "estimatedTime": "കണക്കാക്കിയ സമയം",
+    "trackOrder": "ഓർഡർ ട്രാക്ക് ചെയ്യുക",
+    "orderNumber": "ഓർഡർ നമ്പർ"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "cart": {
+    "title": "Your Cart",
+    "empty": "Your cart is empty",
+    "addToCart": "Add to Cart",
+    "removeFromCart": "Remove from Cart",
+    "updateQuantity": "Update Quantity",
+    "quantity": "Quantity",
+    "subtotal": "Subtotal",
+    "total": "Total",
+    "checkout": "Proceed to Checkout",
+    "clearCart": "Clear Cart",
+    "continueShopping": "Continue Shopping",
+    "item": "item",
+    "items": "items",
+    "moreItems": "more items",
+    "totalIncTax": "Total (incl. taxes)"
+  },
+  "menu": {
+    "categories": "Categories",
+    "searchPlaceholder": "Search for dishes...",
+    "noResults": "No dishes found",
+    "viewDetails": "View Details",
+    "customize": "Customize",
+    "addToCart": "Add to Cart",
+    "outOfStock": "Out of Stock",
+    "popular": "Popular",
+    "recommended": "Chef's Recommendation",
+    "new": "New"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "orderSummary": "Order Summary",
+    "customerDetails": "Customer Details",
+    "name": "Name",
+    "phone": "Phone Number",
+    "email": "Email",
+    "tableNumber": "Table Number",
+    "specialInstructions": "Special Instructions",
+    "paymentMethod": "Payment Method",
+    "cash": "Cash",
+    "card": "Card",
+    "upi": "UPI",
+    "placeOrder": "Place Order",
+    "orderTotal": "Order Total"
+  },
+  "orderStatus": {
+    "title": "Order Status",
+    "orderPlaced": "Order Placed",
+    "preparing": "Preparing your food",
+    "ready": "Your order is ready!",
+    "completed": "Order completed",
+    "estimatedTime": "Estimated time",
+    "trackOrder": "Track Order",
+    "orderNumber": "Order Number"
+  }
+}

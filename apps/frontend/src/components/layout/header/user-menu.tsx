@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useCommonTranslation } from '@/hooks/use-translation';
 import {
   BadgeCheck,
   Bell,
@@ -31,6 +32,8 @@ interface UserMenuProps {
 }
 
 export default function UserMenu({ user, onLogout }: UserMenuProps) {
+  const { t } = useCommonTranslation();
+
   const initials =
     user?.firstName?.[0]?.toUpperCase() ??
     user?.lastName?.[0]?.toUpperCase() ??
@@ -40,7 +43,7 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
   const fullName =
     [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
     user?.email ||
-    'User';
+    t('user.defaultName');
 
   return (
     <DropdownMenu>
@@ -73,7 +76,7 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
               </span>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="secondary" className="text-xs">
-                  Active
+                  {t('status.active')}
                 </Badge>
               </div>
             </div>
@@ -87,31 +90,31 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
           <DropdownMenuItem asChild>
             <Link to="/profile">
               <User />
-              Profile
+              {t('navigation.profile')}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/settings">
               <Settings />
-              Settings
+              {t('navigation.settings')}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/account">
               <BadgeCheck />
-              Account
+              {t('user.account')}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/billing">
               <CreditCard />
-              Billing
+              {t('user.billing')}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/notifications">
               <Bell />
-              Notifications
+              {t('user.notifications')}
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
@@ -124,7 +127,7 @@ export default function UserMenu({ user, onLogout }: UserMenuProps) {
           className="text-red-600 dark:text-red-400"
         >
           <LogOut />
-          Log out
+          {t('navigation.logout')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

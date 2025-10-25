@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import * as ReactDOM from 'react-dom/client';
 import App from './app/app';
 import './global.css';
+import './lib/i18n';
 
 const container = document.getElementById('root');
 

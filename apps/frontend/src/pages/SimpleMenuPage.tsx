@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import {
+  useMenuTranslation,
+  useCommonTranslation,
+} from '@/hooks/use-translation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
@@ -59,6 +63,8 @@ function SimpleMenuPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [categoriesExpanded, setCategoriesExpanded] = useState(false);
   const { toast } = useToast();
+  const { t: tMenu } = useMenuTranslation();
+  const { t: tCommon } = useCommonTranslation();
 
   const { data: categoriesResponse, isLoading: categoriesLoading } =
     useListMenuCategoriesQuery(restaurantId ? { restaurantId } : skipToken);
@@ -103,13 +109,17 @@ function SimpleMenuPage() {
         body: { isAvailable: !item.isAvailable },
       }).unwrap();
       toast({
-        title: `Item ${!item.isAvailable ? 'marked available' : 'set unavailable'}`,
+        title: `${tMenu('items.item')} ${
+          !item.isAvailable ? tMenu('items.markedAvailable') : tMenu('items.setUnavailable')
+        }`,
       });
     } catch (error) {
       toast({
-        title: 'Unable to update item',
+        title: tCommon('messages.error'),
         description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+          error instanceof Error
+            ? error.message
+            : tCommon('messages.networkError'),
         variant: 'destructive',
       });
     }
@@ -119,15 +129,17 @@ function SimpleMenuPage() {
     try {
       await deleteMenuItem({ restaurantId, itemId: item.id }).unwrap();
       toast({
-        title: 'Item deleted',
-        description: `${item.name} has been removed from your menu`,
+        title: tCommon('messages.deleteSuccess'),
+        description: `${item.name} ${tMenu('items.removedFromMenu')}`,
       });
       setDeleteItem(null);
     } catch (error) {
       toast({
-        title: 'Failed to delete item',
+        title: tCommon('messages.error'),
         description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+          error instanceof Error
+            ? error.message
+            : tCommon('messages.networkError'),
         variant: 'destructive',
       });
     }
@@ -137,10 +149,11 @@ function SimpleMenuPage() {
     <div className="container mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div className="text-center sm:text-left">
-        <h1 className="text-3xl font-bold">🍽️ Menu Management</h1>
+        <h1 className="text-3xl font-bold">
+          <span role="img" aria-label="restaurant">🍽️</span> {tMenu('management.title')}
+        </h1>
         <p className="text-muted-foreground text-sm">
-          Manage your menu categories and dishes easily — designed for
-          restaurants & cafés.
+          {tMenu('management.description')}
         </p>
       </div>
 
@@ -152,10 +165,10 @@ function SimpleMenuPage() {
       >
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="management">
-            <ChefHat className="h-4 w-4 mr-1" /> Menu Management
+            <ChefHat className="h-4 w-4 mr-1" /> {tMenu('management.title')}
           </TabsTrigger>
           <TabsTrigger value="analytics">
-            <BarChart3 className="h-4 w-4 mr-1" /> Analytics
+            <BarChart3 className="h-4 w-4 mr-1" /> {tMenu('analytics.title')}
           </TabsTrigger>
         </TabsList>
 
@@ -164,9 +177,9 @@ function SimpleMenuPage() {
           {/* Quick Actions Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold">Menu Management</h2>
+              <h2 className="text-xl font-semibold">{tMenu('management.title')}</h2>
               <p className="text-sm text-muted-foreground">
-                Create and manage your menu items and categories
+                {tMenu('management.subtitle')}
               </p>
             </div>
             <div className="flex gap-2">
@@ -179,22 +192,25 @@ function SimpleMenuPage() {
               </Button>
               <Button onClick={() => setCreateDialogOpen(true)}>
                 <PlusCircle className="h-4 w-4 mr-2" />
-                Add Item
+{tMenu('items.create')}
               </Button>
             </div>
           </div>
 
           {/* Collapsible Categories Section */}
-          <Collapsible open={categoriesExpanded} onOpenChange={setCategoriesExpanded}>
+          <Collapsible
+            open={categoriesExpanded}
+            onOpenChange={setCategoriesExpanded}
+          >
             <CollapsibleContent className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Grid3X3 className="h-5 w-5" />
-                    Categories Management
+{tMenu('categories.management')}
                   </CardTitle>
                   <CardDescription>
-                    Organize your menu items into categories
+                    {tMenu('categories.organizeDesc')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -218,7 +234,7 @@ function SimpleMenuPage() {
                 </div>
                 <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
                   <PlusCircle className="h-4 w-4 mr-1" />
-                  Add Item
+  {tMenu('items.create')}
                 </Button>
               </CardTitle>
               <CardDescription>View and manage all your dishes</CardDescription>
@@ -257,35 +273,41 @@ function SimpleMenuPage() {
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="space-y-6">
           <div>
-            <h2 className="text-xl font-semibold">Menu Analytics</h2>
+            <h2 className="text-xl font-semibold">
+              {tMenu('analytics.title')}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Insights and metrics about your menu performance
+              {tMenu('analytics.description')}
             </p>
           </div>
 
           <MetricsGrid columns={4}>
             <MetricsCard
-              title="Total Items"
+              title={tMenu('analytics.totalItems')}
               value={totalItems}
-              description={`${availableItems} available`}
+              description={`${availableItems} ${tMenu('analytics.available')}`}
               icon={Utensils}
               iconColor="green"
             />
             <MetricsCard
-              title="Categories"
+              title={tMenu('categories.title')}
               value={totalCategories}
-              description={`${activeCategories} active`}
+              description={`${activeCategories} ${tCommon(
+                'status.active'
+              ).toLowerCase()}`}
               icon={Grid3X3}
               iconColor="blue"
             />
             <MetricsCard
-              title="Availability"
+              title={tMenu('analytics.availability')}
               value={
                 totalItems > 0
                   ? Math.round((availableItems / totalItems) * 100) + '%'
                   : '0%'
               }
-              description={`of ${totalItems} items`}
+              description={`${tMenu('analytics.of')} ${totalItems} ${tMenu(
+                'items.title'
+              ).toLowerCase()}`}
               icon={Layers}
               iconColor="orange"
               badge={{
@@ -294,22 +316,22 @@ function SimpleMenuPage() {
               }}
             />
             <MetricsCard
-              title="Quick Add"
-              value="Add Item"
+              title={tMenu('analytics.quickAdd')}
+              value={tMenu('items.create')}
               icon={PlusCircle}
               iconColor="purple"
               onClick={() => setCreateDialogOpen(true)}
               className="cursor-pointer"
-              description="Add a new item instantly"
+              description={tMenu('analytics.quickAddDesc')}
             />
           </MetricsGrid>
 
           {/* Category Overview */}
           <Card>
             <CardHeader>
-              <CardTitle>Category Performance</CardTitle>
+              <CardTitle>{tMenu('analytics.categoryPerformance')}</CardTitle>
               <CardDescription>
-                Items and availability breakdown by category
+                {tMenu('analytics.categoryBreakdown')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -317,7 +339,7 @@ function SimpleMenuPage() {
                 <div className="text-center py-8">
                   <Grid3X3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
                   <p className="text-muted-foreground mb-3">
-                    No categories yet. Create one to organize your dishes.
+                    {tMenu('analytics.noCategoriesYet')}
                   </p>
                   <Button
                     variant="outline"
@@ -327,7 +349,7 @@ function SimpleMenuPage() {
                     }}
                   >
                     <Grid3X3 className="h-4 w-4 mr-2" />
-                    Create Category
+                    {tMenu('categories.create')}
                   </Button>
                 </div>
               ) : (
@@ -336,8 +358,10 @@ function SimpleMenuPage() {
                     <MetricsCard
                       key={c.name}
                       title={c.name}
-                      value={`${c.itemCount} Items`}
-                      description={`${c.availableCount} available`}
+                      value={`${c.itemCount} ${tMenu('items.title')}`}
+                      description={`${c.availableCount} ${tMenu(
+                        'analytics.available'
+                      )}`}
                       icon={ShoppingBag}
                       iconColor="gray"
                       badge={{
@@ -385,19 +409,18 @@ function SimpleMenuPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Menu Item</AlertDialogTitle>
+            <AlertDialogTitle>{tMenu('items.delete')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteItem?.name}"?
-              This action cannot be undone and will also remove all associated images.
+              {tCommon('messages.deleteConfirmation').replace('item', `"${deleteItem?.name}"`)} {tMenu('items.deleteWarning')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tCommon('actions.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteItem && handleDeleteItem(deleteItem)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+{tCommon('actions.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

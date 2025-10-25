@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
+import { useDashboardTranslation, useCommonTranslation } from '@/hooks/use-translation';
 import {
   Card,
   CardContent,
@@ -47,6 +48,8 @@ const formatCurrency = (amount: number, currency: string) =>
 const DashboardPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const session = useAppSelector(selectAuthSession);
+  const { t: tDashboard } = useDashboardTranslation();
+  const { t: tCommon, formatCurrency: formatCurrencyLocale } = useCommonTranslation();
 
   const {
     data: restaurant,
@@ -115,7 +118,7 @@ const DashboardPage = () => {
   if (isRestaurantError || !restaurant)
     return (
       <div className="flex min-h-[60vh] items-center justify-center text-sm text-destructive">
-        Unable to load restaurant details. Please try again.
+        {tCommon('messages.error')}
       </div>
     );
 
@@ -128,62 +131,62 @@ const DashboardPage = () => {
             {restaurant.name}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Welcome back, {session.displayName ?? session.email ?? 'Manager'} 👋
+            {tDashboard('welcomeBack')} {session.displayName ?? session.email ?? tCommon('user.defaultName')} 👋
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={refetchOrders}>
           <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
+          {tCommon('actions.refresh')}
         </Button>
       </div>
 
       {/* Restaurant Quick Stats */}
       <MetricsGrid columns={3}>
         <MetricsCard
-          title="Live Orders"
+          title={tDashboard('liveOrders')}
           value={isOrdersLoading ? '—' : totalOrders}
-          description="Currently active orders"
+          description={tDashboard('activeOrdersDesc')}
           icon={ShoppingBag}
           iconColor="blue"
           loading={isOrdersLoading}
         />
         <MetricsCard
-          title="Revenue"
+          title={tDashboard('revenue')}
           value={
             isOrdersLoading
               ? '—'
-              : formatCurrency(totalRevenue ?? 0, restaurantCurrency)
+              : formatCurrencyLocale(totalRevenue ?? 0)
           }
-          description="Captured payments"
+          description={tDashboard('capturedPayments')}
           icon={CreditCard}
           iconColor="green"
           loading={isOrdersLoading}
         />
         <MetricsCard
-          title="UPI Mode"
+          title={tDashboard('upiMode')}
           value={restaurant.upi.mode}
-          description="QR workflow in use"
+          description={tDashboard('qrWorkflow')}
           icon={QrCode}
           iconColor="purple"
         />
         <MetricsCard
-          title="Cash Payments"
+          title={tDashboard('cashPayments')}
           value={`${paymentSummary.cashTickets}`}
-          description={`${paymentSummary.cashPercent}% of tickets`}
+          description={`${paymentSummary.cashPercent}% ${tDashboard('ofTickets')}`}
           icon={Wallet}
           iconColor="orange"
         />
         <MetricsCard
-          title="UPI Payments"
+          title={tDashboard('upiPayments')}
           value={`${paymentSummary.upiTickets}`}
-          description={`${paymentSummary.upiPercent}% of tickets`}
+          description={`${paymentSummary.upiPercent}% ${tDashboard('ofTickets')}`}
           icon={TrendingUp}
           iconColor="blue"
         />
         <MetricsCard
-          title="Avg. Ticket"
-          value={formatCurrency(averageTicket ?? 0, restaurantCurrency)}
-          description="Average order value"
+          title={tDashboard('avgTicket')}
+          value={formatCurrencyLocale(averageTicket ?? 0)}
+          description={tDashboard('avgOrderValue')}
           icon={UtensilsCrossed}
           iconColor="gray"
         />
@@ -195,9 +198,9 @@ const DashboardPage = () => {
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" />
-              Recent Orders
+              {tDashboard('recentOrders')}
             </CardTitle>
-            <CardDescription>Last 5 placed via QR or POS</CardDescription>
+            <CardDescription>{tDashboard('lastOrdersDesc')}</CardDescription>
           </div>
           <Button
             variant="outline"
@@ -206,7 +209,7 @@ const DashboardPage = () => {
             className="gap-1"
           >
             <RefreshCw className="h-4 w-4" />
-            Refresh
+            {tCommon('actions.refresh')}
           </Button>
         </CardHeader>
 
@@ -219,12 +222,12 @@ const DashboardPage = () => {
             <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Order</TableHead>
-                  <TableHead>Table</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>{tDashboard('order')}</TableHead>
+                  <TableHead>{tDashboard('table')}</TableHead>
+                  <TableHead>{tDashboard('status')}</TableHead>
+                  <TableHead>{tDashboard('payment')}</TableHead>
+                  <TableHead>{tDashboard('method')}</TableHead>
+                  <TableHead className="text-right">{tDashboard('total')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -269,7 +272,7 @@ const DashboardPage = () => {
                     </TableCell>
                     <TableCell>{order.paymentMethod.toUpperCase()}</TableCell>
                     <TableCell className="text-right font-semibold">
-                      {formatCurrency(order.totalAmount, restaurantCurrency)}
+                      {formatCurrencyLocale(order.totalAmount)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -277,7 +280,7 @@ const DashboardPage = () => {
             </Table>
           ) : (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              No orders yet. Share your QR code to start accepting orders.
+              {tDashboard('noOrdersYet')}
             </div>
           )}
         </CardContent>
@@ -287,7 +290,7 @@ const DashboardPage = () => {
             to="/orders"
             className="text-primary text-sm hover:underline font-medium"
           >
-            View all orders →
+            {tDashboard('viewAllOrders')} →
           </Link>
         </div>
       </Card>

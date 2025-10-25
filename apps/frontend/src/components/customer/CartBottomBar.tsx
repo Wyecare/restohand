@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { calculateBillBreakdown, formatCurrency } from '@/lib/billing';
+import { useCustomerTranslation } from '@/hooks/use-translation';
 
 interface CartEntry {
   id: string;
@@ -33,6 +34,8 @@ export function CartBottomBar({
   onCheckout,
   className,
 }: CartBottomBarProps) {
+  const { t } = useCustomerTranslation();
+
   if (totalItems === 0) return null;
 
   const cartEntries = Object.values(cart);
@@ -67,9 +70,9 @@ export function CartBottomBar({
         >
           <div className="flex items-center gap-2 mb-2">
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Your order</span>
+            <span className="text-sm text-muted-foreground">{t('cart.title')}</span>
             <Badge variant="secondary" className="ml-auto">
-              {totalItems} item{totalItems !== 1 ? 's' : ''}
+              {totalItems} {totalItems === 1 ? t('cart.item') : t('cart.items')}
             </Badge>
           </div>
 
@@ -91,7 +94,7 @@ export function CartBottomBar({
 
             {hasMoreItems && (
               <div className="text-xs text-muted-foreground text-center py-1">
-                +{cartEntries.length - 3} more item{cartEntries.length - 3 !== 1 ? 's' : ''}
+                +{cartEntries.length - 3} {t('cart.moreItems')}
               </div>
             )}
           </div>
@@ -106,7 +109,7 @@ export function CartBottomBar({
         >
           {/* Total amount */}
           <div className="flex flex-col items-start">
-            <span className="text-xs text-muted-foreground">Total (incl. taxes)</span>
+            <span className="text-xs text-muted-foreground">{t('cart.totalIncTax')}</span>
             <span className="text-lg font-bold">
               {formatCurrency(billBreakdown.total)}
             </span>
@@ -120,7 +123,7 @@ export function CartBottomBar({
             className="flex items-center gap-2"
           >
             <Eye className="h-4 w-4" />
-            View Cart
+            {t('menu.viewDetails')}
           </Button>
 
           {/* Checkout button */}
@@ -129,7 +132,7 @@ export function CartBottomBar({
             className="flex-1 font-semibold"
             size="lg"
           >
-            Proceed to Checkout
+            {t('checkout.title')}
           </Button>
         </motion.div>
       </div>
