@@ -43,6 +43,10 @@ import {
   type GstRate,
   type CreateGstRateRequest,
 } from '@/store/api/gstApi';
+import {
+  useGetRestaurantQuery,
+  useUpdateRestaurantMutation,
+} from '@/store/api/restaurantsApi';
 
 interface GstRateFormData {
   categoryName: string;
@@ -59,14 +63,14 @@ interface GstRateFormData {
 }
 
 const initialFormData: GstRateFormData = {
-  categoryName: '',
+  categoryName: 'Standard GST',
   description: '',
-  cgstRate: '',
-  sgstRate: '',
-  igstRate: '',
-  totalGstRate: '',
+  cgstRate: '2.5',
+  sgstRate: '2.5',
+  igstRate: '5',
+  totalGstRate: '5',
   isActive: true,
-  isDefault: false,
+  isDefault: true,
   effectiveFrom: new Date().toISOString().split('T')[0],
   effectiveTo: '',
   notes: '',
@@ -86,7 +90,7 @@ const GstRateForm = ({
   const [formData, setFormData] = useState<GstRateFormData>(() => {
     if (data) {
       return {
-        categoryName: data.categoryName,
+        categoryName: data.categoryName ?? 'Standard GST',
         description: data.description || '',
         cgstRate: data.cgstRate.toString(),
         sgstRate: data.sgstRate.toString(),
@@ -107,7 +111,7 @@ const GstRateForm = ({
     e.preventDefault();
 
     const payload: CreateGstRateRequest = {
-      categoryName: formData.categoryName,
+      categoryName: formData.categoryName.trim() || undefined,
       description: formData.description || undefined,
       cgstRate: parseFloat(formData.cgstRate),
       sgstRate: parseFloat(formData.sgstRate),
@@ -154,14 +158,16 @@ const GstRateForm = ({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="categoryName">Category Name *</Label>
+          <Label htmlFor="categoryName">Rate label (optional)</Label>
           <Input
             id="categoryName"
             value={formData.categoryName}
             onChange={(e) => updateField('categoryName', e.target.value)}
-            placeholder="e.g., Food Items"
-            required
+            placeholder="e.g., Standard GST"
           />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Helps you recognise the rate later. Leave blank to use "Standard GST".
+          </p>
         </div>
         <div>
           <Label htmlFor="totalGstRate">Total GST Rate (%) *</Label>
@@ -299,10 +305,18 @@ const GstSettingsPage = () => {
     return <Navigate to="/onboarding" replace />;
   }
 
+  const { data: restaurant } = useGetRestaurantQuery(restaurantId);
   const { data, isLoading, refetch } = useGetGstRatesQuery(restaurantId);
   const [createGstRate, { isLoading: isCreating }] = useCreateGstRateMutation();
   const [updateGstRate, { isLoading: isUpdating }] = useUpdateGstRateMutation();
   const [deleteGstRate, { isLoading: isDeleting }] = useDeleteGstRateMutation();
+  const [updateRestaurantSettings, { isLoading: isUpdatingRestaurant }] =
+    useUpdateRestaurantMutation();
+
+  const defaultGstRate = data?.data.find(
+    (rate) => rate.isDefault && rate.isActive
+  );
+  const hasDefaultGstRate = Boolean(defaultGstRate);
 
   const handleSubmit = async (formData: CreateGstRateRequest) => {
     try {
@@ -327,6 +341,39 @@ const GstSettingsPage = () => {
       toast({
         title: 'Failed to save GST rate',
         description: error instanceof Error ? error.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleToggleDefaultGst = async (checked: boolean) => {
+    if (checked && !hasDefaultGstRate) {
+      toast({
+        title: 'Add a default GST rate first',
+        description:
+          'Set one of your GST rates as the default before applying it to every menu item.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await updateRestaurantSettings({
+        id: restaurantId,
+        body: { applyDefaultGstToMenuItems: checked },
+      }).unwrap();
+      toast({
+        title: checked
+          ? 'Default GST applied to all items'
+          : 'Menu items can use individual GST settings',
+      });
+    } catch (error) {
+      toast({
+        title: 'Unable to update GST settings',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Unexpected error occurred while saving the preference',
         variant: 'destructive',
       });
     }
@@ -364,34 +411,84 @@ const GstSettingsPage = () => {
         <div>
           <h1 className="text-2xl font-semibold">GST Settings</h1>
           <p className="text-muted-foreground">
-            Manage GST rates for your restaurant menu items
+            Set your restaurant's GST once, and override it only when a dish needs a different slab.
           </p>
         </div>
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add GST Rate
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingRate ? 'Edit GST Rate' : 'Create GST Rate'}
-              </DialogTitle>
-              <DialogDescription>
-                Configure GST rates for different categories of menu items
-              </DialogDescription>
-            </DialogHeader>
-            <GstRateForm
-              data={editingRate}
-              onSubmit={handleSubmit}
-              onClose={closeForm}
-              isLoading={isCreating || isUpdating}
-            />
-          </DialogContent>
-        </Dialog>
       </div>
+      <Alert>
+        <AlertTitle>Recommended: 5% GST on dine-in food</AlertTitle>
+        <AlertDescription>
+          Most Indian restaurants charge 5% GST (2.5% CGST + 2.5% SGST) on cooked food. Leave
+          alcohol and retail items out of GST or override them individually when needed.
+        </AlertDescription>
+      </Alert>
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogTrigger asChild>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Add GST Rate
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingRate ? 'Edit GST Rate' : 'Create GST Rate'}
+            </DialogTitle>
+            <DialogDescription>
+              Save the GST percentage you collect, then pick the default to apply across your menu.
+            </DialogDescription>
+          </DialogHeader>
+          <GstRateForm
+            data={editingRate}
+            onSubmit={handleSubmit}
+            onClose={closeForm}
+            isLoading={isCreating || isUpdating}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Automatic GST on menu items</CardTitle>
+          <CardDescription>
+            Apply your default GST rate to every menu item unless you choose to override it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                {restaurant?.applyDefaultGstToMenuItems
+                  ? 'Every new and updated menu item will automatically use your default GST rate.'
+                  : 'Leave this off if different dishes need their own GST rates.'}
+              </p>
+              {restaurant?.applyDefaultGstToMenuItems && defaultGstRate && (
+                <p className="text-xs text-muted-foreground">
+                  Default GST: {(defaultGstRate.categoryName || 'Standard GST')} · {defaultGstRate.totalGstRate}%
+                </p>
+              )}
+              {restaurant?.applyDefaultGstToMenuItems && !defaultGstRate && (
+                <Alert variant="destructive">
+                  <AlertTitle>No default GST rate found</AlertTitle>
+                  <AlertDescription>
+                    Add a GST rate and mark it as default so menu items pick up the correct tax.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={restaurant?.applyDefaultGstToMenuItems ?? false}
+                onCheckedChange={handleToggleDefaultGst}
+                disabled={isUpdatingRestaurant || !restaurant}
+              />
+              <span className="text-sm font-medium">
+                Use default GST for every item
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -409,7 +506,7 @@ const GstSettingsPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Label</TableHead>
                   <TableHead>Total Rate</TableHead>
                   <TableHead>CGST</TableHead>
                   <TableHead>SGST</TableHead>
@@ -424,7 +521,7 @@ const GstSettingsPage = () => {
                   <TableRow key={rate.id}>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium">{rate.categoryName}</span>
+                        <span className="font-medium">{rate.categoryName || 'Standard GST'}</span>
                         {rate.isDefault && (
                           <Badge variant="secondary" className="ml-2">
                             <Star className="mr-1 h-3 w-3" />

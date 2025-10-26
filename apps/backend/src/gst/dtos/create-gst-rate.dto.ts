@@ -8,14 +8,17 @@ import {
   IsDateString,
   Min,
   Max,
-  IsNotEmpty,
 } from 'class-validator';
 
 export class CreateGstRateDto {
-  @ApiProperty({ description: 'GST category name' })
+  @ApiProperty({
+    description: 'Friendly label for this GST rate (optional)',
+    required: false,
+    example: 'Standard GST',
+  })
   @IsString()
-  @IsNotEmpty()
-  categoryName!: string;
+  @IsOptional()
+  categoryName?: string;
 
   @ApiProperty({ description: 'Description of the GST category', required: false })
   @IsString()

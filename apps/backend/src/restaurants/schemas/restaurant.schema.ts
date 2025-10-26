@@ -108,6 +108,9 @@ export class Restaurant {
 
   @Prop({ type: Boolean, default: true })
   isActive!: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  applyDefaultGstToMenuItems!: boolean;
 }
 
 export const RestaurantSchema = SchemaFactory.createForClass(Restaurant);

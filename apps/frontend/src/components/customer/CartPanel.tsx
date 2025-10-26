@@ -1,17 +1,15 @@
 import { motion } from 'framer-motion';
-import { X, Plus, Minus, ShoppingCart, Trash2 } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { BillBreakdown } from './BillBreakdown';
-import { calculateBillBreakdown, formatCurrency } from '@/lib/billing';
+import { formatCurrency } from '@/lib/billing';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
   SheetFooter,
 } from '@/components/ui/sheet';
 
@@ -50,13 +48,6 @@ export function CartPanel({
   onClearCart,
 }: CartPanelProps) {
   const cartEntries = Object.values(cart);
-
-  // Calculate professional bill breakdown
-  const billBreakdown = calculateBillBreakdown(totalAmount, {
-    isDelivery: false, // This could be configurable
-    serviceChargeRate: 3, // 3% service charge
-    packagingFee: 0, // No packaging fee for dine-in
-  });
 
   if (totalItems === 0) {
     return (
@@ -185,14 +176,15 @@ export function CartPanel({
         <Separator />
 
         <SheetFooter className="flex-col space-y-4 pt-4">
-          {/* Professional Bill Breakdown */}
-          <BillBreakdown
-            breakdown={billBreakdown}
-            itemCount={totalItems}
-            isDelivery={false}
-            isDetailed={false}
-            className="w-full"
-          />
+          <div className="w-full text-sm text-muted-foreground">
+            <div className="flex items-center justify-between text-base font-semibold text-foreground">
+              <span>Estimated total</span>
+              <span>{formatCurrency(totalAmount)}</span>
+            </div>
+            <p className="text-xs mt-1">
+              Taxes and any service charges will be finalised on your bill.
+            </p>
+          </div>
 
           {/* Action buttons */}
           <div className="w-full flex gap-3">

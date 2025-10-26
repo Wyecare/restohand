@@ -39,6 +39,7 @@ export interface Restaurant {
   upi: RestaurantUpiConfig;
   languages: string[];
   gstin?: string;
+  applyDefaultGstToMenuItems: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -265,6 +266,15 @@ export interface PublicOrder {
   progress: Order['progress'];
   tableNumber?: string;
   customerName?: string;
+  subTotalAmount: number;
+  grossAmount: number;
+  taxAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  discountAmount: number;
+  roundOffAmount: number;
+  taxType?: 'intra-state' | 'inter-state';
   totalAmount: number;
   createdAt: string;
   readyAt?: string;
@@ -273,5 +283,6 @@ export interface PublicOrder {
     name: string;
     quantity: number;
     pricing: MenuItemPricing;
+    gst?: OrderItemGst;
   }>;
 }

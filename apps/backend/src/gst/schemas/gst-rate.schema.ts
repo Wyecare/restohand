@@ -11,7 +11,7 @@ export class GstRate {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
-  @Prop({ type: String, required: true, trim: true })
+  @Prop({ type: String, trim: true, default: 'Standard GST' })
   categoryName!: string;
 
   @Prop({ type: String, trim: true })

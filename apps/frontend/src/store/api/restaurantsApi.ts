@@ -30,6 +30,7 @@ export interface CreateRestaurantPayload {
   upi: Restaurant['upi'];
   languages?: string[];
   gstin?: string;
+  applyDefaultGstToMenuItems?: boolean;
   isActive?: boolean;
 }
 

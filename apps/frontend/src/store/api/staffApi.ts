@@ -33,13 +33,7 @@ export const staffApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listStaff: builder.query<StaffMember[], void>({
       query: () => ({ url: '/users' }),
-      providesTags: (result) =>
-        result
-          ? [
-              ...result.map((member) => ({ type: 'Staff' as const, id: member.id })),
-              { type: 'Staff' as const, id: 'LIST' },
-            ]
-          : [{ type: 'Staff' as const, id: 'LIST' }],
+      providesTags: ['Staff'],
     }),
 
     inviteStaff: builder.mutation<StaffInviteResponse, InviteStaffPayload>({

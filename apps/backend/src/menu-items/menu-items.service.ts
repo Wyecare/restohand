@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model } from 'mongoose';
 import { CreateMenuItemDto } from './dtos/create-menu-item.dto';
@@ -9,6 +9,7 @@ import { UpdateMenuItemDto } from './dtos/update-menu-item.dto';
 import { MenuItem, MenuItemDocument } from './schemas/menu-item.schema';
 import { PaginationUtil } from '../common/utils/pagination.util';
 import { GstRate, GstRateDocument } from '../gst/schemas/gst-rate.schema';
+import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 
 @Injectable()
 export class MenuItemsService {
@@ -16,20 +17,43 @@ export class MenuItemsService {
     @InjectModel(MenuItem.name)
     private readonly menuItemModel: Model<MenuItemDocument>,
     @InjectModel(GstRate.name)
-    private readonly gstRateModel: Model<GstRateDocument>
+    private readonly gstRateModel: Model<GstRateDocument>,
+    @InjectModel(Restaurant.name)
+    private readonly restaurantModel: Model<RestaurantDocument>
   ) {}
 
   async create(
     restaurantId: string,
     dto: CreateMenuItemDto
   ): Promise<MenuItemResponseDto> {
-    const gstMetadata = await this.resolveGstRate(restaurantId, dto.gstRateId);
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId)
+      .lean();
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${restaurantId} not found`);
+    }
+
+    const useDefaultGst = restaurant.applyDefaultGstToMenuItems ?? false;
+    let gstRateId = dto.gstRateId;
+    let gstRate = dto.gstRate;
+
+    if (useDefaultGst) {
+      const defaultGst = await this.getDefaultGstRateOrThrow(restaurantId);
+      gstRateId = defaultGst.gstRateId;
+      gstRate = defaultGst.gstRate;
+    } else if (gstRateId) {
+      const gstMetadata = await this.resolveGstRate(restaurantId, gstRateId);
+      gstRateId = gstMetadata?.gstRateId;
+      if (gstRate === undefined && gstMetadata?.gstRate !== undefined) {
+        gstRate = gstMetadata.gstRate;
+      }
+    }
 
     const created = await this.menuItemModel.create({
       ...dto,
       hsnCode: dto.hsnCode?.trim(),
-      gstRateId: gstMetadata?.gstRateId ?? dto.gstRateId,
-      gstRate: dto.gstRate ?? gstMetadata?.gstRate,
+      gstRateId,
+      gstRate,
       restaurantId,
     });
     return this.toDto(created);
@@ -89,6 +113,16 @@ export class MenuItemsService {
     id: string,
     dto: UpdateMenuItemDto
   ): Promise<MenuItemResponseDto> {
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId)
+      .lean();
+    if (!restaurant) {
+      throw new NotFoundException(
+        `Restaurant ${restaurantId} not found`
+      );
+    }
+
+    const useDefaultGst = restaurant.applyDefaultGstToMenuItems ?? false;
     const updateData: Record<string, unknown> = {
       ...dto,
     };
@@ -97,16 +131,32 @@ export class MenuItemsService {
       updateData.hsnCode = dto.hsnCode?.trim();
     }
 
-    if (dto.gstRateId !== undefined) {
-      const gstMetadata = await this.resolveGstRate(restaurantId, dto.gstRateId);
-      updateData.gstRateId = gstMetadata?.gstRateId ?? dto.gstRateId;
-      if (dto.gstRate === undefined && gstMetadata?.gstRate !== undefined) {
-        updateData.gstRate = gstMetadata.gstRate;
+    if (useDefaultGst) {
+      const defaultGst = await this.getDefaultGstRateOrThrow(restaurantId);
+      updateData.gstRateId = defaultGst.gstRateId;
+      updateData.gstRate = defaultGst.gstRate;
+    } else {
+      if (dto.gstRateId !== undefined) {
+        if (dto.gstRateId) {
+          const gstMetadata = await this.resolveGstRate(
+            restaurantId,
+            dto.gstRateId
+          );
+          updateData.gstRateId = gstMetadata?.gstRateId ?? dto.gstRateId;
+          if (dto.gstRate === undefined && gstMetadata?.gstRate !== undefined) {
+            updateData.gstRate = gstMetadata.gstRate;
+          }
+        } else {
+          updateData.gstRateId = undefined;
+        }
       }
-    }
 
-    if (dto.gstRate !== undefined) {
-      updateData.gstRate = dto.gstRate;
+      if (dto.gstRate !== undefined) {
+        updateData.gstRate = dto.gstRate;
+        if (dto.gstRateId === undefined) {
+          updateData.gstRateId = undefined;
+        }
+      }
     }
 
     const updated = await this.menuItemModel.findOneAndUpdate(
@@ -155,6 +205,25 @@ export class MenuItemsService {
       gstRate: doc.gstRate,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
+    };
+  }
+
+  private async getDefaultGstRateOrThrow(
+    restaurantId: string
+  ): Promise<{ gstRateId: string; gstRate: number }> {
+    const defaultRate = await this.gstRateModel
+      .findOne({ restaurantId, isDefault: true, isActive: true })
+      .lean();
+
+    if (!defaultRate) {
+      throw new BadRequestException(
+        'No default GST rate configured. Set a default rate in GST settings before enabling automatic GST.'
+      );
+    }
+
+    return {
+      gstRateId: defaultRate._id.toString(),
+      gstRate: defaultRate.totalGstRate,
     };
   }
 

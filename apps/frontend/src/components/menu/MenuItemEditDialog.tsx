@@ -30,13 +30,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { MenuItemImageUpload } from './MenuItemImageUpload';
-import { useUpdateMenuItemMutation } from '@/store/api/restaurantsApi';
+import {
+  useUpdateMenuItemMutation,
+  useGetRestaurantQuery,
+} from '@/store/api/restaurantsApi';
 import { useGetGstRatesQuery } from '@/store/api/gstApi';
 import type { MenuItem, MenuCategory } from '@/store/api/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card';
 
 const editMenuItemSchema = z.object({
   name: z
@@ -93,8 +102,16 @@ export function MenuItemEditDialog({
   const [updateMenuItem, { isLoading }] = useUpdateMenuItemMutation();
   const [tagsInput, setTagsInput] = useState('');
   const [tags, setTags] = useState<string[]>(menuItem.tags || []);
-  const { data: gstRatesResponse, isLoading: gstRatesLoading } = useGetGstRatesQuery(restaurantId);
+
+  const { data: gstRatesResponse, isLoading: gstRatesLoading } =
+    useGetGstRatesQuery(restaurantId);
   const gstRates = gstRatesResponse?.data ?? [];
+  const { data: restaurant } = useGetRestaurantQuery(restaurantId);
+  const autoApplyGst = restaurant?.applyDefaultGstToMenuItems ?? false;
+  const defaultRestaurantGstRate =
+    gstRates.find((rate) => rate.isDefault) ?? null;
+  const itemHasCustomGst =
+    !menuItem.gstRateId && typeof menuItem.gstRate === 'number';
 
   const form = useForm<EditMenuItemFormData>({
     resolver: zodResolver(editMenuItemSchema),
@@ -103,42 +120,38 @@ export function MenuItemEditDialog({
       categoryId: menuItem.categoryId || '',
       description: menuItem.description || '',
       price: menuItem.pricing?.amount || 0,
-      isTaxInclusive: menuItem.pricing?.isTaxInclusive ?? true,
+      isTaxInclusive: menuItem.pricing?.isTaxInclusive ?? false,
       isAvailable: menuItem.isAvailable,
       tags: menuItem.tags?.join(', ') || '',
       hsnCode: menuItem.hsnCode ?? '',
       gstRateId: menuItem.gstRateId ?? '',
-      useCustomGst: !menuItem.gstRateId,
-      customGstRate:
-        !menuItem.gstRateId && typeof menuItem.gstRate === 'number'
-          ? menuItem.gstRate
-          : undefined,
+      useCustomGst: autoApplyGst ? false : itemHasCustomGst,
+      customGstRate: itemHasCustomGst ? menuItem.gstRate : undefined,
     },
   });
 
   useEffect(() => {
     if (open) {
-      // Reset form when dialog opens
+      const hasCustomGst =
+        !menuItem.gstRateId && typeof menuItem.gstRate === 'number';
       form.reset({
         name: menuItem.name,
         categoryId: menuItem.categoryId || '',
         description: menuItem.description || '',
         price: menuItem.pricing?.amount || 0,
-        isTaxInclusive: menuItem.pricing?.isTaxInclusive ?? true,
+        isTaxInclusive: menuItem.pricing?.isTaxInclusive ?? false,
         isAvailable: menuItem.isAvailable,
         tags: menuItem.tags?.join(', ') || '',
         hsnCode: menuItem.hsnCode ?? '',
         gstRateId: menuItem.gstRateId ?? '',
-        useCustomGst: !menuItem.gstRateId,
+        useCustomGst: autoApplyGst ? false : hasCustomGst,
         customGstRate:
-          !menuItem.gstRateId && typeof menuItem.gstRate === 'number'
-            ? menuItem.gstRate
-            : undefined,
+          !autoApplyGst && hasCustomGst ? menuItem.gstRate : undefined,
       });
       setTags(menuItem.tags || []);
       setTagsInput('');
     }
-  }, [open, menuItem, form]);
+  }, [open, menuItem, form, autoApplyGst]);
 
   const handleAddTag = () => {
     const tag = tagsInput.trim().toLowerCase();
@@ -155,7 +168,7 @@ export function MenuItemEditDialog({
   const useCustomGst = form.watch('useCustomGst');
 
   useEffect(() => {
-    if (!useCustomGst && gstRates.length > 0) {
+    if (!autoApplyGst && !useCustomGst && gstRates.length > 0) {
       const current = form.getValues('gstRateId');
       if (!current) {
         const defaultRate =
@@ -163,7 +176,15 @@ export function MenuItemEditDialog({
         form.setValue('gstRateId', defaultRate.id);
       }
     }
-  }, [gstRates, useCustomGst, form]);
+  }, [autoApplyGst, gstRates, useCustomGst, form]);
+
+  useEffect(() => {
+    if (autoApplyGst) {
+      form.setValue('useCustomGst', false);
+      form.setValue('gstRateId', '');
+      form.setValue('customGstRate', undefined);
+    }
+  }, [autoApplyGst, form]);
 
   const onSubmit = async (data: EditMenuItemFormData) => {
     const trimmedHsn = data.hsnCode?.trim() ?? '';
@@ -176,21 +197,24 @@ export function MenuItemEditDialog({
       return;
     }
 
-    let gstRateId: string | undefined;
-    let gstRate: number | undefined;
-
-    if (data.useCustomGst) {
-      if (data.customGstRate === undefined || Number.isNaN(data.customGstRate)) {
-        toast({
-          title: 'GST rate required',
-          description: 'Enter the GST percentage when using a custom rate.',
-          variant: 'destructive',
-        });
-        return;
+    const gstPayload: { gstRateId?: string; gstRate?: number } = {};
+    if (!autoApplyGst) {
+      if (data.useCustomGst) {
+        if (
+          data.customGstRate === undefined ||
+          Number.isNaN(data.customGstRate)
+        ) {
+          toast({
+            title: 'GST rate required',
+            description: 'Enter the GST percentage when using a custom rate.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        gstPayload.gstRate = data.customGstRate;
+      } else {
+        gstPayload.gstRateId = data.gstRateId || undefined;
       }
-      gstRate = data.customGstRate;
-    } else {
-      gstRateId = data.gstRateId || undefined;
     }
 
     try {
@@ -209,8 +233,7 @@ export function MenuItemEditDialog({
           tags: tags,
           isAvailable: data.isAvailable,
           hsnCode: trimmedHsn || undefined,
-          gstRateId,
-          gstRate,
+          ...gstPayload,
         },
       }).unwrap();
 
@@ -235,362 +258,411 @@ export function MenuItemEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl p-4">
         <DialogHeader>
           <DialogTitle>Edit Menu Item</DialogTitle>
           <DialogDescription>
-            Update the details and images for this menu item
+            Update details and images for this menu item.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Image Upload Section */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">Images</h4>
-            <MenuItemImageUpload
-              restaurantId={restaurantId}
-              itemId={menuItem.id}
-              existingImages={menuItem.imageUrls || []}
-              onImageUploaded={onSuccess}
-              onImageRemoved={onSuccess}
-            />
-          </div>
+        <div className="space-y-6 pb-24">
+          <Card>
+            <CardHeader>
+              <CardTitle>Images & gallery</CardTitle>
+              <CardDescription>
+                Update the photos that appear on your digital menu and QR flows.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-hidden">
+              <MenuItemImageUpload
+                restaurantId={restaurantId}
+                itemId={menuItem.id}
+                existingImages={menuItem.imageUrls || []}
+                onImageUploaded={onSuccess}
+                onImageRemoved={onSuccess}
+              />
+            </CardContent>
+          </Card>
 
-          <Separator />
-
-          {/* Form Section */}
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Item Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Masala Dosa" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Category</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a category" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">Uncategorized</SelectItem>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
-                              {category.description && (
-                                <span className="text-muted-foreground ml-2">
-                                  - {category.description}
-                                </span>
-                              )}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Choose the category this item belongs to
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="e.g., Crispy rice crepe with spiced potatoes and chutneys"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Help customers understand what makes this dish special
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Price (₹) *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="89.00"
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
-                          }
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="isTaxInclusive"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <div className="space-y-0.5">
-                        <FormLabel>Tax Inclusive Price</FormLabel>
-                        <FormDescription className="text-xs">
-                          Price includes all applicable taxes
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="hsnCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>HSN Code</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter 4-8 digit HSN code"
-                        maxLength={8}
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(e.target.value.replace(/\s+/g, ''))
-                        }
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Used to classify this item for GST calculations. Leave blank if unsure.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <FormLabel>GST Rate</FormLabel>
-                  <FormField
-                    control={form.control}
-                    name="useCustomGst"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center gap-2">
-                        <FormDescription className="text-xs">
-                          Custom rate
-                        </FormDescription>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={(checked) => {
-                              field.onChange(checked);
-                              if (checked) {
-                                form.setValue('gstRateId', '');
-                              } else if (gstRates.length) {
-                                const defaultRate =
-                                  gstRates.find((rate) => rate.isDefault) ?? gstRates[0];
-                                form.setValue('gstRateId', defaultRate.id);
-                              }
-                            }}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {useCustomGst ? (
-                  <FormField
-                    control={form.control}
-                    name="customGstRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.1"
-                            placeholder="Enter GST % (e.g., 5)"
-                            value={field.value ?? ''}
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value === ''
-                                  ? undefined
-                                  : parseFloat(e.target.value)
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <FormDescription className="text-xs">
-                          Provide a total GST percentage when it differs from your saved rates.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : (
-                  <FormField
-                    control={form.control}
-                    name="gstRateId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                          disabled={gstRatesLoading || gstRates.length === 0}
-                        >
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Basic details</CardTitle>
+                  <CardDescription>
+                    Keep names and categories clear for your team and guests.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 overflow-x-hidden">
+                  <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Item name *</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue
-                                placeholder={
-                                  gstRatesLoading
-                                    ? 'Loading rates...'
-                                    : gstRates.length === 0
-                                    ? 'No GST rates found'
-                                    : 'Select GST rate'
-                                }
-                              />
-                            </SelectTrigger>
+                            <Input placeholder="e.g., Masala Dosa" {...field} />
                           </FormControl>
-                          <SelectContent>
-                            {gstRates.map((rate) => (
-                              <SelectItem key={rate.id} value={rate.id}>
-                                {rate.categoryName} · {rate.totalGstRate}%{' '}
-                                {rate.isDefault ? '(Default)' : ''}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="categoryId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Category</FormLabel>
+                          <Select
+                            onValueChange={(v) => field.onChange(v)}
+                            value={field.value || ''}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a category" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">
+                                Uncategorised
                               </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormDescription className="text-xs">
-                          Choose one of the GST rates configured for your restaurant.
-                        </FormDescription>
+                              {categories.map((category) => (
+                                <SelectItem
+                                  key={category.id}
+                                  value={category.id}
+                                >
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Crispy rice crepe with chutneys"
+                            rows={3}
+                            {...field}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
-              </div>
+                </CardContent>
+              </Card>
 
-              {!useCustomGst && gstRates.length === 0 && (
-                <Alert>
-                  <AlertTitle>No GST rates configured</AlertTitle>
-                  <AlertDescription>
-                    Create a rate in Settings → GST or switch to a custom GST percentage for this item.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="space-y-2">
-                <FormLabel>Tags</FormLabel>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add a tag (e.g., spicy, vegan, popular)"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddTag();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAddTag}
-                  >
-                    Add
-                  </Button>
-                </div>
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="cursor-pointer"
-                        onClick={() => handleRemoveTag(tag)}
-                      >
-                        {tag} ×
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                <FormDescription>
-                  Tags help customers find items and highlight special
-                  attributes
-                </FormDescription>
-              </div>
-
-              <FormField
-                control={form.control}
-                name="isAvailable"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel>Available for Orders</FormLabel>
-                      <FormDescription>
-                        Customers can order this item when available
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
+              <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
+                {/* Pricing & Availability */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Pricing & availability</CardTitle>
+                    <CardDescription>
+                      Control price visibility and orderability.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Price (₹) *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="89.00"
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(parseFloat(e.target.value) || 0)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="space-y-3">
+                      <FormField
+                        control={form.control}
+                        name="isTaxInclusive"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4 gap-2">
+                              <div>
+                                <FormLabel>Price includes GST</FormLabel>
+                                <p className="text-xs text-muted-foreground">
+                                  Enable if listed price includes GST.
+                                </p>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </div>
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+                      <FormField
+                        control={form.control}
+                        name="isAvailable"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4 gap-2">
+                              <div>
+                                <FormLabel>Accepting orders</FormLabel>
+                                <p className="text-xs text-muted-foreground">
+                                  Turn off to hide dish from orders.
+                                </p>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <div className="flex gap-2 pt-4">
+                {/* GST & Compliance */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>GST & compliance</CardTitle>
+                    <CardDescription>
+                      Keep this dish aligned with your GST configuration.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 overflow-x-hidden">
+                    <FormField
+                      control={form.control}
+                      name="hsnCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>HSN code</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="4–8 digit HSN code"
+                              maxLength={8}
+                              {...field}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value.replace(/\s+/g, '')
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {/* GST Logic */}
+                    {autoApplyGst ? (
+                      <Alert>
+                        <AlertTitle>GST applied automatically</AlertTitle>
+                        <AlertDescription>
+                          This dish follows your default GST rate
+                          {defaultRestaurantGstRate
+                            ? ` (${
+                                defaultRestaurantGstRate.categoryName ||
+                                'Standard'
+                              } · ${defaultRestaurantGstRate.totalGstRate}%)`
+                            : '.'}
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-3 rounded-lg border p-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div>
+                              <FormLabel>Custom GST percentage</FormLabel>
+                              <p className="text-xs text-muted-foreground">
+                                Enable for special GST slab.
+                              </p>
+                            </div>
+                            <FormField
+                              control={form.control}
+                              name="useCustomGst"
+                              render={({ field }) => (
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={(checked) => {
+                                      field.onChange(checked);
+                                      if (checked) {
+                                        form.setValue('gstRateId', '');
+                                      } else if (gstRates.length) {
+                                        const defaultRate =
+                                          gstRates.find((r) => r.isDefault) ??
+                                          gstRates[0];
+                                        form.setValue(
+                                          'gstRateId',
+                                          defaultRate.id
+                                        );
+                                      }
+                                    }}
+                                  />
+                                </FormControl>
+                              )}
+                            />
+                          </div>
+
+                          {useCustomGst ? (
+                            <FormField
+                              control={form.control}
+                              name="customGstRate"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      step="0.1"
+                                      placeholder="Enter GST %"
+                                      value={field.value ?? ''}
+                                      onChange={(e) =>
+                                        field.onChange(
+                                          e.target.value === ''
+                                            ? undefined
+                                            : parseFloat(e.target.value)
+                                        )
+                                      }
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          ) : (
+                            <FormField
+                              control={form.control}
+                              name="gstRateId"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Saved GST rate</FormLabel>
+                                  <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value || ''}
+                                    disabled={
+                                      gstRatesLoading || gstRates.length === 0
+                                    }
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue
+                                          placeholder={
+                                            gstRatesLoading
+                                              ? 'Loading rates...'
+                                              : gstRates.length === 0
+                                              ? 'No GST rates'
+                                              : 'Select GST rate'
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {gstRates.map((rate) => (
+                                        <SelectItem
+                                          key={rate.id}
+                                          value={rate.id}
+                                        >
+                                          {rate.categoryName || 'Standard'} ·{' '}
+                                          {rate.totalGstRate}%{' '}
+                                          {rate.isDefault ? '(Default)' : ''}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Tags Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tags & highlights</CardTitle>
+                  <CardDescription>
+                    Quick labels help staff filter dishes.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 overflow-x-hidden">
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      placeholder="Add a tag (e.g., spicy, vegan)"
+                      value={tagsInput}
+                      onChange={(e) => setTagsInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      className="flex-grow min-w-[150px]"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddTag}
+                    >
+                      Add tag
+                    </Button>
+                  </div>
+                  {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {tags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="cursor-pointer"
+                          onClick={() => handleRemoveTag(tag)}
+                        >
+                          {tag} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
-                  className="flex-1"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isLoading} className="flex-1">
-                  {isLoading ? 'Updating...' : 'Update Menu Item'}
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? 'Updating...' : 'Update menu item'}
                 </Button>
               </div>
             </form>

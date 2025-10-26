@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
-import { ShoppingCart, Plus, Minus, Eye } from 'lucide-react';
+import { ShoppingCart, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { calculateBillBreakdown, formatCurrency } from '@/lib/billing';
+import { formatCurrency } from '@/lib/billing';
 import { useCustomerTranslation } from '@/hooks/use-translation';
 
 interface CartEntry {
@@ -41,13 +41,6 @@ export function CartBottomBar({
   const cartEntries = Object.values(cart);
   const firstThreeItems = cartEntries.slice(0, 3);
   const hasMoreItems = cartEntries.length > 3;
-
-  // Calculate professional bill breakdown for final total
-  const billBreakdown = calculateBillBreakdown(totalAmount, {
-    isDelivery: false,
-    serviceChargeRate: 3,
-    packagingFee: 0,
-  });
 
   return (
     <motion.div
@@ -111,7 +104,10 @@ export function CartBottomBar({
           <div className="flex flex-col items-start">
             <span className="text-xs text-muted-foreground">{t('cart.totalIncTax')}</span>
             <span className="text-lg font-bold">
-              {formatCurrency(billBreakdown.total)}
+              {formatCurrency(totalAmount)}
+            </span>
+            <span className="text-[10px] text-muted-foreground/80">
+              Taxes and GST will be confirmed at checkout.
             </span>
           </div>
 

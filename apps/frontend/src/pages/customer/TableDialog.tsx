@@ -17,8 +17,7 @@ import {
 } from '@/components/ui/select';
 import { CreditCard, Wallet } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { BillBreakdown } from '@/components/customer/BillBreakdown';
-import { calculateBillBreakdown } from '@/lib/billing';
+import { formatCurrency } from '@/lib/billing';
 
 interface Props {
   open: boolean;
@@ -44,17 +43,10 @@ export default function TableDialog({
 
   // Update table state when defaultTable changes
   useEffect(() => {
-    if (defaultTable && defaultTable !== table) {
-      setTable(defaultTable);
+    if (typeof defaultTable !== 'undefined') {
+      setTable(defaultTable ?? '');
     }
   }, [defaultTable]);
-
-  // Calculate professional bill breakdown
-  const billBreakdown = calculateBillBreakdown(totalAmount, {
-    isDelivery: false,
-    serviceChargeRate: 3,
-    packagingFee: 0,
-  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,14 +92,18 @@ export default function TableDialog({
             </Select>
           </div>
 
-          {/* Professional Bill Breakdown */}
-          <div className="border-t pt-3">
-            <BillBreakdown
-              breakdown={billBreakdown}
-              itemCount={itemCount}
-              isDelivery={false}
-              isDetailed={true}
-            />
+          <div className="border-t pt-3 text-sm text-muted-foreground space-y-2">
+            <div className="flex items-center justify-between">
+              <span>Items</span>
+              <span>{itemCount}</span>
+            </div>
+            <div className="flex items-center justify-between text-base font-semibold text-foreground">
+              <span>Estimated total</span>
+              <span>{formatCurrency(totalAmount)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground/80">
+              Final GST and any charges will be reflected on the printed bill.
+            </p>
           </div>
         </div>
 
@@ -117,7 +113,7 @@ export default function TableDialog({
             disabled={isPlacingOrder || !table.trim()}
             onClick={() => onConfirm(table, payment)}
           >
-            {isPlacingOrder ? 'Placing Order…' : 'Confirm Order'}
+            {isPlacingOrder ? 'Placing Order...' : 'Confirm Order'}
           </Button>
         </DialogFooter>
       </DialogContent>

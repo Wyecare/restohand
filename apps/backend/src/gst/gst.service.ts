@@ -81,6 +81,7 @@ export class GstService {
 
     const gstRate = await this.gstRateModel.create({
       ...dto,
+      categoryName: dto.categoryName?.trim() || 'Standard GST',
       restaurantId,
       effectiveFrom: new Date(dto.effectiveFrom),
       effectiveTo: dto.effectiveTo ? new Date(dto.effectiveTo) : undefined,
@@ -99,7 +100,7 @@ export class GstService {
     const filter: FilterQuery<GstRateDocument> = { restaurantId };
 
     if (query.search) {
-      filter.category = { $regex: query.search, $options: 'i' };
+      filter.categoryName = { $regex: query.search, $options: 'i' };
     }
 
     // Execute queries in parallel
@@ -535,6 +536,13 @@ export class GstService {
       }
     }
 
+    if (typeof gstRateOverride === 'number') {
+      return {
+        gstRateId: undefined,
+        ...this.createRateFromTotal(gstRateOverride),
+      };
+    }
+
     const defaultRate = await this.gstRateModel.findOne({
       restaurantId,
       isDefault: true,
@@ -548,13 +556,6 @@ export class GstService {
         cgstRate: defaultRate.cgstRate,
         sgstRate: defaultRate.sgstRate,
         igstRate: defaultRate.igstRate,
-      };
-    }
-
-    if (typeof gstRateOverride === 'number') {
-      return {
-        gstRateId: undefined,
-        ...this.createRateFromTotal(gstRateOverride),
       };
     }
 
@@ -666,7 +667,7 @@ export class GstService {
     return {
       id: doc._id.toString(),
       restaurantId: doc.restaurantId,
-      categoryName: doc.categoryName,
+      categoryName: doc.categoryName ?? 'Standard GST',
       description: doc.description,
       cgstRate: doc.cgstRate,
       sgstRate: doc.sgstRate,

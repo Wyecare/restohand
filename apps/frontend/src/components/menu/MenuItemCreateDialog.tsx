@@ -35,6 +35,7 @@ import {
 import {
   useCreateMenuItemMutation,
   useUpdateMenuItemMutation,
+  useGetRestaurantQuery,
 } from '@/store/api/restaurantsApi';
 import { useGetGstRatesQuery } from '@/store/api/gstApi';
 import type { MenuCategory } from '@/store/api/types';
@@ -108,6 +109,10 @@ export function MenuItemCreateDialog({
   const { data: gstRatesResponse, isLoading: gstRatesLoading } =
     useGetGstRatesQuery(restaurantId);
   const gstRates = gstRatesResponse?.data ?? [];
+  const { data: restaurant } = useGetRestaurantQuery(restaurantId);
+  const autoApplyGst = restaurant?.applyDefaultGstToMenuItems ?? false;
+  const defaultRestaurantGstRate =
+    gstRates.find((rate) => rate.isDefault) ?? null;
 
   const form = useForm<FormData>({
     resolver: zodResolver(itemSchema),
@@ -116,7 +121,7 @@ export function MenuItemCreateDialog({
       categoryName: '',
       description: '',
       price: 0,
-      isTaxInclusive: true,
+      isTaxInclusive: false,
       isAvailable: true,
       gstRateId: '',
       useCustomGst: false,
@@ -211,25 +216,29 @@ export function MenuItemCreateDialog({
         return;
       }
 
-      let gstRateId: string | undefined;
-      let gstRate: number | undefined;
+      const gstPayload: {
+        gstRateId?: string;
+        gstRate?: number;
+      } = {};
 
-      if (values.useCustomGst) {
-        if (
-          values.customGstRate === undefined ||
-          Number.isNaN(values.customGstRate)
-        ) {
-          toast({
-            title: 'GST rate required',
-            description:
-              'Enter a total GST percentage when using a custom rate.',
-            variant: 'destructive',
-          });
-          return;
+      if (!autoApplyGst) {
+        if (values.useCustomGst) {
+          if (
+            values.customGstRate === undefined ||
+            Number.isNaN(values.customGstRate)
+          ) {
+            toast({
+              title: 'GST rate required',
+              description:
+                'Enter a total GST percentage when using a custom rate.',
+              variant: 'destructive',
+            });
+            return;
+          }
+          gstPayload.gstRate = values.customGstRate;
+        } else {
+          gstPayload.gstRateId = values.gstRateId || undefined;
         }
-        gstRate = values.customGstRate;
-      } else {
-        gstRateId = values.gstRateId || undefined;
       }
 
       try {
@@ -245,8 +254,7 @@ export function MenuItemCreateDialog({
             isAvailable: values.isAvailable,
             tags,
             hsnCode: trimmedHsn || undefined,
-            gstRateId,
-            gstRate,
+            ...gstPayload,
           },
         }).unwrap();
         toast({
@@ -281,7 +289,7 @@ export function MenuItemCreateDialog({
   const useCustomGst = form.watch('useCustomGst');
 
   useEffect(() => {
-    if (!useCustomGst && gstRates.length > 0) {
+    if (!autoApplyGst && !useCustomGst && gstRates.length > 0) {
       const current = form.getValues('gstRateId');
       if (!current) {
         const defaultRate =
@@ -289,7 +297,15 @@ export function MenuItemCreateDialog({
         form.setValue('gstRateId', defaultRate.id);
       }
     }
-  }, [gstRates, useCustomGst, form]);
+  }, [autoApplyGst, gstRates, useCustomGst, form]);
+
+  useEffect(() => {
+    if (autoApplyGst) {
+      form.setValue('useCustomGst', false);
+      form.setValue('gstRateId', '');
+      form.setValue('customGstRate', undefined);
+    }
+  }, [autoApplyGst, form]);
 
   const getStepTitle = () => {
     switch (currentStep) {
@@ -526,13 +542,13 @@ export function MenuItemCreateDialog({
                   <ChevronLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleComplete}
-                >
-                  Skip Images
-                </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep(STEPS.ADVANCED)}
+              >
+                Skip Images
+              </Button>
                 <Button
                   type="button"
                   onClick={() => setCurrentStep(STEPS.ADVANCED)}
@@ -555,9 +571,9 @@ export function MenuItemCreateDialog({
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
                         <div className="space-y-0.5">
-                          <FormLabel>Tax Inclusive Price</FormLabel>
+                          <FormLabel>Price includes GST</FormLabel>
                           <FormDescription className="text-xs">
-                            Price includes all applicable taxes
+                            Turn on if the menu price already has GST added.
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -617,121 +633,148 @@ export function MenuItemCreateDialog({
                   )}
                 />
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <FormLabel>GST Rate</FormLabel>
-                    <FormField
-                      control={form.control}
-                      name="useCustomGst"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center gap-2">
-                          <FormDescription className="text-xs">
-                            Custom rate
-                          </FormDescription>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={(checked) => {
-                                field.onChange(checked);
-                                if (checked) {
-                                  form.setValue('gstRateId', '');
-                                } else if (gstRates.length) {
-                                  const defaultRate =
-                                    gstRates.find((rate) => rate.isDefault) ??
-                                    gstRates[0];
-                                  form.setValue('gstRateId', defaultRate.id);
-                                }
-                              }}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {useCustomGst ? (
-                    <FormField
-                      control={form.control}
-                      name="customGstRate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.1"
-                              placeholder="Enter GST % (e.g., 5)"
-                              value={field.value ?? ''}
-                              onChange={(e) =>
-                                field.onChange(
-                                  e.target.value === ''
-                                    ? undefined
-                                    : parseFloat(e.target.value)
-                                )
-                              }
-                            />
-                          </FormControl>
-                          <FormDescription className="text-xs">
-                            Provide a total GST percentage when it does not
-                            match any saved rates.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : (
-                    <FormField
-                      control={form.control}
-                      name="gstRateId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
-                            disabled={gstRatesLoading || gstRates.length === 0}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue
-                                  placeholder={
-                                    gstRatesLoading
-                                      ? 'Loading rates...'
-                                      : gstRates.length === 0
-                                      ? 'No GST rates found'
-                                      : 'Select GST rate'
-                                  }
-                                />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {gstRates.map((rate) => (
-                                <SelectItem key={rate.id} value={rate.id}>
-                                  {rate.categoryName} · {rate.totalGstRate}%{' '}
-                                  {rate.isDefault ? '(Default)' : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormDescription className="text-xs">
-                            Saved GST rate to apply when calculating tax for
-                            this item.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                </div>
-
-                {!useCustomGst && gstRates.length === 0 && (
+                {autoApplyGst ? (
                   <Alert>
-                    <AlertTitle>No GST rates configured</AlertTitle>
+                    <AlertTitle>GST applied automatically</AlertTitle>
                     <AlertDescription>
-                      Create a GST rate in Settings → GST so that taxes can be
-                      calculated accurately for this item.
+                      This item will use the default GST rate configured in
+                      settings
+                      {defaultRestaurantGstRate
+                        ? ` (${
+                            defaultRestaurantGstRate.categoryName ||
+                            'Standard GST'
+                          } · ${defaultRestaurantGstRate.totalGstRate}%)`
+                        : '. Add a default rate in GST settings to control the percentage.'}{' '}
+                      To override the tax for specific dishes, turn off "Use
+                      default GST for every item" in GST settings first.
                     </AlertDescription>
                   </Alert>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <FormLabel>GST Rate</FormLabel>
+                        <FormField
+                          control={form.control}
+                          name="useCustomGst"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-2">
+                              <FormDescription className="text-xs">
+                                Custom rate
+                              </FormDescription>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={(checked) => {
+                                    field.onChange(checked);
+                                    if (checked) {
+                                      form.setValue('gstRateId', '');
+                                    } else if (gstRates.length) {
+                                      const defaultRate =
+                                        gstRates.find(
+                                          (rate) => rate.isDefault
+                                        ) ?? gstRates[0];
+                                      form.setValue(
+                                        'gstRateId',
+                                        defaultRate.id
+                                      );
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {useCustomGst ? (
+                        <FormField
+                          control={form.control}
+                          name="customGstRate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step="0.1"
+                                  placeholder="Enter GST % (e.g., 5)"
+                                  value={field.value ?? ''}
+                                  onChange={(e) =>
+                                    field.onChange(
+                                      e.target.value === ''
+                                        ? undefined
+                                        : parseFloat(e.target.value)
+                                    )
+                                  }
+                                />
+                              </FormControl>
+                              <FormDescription className="text-xs">
+                                Provide a total GST percentage when it does not
+                                match any saved rates.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ) : (
+                        <FormField
+                          control={form.control}
+                          name="gstRateId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <Select
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                disabled={
+                                  gstRatesLoading || gstRates.length === 0
+                                }
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue
+                                      placeholder={
+                                        gstRatesLoading
+                                          ? 'Loading rates...'
+                                          : gstRates.length === 0
+                                          ? 'No GST rates found'
+                                          : 'Select GST rate'
+                                      }
+                                    />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {gstRates.map((rate) => (
+                                    <SelectItem key={rate.id} value={rate.id}>
+                                      {rate.categoryName || 'Standard GST'} ·{' '}
+                                      {rate.totalGstRate}%{' '}
+                                      {rate.isDefault ? '(Default)' : ''}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormDescription className="text-xs">
+                                Saved GST rate to apply when calculating tax for
+                                this item.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+
+                    {!useCustomGst && gstRates.length === 0 && (
+                      <Alert>
+                        <AlertTitle>No GST rates configured</AlertTitle>
+                        <AlertDescription>
+                          Create a GST rate in Settings → GST so that taxes can
+                          be calculated accurately for this item.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </>
                 )}
 
                 <div className="space-y-2">

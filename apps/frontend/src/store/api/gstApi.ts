@@ -34,7 +34,7 @@ export interface HsnCode {
 }
 
 export interface CreateGstRateRequest {
-  categoryName: string;
+  categoryName?: string;
   description?: string;
   cgstRate: number;
   sgstRate: number;

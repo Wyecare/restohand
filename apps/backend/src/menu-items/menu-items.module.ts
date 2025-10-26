@@ -7,6 +7,7 @@ import { MenuItemsService } from './menu-items.service';
 import { MenuItem, MenuItemSchema } from './schemas/menu-item.schema';
 import { ImageUploadService } from '../common/services/image-upload.service';
 import { GstRate, GstRateSchema } from '../gst/schemas/gst-rate.schema';
+import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { GstRate, GstRateSchema } from '../gst/schemas/gst-rate.schema';
     MongooseModule.forFeature([
       { name: MenuItem.name, schema: MenuItemSchema },
       { name: GstRate.name, schema: GstRateSchema },
+      { name: Restaurant.name, schema: RestaurantSchema },
     ]),
     MulterModule.register({
       limits: {

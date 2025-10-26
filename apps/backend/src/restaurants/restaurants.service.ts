@@ -178,6 +178,7 @@ export class RestaurantsService {
       upi: json.upi,
       languages: json.languages,
       gstin: json.gstin,
+      applyDefaultGstToMenuItems: json.applyDefaultGstToMenuItems ?? false,
       isActive: json.isActive,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),

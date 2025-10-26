@@ -211,10 +211,30 @@ export default function CustomerMenuPage() {
     paymentMethod: 'upi' | 'cash'
   ) => {
     if (!restaurant) return;
+    const trimmedTable = tableNumber.trim();
+
+    if (!trimmedTable) {
+      toast({
+        title: 'Add a table or name',
+        description: 'Please enter a table number or takeaway name before placing the order.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (Object.keys(cart).length === 0) {
+      toast({
+        title: 'Cart is empty',
+        description: 'Add at least one item to your cart before placing an order.',
+        variant: 'destructive',
+      });
+      setTableDialogOpen(false);
+      return;
+    }
 
     const payload = {
       restaurantId: restaurant.id,
-      tableNumber: tableNumber.trim(),
+      tableNumber: trimmedTable,
       paymentMethod,
       items: Object.values(cart).map((entry) => ({
         menuItemId: entry.id,
@@ -230,6 +250,8 @@ export default function CustomerMenuPage() {
     try {
       const order = await createOrder(payload).unwrap();
       setCart({});
+      setCartPanelOpen(false);
+      setTableDialogOpen(false);
       toast({
         title: 'Order placed',
         description: `Ticket #${order.orderNumber} created.`,
@@ -237,7 +259,7 @@ export default function CustomerMenuPage() {
       if (paymentMethod === 'upi' && order.paymentIntentUrl) {
         window.location.href = order.paymentIntentUrl;
       }
-      navigate(`/c/${slug}/order/${order.id}?table=${tableNumber}`);
+      navigate(`/c/${slug}/order/${order.id}?table=${trimmedTable}`);
     } catch (err) {
       toast({
         title: 'Unable to place order',

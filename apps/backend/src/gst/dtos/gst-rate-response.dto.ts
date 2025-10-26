@@ -8,7 +8,7 @@ export class GstRateResponseDto {
   @ApiProperty({ description: 'Restaurant ID' })
   restaurantId!: string;
 
-  @ApiProperty({ description: 'GST category name' })
+  @ApiProperty({ description: 'Friendly label for this GST rate' })
   categoryName!: string;
 
   @ApiProperty({ description: 'Description of the GST category' })

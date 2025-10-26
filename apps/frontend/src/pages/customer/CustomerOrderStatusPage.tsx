@@ -94,6 +94,12 @@ export default function CustomerOrderStatusPage() {
   const progressValue = order?.progress ?? 0;
   const isCashDue =
     order?.paymentMethod === 'cash' && order.paymentStatus !== 'paid';
+  const subtotal = order?.subTotalAmount ?? order?.totalAmount ?? 0;
+  const cgst = order?.cgstAmount ?? 0;
+  const sgst = order?.sgstAmount ?? 0;
+  const igst = order?.igstAmount ?? 0;
+  const discount = order?.discountAmount ?? 0;
+  const roundOff = order?.roundOffAmount ?? 0;
 
   const pastOrders = useMemo(() => {
     if (!orderId) return deviceOrders;
@@ -283,9 +289,9 @@ export default function CustomerOrderStatusPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {order.items.map((item) => (
+            {order.items.map((item, index) => (
               <motion.div
-                key={`${item.name}-${item.quantity}`}
+                key={`${item.name}-${index}`}
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
@@ -331,9 +337,51 @@ export default function CustomerOrderStatusPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <div className="flex items-center justify-between text-base font-semibold text-foreground">
-              <span>Total payable</span>
-              <span>{formatCurrency(order.totalAmount)}</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span>Subtotal</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>Discounts</span>
+                  <span>-{formatCurrency(discount)}</span>
+                </div>
+              )}
+              {cgst > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>CGST</span>
+                  <span>{formatCurrency(cgst)}</span>
+                </div>
+              )}
+              {sgst > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>SGST</span>
+                  <span>{formatCurrency(sgst)}</span>
+                </div>
+              )}
+              {igst > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>IGST</span>
+                  <span>{formatCurrency(igst)}</span>
+                </div>
+              )}
+              {Math.abs(roundOff) > 0.004 && (
+                <div className="flex items-center justify-between">
+                  <span>Round-off</span>
+                  <span>{formatCurrency(roundOff)}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex items-center justify-between text-base font-semibold text-foreground">
+                <span>Total payable</span>
+                <span>{formatCurrency(order.totalAmount)}</span>
+              </div>
+              {order.taxType && (
+                <p className="text-xs text-muted-foreground">
+                  Tax type: {order.taxType === 'inter-state' ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)'}
+                </p>
+              )}
             </div>
             {receiptUrl && (
               <Button asChild variant="outline" size="sm" className="w-full">

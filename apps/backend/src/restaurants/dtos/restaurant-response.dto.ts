@@ -36,6 +36,12 @@ export class RestaurantResponseDto {
   @ApiProperty({ type: [String] })
   languages!: string[];
 
+  @ApiProperty({
+    description: 'Force all menu items to use the default GST rate configured in settings',
+    default: false,
+  })
+  applyDefaultGstToMenuItems!: boolean;
+
   @ApiProperty()
   isActive!: boolean;
 

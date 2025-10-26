@@ -54,10 +54,25 @@ export class OrdersService {
 
     const customerState = dto.customerState?.trim() || restaurant.address?.state || 'Kerala';
 
+    let defaultGstRateId: string | undefined;
+    if (restaurant.applyDefaultGstToMenuItems) {
+      const defaultRate = await this.gstService.getDefaultGstRate(
+        restaurantId
+      );
+      if (!defaultRate) {
+        throw new BadRequestException(
+          'Default GST rate is required when automatic GST is enabled'
+        );
+      }
+      defaultGstRateId = defaultRate.id;
+    }
+
     const { items, summary } = await this.prepareOrderPricing(
       restaurantId,
       dto,
-      customerState
+      customerState,
+      restaurant.applyDefaultGstToMenuItems ?? false,
+      defaultGstRateId
     );
 
     const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
@@ -308,7 +323,9 @@ export class OrdersService {
   private async prepareOrderPricing(
     restaurantId: string,
     dto: CreateOrderDto,
-    customerState: string
+    customerState: string,
+    useDefaultGst: boolean,
+    defaultGstRateId?: string
   ): Promise<{
     items: Order['items'];
     summary: TaxCalculation;
@@ -356,14 +373,22 @@ export class OrdersService {
       const maxDiscount = this.roundToTwo(unitPrice * quantity);
       const discountAmount = this.roundToTwo(Math.min(rawDiscount, maxDiscount));
 
+      let gstRateId = menuItem.gstRateId;
+      let gstRateOverride = menuItem.gstRate;
+
+      if (useDefaultGst) {
+        gstRateId = defaultGstRateId;
+        gstRateOverride = undefined;
+      }
+
       return {
         menuItemId: item.menuItemId,
         name: menuItem.name,
         quantity,
         unitPrice,
         hsnCode: menuItem.hsnCode,
-        gstRateId: menuItem.gstRateId,
-        gstRateOverride: menuItem.gstRate,
+        gstRateId,
+        gstRateOverride,
         discountAmount,
         isTaxInclusive: menuItem.pricing?.isTaxInclusive ?? false,
       };

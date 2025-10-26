@@ -87,6 +87,16 @@ export class CreateRestaurantDto {
   @IsString({ each: true })
   languages?: string[];
 
+  @ApiProperty({
+    example: false,
+    required: false,
+    description:
+      'When enabled, all menu items will automatically use the default GST rate configured for the restaurant.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  applyDefaultGstToMenuItems?: boolean;
+
   @ApiProperty({ example: true, required: false })
   @IsOptional()
   @IsBoolean()

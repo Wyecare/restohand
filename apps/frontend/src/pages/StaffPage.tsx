@@ -21,9 +21,8 @@ import {
   Users,
   QrCode,
 } from 'lucide-react';
-import { skipToken } from '@reduxjs/toolkit/query';
-
 import { Navigate } from 'react-router-dom';
+import { skipToken } from '@reduxjs/toolkit/query';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,14 +42,6 @@ import {
   PopoverContent,
 } from '@/components/ui/popover';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
   Card,
   CardHeader,
   CardTitle,
@@ -61,6 +52,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
+import { StaffQrGenerator } from '@/components/staff/StaffQrGenerator';
 
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
@@ -71,12 +63,11 @@ import {
   useResetStaffPinMutation,
   useUpdateStaffMutation,
 } from '@/store/api/staffApi';
-
 import type { StaffMember } from '@/store/api/types';
-import { StaffQrGenerator } from '@/components/staff/StaffQrGenerator';
-import { useStaffTranslation, useCommonTranslation } from '@/hooks/use-translation';
-
-// Role options will be translated dynamically
+import {
+  useStaffTranslation,
+  useCommonTranslation,
+} from '@/hooks/use-translation';
 
 type InviteShareContext = {
   id: string;
@@ -94,27 +85,26 @@ export default function StaffPage() {
   const { t: tStaff } = useStaffTranslation();
   const { t: tCommon } = useCommonTranslation();
 
-  // Translated role options
+  // --- Role options ---
   const roleOptions = [
     { label: tStaff('roles.chef'), value: 'chef' },
     { label: tStaff('roles.waiter'), value: 'waiter' },
     { label: tStaff('roles.cashier'), value: 'cashier' },
   ];
 
-  // block unauth'd restaurant
-  if (!restaurantId) {
-    return <Navigate to="/onboarding" replace />;
-  }
+  // Redirect if no restaurant ID
+  if (!restaurantId) return <Navigate to="/onboarding" replace />;
 
-  // --- Queries & mutations ---
+  // --- API Query and Mutations ---
   const {
-    data: staff = [],
+    data: staffResponse,
     isFetching,
     isError,
     refetch,
-  } = useListStaffQuery(undefined, {
-    skip: !restaurantId,
-  });
+  } = useListStaffQuery(restaurantId ? undefined : skipToken);
+
+  const staff = staffResponse?.data ?? [];
+  const meta = staffResponse?.meta ?? {};
 
   const [inviteStaff, { isLoading: isInviting }] = useInviteStaffMutation();
   const [resetStaffPin] = useResetStaffPinMutation();
@@ -126,30 +116,20 @@ export default function StaffPage() {
     'all' | 'active' | 'inactive'
   >('all');
   const [roleFilter, setRoleFilter] = React.useState<'all' | string>('all');
-
   const [shareContext, setShareContext] =
     React.useState<InviteShareContext | null>(null);
-
-  // invite dialog state
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [qrDialogOpen, setQrDialogOpen] = React.useState(false);
   const [inviteName, setInviteName] = React.useState('');
   const [inviteEmail, setInviteEmail] = React.useState('');
   const [invitePhone, setInvitePhone] = React.useState('');
   const [inviteRole, setInviteRole] = React.useState(roleOptions[0].value);
-
-  // track per-row async updates
   const [updatingIds, setUpdatingIds] = React.useState<Set<string>>(
     () => new Set()
   );
 
   const markUpdating = (id: string) =>
-    setUpdatingIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-
+    setUpdatingIds((prev) => new Set(prev).add(id));
   const clearUpdating = (id: string) =>
     setUpdatingIds((prev) => {
       const next = new Set(prev);
@@ -171,7 +151,7 @@ export default function StaffPage() {
     return { total, active, inactive, roleTotals };
   }, [staff]);
 
-  // --- Filters applied to staff list ---
+  // --- Filters ---
   const filteredStaff = React.useMemo(() => {
     return staff.filter((member) => {
       const matchStatus =
@@ -180,15 +160,13 @@ export default function StaffPage() {
           : statusFilter === 'active'
           ? member.isActive
           : !member.isActive;
-
       const matchRole =
         roleFilter === 'all' ? true : member.roles.includes(roleFilter);
-
       return matchStatus && matchRole;
     });
   }, [staff, statusFilter, roleFilter]);
 
-  // --- Invite flow ---
+  // --- Invite handler ---
   async function handleInviteSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!inviteName.trim()) {
@@ -232,7 +210,9 @@ export default function StaffPage() {
       toast({
         title: tStaff('messages.unableToInvite'),
         description:
-          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
+          err instanceof Error
+            ? err.message
+            : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     }
@@ -262,7 +242,9 @@ export default function StaffPage() {
       toast({
         title: tStaff('messages.unableToResetPin'),
         description:
-          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
+          err instanceof Error
+            ? err.message
+            : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     } finally {
@@ -273,25 +255,23 @@ export default function StaffPage() {
   async function handleRoleChange(member: StaffMember, nextRole: string) {
     if (member.roles[0] === nextRole) return;
     markUpdating(member.id);
-
     try {
-      await updateStaff({
-        id: member.id,
-        roles: [nextRole],
-      }).unwrap();
-
-      const roleLabel =
-        roleOptions.find((o) => o.value === nextRole)?.label ?? nextRole;
-
+      await updateStaff({ id: member.id, roles: [nextRole] }).unwrap();
       toast({
         title: tStaff('messages.roleUpdated'),
-        description: tStaff('messages.roleUpdateSuccess', { name: member.name, role: roleLabel }),
+        description: tStaff('messages.roleUpdateSuccess', {
+          name: member.name,
+          role:
+            roleOptions.find((o) => o.value === nextRole)?.label ?? nextRole,
+        }),
       });
     } catch (err) {
       toast({
         title: tStaff('messages.unableToUpdateRole'),
         description:
-          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
+          err instanceof Error
+            ? err.message
+            : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     } finally {
@@ -301,21 +281,20 @@ export default function StaffPage() {
 
   async function handleActiveToggle(member: StaffMember, isActive: boolean) {
     markUpdating(member.id);
-
     try {
-      await updateStaff({
-        id: member.id,
-        isActive,
-      }).unwrap();
-
+      await updateStaff({ id: member.id, isActive }).unwrap();
       toast({
-        title: isActive ? tStaff('messages.staffActivated') : tStaff('messages.staffDeactivated'),
+        title: isActive
+          ? tStaff('messages.staffActivated')
+          : tStaff('messages.staffDeactivated'),
       });
     } catch (err) {
       toast({
         title: tStaff('messages.unableToUpdateStatus'),
         description:
-          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
+          err instanceof Error
+            ? err.message
+            : tStaff('messages.unexpectedError'),
         variant: 'destructive',
       });
     } finally {
@@ -323,7 +302,7 @@ export default function StaffPage() {
     }
   }
 
-  // --- Table columns (TanStack style, but using our own row/table markup) ---
+  // --- Table setup ---
   const columns = React.useMemo<ColumnDef<StaffMember>[]>(
     () => [
       {
@@ -333,11 +312,13 @@ export default function StaffPage() {
           const m = row.original;
           return (
             <div className="min-w-[8rem]">
-              <div className="font-medium leading-tight">{m.name}</div>
+              <div className="font-medium">{m.name}</div>
               <div className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <Clock4 className="h-3.5 w-3.5" />
                 {m.lastLoginAt
-                  ? tStaff('table.lastLogin', { date: new Date(m.lastLoginAt).toLocaleString() })
+                  ? tStaff('table.lastLogin', {
+                      date: new Date(m.lastLoginAt).toLocaleString(),
+                    })
                   : tStaff('table.noLoginYet')}
               </div>
             </div>
@@ -376,7 +357,7 @@ export default function StaffPage() {
         cell: ({ row }) => {
           const m = row.original;
           return (
-            <div className="text-xs text-muted-foreground leading-relaxed">
+            <div className="text-xs text-muted-foreground">
               {m.phoneNumber && (
                 <div className="flex items-center gap-1 break-all">
                   <Phone className="h-3.5 w-3.5" />
@@ -441,10 +422,9 @@ export default function StaffPage() {
         },
       },
     ],
-    [handleActiveToggle, handleResetPin, handleRoleChange, updatingIds]
+    [tStaff, roleOptions, updatingIds]
   );
 
-  // --- TanStack table instance ---
   const table = useReactTable({
     data: filteredStaff,
     columns,
@@ -455,32 +435,26 @@ export default function StaffPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  // --- share message for Invite / Reset PIN ---
+  // --- Share message ---
   const shareMessage = React.useMemo(() => {
     if (!shareContext) return '';
-
     const roleLabel =
       roleOptions.find((r) => r.value === shareContext.role)?.label ??
       shareContext.role;
-
     const loginUrl =
       typeof window !== 'undefined'
         ? `${window.location.origin}/staff-login`
         : 'https://restohand.app/staff-login';
-
     const contactLine = shareContext.phoneNumber
       ? `Login with phone: ${shareContext.phoneNumber}`
       : shareContext.email
       ? `Login with email: ${shareContext.email}`
       : undefined;
-
     const intro =
       shareContext.action === 'invite'
         ? `You're invited to Restohand as ${roleLabel}.`
         : `Your Restohand PIN has been reset for the ${roleLabel} dashboard.`;
-
     const firstName = shareContext.name?.split?.(' ')?.[0] ?? shareContext.name;
-
     const msgLines = [
       `Hi ${firstName},`,
       intro,
@@ -490,7 +464,6 @@ export default function StaffPage() {
       '',
       'Need help? Ask your manager.',
     ].filter(Boolean) as string[];
-
     return msgLines.join('\n');
   }, [shareContext]);
 
@@ -506,7 +479,9 @@ export default function StaffPage() {
       toast({
         title: tStaff('messages.unableToCopy'),
         description:
-          err instanceof Error ? err.message : tStaff('messages.clipboardNotAvailable'),
+          err instanceof Error
+            ? err.message
+            : tStaff('messages.clipboardNotAvailable'),
         variant: 'destructive',
       });
     }
@@ -514,49 +489,44 @@ export default function StaffPage() {
 
   const handleNativeShare = async () => {
     if (!shareMessage) return;
-
-    const canShare =
-      typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-
-    if (!canShare) {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title:
+            shareContext?.action === 'invite'
+              ? 'Restohand staff invite'
+              : 'Restohand staff PIN reset',
+          text: shareMessage,
+        });
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        toast({
+          title: tStaff('messages.unableToShare'),
+          description:
+            err instanceof Error
+              ? err.message
+              : tStaff('messages.unexpectedError'),
+          variant: 'destructive',
+        });
+      }
+    } else {
       await handleCopyShare();
-      return;
-    }
-
-    try {
-      await navigator.share({
-        title:
-          shareContext?.action === 'invite'
-            ? 'Restohand staff invite'
-            : 'Restohand staff PIN reset',
-        text: shareMessage,
-      });
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return;
-      toast({
-        title: tStaff('messages.unableToShare'),
-        description:
-          err instanceof Error ? err.message : tStaff('messages.unexpectedError'),
-        variant: 'destructive',
-      });
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Page header row */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold leading-tight">
+          <h1 className="text-2xl font-semibold">
             {tStaff('management.title')}
           </h1>
           <p className="text-sm text-muted-foreground">
             {tStaff('management.subtitle')}
           </p>
         </div>
-
         <div className="flex flex-wrap gap-2">
-          {/* Filter popover */}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm">
@@ -575,17 +545,19 @@ export default function StaffPage() {
                 </Label>
                 <Select
                   value={statusFilter}
-                  onValueChange={(next: 'all' | 'active' | 'inactive') =>
-                    setStatusFilter(next)
-                  }
+                  onValueChange={(next) => setStatusFilter(next as any)}
                 >
                   <SelectTrigger className="h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{tStaff('filters.all')}</SelectItem>
-                    <SelectItem value="active">{tStaff('table.active')}</SelectItem>
-                    <SelectItem value="inactive">{tStaff('table.inactive')}</SelectItem>
+                    <SelectItem value="active">
+                      {tStaff('table.active')}
+                    </SelectItem>
+                    <SelectItem value="inactive">
+                      {tStaff('table.inactive')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -602,10 +574,12 @@ export default function StaffPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{tStaff('filters.allRoles')}</SelectItem>
+                    <SelectItem value="all">
+                      {tStaff('filters.allRoles')}
+                    </SelectItem>
                     {roleOptions.map((r) => (
                       <SelectItem key={r.value} value={r.value}>
-                        {r.label}
+                        {r.label}…
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -614,13 +588,10 @@ export default function StaffPage() {
             </PopoverContent>
           </Popover>
 
-          {/* QR Code invite button (NEW PRIMARY METHOD) */}
           <Button size="sm" onClick={() => setQrDialogOpen(true)}>
             <QrCode className="h-4 w-4 mr-2" />
             {tStaff('buttons.generateQr')}
           </Button>
-
-          {/* Legacy invite button (SMS method) */}
           <Button
             size="sm"
             variant="outline"
@@ -629,8 +600,6 @@ export default function StaffPage() {
             <UserPlus2 className="h-4 w-4 mr-2" />
             {tStaff('buttons.legacyInvite')}
           </Button>
-
-          {/* Refresh button */}
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCcw className="h-4 w-4 mr-2" />
             {tStaff('buttons.refresh')}
@@ -638,7 +607,7 @@ export default function StaffPage() {
         </div>
       </div>
 
-      {/* Metrics row */}
+      {/* Metrics */}
       <MetricsGrid columns={3}>
         <MetricsCard
           title={tStaff('metrics.activeStaff')}
@@ -668,19 +637,20 @@ export default function StaffPage() {
         />
       </MetricsGrid>
 
-      {/* Staff table */}
+      {/* Staff Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">{tStaff('management.teamRoster')}</CardTitle>
+          <CardTitle className="text-base font-semibold">
+            {tStaff('management.teamRoster')}
+          </CardTitle>
           <CardDescription className="text-sm">
             {tStaff('management.teamRosterDesc')}
           </CardDescription>
         </CardHeader>
-
         <CardContent>
           {isFetching ? (
             <div className="flex justify-center py-10">
-              <LoadingSpinner /> {JSON.stringify(isFetching)}
+              <LoadingSpinner />
             </div>
           ) : isError ? (
             <div className="text-center text-sm text-destructive py-10">
@@ -695,9 +665,9 @@ export default function StaffPage() {
               <div className="rounded-md border overflow-x-auto">
                 <table className="w-full min-w-[700px] text-sm">
                   <thead className="bg-muted/50">
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <tr key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
+                    {table.getHeaderGroups().map((hg) => (
+                      <tr key={hg.id}>
+                        {hg.headers.map((header) => (
                           <th
                             key={header.id}
                             className="text-left px-4 py-2 font-medium text-xs text-muted-foreground uppercase tracking-wide"
@@ -730,13 +700,11 @@ export default function StaffPage() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Pagination footer */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-4 text-xs text-muted-foreground">
                 <div>
                   {tStaff('table.showingStaff', {
                     showing: table.getRowModel().rows.length,
-                    total: table.getRowCount()
+                    total: meta?.total ?? staff.length,
                   })}
                 </div>
                 <div className="flex items-center gap-2">
@@ -765,7 +733,7 @@ export default function StaffPage() {
         </CardContent>
       </Card>
 
-      {/* Share block (after invite / pin reset) */}
+      {/* Share message */}
       {shareContext && (
         <Card className="border-primary/40 border-dashed bg-primary/5">
           <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
@@ -781,10 +749,11 @@ export default function StaffPage() {
                 </Badge>
               </div>
               <CardDescription className="text-sm">
-                {tStaff('management.shareAccessDesc', { name: shareContext.name })}
+                {tStaff('management.shareAccessDesc', {
+                  name: shareContext.name,
+                })}
               </CardDescription>
             </div>
-
             <Button
               type="button"
               variant="ghost"
@@ -795,7 +764,6 @@ export default function StaffPage() {
               <X className="h-4 w-4" />
             </Button>
           </CardHeader>
-
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <Button
@@ -807,7 +775,6 @@ export default function StaffPage() {
                 <Copy className="mr-2 h-4 w-4" />
                 {tStaff('buttons.copyMessage')}
               </Button>
-
               <Button
                 type="button"
                 size="sm"
@@ -819,7 +786,6 @@ export default function StaffPage() {
                 {tStaff('buttons.share')}
               </Button>
             </div>
-
             <div className="whitespace-pre-wrap rounded-md border border-dashed border-muted-foreground/40 bg-background p-4 text-xs font-mono leading-relaxed text-muted-foreground">
               {shareMessage}
             </div>
@@ -827,97 +793,7 @@ export default function StaffPage() {
         </Card>
       )}
 
-      {/* Invite Staff Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{tStaff('invite.title')}</DialogTitle>
-            <DialogDescription className="text-sm">
-              {tStaff('invite.description')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleInviteSubmit} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-sm font-medium" htmlFor="invite-name">
-                  {tStaff('invite.fullName')}
-                </Label>
-                <Input
-                  id="invite-name"
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="Anita Chef"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium" htmlFor="invite-email">
-                  {tStaff('invite.emailOptional')}
-                </Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="chef@restohand.in"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium" htmlFor="invite-phone">
-                  {tStaff('invite.phoneOptional')}
-                </Label>
-                <Input
-                  id="invite-phone"
-                  value={invitePhone}
-                  onChange={(e) => setInvitePhone(e.target.value)}
-                  placeholder="+91..."
-                />
-              </div>
-
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-sm font-medium" htmlFor="invite-role">
-                  {tStaff('table.role')}
-                </Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger id="invite-role">
-                    <SelectValue placeholder={tStaff('invite.selectRole')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialogOpen(false)}
-                className="sm:min-w-[90px]"
-              >
-                {tStaff('buttons.cancel')}
-              </Button>
-              <Button
-                type="submit"
-                disabled={isInviting}
-                className="sm:min-w-[120px]"
-              >
-                {isInviting ? tStaff('buttons.inviting') : tStaff('buttons.sendInvite')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* QR Code Generator Dialog */}
+      {/* QR Generator */}
       <StaffQrGenerator isOpen={qrDialogOpen} onOpenChange={setQrDialogOpen} />
     </div>
   );
