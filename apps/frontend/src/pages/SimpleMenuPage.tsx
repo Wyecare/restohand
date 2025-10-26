@@ -110,7 +110,9 @@ function SimpleMenuPage() {
       }).unwrap();
       toast({
         title: `${tMenu('items.item')} ${
-          !item.isAvailable ? tMenu('items.markedAvailable') : tMenu('items.setUnavailable')
+          !item.isAvailable
+            ? tMenu('items.markedAvailable')
+            : tMenu('items.setUnavailable')
         }`,
       });
     } catch (error) {
@@ -146,11 +148,14 @@ function SimpleMenuPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="mx-auto space-y-6">
       {/* Header */}
       <div className="text-center sm:text-left">
-        <h1 className="text-3xl font-bold">
-          <span role="img" aria-label="restaurant">🍽️</span> {tMenu('management.title')}
+        <h1 className="text-2xl font-bold">
+          <span role="img" aria-label="restaurant">
+            🍽️
+          </span>{' '}
+          {tMenu('management.title')}
         </h1>
         <p className="text-muted-foreground text-sm">
           {tMenu('management.description')}
@@ -177,7 +182,9 @@ function SimpleMenuPage() {
           {/* Quick Actions Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold">{tMenu('management.title')}</h2>
+              <h2 className="text-xl font-semibold">
+                {tMenu('management.title')}
+              </h2>
               <p className="text-sm text-muted-foreground">
                 {tMenu('management.subtitle')}
               </p>
@@ -189,10 +196,6 @@ function SimpleMenuPage() {
               >
                 <Settings className="h-4 w-4 mr-2" />
                 Categories
-              </Button>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <PlusCircle className="h-4 w-4 mr-2" />
-{tMenu('items.create')}
               </Button>
             </div>
           </div>
@@ -207,7 +210,7 @@ function SimpleMenuPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Grid3X3 className="h-5 w-5" />
-{tMenu('categories.management')}
+                    {tMenu('categories.management')}
                   </CardTitle>
                   <CardDescription>
                     {tMenu('categories.organizeDesc')}
@@ -234,7 +237,7 @@ function SimpleMenuPage() {
                 </div>
                 <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
                   <PlusCircle className="h-4 w-4 mr-1" />
-  {tMenu('items.create')}
+                  {tMenu('items.create')}
                 </Button>
               </CardTitle>
               <CardDescription>View and manage all your dishes</CardDescription>
@@ -411,7 +414,11 @@ function SimpleMenuPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>{tMenu('items.delete')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {tCommon('messages.deleteConfirmation').replace('item', `"${deleteItem?.name}"`)} {tMenu('items.deleteWarning')}
+              {tCommon('messages.deleteConfirmation').replace(
+                'item',
+                `"${deleteItem?.name}"`
+              )}{' '}
+              {tMenu('items.deleteWarning')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -420,7 +427,7 @@ function SimpleMenuPage() {
               onClick={() => deleteItem && handleDeleteItem(deleteItem)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-{tCommon('actions.delete')}
+              {tCommon('actions.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Building2, MapPin, Phone, Mail, CreditCard } from 'lucide-react';
@@ -45,6 +46,9 @@ const RestaurantSettingsPage = () => {
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [gstin, setGstin] = useState('');
+  const [upiVpa, setUpiVpa] = useState('');
+  const [upiDisplayName, setUpiDisplayName] = useState('');
+  const [upiMode, setUpiMode] = useState<'static' | 'dynamic'>('static');
 
   useEffect(() => {
     if (!restaurant) return;
@@ -58,6 +62,9 @@ const RestaurantSettingsPage = () => {
     setState(restaurant.address.state);
     setPostalCode(restaurant.address.postalCode);
     setGstin(restaurant.gstin ?? '');
+    setUpiVpa(restaurant.upi.vpa);
+    setUpiDisplayName(restaurant.upi.displayName);
+    setUpiMode(restaurant.upi.mode ?? 'static');
   }, [restaurant]);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -95,6 +102,11 @@ const RestaurantSettingsPage = () => {
             country: restaurant?.address.country ?? 'IN',
           },
           gstin: trimmedGstin || undefined,
+          upi: {
+            vpa: upiVpa.trim(),
+            displayName: upiDisplayName.trim() || name,
+            mode: upiMode,
+          },
         },
       }).unwrap();
       toast({ title: 'Restaurant settings updated successfully' });
@@ -239,14 +251,55 @@ const RestaurantSettingsPage = () => {
             </CardTitle>
             <CardDescription>UPI and payment configuration</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>UPI Handle</Label>
-              <Input value={restaurant.upi.vpa} disabled readOnly />
-              <p className="text-xs text-muted-foreground">
-                Contact support to enable dynamic UPI mode or change handles.
-              </p>
-            </div>
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="upi-vpa">UPI Handle *</Label>
+                <Input
+                  id="upi-vpa"
+                  value={upiVpa}
+                  onChange={(event) => setUpiVpa(event.target.value)}
+                  placeholder="example@upi"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="upi-display-name">Display Name</Label>
+                <Input
+                  id="upi-display-name"
+                  value={upiDisplayName}
+                  onChange={(event) => setUpiDisplayName(event.target.value)}
+                  placeholder="Name shown in payment apps"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="upi-mode">UPI Mode</Label>
+                <Select
+                  value={upiMode}
+                  onValueChange={(value) =>
+                    setUpiMode(value as 'static' | 'dynamic')
+                  }
+                >
+                  <SelectTrigger id="upi-mode">
+                    <SelectValue placeholder="Select mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="static">Static</SelectItem>
+                    <SelectItem value="dynamic">Dynamic</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" disabled={isUpdating} className="w-full">
+                {isUpdating ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Payment Settings'
+                )}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
