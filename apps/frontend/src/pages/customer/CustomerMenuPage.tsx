@@ -78,9 +78,11 @@ export default function CustomerMenuPage() {
         ...i,
         _categoryId: c.id,
         _categoryName: c.name,
-        _isVegetarian: i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isVegetarian:
+          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
         _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
-        _isPopular: i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isPopular:
+          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
         _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
       }))
     );
@@ -90,9 +92,11 @@ export default function CustomerMenuPage() {
         ...i,
         _categoryId: 'uncategorised',
         _categoryName: 'Others',
-        _isVegetarian: i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isVegetarian:
+          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
         _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
-        _isPopular: i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isPopular:
+          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
         _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
       })),
     ];
@@ -109,7 +113,7 @@ export default function CustomerMenuPage() {
           item.name.toLowerCase().includes(query) ||
           item.description?.toLowerCase().includes(query) ||
           item._categoryName.toLowerCase().includes(query) ||
-          item.tags?.some(tag => tag.toLowerCase().includes(query))
+          item.tags?.some((tag) => tag.toLowerCase().includes(query))
       );
     }
 
@@ -143,16 +147,20 @@ export default function CustomerMenuPage() {
   }, [filteredProducts, activeCategory]);
 
   const availableCategories = useMemo(() => {
-    const categoriesWithItems = categories.filter(c =>
-      filteredProducts.some(item => item._categoryId === c.id)
+    const categoriesWithItems = categories.filter((c) =>
+      filteredProducts.some((item) => item._categoryId === c.id)
     );
 
-    const hasUncategorised = filteredProducts.some(item => item._categoryId === 'uncategorised');
+    const hasUncategorised = filteredProducts.some(
+      (item) => item._categoryId === 'uncategorised'
+    );
 
     return [
       { id: 'all', name: 'All Items', icon: '🍽️' },
       ...categoriesWithItems,
-      ...(hasUncategorised ? [{ id: 'uncategorised', name: 'Others', icon: '✨' }] : [])
+      ...(hasUncategorised
+        ? [{ id: 'uncategorised', name: 'Others', icon: '✨' }]
+        : []),
     ];
   }, [categories, filteredProducts]);
 
@@ -216,7 +224,8 @@ export default function CustomerMenuPage() {
     if (!trimmedTable) {
       toast({
         title: 'Add a table or name',
-        description: 'Please enter a table number or takeaway name before placing the order.',
+        description:
+          'Please enter a table number or takeaway name before placing the order.',
         variant: 'destructive',
       });
       return;
@@ -225,7 +234,8 @@ export default function CustomerMenuPage() {
     if (Object.keys(cart).length === 0) {
       toast({
         title: 'Cart is empty',
-        description: 'Add at least one item to your cart before placing an order.',
+        description:
+          'Add at least one item to your cart before placing an order.',
         variant: 'destructive',
       });
       setTableDialogOpen(false);
@@ -293,9 +303,7 @@ export default function CustomerMenuPage() {
       >
         <div className="max-w-lg mx-auto space-y-4">
           <div className="text-center">
-            <h1 className="text-2xl font-bold">
-              {restaurant?.name || 'Menu'}
-            </h1>
+            <h1 className="text-2xl font-bold">{restaurant?.name || 'Menu'}</h1>
             <p className="text-sm text-muted-foreground">
               What would you like today?
             </p>
@@ -327,11 +335,13 @@ export default function CustomerMenuPage() {
                 {category.name}
                 {category.id !== 'all' && (
                   <Badge variant="secondary" className="ml-1 text-xs">
-                    {displayItems.filter(item =>
-                      category.id === 'uncategorised'
-                        ? item._categoryId === 'uncategorised'
-                        : item._categoryId === category.id
-                    ).length}
+                    {
+                      displayItems.filter((item) =>
+                        category.id === 'uncategorised'
+                          ? item._categoryId === 'uncategorised'
+                          : item._categoryId === category.id
+                      ).length
+                    }
                   </Badge>
                 )}
               </Button>
@@ -358,7 +368,9 @@ export default function CustomerMenuPage() {
               {searchQuery || Object.values(filters).some(Boolean) ? (
                 <>
                   <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-lg font-semibold mb-2">No matches found</h3>
+                  <h3 className="text-lg font-semibold mb-2">
+                    No matches found
+                  </h3>
                   <p className="text-muted-foreground mb-4">
                     Try adjusting your search or filters
                   </p>
@@ -381,7 +393,9 @@ export default function CustomerMenuPage() {
               ) : (
                 <>
                   <div className="text-6xl mb-4">🍽️</div>
-                  <h3 className="text-lg font-semibold mb-2">No items available</h3>
+                  <h3 className="text-lg font-semibold mb-2">
+                    No items available
+                  </h3>
                   <p className="text-muted-foreground">
                     Check back later for delicious options!
                   </p>
@@ -410,7 +424,8 @@ export default function CustomerMenuPage() {
                           className="absolute inset-0 h-full w-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgMTJMMTEgMTRMMTUgMTBNMjEgMTJDMjEgMTYuOTcwNiAxNi45NzA2IDIxIDEyIDIxQzcuMDI5NCAyMSAzIDE2Ljk3MDYgMyAxMkMzIDcuMDI5NCA3LjAyOTQgMyAxMiAzQzE2Ljk3MDYgMyAyMSA3LjAyOTQgMjEgMTJaIiBzdHJva2U9IiNhMWE5YjgiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+';
+                            target.src =
+                              'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgMTJMMTEgMTRMMTUgMTBNMjEgMTJDMjEgMTYuOTcwNiAxNi45NzA2IDIxIDEyIDIxQzcuMDI5NCAyMSAzIDE2Ljk3MDYgMyAxMkMzIDcuMDI5NCA3LjAyOTQgMyAxMiAzQzE2Ljk3MDYgMyAyMSA3LjAyOTQgMjEgMTJaIiBzdHJva2U9IiNhMWE5YjgiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+';
                           }}
                         />
                         {item.imageUrls && item.imageUrls.length > 1 && (
@@ -424,7 +439,9 @@ export default function CustomerMenuPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1 min-w-0 mr-2">
-                            <h3 className="font-medium text-base truncate">{item.name}</h3>
+                            <h3 className="font-medium text-base truncate">
+                              {item.name}
+                            </h3>
                             {item.description && (
                               <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                                 {item.description}
@@ -441,22 +458,34 @@ export default function CustomerMenuPage() {
                         {/* Tags */}
                         <div className="flex items-center gap-1 mb-3">
                           {item._isVegetarian && (
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-green-50 text-green-700 border-green-200"
+                            >
                               🌱 Veg
                             </Badge>
                           )}
                           {item._isSpicy && (
-                            <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-red-50 text-red-700 border-red-200"
+                            >
                               🌶️ Spicy
                             </Badge>
                           )}
                           {item._isPopular && (
-                            <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200"
+                            >
                               ⭐ Popular
                             </Badge>
                           )}
                           {item._isQuick && (
-                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                            >
                               ⚡ Quick
                             </Badge>
                           )}
@@ -488,7 +517,9 @@ export default function CustomerMenuPage() {
                               </Button>
                             </div>
                             <p className="text-sm font-medium">
-                              {formatCurrency(item.pricing.amount * entry.quantity)}
+                              {formatCurrency(
+                                item.pricing.amount * entry.quantity
+                              )}
                             </p>
                           </div>
                         ) : (

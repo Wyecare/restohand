@@ -16,6 +16,7 @@ import {
   Clock,
   CreditCard,
   Utensils,
+  Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -75,6 +76,12 @@ const paymentOptions: Array<{
   { label: 'Refunded', value: 'refunded' },
 ];
 
+const ORDER_CANCELLABLE_STATUSES: Array<Order['status']> = [
+  'pending',
+  'accepted',
+  'in_progress',
+];
+
 export default function OrdersPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
@@ -105,13 +112,70 @@ export default function OrdersPage() {
     orderId: string,
     newStatus: Order['status']
   ) => {
-    await updateOrderStatus({ restaurantId, orderId, status: newStatus });
-    toast({ title: 'Order updated' });
+    try {
+      await updateOrderStatus({ restaurantId, orderId, status: newStatus }).unwrap();
+      toast({ title: 'Order updated' });
+    } catch (error) {
+      toast({
+        title: 'Unable to update order',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleMarkPaid = async (orderId: string) => {
-    await updateOrderPayment({ restaurantId, orderId, paymentStatus: 'paid' });
-    toast({ title: 'Marked as Paid' });
+    try {
+      await updateOrderPayment({ restaurantId, orderId, paymentStatus: 'paid' }).unwrap();
+      toast({ title: 'Marked as Paid' });
+    } catch (error) {
+      toast({
+        title: 'Unable to mark as paid',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCancelOrder = async (order: Order) => {
+    if (!restaurantId || order.status === 'cancelled') {
+      return;
+    }
+
+    if (!ORDER_CANCELLABLE_STATUSES.includes(order.status)) {
+      toast({
+        title: 'Cannot cancel order',
+        description:
+          'This ticket has progressed too far. Please coordinate with staff to resolve it.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const confirmCancel =
+      typeof window === 'undefined'
+        ? true
+        : window.confirm(
+            `Cancel ticket ${order.orderNumber}? This will notify staff and move it to Cancelled.`
+          );
+
+    if (!confirmCancel) return;
+
+    try {
+      await updateOrderStatus({
+        restaurantId,
+        orderId: order.id,
+        status: 'cancelled',
+        statusNote: 'Cancelled by staff',
+      }).unwrap();
+      toast({ title: 'Order cancelled' });
+    } catch (error) {
+      toast({
+        title: 'Unable to cancel order',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
   };
 
   const orders = data?.data ?? [];
@@ -193,14 +257,16 @@ export default function OrdersPage() {
         id: 'actions',
         header: 'Actions',
         cell: ({ row }) => (
-          <div className="flex gap-2 justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleStatusUpdate(row.original.id, 'ready')}
-            >
-              Mark Ready
-            </Button>
+          <div className="flex flex-wrap gap-2 justify-end">
+            {ORDER_CANCELLABLE_STATUSES.includes(row.original.status) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleStatusUpdate(row.original.id, 'ready')}
+              >
+                Mark Ready
+              </Button>
+            )}
             {row.original.paymentStatus !== 'paid' && (
               <Button
                 size="sm"
@@ -210,11 +276,24 @@ export default function OrdersPage() {
                 Mark Paid
               </Button>
             )}
+            {row.original.status !== 'cancelled' &&
+              row.original.status !== 'completed' &&
+              ORDER_CANCELLABLE_STATUSES.includes(row.original.status) && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => handleCancelOrder(row.original)}
+                className="flex items-center gap-1"
+              >
+                <Ban className="h-3.5 w-3.5" />
+                Cancel
+              </Button>
+            )}
           </div>
         ),
       },
     ],
-    [handleStatusUpdate, handleMarkPaid]
+    [handleStatusUpdate, handleMarkPaid, handleCancelOrder]
   );
 
   const table = useReactTable({

@@ -288,6 +288,23 @@ export class OrdersService {
 
     if (dto.paymentStatus === PaymentStatus.Paid) {
       updated = await this.ensureTaxInvoice(updated);
+
+      if (
+        updated.status !== OrderStatus.Completed &&
+        updated.status !== OrderStatus.Cancelled
+      ) {
+        updated = await this.orderModel.findByIdAndUpdate(
+          updated._id,
+          {
+            $set: {
+              status: OrderStatus.Completed,
+              progress: OrderProgressStage.Done,
+              readyAt: updated.readyAt ?? new Date(),
+            },
+          },
+          { new: true }
+        );
+      }
     }
 
     const response = this.toDto(updated);

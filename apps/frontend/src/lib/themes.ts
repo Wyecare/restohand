@@ -2,7 +2,7 @@
 
 export const DEFAULT_THEME = {
   preset: 'soft-sage',
-  radius: 'md',
+  radius: 'lg',
   scale: 'none',
   contentLayout: 'full',
 } as const;

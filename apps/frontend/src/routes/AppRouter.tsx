@@ -25,6 +25,7 @@ import GstSettingsPage from '@/pages/GstSettingsPage';
 import CustomerQrPage from '@/pages/CustomerQrPage';
 import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
 import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
+import CustomerLayout from '@/components/customer/CustomerLayout';
 
 const AppRouter = () => {
   return (
@@ -119,11 +120,13 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
-        <Route path="/c/:slug" element={<CustomerMenuPage />} />
-        <Route
-          path="/c/:slug/order/:orderId"
-          element={<CustomerOrderStatusPage />}
-        />
+        <Route element={<CustomerLayout />}>
+          <Route path="/c/:slug" element={<CustomerMenuPage />} />
+          <Route
+            path="/c/:slug/order/:orderId"
+            element={<CustomerOrderStatusPage />}
+          />
+        </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

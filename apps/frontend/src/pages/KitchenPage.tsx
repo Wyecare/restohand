@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Copy, AlarmClock, Smartphone } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -34,6 +33,10 @@ import type { Order } from '@/store/api/types';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
+import {
+  OrderTicket,
+  type OrderTicketProps,
+} from '@/components/orders/OrderTicket';
 
 const statusesInKitchen: Order['status'][] = [
   'pending',
@@ -50,11 +53,15 @@ const statusLabel: Record<Order['status'], string> = {
   cancelled: 'Cancelled',
 };
 
-const progressOptions = [
-  { label: 'Start prep', stage: 40, status: 'in_progress' as const },
-  { label: 'Almost ready', stage: 60, status: 'in_progress' as const },
-  { label: 'Mark ready', stage: 100, status: 'ready' as const },
-];
+const getTicketHighlight = (order: Order): OrderTicketProps['highlight'] => {
+  if (!order.createdAt) return 'muted';
+  const created = new Date(order.createdAt).getTime();
+  if (Number.isNaN(created)) return 'muted';
+  const minutes = Math.floor((Date.now() - created) / 60000);
+  if (order.status !== 'ready' && minutes >= 15) return 'danger';
+  if (order.status !== 'ready' && minutes >= 10) return 'warning';
+  return 'muted';
+};
 
 const KitchenPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
@@ -194,6 +201,124 @@ const KitchenPage = () => {
     return map;
   }, [filteredOrders]);
 
+  const headerBadgesFor = (order: Order): ReactNode => {
+    const badges: ReactNode[] = [];
+
+    if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
+      badges.push(
+        <Badge
+          key="cash-due"
+          variant="destructive"
+          className="text-[10px] uppercase tracking-wide"
+        >
+          Cash due
+        </Badge>
+      );
+    }
+
+    if (order.progress >= 60 && order.status === 'in_progress') {
+      badges.push(
+        <Badge
+          key="almost"
+          variant="outline"
+          className="text-[10px] uppercase tracking-wide text-amber-700 border-amber-400/70"
+        >
+          Almost ready
+        </Badge>
+      );
+    }
+
+    if (!badges.length) return undefined;
+    if (badges.length === 1) return badges[0];
+    return <div className="flex items-center gap-1">{badges}</div>;
+  };
+
+  const kitchenActionsFor = (order: Order): ReactNode[] => {
+    const disabled = isUpdating;
+    const buttons: ReactNode[] = [];
+
+    if (order.status === 'pending') {
+      buttons.push(
+        <Button
+          key="accept"
+          size="sm"
+          variant="secondary"
+          disabled={disabled}
+          onClick={() => handleUpdate(order.id, 'accepted', order.progress ?? 0)}
+        >
+          Accept ticket
+        </Button>
+      );
+      buttons.push(
+        <Button
+          key="start"
+          size="sm"
+          disabled={disabled}
+          onClick={() => handleUpdate(order.id, 'in_progress', 40)}
+        >
+          Start prep
+        </Button>
+      );
+      return buttons;
+    }
+
+    if (order.status === 'accepted') {
+      buttons.push(
+        <Button
+          key="start"
+          size="sm"
+          disabled={disabled}
+          onClick={() => handleUpdate(order.id, 'in_progress', 40)}
+          className="flex-1"
+        >
+          Begin cooking
+        </Button>
+      );
+      buttons.push(
+        <Button
+          key="ready"
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => handleUpdate(order.id, 'ready', 100)}
+          className="flex-1"
+        >
+          Mark ready
+        </Button>
+      );
+      return buttons;
+    }
+
+    if (order.status === 'in_progress') {
+      buttons.push(
+        <Button
+          key="almost"
+          size="sm"
+          variant="secondary"
+          disabled={disabled}
+          onClick={() => handleUpdate(order.id, 'in_progress', 60)}
+          className="flex-1"
+        >
+          Almost ready
+        </Button>
+      );
+      buttons.push(
+        <Button
+          key="ready"
+          size="sm"
+          disabled={disabled}
+          onClick={() => handleUpdate(order.id, 'ready', 100)}
+          className="flex-1"
+        >
+          Ticket ready
+        </Button>
+      );
+      return buttons;
+    }
+
+    return buttons;
+  };
+
   if (!restaurantId) {
     return <Navigate to="/onboarding" replace />;
   }
@@ -302,192 +427,46 @@ const KitchenPage = () => {
 
           <div className="grid gap-4 lg:grid-cols-3">
           {statusesInKitchen.map((status) => (
-            <Card key={status} className="flex flex-col">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">
-                  {statusLabel[status]}
-                </CardTitle>
-                <CardDescription>
-                  {grouped[status]?.length ?? 0} ticket(s)
+          <Card key={status} className="flex flex-col">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">
+                {statusLabel[status]}
+              </CardTitle>
+              <CardDescription>
+                {grouped[status]?.length ?? 0} ticket(s)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
+              {grouped[status]?.length ? (
+                grouped[status].map((order) => {
+                  const meta = order.tableNumber
+                    ? tableLookup.get(order.tableNumber.toLowerCase())
+                    : undefined;
+                  const actions = kitchenActionsFor(order);
+                  const highlight = getTicketHighlight(order);
+                  const headerBadges = headerBadgesFor(order);
+
+                  return (
+                    <OrderTicket
+                      key={order.id}
+                      order={order}
+                      tableMeta={meta}
+                      highlight={highlight}
+                      headerBadges={headerBadges}
+                      onCopyLink={handleCopyLink}
+                      actions={
+                        actions.length ? <>{actions}</> : undefined
+                      }
+                    />
+                  );
+                })
+              ) : (
+                <CardDescription className="text-sm text-muted-foreground">
+                  No {statusLabel[status].toLowerCase()} tickets right now.
                 </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
-                {(grouped[status] ?? []).map((order) => (
-                  <div
-                    key={order.id}
-                    className={cn(
-                      'rounded-xl border bg-card p-3 shadow-sm transition-colors',
-                      (() => {
-                        const createdAt = order.createdAt
-                          ? new Date(order.createdAt)
-                          : null;
-                        if (!createdAt) return '';
-                        const minutes = Math.floor(
-                          (Date.now() - createdAt.getTime()) / 60000
-                        );
-                        return status !== 'ready' && minutes >= 12
-                          ? 'border-destructive/50 bg-destructive/5'
-                          : '';
-                      })()
-                    )}
-                  >
-                    {(() => {
-                      const createdAt = order.createdAt
-                        ? new Date(order.createdAt)
-                        : null;
-                      if (!createdAt) return null;
-                      const minutes = Math.floor(
-                        (Date.now() - createdAt.getTime()) / 60000
-                      );
-                      if (status === 'ready' || minutes < 12) return null;
-                      return (
-                        <Badge
-                          variant="outline"
-                          className="mb-2 w-fit border-destructive/60 text-destructive"
-                        >
-                          <AlarmClock className="mr-1 h-3 w-3" />
-                          Over {minutes} mins
-                        </Badge>
-                      );
-                    })()}
-                    {order.paymentMethod === 'cash' &&
-                      order.paymentStatus !== 'paid' && (
-                        <Badge className="mb-2 w-fit" variant="destructive">
-                          Collect cash at pickup
-                        </Badge>
-                      )}
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          #{order.orderNumber}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {order.customerName ?? 'Guest'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Table {order.tableNumber ?? '—'}
-                          {(() => {
-                            if (!order.tableNumber) return null;
-                            const meta = tableLookup.get(
-                              order.tableNumber.toLowerCase()
-                            );
-                            if (!meta) return null;
-                            const parts: string[] = [];
-                            if (meta.displayName) parts.push(meta.displayName);
-                            if (meta.zone) parts.push(meta.zone);
-                            if (meta.capacity)
-                              parts.push(`${meta.capacity} covers`);
-                            return parts.length
-                              ? ` • ${parts.join(' • ')}`
-                              : null;
-                          })()}
-                        </p>
-                        {order.createdAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Placed{' '}
-                            {(() => {
-                              const minutes = Math.max(
-                                0,
-                                Math.floor(
-                                  (Date.now() -
-                                    new Date(order.createdAt).getTime()) /
-                                    60000
-                                )
-                              );
-                              if (minutes === 0) return 'just now';
-                              if (minutes < 60) return `${minutes} min ago`;
-                              const hours = Math.floor(minutes / 60);
-                              const remaining = minutes % 60;
-                              if (hours >= 4)
-                                return `${hours} hr${hours > 1 ? 's' : ''} ago`;
-                              return `${hours}h ${remaining}m ago`;
-                            })()}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {order.items.length} item(s)
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge variant="outline">
-                          ₹{order.totalAmount.toFixed(2)}
-                        </Badge>
-                        <Badge
-                          variant={
-                            order.paymentMethod === 'cash'
-                              ? 'destructive'
-                              : 'secondary'
-                          }
-                        >
-                          {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
-                        </Badge>
-                        <div className="flex gap-2">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => handleCopyLink(order.tableNumber)}
-                            title="Copy customer link"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => handleCopyLink('')}
-                            title="Generic menu link"
-                          >
-                            <Smartphone className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                      {order.items.map((item) => (
-                        <div
-                          key={`${order.id}-${item.menuItemId}-${item.name}`}
-                          className="flex items-center justify-between gap-2"
-                        >
-                          <span>{item.name}</span>
-                          <span className="font-medium text-foreground">
-                            ×{item.quantity}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {progressOptions.map((option) => (
-                        <Button
-                          key={option.label}
-                          size="sm"
-                          variant="outline"
-                          className="flex-1"
-                          disabled={isUpdating}
-                          onClick={() =>
-                            handleUpdate(
-                              order.id,
-                              option.status,
-                              option.stage
-                            )
-                          }
-                        >
-                          {option.label}
-                        </Button>
-                      ))}
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        disabled={isUpdating}
-                        onClick={() => handleUpdate(order.id, 'ready', 100)}
-                        >
-                          Ticket ready
-                        </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
           ))}
           </div>
         </>

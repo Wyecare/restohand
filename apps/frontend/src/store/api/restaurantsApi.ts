@@ -9,6 +9,7 @@ import type {
   PublicRestaurant,
   PublicOrder,
   RestaurantTable,
+  Order,
 } from './types';
 
 export interface ListRestaurantsParams {
@@ -419,6 +420,22 @@ export const restaurantsApi = baseApi.injectEndpoints({
     >({
       query: ({ slug, orderId }) =>
         `/public/restaurants/${slug}/orders/${orderId}`,
+      providesTags: (_result, _error, { orderId }) => [
+        { type: 'Order', id: orderId },
+      ],
+    }),
+
+    cancelPublicOrder: builder.mutation<
+      Order,
+      { slug: string; orderId: string }
+    >({
+      query: ({ slug, orderId }) => ({
+        url: `/public/restaurants/${slug}/orders/${orderId}/cancel`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_result, _error, { orderId }) => [
+        { type: 'Order', id: orderId },
+      ],
     }),
 
     getRestaurantQrCode: builder.query<
@@ -460,5 +477,6 @@ export const {
   useGetPublicRestaurantQuery,
   useGetPublicMenuQuery,
   useGetPublicOrderQuery,
+  useCancelPublicOrderMutation,
   useGetRestaurantQrCodeQuery,
 } = restaurantsApi;

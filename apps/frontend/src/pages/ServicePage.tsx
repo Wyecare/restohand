@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import {
@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Copy, Smartphone } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -34,9 +33,25 @@ import {
 import type { Order } from '@/store/api/types';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { useToast } from '@/components/ui/use-toast';
-import { cn } from '@/lib/utils';
+import {
+  OrderTicket,
+  type OrderTicketProps,
+} from '@/components/orders/OrderTicket';
 
 const serviceStatuses: Order['status'][] = ['ready', 'completed'];
+
+const getServiceHighlight = (order: Order): OrderTicketProps['highlight'] => {
+  if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
+    return 'danger';
+  }
+  const pivot = order.readyAt ?? order.createdAt;
+  if (!pivot) return 'muted';
+  const readyTime = new Date(pivot).getTime();
+  if (Number.isNaN(readyTime)) return 'muted';
+  const minutes = Math.floor((Date.now() - readyTime) / 60000);
+  if (order.status === 'ready' && minutes >= 10) return 'warning';
+  return 'muted';
+};
 
 const ServicePage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
@@ -173,6 +188,96 @@ const ServicePage = () => {
   const readyOrders = orders.filter((order) => order.status === 'ready');
   const completedOrders = orders.filter((order) => order.status === 'completed');
 
+  const readyBadgesFor = (order: Order): ReactNode => {
+    const badges: ReactNode[] = [];
+    if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
+      badges.push(
+        <Badge
+          key="cash-due"
+          variant="destructive"
+          className="text-[10px] uppercase tracking-wide"
+        >
+          Cash due
+        </Badge>
+      );
+    }
+    return badges.length ? (
+      <div className="flex items-center gap-1">{badges}</div>
+    ) : undefined;
+  };
+
+  const completedBadgesFor = (order: Order): ReactNode => {
+    if (order.paymentStatus === 'paid') {
+      return (
+        <Badge
+          variant="outline"
+          className="text-[10px] uppercase tracking-wide text-emerald-700 border-emerald-400/70"
+        >
+          Paid
+        </Badge>
+      );
+    }
+    return (
+      <Badge
+        variant="destructive"
+        className="text-[10px] uppercase tracking-wide"
+      >
+        Awaiting payment
+      </Badge>
+    );
+  };
+
+  const readyActionsFor = (order: Order): ReactNode[] => {
+    const actions: ReactNode[] = [];
+    actions.push(
+      <Button
+        key="delivered"
+        size="sm"
+        className="flex-1"
+        disabled={updatingStatus}
+        onClick={() => handleComplete(order.id)}
+      >
+        Mark delivered
+      </Button>
+    );
+
+    if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
+      actions.push(
+        <Button
+          key="mark-paid"
+          size="sm"
+          variant="secondary"
+          className="flex-1"
+          disabled={updatingPayment}
+          onClick={() => handleMarkPaid(order.id)}
+        >
+          Collect cash
+        </Button>
+      );
+    }
+
+    return actions;
+  };
+
+  const completedActionsFor = (order: Order): ReactNode[] => {
+    const actions: ReactNode[] = [];
+    if (order.paymentStatus !== 'paid') {
+      actions.push(
+        <Button
+          key="paid"
+          size="sm"
+          variant="secondary"
+          className="flex-1"
+          disabled={updatingPayment}
+          onClick={() => handleMarkPaid(order.id)}
+        >
+          Mark as paid
+        </Button>
+      );
+    }
+    return actions;
+  };
+
   const handleComplete = async (orderId: string) => {
     await updateStatus({
       restaurantId,
@@ -272,246 +377,83 @@ const ServicePage = () => {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">
-                Ready for pickup
-              </CardTitle>
-              <CardDescription>
-                {readyOrders.length} ticket(s) waiting to be served
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
-              {readyOrders.length ? (
-                readyOrders.map((order) => {
-                  const meta = order.tableNumber
-                    ? tableLookup.get(order.tableNumber.toLowerCase())
-                    : undefined;
-                  return (
-                    <div
-                      key={order.id}
-                      className={cn(
-                        'rounded-xl border bg-card p-3 shadow-sm transition-colors',
-                        order.paymentMethod === 'cash' &&
-                          order.paymentStatus !== 'paid' &&
-                          'border-destructive/40 bg-destructive/5'
-                      )}
-                    >
-                      {order.paymentMethod === 'cash' &&
-                        order.paymentStatus !== 'paid' && (
-                          <Badge
-                            className="mb-2 w-fit"
-                            variant="destructive"
-                          >
-                            Collect cash before handoff
-                          </Badge>
-                        )}
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">
-                            #{order.orderNumber}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Table {order.tableNumber ?? '—'}
-                            {meta &&
-                              ` • ${[
-                                meta.displayName,
-                                meta.zone,
-                              ]
-                                .filter(Boolean)
-                                .join(' • ')}`}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge variant="secondary">
-                            ₹{order.totalAmount.toFixed(2)}
-                          </Badge>
-                          <Badge
-                            variant={
-                              order.paymentMethod === 'cash'
-                                ? 'destructive'
-                                : 'outline'
-                            }
-                          >
-                            {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
-                          </Badge>
-                          <div className="flex gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => handleCopyLink(order.tableNumber)}
-                              title="Copy customer link"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => handleCopyLink('')}
-                              title="Generic menu link"
-                            >
-                              <Smartphone className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                        {order.items.map((item) => (
-                          <div
-                            key={`${order.id}-${item.menuItemId}-${item.name}`}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span>{item.name}</span>
-                            <span className="font-medium text-foreground">
-                              ×{item.quantity}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          disabled={updatingStatus}
-                          onClick={() => handleComplete(order.id)}
-                        >
-                          Mark delivered
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <CardDescription>No ready orders at the moment.</CardDescription>
-              )}
-            </CardContent>
-          </Card>
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">
+              Ready for pickup
+            </CardTitle>
+            <CardDescription>
+              {readyOrders.length} ticket(s) waiting to be served
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
+            {readyOrders.length ? (
+              readyOrders.map((order) => {
+                const meta = order.tableNumber
+                  ? tableLookup.get(order.tableNumber.toLowerCase())
+                  : undefined;
+                const highlight = getServiceHighlight(order);
+                const badges = readyBadgesFor(order);
+                const actions = readyActionsFor(order);
 
-          <Card className="flex flex-col">
-            <CardHeader>
+                return (
+                  <OrderTicket
+                    key={order.id}
+                    order={order}
+                    tableMeta={meta}
+                    highlight={highlight}
+                    headerBadges={badges}
+                    onCopyLink={handleCopyLink}
+                    actions={actions.length ? <>{actions}</> : undefined}
+                  />
+                );
+              })
+            ) : (
+              <CardDescription>No ready orders at the moment.</CardDescription>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader>
               <CardTitle className="text-base font-semibold">
                 Recently completed
               </CardTitle>
               <CardDescription>
                 {completedOrders.length} ticket(s) awaiting payment confirmation
               </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
-              {completedOrders.length ? (
-                completedOrders.map((order) => {
-                  const meta = order.tableNumber
-                    ? tableLookup.get(order.tableNumber.toLowerCase())
-                    : undefined;
-                  return (
-                    <div
-                      key={order.id}
-                      className="rounded-xl border bg-card p-3 shadow-sm"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold">
-                            #{order.orderNumber}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {order.customerName ?? 'Guest'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Table {order.tableNumber ?? '—'}
-                            {meta &&
-                              ` • ${[
-                                meta.displayName,
-                                meta.zone,
-                              ]
-                                .filter(Boolean)
-                                .join(' • ')}`}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge variant="outline">
-                            {order.paymentStatus === 'paid'
-                              ? 'Paid'
-                              : 'Awaiting Payment'}
-                          </Badge>
-                          <Badge
-                            variant={
-                              order.paymentMethod === 'cash'
-                                ? 'destructive'
-                                : 'secondary'
-                            }
-                          >
-                            {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
-                          </Badge>
-                          <div className="flex gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => handleCopyLink(order.tableNumber)}
-                              title="Copy customer link"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => handleCopyLink('')}
-                              title="Generic menu link"
-                            >
-                              <Smartphone className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                        {order.items.map((item) => (
-                          <div
-                            key={`${order.id}-${item.menuItemId}-${item.name}`}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span>{item.name}</span>
-                            <span className="font-medium text-foreground">
-                              ×{item.quantity}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="flex-1"
-                          disabled={
-                            updatingPayment || order.paymentStatus === 'paid'
-                          }
-                          onClick={() => handleMarkPaid(order.id)}
-                        >
-                          Mark as paid
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1"
-                          disabled={updatingStatus}
-                          onClick={() => handleComplete(order.id)}
-                        >
-                          Close ticket
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <CardDescription>
-                  Closed tickets will accumulate here for reconciliation.
-                </CardDescription>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
+            {completedOrders.length ? (
+              completedOrders.map((order) => {
+                const meta = order.tableNumber
+                  ? tableLookup.get(order.tableNumber.toLowerCase())
+                  : undefined;
+                const highlight = getServiceHighlight(order);
+                const badges = completedBadgesFor(order);
+                const actions = completedActionsFor(order);
+
+                return (
+                  <OrderTicket
+                    key={order.id}
+                    order={order}
+                    tableMeta={meta}
+                    highlight={highlight}
+                    headerBadges={badges}
+                    onCopyLink={handleCopyLink}
+                    actions={actions.length ? <>{actions}</> : undefined}
+                  />
+                );
+              })
+            ) : (
+              <CardDescription>
+                Closed tickets will accumulate here for reconciliation.
+              </CardDescription>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )}
     </div>
   );
 };

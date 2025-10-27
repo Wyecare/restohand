@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
@@ -6,6 +6,7 @@ import { MenuCategory, MenuCategoryDocument } from '../menu-categories/schemas/m
 import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { OrdersService } from '../orders/orders.service';
+import { OrderStatus } from '../common/enums/order-status.enum';
 
 @Injectable()
 export class PublicService {
@@ -141,6 +142,43 @@ export class PublicService {
     return this.ordersService.generateInvoiceHtml(
       restaurant._id.toString(),
       orderId
+    );
+  }
+
+  async cancelOrder(slug: string, orderId: string) {
+    const restaurant = await this.restaurantModel.findOne({ slug }).lean();
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${slug} not found`);
+    }
+
+    const order = await this.orderModel
+      .findOne({ _id: orderId, restaurantId: restaurant._id })
+      .lean();
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const currentStatus = order.status as OrderStatus;
+    const cancellableStatuses: OrderStatus[] = [
+      OrderStatus.Pending,
+      OrderStatus.Accepted,
+      OrderStatus.InProgress,
+    ];
+
+    if (!cancellableStatuses.includes(currentStatus)) {
+      throw new BadRequestException(
+        'Order can no longer be cancelled. Please contact the staff for assistance.'
+      );
+    }
+
+    return this.ordersService.updateStatus(
+      restaurant._id.toString(),
+      orderId,
+      {
+        status: OrderStatus.Cancelled,
+        statusNote: 'Cancelled by customer',
+      }
     );
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Clock,
@@ -18,7 +18,10 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import { useGetPublicOrderQuery } from '@/store/api/restaurantsApi';
+import {
+  useGetPublicOrderQuery,
+  useCancelPublicOrderMutation,
+} from '@/store/api/restaurantsApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import type { Order } from '@/store/api/types';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +29,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 
 const progressDisplay = (value: Order['progress']) => {
   switch (value) {
@@ -71,14 +75,19 @@ const formatCurrency = (value: number) =>
 
 export default function CustomerOrderStatusPage() {
   const { slug = '', orderId = '' } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data, isLoading, isError, refetch } = useGetPublicOrderQuery(
     { slug, orderId },
     { skip: !slug || !orderId }
   );
+  const { toast } = useToast();
 
   const order = data;
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [deviceOrders, setDeviceOrders] = useState<DeviceOrder[]>([]);
+  const [cancelOrder, { isLoading: isCancelling }] =
+    useCancelPublicOrderMutation();
 
   const handleSocketEvent = useCallback(
     (incoming: Order) => {
@@ -100,6 +109,15 @@ export default function CustomerOrderStatusPage() {
   const igst = order?.igstAmount ?? 0;
   const discount = order?.discountAmount ?? 0;
   const roundOff = order?.roundOffAmount ?? 0;
+  const tableFromQuery = searchParams.get('table') ?? undefined;
+  const cancellableStatuses: Array<Order['status']> = [
+    'pending',
+    'accepted',
+    'in_progress',
+  ];
+  const canCancelOrder = !!order && cancellableStatuses.includes(order.status);
+  const canStartNewOrder =
+    !!order && (order.status === 'completed' || order.status === 'cancelled');
 
   const pastOrders = useMemo(() => {
     if (!orderId) return deviceOrders;
@@ -160,6 +178,54 @@ export default function CustomerOrderStatusPage() {
     return template.replace(':slug', slug).replace(':orderId', order.id);
   }, [order, slug]);
 
+  const handleCancelOrder = useCallback(async () => {
+    if (!order || !canCancelOrder) {
+      return;
+    }
+
+    const confirmed =
+      typeof window === 'undefined'
+        ? true
+        : window.confirm(
+            'Cancel this order? The kitchen will be notified immediately.'
+          );
+    if (!confirmed) return;
+
+    try {
+      await cancelOrder({ slug, orderId }).unwrap();
+      toast({ title: 'Order cancelled' });
+      handleStartNewOrder(true);
+    } catch (error) {
+      toast({
+        title: 'Unable to cancel order',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+        variant: 'destructive',
+      });
+    }
+  }, [cancelOrder, canCancelOrder, order, orderId, refetch, slug, toast]);
+
+  const handleStartNewOrder = useCallback(
+    (force = false) => {
+      if (!force && !canStartNewOrder) {
+        toast({
+          title: 'Order still in progress',
+          description: 'Please wait for the current ticket to finish before starting a new one.',
+        });
+        return;
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('restohand:order-history');
+        localStorage.removeItem('restohand:device-id');
+      }
+      setDeviceOrders([]);
+      setDeviceId(null);
+      const tableSuffix = tableFromQuery ? `?table=${encodeURIComponent(tableFromQuery)}` : '';
+      navigate(`/c/${slug}${tableSuffix}`);
+    },
+    [canStartNewOrder, navigate, slug, tableFromQuery, toast]
+  );
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -197,6 +263,30 @@ export default function CustomerOrderStatusPage() {
         <p className="text-sm text-muted-foreground">
           Stay tuned — we’ll update you as your order moves through the kitchen.
         </p>
+        {(canCancelOrder || canStartNewOrder) && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="flex flex-wrap items-center justify-center gap-2 pt-1"
+          >
+            {canCancelOrder && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleCancelOrder}
+                disabled={isCancelling}
+              >
+                {isCancelling ? 'Cancelling...' : 'Cancel order'}
+              </Button>
+            )}
+            {canStartNewOrder && (
+              <Button variant="outline" size="sm" onClick={handleStartNewOrder}>
+                Start a new order
+              </Button>
+            )}
+          </motion.div>
+        )}
 
         <motion.div
           initial={{ opacity: 0 }}

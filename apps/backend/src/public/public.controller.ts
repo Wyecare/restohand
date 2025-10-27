@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Res } from '@nestjs/common';
+import { Controller, Get, Param, Post, Res } from '@nestjs/common';
 import { PublicService } from './public.service';
 import { Response } from 'express';
 
@@ -24,6 +24,14 @@ export class PublicController {
     @Param('orderId') orderId: string
   ) {
     return this.publicService.getOrderById(slug, orderId);
+  }
+
+  @Post('restaurants/:slug/orders/:orderId/cancel')
+  cancelPublicOrder(
+    @Param('slug') slug: string,
+    @Param('orderId') orderId: string
+  ) {
+    return this.publicService.cancelOrder(slug, orderId);
   }
 
   @Get('restaurants/:slug/orders/:orderId/bill')
