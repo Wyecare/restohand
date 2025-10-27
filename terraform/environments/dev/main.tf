@@ -135,6 +135,7 @@ module "run_api" {
         secret_name = module.secrets.database_url_secret_id
         version     = "latest"
       }
+      
       JWT_SECRET = {
         secret_name = module.secrets.jwt_secret_id
         version     = "latest"
@@ -144,12 +145,6 @@ module "run_api" {
         version     = "latest"
       }
     },
-    module.secrets.frontend_url_secret_id != null ? {
-      FRONTEND_URL = {
-        secret_name = module.secrets.frontend_url_secret_id
-        version     = "latest"
-      }
-    } : {},
     {
       SMTP_HOST = {
         secret_name = module.secrets.secret_names["smtp-host"]
@@ -179,6 +174,11 @@ module "run_api" {
         secret_name = module.secrets.secret_names["firebase-web-api-key"]
         version     = "latest"
       }
+      FRONTEND_URL = {
+        secret_name = module.secrets.secret_names["frontend_url"]
+        version     = "latest"
+      }
+
     }
   )
 

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { randomBytes } from 'crypto';
@@ -6,9 +12,19 @@ import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interfa
 import { UserRole } from '../common/enums/user-role.enum';
 import { SmsService } from '../common/services/sms.service';
 import { User, UserDocument } from './schemas/user.schema';
-import { StaffInvitation, StaffInvitationDocument } from './schemas/staff-invitation.schema';
-import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
-import { CreateStaffInvitationDto, AcceptStaffInvitationDto, StaffInvitationResponseDto } from './dtos/staff-invitation.dto';
+import {
+  StaffInvitation,
+  StaffInvitationDocument,
+} from './schemas/staff-invitation.schema';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../restaurants/schemas/restaurant.schema';
+import {
+  CreateStaffInvitationDto,
+  AcceptStaffInvitationDto,
+  StaffInvitationResponseDto,
+} from './dtos/staff-invitation.dto';
 import { AuthService } from '../auth/auth.service';
 
 @Injectable()
@@ -33,7 +49,9 @@ export class StaffInvitationService {
     }
 
     if (dto.role === UserRole.Manager) {
-      throw new ForbiddenException('Use owner dashboard to add additional managers.');
+      throw new ForbiddenException(
+        'Use owner dashboard to add additional managers.'
+      );
     }
 
     // Check if user already exists with this phone number
@@ -43,7 +61,9 @@ export class StaffInvitationService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Staff member with this phone number already exists');
+      throw new ConflictException(
+        'Staff member with this phone number already exists'
+      );
     }
 
     // Check for existing active invitation
@@ -55,7 +75,9 @@ export class StaffInvitationService {
     });
 
     if (existingInvitation) {
-      throw new ConflictException('Active invitation already exists for this phone number');
+      throw new ConflictException(
+        'Active invitation already exists for this phone number'
+      );
     }
 
     // Get restaurant info for SMS
@@ -67,7 +89,7 @@ export class StaffInvitationService {
     // Find the inviting user's ObjectId
     const invitingUser = await this.userModel.findOne({
       firebaseUid: actor.uid,
-      restaurantId: actor.restaurantId
+      restaurantId: actor.restaurantId,
     });
     if (!invitingUser) {
       throw new NotFoundException('Inviting user not found');
@@ -107,7 +129,10 @@ export class StaffInvitationService {
     return this.toDto(invitation);
   }
 
-  async validateInvitation(invitationToken: string, phoneNumber: string): Promise<StaffInvitation> {
+  async validateInvitation(
+    invitationToken: string,
+    phoneNumber: string
+  ): Promise<StaffInvitation> {
     const invitation = await this.invitationModel.findOne({
       invitationToken,
       phoneNumber,
@@ -127,7 +152,10 @@ export class StaffInvitationService {
     dto: AcceptStaffInvitationDto
   ): Promise<{ success: boolean; user: any }> {
     // Validate invitation
-    const invitation = await this.validateInvitation(dto.invitationToken, dto.phoneNumber);
+    const invitation = await this.validateInvitation(
+      dto.invitationToken,
+      dto.phoneNumber
+    );
 
     // Check if user already exists
     const existingUser = await this.userModel.findOne({
@@ -175,7 +203,9 @@ export class StaffInvitationService {
     };
   }
 
-  async listInvitations(restaurantId: string): Promise<StaffInvitationResponseDto[]> {
+  async listInvitations(
+    restaurantId: string
+  ): Promise<StaffInvitationResponseDto[]> {
     const invitations = await this.invitationModel
       .find({
         restaurantId,
@@ -183,10 +213,13 @@ export class StaffInvitationService {
       })
       .sort({ createdAt: -1 });
 
-    return invitations.map(invitation => this.toDto(invitation));
+    return invitations.map((invitation) => this.toDto(invitation));
   }
 
-  async revokeInvitation(restaurantId: string, invitationId: string): Promise<void> {
+  async revokeInvitation(
+    restaurantId: string,
+    invitationId: string
+  ): Promise<void> {
     const result = await this.invitationModel.findOneAndDelete({
       _id: invitationId,
       restaurantId,
@@ -198,7 +231,9 @@ export class StaffInvitationService {
     }
   }
 
-  private toDto(invitation: StaffInvitationDocument): StaffInvitationResponseDto {
+  private toDto(
+    invitation: StaffInvitationDocument
+  ): StaffInvitationResponseDto {
     return {
       id: invitation._id.toString(),
       restaurantId: invitation.restaurantId.toString(),
