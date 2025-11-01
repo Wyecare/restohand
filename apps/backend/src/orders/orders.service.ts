@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -21,9 +22,12 @@ import { OrderEventResponseDto } from './dtos/order-event-response.dto';
 import { OrdersGateway } from './orders.gateway';
 import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
 import { GstService, OrderItemWithTax, TaxCalculation } from '../gst/gst.service';
+import { RazorpayService } from '../payments/razorpay.service';
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     @InjectModel(Order.name)
     private readonly orderModel: Model<OrderDocument>,
@@ -34,7 +38,8 @@ export class OrdersService {
     @InjectModel(MenuItem.name)
     private readonly menuItemModel: Model<MenuItemDocument>,
     private readonly ordersGateway: OrdersGateway,
-    private readonly gstService: GstService
+    private readonly gstService: GstService,
+    private readonly razorpayService: RazorpayService
   ) {}
 
   async create(
@@ -114,7 +119,7 @@ export class OrdersService {
       taxType: response.taxType,
     });
 
-    if (paymentMethod === 'upi') {
+    if (paymentMethod === 'upi' && !this.razorpayService.isEnabled()) {
       const upiConfig = restaurant.upi;
       if (!upiConfig) {
         throw new BadRequestException('UPI configuration is missing for this restaurant');
@@ -208,6 +213,35 @@ export class OrdersService {
     return this.toDto(order);
   }
 
+  async registerPaymentIntent(
+    restaurantId: string,
+    orderId: string,
+    provider: string,
+    gatewayOrderId: string,
+    metadata?: Record<string, unknown>
+  ): Promise<void> {
+    const order = await this.orderModel.findOne({ _id: orderId, restaurantId });
+
+    if (!order) {
+      throw new NotFoundException(
+        `Order ${orderId} not found for restaurant ${restaurantId}`
+      );
+    }
+
+    order.paymentProvider = provider;
+    order.razorpayOrderId = gatewayOrderId;
+
+    if (metadata) {
+      const existingMeta = (order.paymentMeta as Record<string, unknown> | undefined) ?? {};
+      order.paymentMeta = {
+        ...existingMeta,
+        ...metadata,
+      };
+    }
+
+    await order.save();
+  }
+
   async updateStatus(
     restaurantId: string,
     orderId: string,
@@ -287,6 +321,9 @@ export class OrdersService {
     }
 
     if (dto.paymentStatus === PaymentStatus.Paid) {
+      // Automatically transfer money to restaurant after payment
+      await this.transferToRestaurant(updated);
+
       updated = await this.ensureTaxInvoice(updated);
 
       if (
@@ -316,6 +353,85 @@ export class OrdersService {
     });
     this.ordersGateway.emitOrderUpdated(response);
     return response;
+  }
+
+  async handleRazorpayWebhook(event: any): Promise<void> {
+    const eventName = event?.event;
+    if (!eventName) {
+      this.logger.warn('Razorpay webhook received without event name');
+      return;
+    }
+
+    if (eventName !== 'payment.captured' && eventName !== 'payment.authorized') {
+      return;
+    }
+
+    const paymentEntity = event?.payload?.payment?.entity;
+    if (!paymentEntity) {
+      this.logger.warn(`Razorpay event ${eventName} missing payment entity`);
+      return;
+    }
+
+    const razorpayOrderId: string | undefined = paymentEntity.order_id;
+    const paymentId: string | undefined = paymentEntity.id;
+    const notes: Record<string, string> = paymentEntity.notes ?? {};
+    const restaurantId = notes.restaurantId;
+    const orderId = notes.orderId;
+
+    let orderDoc: OrderDocument | null = null;
+    if (restaurantId && orderId) {
+      orderDoc = await this.orderModel.findOne({ _id: orderId, restaurantId });
+    }
+
+    if (!orderDoc && razorpayOrderId) {
+      orderDoc = await this.orderModel.findOne({ razorpayOrderId });
+    }
+
+    if (!orderDoc) {
+      this.logger.warn(
+        `Unable to locate order for Razorpay payment ${paymentId ?? 'unknown'}`
+      );
+      return;
+    }
+
+    const existingMeta = (orderDoc.paymentMeta as Record<string, unknown> | undefined) ?? {};
+    const paymentMeta = {
+      ...existingMeta,
+      razorpay: {
+        id: paymentId,
+        orderId: razorpayOrderId,
+        method: paymentEntity.method,
+        status: paymentEntity.status,
+        vpa: paymentEntity.vpa,
+        wallet: paymentEntity.wallet,
+        bank: paymentEntity.bank,
+        upiTransactionId:
+          paymentEntity.acquirer_data?.rrn ?? paymentEntity.upi_transaction_id ?? null,
+        captured: paymentEntity.captured ?? false,
+      },
+    };
+
+    await this.orderModel.updateOne(
+      { _id: orderDoc._id },
+      {
+        $set: {
+          razorpayOrderId,
+          paymentMeta,
+        },
+      }
+    );
+
+    if (orderDoc.paymentStatus !== PaymentStatus.Paid) {
+      await this.updatePayment(
+        orderDoc.restaurantId.toString(),
+        orderDoc._id.toString(),
+        {
+          paymentStatus: PaymentStatus.Paid,
+          transactionId: paymentId,
+          provider: 'razorpay',
+        }
+      );
+    }
   }
 
   async listEvents(
@@ -685,6 +801,65 @@ export class OrdersService {
     return `ORD-${(count + 1).toString().padStart(4, '0')}`;
   }
 
+  private async transferToRestaurant(order: OrderDocument): Promise<void> {
+    try {
+      // Get restaurant payment configuration
+      const restaurant = await this.restaurantModel.findById(order.restaurantId);
+
+      if (!restaurant?.paymentConfig?.razorpayFundAccountId) {
+        this.logger.warn(`Restaurant ${order.restaurantId} doesn't have fund account configured. Skipping transfer.`);
+        return;
+      }
+
+      if (restaurant.paymentConfig.settlementType !== 'transfers') {
+        this.logger.warn(`Restaurant ${order.restaurantId} doesn't use transfers settlement. Skipping transfer.`);
+        return;
+      }
+
+      // Calculate transfer amount (total order amount minus platform fee)
+      const platformFeePercent = 3; // 3% platform fee
+      const platformFee = Math.round((order.totalAmount * platformFeePercent) / 100);
+      const transferAmount = order.totalAmount - platformFee;
+
+      if (transferAmount <= 0) {
+        this.logger.warn(`Transfer amount is ≤ 0 for order ${order._id}. Skipping transfer.`);
+        return;
+      }
+
+      // Create transfer
+      const transfer = await this.razorpayService.createTransfer({
+        account: restaurant.paymentConfig.razorpayFundAccountId,
+        amount: transferAmount,
+        currency: 'INR',
+        notes: {
+          order_id: order._id.toString(),
+          restaurant_id: order.restaurantId.toString(),
+          order_number: order.orderNumber,
+          platform_fee: platformFee.toString(),
+          transfer_amount: transferAmount.toString(),
+        }
+      });
+
+      this.logger.log(`Transfer created: ₹${transferAmount/100} sent to restaurant ${restaurant.name} for order ${order.orderNumber} (Transfer ID: ${transfer.id})`);
+
+      // Record the transfer in order events
+      await this.recordEvent(order._id.toString(), order.restaurantId, 'order.transfer.created', {
+        transferId: transfer.id,
+        transferAmount: transferAmount,
+        platformFee: platformFee,
+        fundAccountId: restaurant.paymentConfig.razorpayFundAccountId,
+      });
+
+    } catch (error) {
+      this.logger.error(`Failed to transfer money for order ${order._id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      // Record the failure but don't block the payment process
+      await this.recordEvent(order._id.toString(), order.restaurantId, 'order.transfer.failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
   private toDto(doc: OrderDocument): OrderResponseDto {
     return {
       id: doc._id.toString(),
@@ -749,10 +924,11 @@ export class OrdersService {
       paidAt: doc.paidAt?.toISOString(),
       paymentProvider: doc.paymentProvider,
       paymentTransactionId: doc.paymentTransactionId,
+      razorpayOrderId: doc.razorpayOrderId,
+      paymentMeta: doc.paymentMeta ?? undefined,
       readyAt: doc.readyAt?.toISOString(),
       taxInvoiceNumber: doc.taxInvoiceNumber,
       taxInvoiceGeneratedAt: doc.taxInvoiceGeneratedAt?.toISOString(),
-      paymentIntentUrl: undefined,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };

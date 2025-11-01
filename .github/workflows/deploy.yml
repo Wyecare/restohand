@@ -237,7 +237,7 @@ jobs:
           firebase-messaging-sender-id: ${{ needs.infrastructure.outputs.firebase-messaging-sender-id }}
           firebase-app-id: ${{ needs.infrastructure.outputs.firebase-app-id }}
           firebase-measurement-id: ${{ needs.infrastructure.outputs.firebase-measurement-id }}
-          project-id: ${{ needs.setup.outputs.environment == 'prod' && 'restohand-prod' || 'restohand-dev' }}
+          project-id: ${{ needs.setup.outputs.environment == 'prod' && 'restohand-prod' || 'restohand-development' }}
 
   summary:
     name: 📊 Deployment Summary

@@ -39,6 +39,7 @@ resource "google_cloud_run_v2_service" "api" {
   location = var.region
   name     = local.api_service_name
   labels   = var.labels
+  deletion_protection = false
 
   template {
     service_account = google_service_account.api.email
@@ -160,6 +161,8 @@ resource "google_cloud_run_v2_service" "api" {
       template[0].containers[0].image
     ]
   }
+
+
 
   depends_on = [
     google_service_account.api

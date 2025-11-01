@@ -8,6 +8,7 @@ import { MenuItem, MenuItemSchema } from './schemas/menu-item.schema';
 import { ImageUploadService } from '../common/services/image-upload.service';
 import { GstRate, GstRateSchema } from '../gst/schemas/gst-rate.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
+import { Recipe, RecipeSchema } from '../recipes/schemas/recipe.schema';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.
       { name: MenuItem.name, schema: MenuItemSchema },
       { name: GstRate.name, schema: GstRateSchema },
       { name: Restaurant.name, schema: RestaurantSchema },
+      { name: Recipe.name, schema: RecipeSchema },
     ]),
     MulterModule.register({
       limits: {

@@ -198,3 +198,18 @@ variable "recaptcha_site_secret" {
   default     = ""
   sensitive   = true
 }
+
+variable "razorpay_key_id" {
+    description = "Razorpay API Key ID"
+    type        = string
+  }
+
+  variable "razorpay_key_secret" {
+    description = "Razorpay API Key Secret"
+    type        = string
+  }
+
+  variable "razorpay_webhook_secret" {
+    description = "Razorpay Webhook Secret"
+    type        = string
+  }

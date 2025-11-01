@@ -99,6 +99,12 @@ export class OrderResponseDto {
   paymentTransactionId?: string;
 
   @ApiProperty({ required: false })
+  razorpayOrderId?: string;
+
+  @ApiProperty({ required: false, type: Object })
+  paymentMeta?: Record<string, unknown>;
+
+  @ApiProperty({ required: false })
   readyAt?: string;
 
   @ApiProperty({ required: false })

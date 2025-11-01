@@ -5,6 +5,7 @@ import { appConfig } from '../config/app.config';
 import { databaseConfig } from '../config/database.config';
 import { envValidationSchema } from '../config/env.validation';
 import { firebaseConfig } from '../config/firebase.config';
+import { razorpayConfig } from '../config/razorpay.config';
 import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { MenuCategoriesModule } from '../menu-categories/menu-categories.module';
@@ -17,6 +18,9 @@ import { PublicModule } from '../public/public.module';
 import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
 import { GstModule } from '../gst/gst.module';
 import { FloorPlansModule } from '../floor-plans/floor-plans.module';
+// import { InventoryModule } from '../inventory/inventory.module';
+// import { RecipesModule } from '../recipes/recipes.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -24,7 +28,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, firebaseConfig],
+      load: [appConfig, databaseConfig, firebaseConfig, razorpayConfig],
       validationSchema: envValidationSchema,
       expandVariables: true,
     }),
@@ -44,6 +48,9 @@ import { AppService } from './app.service';
     RestaurantTablesModule,
     GstModule,
     FloorPlansModule,
+    SubscriptionsModule,
+    // InventoryModule,
+    // RecipesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

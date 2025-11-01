@@ -33,17 +33,11 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setAuthPending(state) {
-      console.log('[authSlice] setAuthPending');
       state.status = 'loading';
       state.error = null;
     },
     setCredentials(state, action: PayloadAction<CredentialsPayload>) {
       const { idToken, refreshToken, expiresIn, session } = action.payload;
-      console.log('[authSlice] setCredentials', {
-        hasToken: !!idToken,
-        expiresIn,
-        session,
-      });
       state.idToken = idToken;
       state.refreshToken = refreshToken ?? state.refreshToken;
       state.tokenExpiresAt =
@@ -58,7 +52,6 @@ const authSlice = createSlice({
       state,
       action: PayloadAction<{ idToken: string; expiresIn?: number }>
     ) {
-      console.log('[authSlice] updateToken', action.payload);
       state.idToken = action.payload.idToken;
       state.tokenExpiresAt =
         typeof action.payload.expiresIn === 'number'
@@ -66,7 +59,6 @@ const authSlice = createSlice({
           : state.tokenExpiresAt;
     },
     updateSession(state, action: PayloadAction<Partial<SessionInfo>>) {
-      console.log('[authSlice] updateSession', action.payload);
       if (!state.session) return;
       state.session = {
         ...state.session,
@@ -74,12 +66,10 @@ const authSlice = createSlice({
       };
     },
     setAuthError(state, action: PayloadAction<string>) {
-      console.error('[authSlice] setAuthError', action.payload);
       state.error = action.payload;
       state.status = 'error';
     },
     clearAuthState(state) {
-      console.log('[authSlice] clearAuthState');
       state.status = 'idle';
       state.error = null;
       state.idToken = null;

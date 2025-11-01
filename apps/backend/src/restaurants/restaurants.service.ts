@@ -45,16 +45,16 @@ export class RestaurantsService {
       gstin: dto.gstin?.trim().toUpperCase(),
     });
 
-    await this.usersService.attachRestaurantToUser(actor, created._id.toString(), [
-      UserRole.Manager,
-    ]);
+    await this.usersService.attachRestaurantToUser(
+      actor,
+      created._id.toString(),
+      [UserRole.Manager]
+    );
 
     return this.toDto(created);
   }
 
-  async findAll(
-    query: QueryRestaurantsDto
-  ): Promise<PaginatedRestaurants> {
+  async findAll(query: QueryRestaurantsDto): Promise<PaginatedRestaurants> {
     const filter: FilterQuery<RestaurantDocument> = {};
     if (query.search) {
       const regex = new RegExp(query.search, 'i');
@@ -75,7 +75,11 @@ export class RestaurantsService {
 
     const [total, items] = await Promise.all([
       this.restaurantModel.countDocuments(filter),
-      this.restaurantModel.find(filter).skip(skip).limit(limit).sort({ createdAt: -1 }),
+      this.restaurantModel
+        .find(filter)
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 }),
     ]);
 
     return {
@@ -100,7 +104,7 @@ export class RestaurantsService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const baseUrl = process.env.FRONTEND_BASE_URL ?? 'http://localhost:4200';
+    const baseUrl = process.env.FRONTEND_URL ?? 'http://localhost:4200';
     const slug = restaurant.slug;
     const url = new URL(`${baseUrl.replace(/\/$/, '')}/c/${slug}`);
     if (table) {

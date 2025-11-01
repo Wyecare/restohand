@@ -63,6 +63,136 @@ class RestaurantSettings {
 const RestaurantSettingsSchema =
   SchemaFactory.createForClass(RestaurantSettings);
 
+@Schema({ _id: false })
+class RazorpayLinkedAccount {
+  @Prop({ type: String, required: true, trim: true })
+  accountId!: string;
+
+  @Prop({
+    type: String,
+    enum: ['created', 'activated', 'suspended', 'needs_clarification'],
+    default: 'created'
+  })
+  status!: string;
+
+  @Prop({ type: Date, required: true })
+  createdAt!: Date;
+
+  @Prop({ type: Date })
+  activatedAt?: Date;
+
+  @Prop({ type: String, trim: true })
+  referenceId?: string;
+
+  @Prop({ type: Boolean, default: false })
+  canReceivePayments!: boolean;
+}
+
+const RazorpayLinkedAccountSchema = SchemaFactory.createForClass(RazorpayLinkedAccount);
+
+@Schema({ _id: false })
+class SaasConfig {
+  @Prop({
+    type: String,
+    enum: ['starter', 'pro', 'enterprise'],
+    default: 'starter'
+  })
+  plan!: 'starter' | 'pro' | 'enterprise';
+
+  @Prop({
+    type: String,
+    enum: ['monthly', 'yearly'],
+    default: 'monthly'
+  })
+  billingCycle!: 'monthly' | 'yearly';
+
+  @Prop({
+    type: String,
+    enum: ['trial', 'active', 'suspended', 'cancelled'],
+    default: 'trial'
+  })
+  subscriptionStatus!: 'trial' | 'active' | 'suspended' | 'cancelled';
+
+  @Prop({ type: Date, required: true })
+  trialEndsAt!: Date;
+
+  @Prop({ type: Date, required: true })
+  nextBillingDate!: Date;
+
+  @Prop({ type: Number, required: true, default: 99900 }) // ₹999 in paise
+  monthlyPrice!: number;
+
+  @Prop({ type: Date, default: Date.now })
+  lastUpdated!: Date;
+}
+
+const SaasConfigSchema = SchemaFactory.createForClass(SaasConfig);
+
+@Schema({ _id: false })
+class PaymentConfig {
+  @Prop({ type: String, trim: true })
+  linkedAccountId?: string;
+
+  @Prop({ type: String, trim: true })
+  razorpayContactId?: string;
+
+  @Prop({ type: String, trim: true })
+  razorpayFundAccountId?: string;
+
+  @Prop({ type: Boolean, default: true })
+  canReceivePayments!: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  directSettlement!: boolean;
+
+  @Prop({
+    type: String,
+    enum: ['instant', 'scheduled', 'transfers'],
+    default: 'transfers'
+  })
+  settlementType!: 'instant' | 'scheduled' | 'transfers';
+}
+
+const PaymentConfigSchema = SchemaFactory.createForClass(PaymentConfig);
+
+@Schema({ _id: false })
+class BusinessDetails {
+  @Prop({ type: String, trim: true })
+  gstNumber?: string;
+
+  @Prop({ type: String, trim: true })
+  panNumber?: string;
+
+  @Prop({
+    type: String,
+    enum: ['sole_proprietorship', 'partnership', 'private_limited', 'public_limited'],
+    default: 'sole_proprietorship'
+  })
+  businessType!: string;
+}
+
+const BusinessDetailsSchema = SchemaFactory.createForClass(BusinessDetails);
+
+@Schema({ _id: false })
+class BankAccount {
+  @Prop({ type: String, trim: true })
+  accountNumber?: string;
+
+  @Prop({ type: String, trim: true })
+  ifscCode?: string;
+
+  @Prop({ type: String, trim: true })
+  accountHolderName?: string;
+
+  @Prop({ type: String, trim: true })
+  bankName?: string;
+
+  @Prop({ type: Boolean, default: false })
+  verified!: boolean;
+}
+
+const BankAccountSchema = SchemaFactory.createForClass(BankAccount);
+
 @Schema({
   timestamps: true,
   collection: 'restaurants',
@@ -111,6 +241,30 @@ export class Restaurant {
 
   @Prop({ type: Boolean, default: false })
   applyDefaultGstToMenuItems!: boolean;
+
+  @Prop({ type: RazorpayLinkedAccountSchema })
+  razorpayAccount?: RazorpayLinkedAccount;
+
+  @Prop({ type: SaasConfigSchema })
+  saasConfig?: SaasConfig;
+
+  @Prop({ type: PaymentConfigSchema })
+  paymentConfig?: PaymentConfig;
+
+  @Prop({ type: BusinessDetailsSchema })
+  businessDetails?: BusinessDetails;
+
+  @Prop({ type: BankAccountSchema })
+  bankAccount?: BankAccount;
+
+  @Prop({ type: String })
+  ownerId?: string;
+
+  @Prop({ type: String, trim: true })
+  email?: string;
+
+  @Prop({ type: String, trim: true })
+  phone?: string;
 }
 
 export const RestaurantSchema = SchemaFactory.createForClass(Restaurant);

@@ -198,6 +198,12 @@ export class Order {
   @Prop({ type: String, trim: true })
   paymentTransactionId?: string;
 
+  @Prop({ type: String, trim: true, index: true })
+  razorpayOrderId?: string;
+
+  @Prop({ type: SchemaTypes.Mixed })
+  paymentMeta?: Record<string, unknown>;
+
   @Prop({ type: Date })
   readyAt?: Date;
 

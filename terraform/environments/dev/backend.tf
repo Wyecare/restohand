@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "restohand-terraform-state"
-    prefix = "environments/dev"
+    bucket = "terraform-state-restohand"
+    prefix = "resothand/development"
   }
 }

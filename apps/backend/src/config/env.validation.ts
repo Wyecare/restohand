@@ -17,4 +17,7 @@ export const envValidationSchema = Joi.object({
   FIREBASE_PRIVATE_KEY: Joi.string().required(),
   FIREBASE_WEB_API_KEY: Joi.string().required(),
   // FIREBASE_AUTH_EMULATOR_HOST: Joi.string().allow('', null),
+  RAZORPAY_KEY_ID: Joi.string().required(),
+  RAZORPAY_KEY_SECRET: Joi.string().required(),
+  RAZORPAY_WEBHOOK_SECRET: Joi.string().required(),
 });

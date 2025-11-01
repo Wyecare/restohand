@@ -99,6 +99,9 @@ module "secrets" {
     "firebase-client-email" = var.firebase_client_email
     "firebase-private-key"  = var.firebase_private_key
     "firebase-web-api-key"  = var.firebase_web_api_key
+    "razorpay-key-id"       = var.razorpay_key_id
+    "razorpay-key-secret"   = var.razorpay_key_secret
+    "razorpay-webhook-secret" = var.razorpay_webhook_secret
   }
 
   secret_accessors = [] # Will be configured after deployment
@@ -178,7 +181,18 @@ module "run_api" {
         secret_name = module.secrets.secret_names["frontend_url"]
         version     = "latest"
       }
-
+      RAZORPAY_KEY_ID = {
+        secret_name = module.secrets.secret_names["razorpay-key-id"]
+        version     = "latest"
+      }
+      RAZORPAY_KEY_SECRET = {
+        secret_name = module.secrets.secret_names["razorpay-key-secret"]
+        version     = "latest"
+      }
+      RAZORPAY_WEBHOOK_SECRET = {
+        secret_name = module.secrets.secret_names["razorpay-webhook-secret"]
+        version     = "latest"
+      }
     }
   )
 

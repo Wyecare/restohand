@@ -8,18 +8,14 @@ export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
     baseUrl: API_BASE_URL,
-    prepareHeaders: (headers, { getState, endpoint, extra }) => {
+    prepareHeaders: (headers, { getState }) => {
       const state = getState() as RootState;
       const token = state.auth.idToken;
-      console.log('[baseApi] prepareHeaders', {
-        hasToken: !!token,
-        url: API_BASE_URL,
-        endpoint,
-      });
+
+      headers.set('ngrok-skip-browser-warning', 'true');
 
       if (token) {
         headers.set('authorization', `Bearer ${token}`);
-        console.log('[baseApi] Attached Authorization header');
       }
 
       return headers;
@@ -31,7 +27,6 @@ export const baseApi = createApi({
         if (options.headers && 'content-type' in options.headers) {
           delete (options.headers as any)['content-type'];
         }
-        console.log('[baseApi] FormData detected, removed content-type header');
       } else {
         // For non-FormData requests, ensure we have JSON content-type
         if (options?.headers && !('content-type' in options.headers)) {
@@ -58,6 +53,12 @@ export const baseApi = createApi({
     'FloorPlan',
     'TableStatus',
     'FloorPlanOverview',
+    'InventoryItem',
+    'StockAlert',
+    'InventoryAnalytics',
+    'Recipe',
+    'RecipeCostSummary',
+    'Subscription',
   ],
   endpoints: () => ({}),
 });

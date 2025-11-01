@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { createHmac, randomBytes } from 'crypto';
@@ -8,13 +14,16 @@ import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interfa
 import { AuthService } from '../auth/auth.service';
 import { UserRole } from '../common/enums/user-role.enum';
 import { User, UserDocument } from './schemas/user.schema';
-import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../restaurants/schemas/restaurant.schema';
 import {
   GenerateStaffQrDto,
   StaffQrResponseDto,
   ValidateStaffQrDto,
   AcceptStaffQrDto,
-  StaffQrDataDto
+  StaffQrDataDto,
 } from './dtos/staff-qr.dto';
 
 @Injectable()
@@ -30,8 +39,11 @@ export class StaffQrService {
     private readonly authService: AuthService,
     private readonly configService: ConfigService
   ) {
-    this.qrSecret = this.configService.get<string>('QR_SECRET') || randomBytes(32).toString('hex');
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
+    this.qrSecret =
+      this.configService.get<string>('QR_SECRET') ||
+      randomBytes(32).toString('hex');
+    this.frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
   }
 
   async generateStaffQr(
@@ -53,7 +65,7 @@ export class StaffQrService {
     }
 
     const validityHours = dto.validityHours || 24;
-    const expiresAt = Date.now() + (validityHours * 60 * 60 * 1000);
+    const expiresAt = Date.now() + validityHours * 60 * 60 * 1000;
 
     // Create QR data payload
     const qrPayload: StaffQrDataDto = {
@@ -64,15 +76,17 @@ export class StaffQrService {
       signature: this.signQrData({
         restaurantId: actor.restaurantId,
         role: dto.role,
-        expiresAt
-      })
+        expiresAt,
+      }),
     };
 
     // Encode as base64
     const qrData = Buffer.from(JSON.stringify(qrPayload)).toString('base64');
 
     // Generate signup URL
-    const signupUrl = `${this.frontendUrl}/staff-signup?qr=${encodeURIComponent(qrData)}`;
+    const signupUrl = `${this.frontendUrl}/staff-signup?qr=${encodeURIComponent(
+      qrData
+    )}`;
 
     // Generate QR code image
     const qrCodeUrl = await QRCode.toDataURL(signupUrl, {
@@ -80,8 +94,8 @@ export class StaffQrService {
       margin: 2,
       color: {
         dark: '#000000',
-        light: '#FFFFFF'
-      }
+        light: '#FFFFFF',
+      },
     });
 
     return {
@@ -91,7 +105,7 @@ export class StaffQrService {
       role: dto.role,
       displayName: qrPayload.displayName,
       expiresAt: new Date(expiresAt).toISOString(),
-      validityHours
+      validityHours,
     };
   }
 
@@ -115,7 +129,7 @@ export class StaffQrService {
       const expectedSignature = this.signQrData({
         restaurantId: qrPayload.restaurantId,
         role: qrPayload.role,
-        expiresAt: qrPayload.expiresAt
+        expiresAt: qrPayload.expiresAt,
       });
 
       if (qrPayload.signature !== expectedSignature) {
@@ -123,7 +137,9 @@ export class StaffQrService {
       }
 
       // Get restaurant info
-      const restaurant = await this.restaurantModel.findById(qrPayload.restaurantId);
+      const restaurant = await this.restaurantModel.findById(
+        qrPayload.restaurantId
+      );
       if (!restaurant) {
         return { valid: false };
       }
@@ -133,10 +149,9 @@ export class StaffQrService {
         data: qrPayload,
         restaurant: {
           id: restaurant._id.toString(),
-          name: restaurant.name
-        }
+          name: restaurant.name,
+        },
       };
-
     } catch (error) {
       return { valid: false };
     }
@@ -161,11 +176,14 @@ export class StaffQrService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Staff member with this phone number already exists');
+      throw new ConflictException(
+        'Staff member with this phone number already exists'
+      );
     }
 
     // Create staff user
-    const displayName = dto.displayName || qrData.displayName || `${qrData.role} Staff`;
+    const displayName =
+      dto.displayName || qrData.displayName || `${qrData.role} Staff`;
 
     const user = await this.userModel.create({
       firebaseUid,
@@ -195,10 +213,12 @@ export class StaffQrService {
     };
   }
 
-  private signQrData(data: { restaurantId: string; role: UserRole; expiresAt: number }): string {
+  private signQrData(data: {
+    restaurantId: string;
+    role: UserRole;
+    expiresAt: number;
+  }): string {
     const payload = `${data.restaurantId}:${data.role}:${data.expiresAt}`;
-    return createHmac('sha256', this.qrSecret)
-      .update(payload)
-      .digest('hex');
+    return createHmac('sha256', this.qrSecret).update(payload).digest('hex');
   }
 }

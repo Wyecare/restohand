@@ -85,6 +85,15 @@ export class MenuItemsController {
     return this.menuItemsService.findAll(restaurantId, query);
   }
 
+  @Get('profitability-analysis')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiOkResponse({ description: 'Menu profitability analysis' })
+  async getProfitabilityAnalysis(
+    @Param('restaurantId') restaurantId: string
+  ) {
+    return this.menuItemsService.getMenuProfitabilityAnalysis(restaurantId);
+  }
+
   @Get(':itemId')
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'itemId' })
@@ -94,6 +103,17 @@ export class MenuItemsController {
     @Param('itemId') itemId: string
   ) {
     return this.menuItemsService.findOne(restaurantId, itemId);
+  }
+
+  @Get(':itemId/cost-analysis')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'itemId' })
+  @ApiOkResponse({ description: 'Menu item with cost analysis' })
+  async getMenuItemWithCostAnalysis(
+    @Param('restaurantId') restaurantId: string,
+    @Param('itemId') itemId: string
+  ) {
+    return this.menuItemsService.getMenuItemWithCostAnalysis(restaurantId, itemId);
   }
 
   @Patch(':itemId')

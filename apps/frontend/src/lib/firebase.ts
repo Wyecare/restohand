@@ -5,6 +5,7 @@ import {
   initializeAuth,
   indexedDBLocalPersistence,
   browserLocalPersistence,
+  connectAuthEmulator,
 } from 'firebase/auth';
 import { env } from '@/config/env';
 
@@ -33,14 +34,32 @@ export const getFirebaseApp = () => {
   return firebaseApp;
 };
 
+let authInstance: any = null;
+
 export const getFirebaseAuth = () => {
+  if (authInstance) {
+    return authInstance;
+  }
+
   const app = getFirebaseApp();
   try {
-    return getAuth(app);
+    authInstance = getAuth(app);
   } catch {
-    return initializeAuth(app, {
+    authInstance = initializeAuth(app, {
       persistence: [indexedDBLocalPersistence, browserLocalPersistence],
       popupRedirectResolver: browserPopupRedirectResolver,
     });
   }
+
+  // Connect to emulator if configured and in development
+  if (env.firebaseConfig?.authEmulatorUrl && env.environment === 'development') {
+    try {
+      connectAuthEmulator(authInstance, env.firebaseConfig.authEmulatorUrl);
+      console.log('🔥 Connected to Firebase Auth Emulator at', env.firebaseConfig.authEmulatorUrl);
+    } catch (error) {
+      console.warn('Failed to connect to Firebase Auth Emulator:', error);
+    }
+  }
+
+  return authInstance;
 };

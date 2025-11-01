@@ -50,6 +50,35 @@ export interface UpdateOrderPaymentPayload {
   provider?: string;
 }
 
+export interface CreatePaymentIntentPayload {
+  restaurantId: string;
+  orderId: string;
+}
+
+export interface CreatePaymentIntentResponse {
+  razorpayKey: string;
+  razorpayOrderId: string;
+  amount: number;
+  currency: string;
+  restaurant?: {
+    id: string;
+  };
+  settlementType?: string;
+}
+
+export interface CreateUpiIntentPayload {
+  restaurantId: string;
+  orderId: string;
+}
+
+export interface CreateUpiIntentResponse {
+  upiIntent: string;
+  razorpayOrderId: string;
+  amount: number;
+  currency: string;
+  settlementType: string;
+}
+
 export const ordersApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listOrders: builder.query<PaginatedResponse<Order>, ListOrdersParams>({
@@ -113,6 +142,26 @@ export const ordersApi = baseApi.injectEndpoints({
         { type: 'Order', id: `LIST-${restaurantId}` },
       ],
     }),
+
+    createPaymentIntent: builder.mutation<
+      CreatePaymentIntentResponse,
+      CreatePaymentIntentPayload
+    >({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/payment-intent`,
+        method: 'POST',
+      }),
+    }),
+
+    createUpiIntent: builder.mutation<
+      CreateUpiIntentResponse,
+      CreateUpiIntentPayload
+    >({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/upi-intent`,
+        method: 'POST',
+      }),
+    }),
   }),
   overrideExisting: false,
 });
@@ -123,4 +172,6 @@ export const {
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,
+  useCreatePaymentIntentMutation,
+  useCreateUpiIntentMutation,
 } = ordersApi;

@@ -178,6 +178,8 @@ export interface Order {
   readyAt?: string;
   paymentProvider?: string;
   paymentTransactionId?: string;
+  razorpayOrderId?: string;
+  paymentMeta?: Record<string, unknown>;
   paymentIntentUrl?: string;
   taxInvoiceNumber?: string;
   taxInvoiceGeneratedAt?: string;

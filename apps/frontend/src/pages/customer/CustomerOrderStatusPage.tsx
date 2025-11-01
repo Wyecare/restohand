@@ -79,9 +79,10 @@ export default function CustomerOrderStatusPage() {
   const [searchParams] = useSearchParams();
   const { data, isLoading, isError, refetch } = useGetPublicOrderQuery(
     { slug, orderId },
-    { skip: !slug || !orderId }
+    { skip: !slug || !orderId, pollingInterval: 5000 } // Poll every 5 seconds for payment updates
   );
   const { toast } = useToast();
+  const [hasShownPaymentSuccess, setHasShownPaymentSuccess] = useState(false);
 
   const order = data;
   const [deviceId, setDeviceId] = useState<string | null>(null);
@@ -145,6 +146,17 @@ export default function CustomerOrderStatusPage() {
       }
     }
   }, []);
+
+  // Show payment success notification when payment status changes to paid
+  useEffect(() => {
+    if (order?.paymentStatus === 'paid' && order?.paymentMethod === 'upi' && !hasShownPaymentSuccess) {
+      toast({
+        title: 'Payment successful! 🎉',
+        description: 'Your payment has been confirmed. The kitchen will start preparing your order.',
+      });
+      setHasShownPaymentSuccess(true);
+    }
+  }, [order?.paymentStatus, order?.paymentMethod, hasShownPaymentSuccess, toast]);
 
   useEffect(() => {
     if (!order || typeof window === 'undefined') return;

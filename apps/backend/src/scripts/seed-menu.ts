@@ -16,7 +16,7 @@ import {
 
 config({ path: '.env' });
 
-const PLACEHOLDER_RESTAURANT_ID = '68f7d94802059d74651c5b0b';
+const PLACEHOLDER_RESTAURANT_ID = '6904beecad643b41632ab2eb';
 
 const categories = [
   {

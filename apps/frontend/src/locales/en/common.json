@@ -44,6 +44,8 @@
     "dashboard": "Dashboard",
     "orders": "Orders",
     "menu": "Menu",
+    "inventory": "Inventory",
+    "recipes": "Recipes",
     "staff": "Staff",
     "tables": "Tables",
     "reports": "Reports",

@@ -10,6 +10,7 @@ import { MenuItem, MenuItemDocument } from './schemas/menu-item.schema';
 import { PaginationUtil } from '../common/utils/pagination.util';
 import { GstRate, GstRateDocument } from '../gst/schemas/gst-rate.schema';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import { Recipe, RecipeDocument } from '../recipes/schemas/recipe.schema';
 
 @Injectable()
 export class MenuItemsService {
@@ -19,7 +20,9 @@ export class MenuItemsService {
     @InjectModel(GstRate.name)
     private readonly gstRateModel: Model<GstRateDocument>,
     @InjectModel(Restaurant.name)
-    private readonly restaurantModel: Model<RestaurantDocument>
+    private readonly restaurantModel: Model<RestaurantDocument>,
+    @InjectModel(Recipe.name)
+    private readonly recipeModel: Model<RecipeDocument>
   ) {}
 
   async create(
@@ -182,6 +185,122 @@ export class MenuItemsService {
         `Menu item ${id} not found for restaurant ${restaurantId}`
       );
     }
+  }
+
+  async getMenuItemWithCostAnalysis(
+    restaurantId: string,
+    id: string
+  ): Promise<MenuItemResponseDto & { costAnalysis?: any }> {
+    const menuItem = await this.findOne(restaurantId, id);
+
+    // Find associated recipe
+    const recipe = await this.recipeModel
+      .findOne({ restaurantId, menuItemId: id, isActive: true })
+      .lean();
+
+    if (recipe) {
+      return {
+        ...menuItem,
+        costAnalysis: {
+          totalCost: recipe.costAnalysis.totalCost,
+          foodCost: recipe.costAnalysis.totalIngredientCost,
+          laborCost: recipe.costAnalysis.laborCost || 0,
+          overheadCost: recipe.costAnalysis.overheadCost || 0,
+          profitMargin: recipe.costAnalysis.profitMargin,
+          profit: recipe.costAnalysis.profit,
+          lastCalculated: recipe.costAnalysis.lastCalculated,
+          hasRecipe: true,
+        },
+      };
+    }
+
+    return {
+      ...menuItem,
+      costAnalysis: {
+        hasRecipe: false,
+      },
+    };
+  }
+
+  async getMenuProfitabilityAnalysis(restaurantId: string): Promise<{
+    totalItems: number;
+    itemsWithRecipes: number;
+    averageProfitMargin: number;
+    averageFoodCost: number;
+    highMarginItems: Array<{
+      id: string;
+      name: string;
+      profitMargin: number;
+      profit: number;
+    }>;
+    lowMarginItems: Array<{
+      id: string;
+      name: string;
+      profitMargin: number;
+      totalCost: number;
+    }>;
+  }> {
+    const [menuItems, recipes] = await Promise.all([
+      this.menuItemModel.find({ restaurantId }).lean(),
+      this.recipeModel.find({ restaurantId, isActive: true, menuItemId: { $ne: null } }).lean(),
+    ]);
+
+    const recipesMap = new Map(
+      recipes.map(recipe => [recipe.menuItemId?.toString(), recipe])
+    );
+
+    const itemsWithRecipes = menuItems.filter(item =>
+      recipesMap.has(item._id.toString())
+    );
+
+    if (itemsWithRecipes.length === 0) {
+      return {
+        totalItems: menuItems.length,
+        itemsWithRecipes: 0,
+        averageProfitMargin: 0,
+        averageFoodCost: 0,
+        highMarginItems: [],
+        lowMarginItems: [],
+      };
+    }
+
+    const itemsWithAnalysis = itemsWithRecipes.map(item => {
+      const recipe = recipesMap.get(item._id.toString())!;
+      return {
+        id: item._id.toString(),
+        name: item.name,
+        profitMargin: recipe.costAnalysis.profitMargin || 0,
+        profit: recipe.costAnalysis.profit || 0,
+        totalCost: recipe.costAnalysis.totalCost,
+      };
+    }).filter(item => item.profitMargin !== undefined);
+
+    const averageProfitMargin = itemsWithAnalysis.length > 0
+      ? itemsWithAnalysis.reduce((sum, item) => sum + item.profitMargin, 0) / itemsWithAnalysis.length
+      : 0;
+
+    const averageFoodCost = itemsWithAnalysis.length > 0
+      ? itemsWithAnalysis.reduce((sum, item) => sum + item.totalCost, 0) / itemsWithAnalysis.length
+      : 0;
+
+    const highMarginItems = itemsWithAnalysis
+      .filter(item => item.profitMargin >= 30)
+      .sort((a, b) => b.profitMargin - a.profitMargin)
+      .slice(0, 5);
+
+    const lowMarginItems = itemsWithAnalysis
+      .filter(item => item.profitMargin < 20)
+      .sort((a, b) => a.profitMargin - b.profitMargin)
+      .slice(0, 5);
+
+    return {
+      totalItems: menuItems.length,
+      itemsWithRecipes: itemsWithRecipes.length,
+      averageProfitMargin,
+      averageFoodCost,
+      highMarginItems,
+      lowMarginItems,
+    };
   }
 
   private toDto(doc: MenuItemDocument): MenuItemResponseDto {

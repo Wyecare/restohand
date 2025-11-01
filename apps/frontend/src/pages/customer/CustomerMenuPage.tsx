@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,7 +14,13 @@ import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
-import { useCreateOrderMutation } from '@/store/api/ordersApi';
+import {
+  useCreateOrderMutation,
+  useCreatePaymentIntentMutation,
+  useCreateUpiIntentMutation,
+  type CreatePaymentIntentResponse,
+  type CreateUpiIntentResponse,
+} from '@/store/api/ordersApi';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { ShoppingCart, Plus, Minus, Star, Clock, Flame } from 'lucide-react';
@@ -22,6 +28,12 @@ import TableDialog from './TableDialog';
 import { CartBottomBar } from '@/components/customer/CartBottomBar';
 import { CartPanel } from '@/components/customer/CartPanel';
 import { MenuSearch, FilterOptions } from '@/components/customer/MenuSearch';
+
+declare global {
+  interface Window {
+    Razorpay?: any;
+  }
+}
 
 interface CartEntry {
   id: string;
@@ -53,6 +65,8 @@ export default function CustomerMenuPage() {
     skip: !slug,
   });
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
+  const [createPaymentIntent] = useCreatePaymentIntentMutation();
+  const [createUpiIntent] = useCreateUpiIntentMutation();
 
   const [viewMode, setViewMode] = useState<'unified' | 'categories'>('unified');
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -67,6 +81,7 @@ export default function CustomerMenuPage() {
     popular: false,
     quickPrep: false,
   });
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const restaurant = data?.restaurant;
   const categories = data?.menu.categories ?? [];
@@ -214,6 +229,102 @@ export default function CustomerMenuPage() {
     setCart({});
   };
 
+  const loadRazorpayScript = useCallback(async () => {
+    if (typeof window === 'undefined') return false;
+    if (window.Razorpay) return true;
+
+    return new Promise<boolean>((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  }, []);
+
+  const openRazorpayCheckout = useCallback(
+    async (
+      intent: CreatePaymentIntentResponse,
+      order: { id: string; orderNumber: string; customerName?: string; customerPhone?: string },
+      tableNumber: string
+    ) => {
+      if (typeof window === 'undefined') return;
+      if (!window.Razorpay) return;
+
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
+
+        const razorpay = new window.Razorpay({
+          key: intent.razorpayKey,
+          amount: intent.amount.toString(),
+          currency: intent.currency || 'INR',
+          name: restaurant?.name ?? 'Restohand',
+          description: `Order ${order.orderNumber}`,
+          order_id: intent.razorpayOrderId,
+          method: {
+            upi: true,
+            card: false,
+            netbanking: false,
+            wallet: false,
+            emi: false,
+            paylater: false,
+          },
+          upi: {
+            flow: 'intent',
+          },
+          notes: {
+            restaurantId: restaurant?.id ?? '',
+            orderId: order.id,
+            tableNumber,
+          },
+          prefill: {
+            name: order.customerName ?? '',
+            contact: order.customerPhone ?? '',
+          },
+          theme: {
+            color: '#16a34a',
+          },
+          handler: () => {
+            toast({
+              title: 'Payment in progress',
+              description: 'Hang tight while we confirm this payment with the kitchen.',
+            });
+            finish();
+          },
+          modal: {
+            ondismiss: () => {
+              toast({
+                title: 'Payment pending',
+                description: 'You can complete the payment later with the staff if needed.',
+              });
+              finish();
+            },
+          },
+        });
+
+        if (typeof razorpay.on === 'function') {
+          razorpay.on('payment.failed', () => {
+            toast({
+              title: 'Payment failed',
+              description: 'Please try again or ask the staff for help.',
+              variant: 'destructive',
+            });
+            finish();
+          });
+        }
+
+        razorpay.open();
+      });
+    },
+    [restaurant?.id, restaurant?.name, toast]
+  );
+
   const handleConfirmOrder = async (
     tableNumber: string,
     paymentMethod: 'upi' | 'cash'
@@ -257,6 +368,8 @@ export default function CustomerMenuPage() {
       })),
     };
 
+    setIsProcessingPayment(true);
+
     try {
       const order = await createOrder(payload).unwrap();
       setCart({});
@@ -266,9 +379,31 @@ export default function CustomerMenuPage() {
         title: 'Order placed',
         description: `Ticket #${order.orderNumber} created.`,
       });
-      if (paymentMethod === 'upi' && order.paymentIntentUrl) {
-        window.location.href = order.paymentIntentUrl;
+
+      if (paymentMethod === 'upi') {
+        try {
+          const upiResponse = await createUpiIntent({
+            restaurantId: restaurant.id,
+            orderId: order.id,
+          }).unwrap();
+
+          // Open UPI app directly with intent URL
+          window.location.href = upiResponse.upiIntent;
+
+          toast({
+            title: 'Opening payment app',
+            description: 'Please complete the payment in your UPI app.',
+          });
+        } catch (error) {
+          toast({
+            title: 'Unable to start UPI payment',
+            description:
+              error instanceof Error ? error.message : 'Please try again or contact staff.',
+            variant: 'destructive',
+          });
+        }
       }
+
       navigate(`/c/${slug}/order/${order.id}?table=${trimmedTable}`);
     } catch (err) {
       toast({
@@ -276,6 +411,8 @@ export default function CustomerMenuPage() {
         description: err instanceof Error ? err.message : 'Unexpected error',
         variant: 'destructive',
       });
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -572,7 +709,7 @@ export default function CustomerMenuPage() {
         onOpenChange={setTableDialogOpen}
         totalAmount={totalAmount}
         itemCount={totalItems}
-        isPlacingOrder={isPlacingOrder}
+        isPlacingOrder={isPlacingOrder || isProcessingPayment}
         onConfirm={handleConfirmOrder}
         defaultTable={tableFromUrl}
       />

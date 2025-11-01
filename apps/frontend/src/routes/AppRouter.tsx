@@ -25,6 +25,9 @@ import GstSettingsPage from '@/pages/GstSettingsPage';
 import CustomerQrPage from '@/pages/CustomerQrPage';
 import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
 import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
+import InventoryPage from '@/pages/InventoryPage';
+import RecipesPage from '@/pages/RecipesPage';
+import SubscriptionPage from '@/pages/SubscriptionPage';
 import CustomerLayout from '@/components/customer/CustomerLayout';
 
 const AppRouter = () => {
@@ -67,6 +70,7 @@ const AppRouter = () => {
           }
         />
 
+
         {/* Protected routes */}
         <Route
           path="/"
@@ -85,7 +89,10 @@ const AppRouter = () => {
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />
           <Route path="customer-qr" element={<CustomerQrPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="recipes" element={<RecipesPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="subscription" element={<SubscriptionPage />} />
           <Route path="settings" element={<SettingsPageNew />} />
           {/* floor plan */}
           {/* <Route path="floor-plan" element={<FloorPlanDashboardPage />} />

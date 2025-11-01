@@ -28,14 +28,6 @@ export function AuthGuard({
   const roles = useAppSelector(selectUserRoles);
   const hasRoles = roles.length > 0;
   const needsOnboarding = isAuthenticated && !hasRoles;
-  console.log('[AuthGuard] state snapshot', {
-    requireAuth,
-    redirectAuthenticatedTo,
-    isAuthenticated,
-    status,
-    roles,
-    needsOnboarding,
-  });
   // const { logout } = useAuth();
 
   // useEffect(() => {
@@ -52,7 +44,6 @@ export function AuthGuard({
   }
 
   if (requireAuth && !isAuthenticated) {
-    console.log('[AuthGuard] redirecting unauthenticated user');
     return (
       <Navigate
         to={redirectTo}
@@ -64,7 +55,6 @@ export function AuthGuard({
 
   if (!requireAuth && redirectAuthenticatedTo && isAuthenticated) {
     const target = needsOnboarding ? '/onboarding' : redirectAuthenticatedTo;
-    console.log('[AuthGuard] redirecting authenticated public route', target);
     return <Navigate to={target} replace />;
   }
 
@@ -78,12 +68,10 @@ export function AuthGuard({
     if (needsOnboarding) {
       // Only redirect to onboarding if this route allows manager role
       if (allowedRoles.includes('manager')) {
-        console.log('[AuthGuard] redirecting to onboarding due to missing roles (manager route)');
         return <Navigate to="/onboarding" replace />;
       } else {
         // For staff routes (chef, waiter, cashier), show loading instead of forbidden
         // This gives time for claims to propagate
-        console.log('[AuthGuard] waiting for role claims to propagate for staff route');
         return (
           <div className="flex min-h-screen items-center justify-center bg-background">
             <div className="text-center space-y-4">
@@ -94,7 +82,6 @@ export function AuthGuard({
         );
       }
     }
-    console.log('[AuthGuard] access forbidden for roles', roles);
     return <Navigate to="/forbidden" replace />;
   }
 

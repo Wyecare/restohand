@@ -1,10 +1,12 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "wyecare-solutions"
+  },
   "targets": {
-    "restohand-dev": {
+    "restohand-development": {
       "hosting": {
         "main": [
-          "restohand-dev"
+          "restohand-development"
         ]
       }
     }

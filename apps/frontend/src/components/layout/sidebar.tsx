@@ -30,6 +30,9 @@ import {
   Settings,
   ChefHat,
   Coffee,
+  Package,
+  BookOpen,
+  CreditCard,
 } from 'lucide-react';
 
 interface NavLink {
@@ -42,10 +45,13 @@ const managerLinks: NavLink[] = [
   { titleKey: 'navigation.dashboard', href: '/dashboard', icon: LayoutDashboard },
   { titleKey: 'navigation.orders', href: '/orders', icon: ShoppingBag },
   { titleKey: 'navigation.menu', href: '/menu', icon: UtensilsCrossed },
+  { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
+  { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
   { titleKey: 'navigation.tables', href: '/tables', icon: Table },
   { titleKey: 'navigation.staff', href: '/staff', icon: Users },
   { titleKey: 'navigation.customerQR', href: '/customer-qr', icon: QrCode },
   { titleKey: 'navigation.reports', href: '/reports', icon: BarChart3 },
+  { titleKey: 'navigation.subscription', href: '/subscription', icon: CreditCard },
   { titleKey: 'navigation.settings', href: '/settings', icon: Settings },
 ];
 

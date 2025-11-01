@@ -13,7 +13,7 @@ const toBoolean = (value: string | Booleanish | undefined, fallback = false) => 
 export const env = {
   environment: import.meta.env.VITE_ENV ?? 'development',
   appName: import.meta.env.VITE_APP_NAME ?? 'Restohand',
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api',
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3334/api',
   wsBaseUrl: import.meta.env.VITE_WS_BASE_URL ?? 'http://localhost:3000',
   googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
   upiMode: import.meta.env.VITE_UPI_MODE ?? 'static',
@@ -27,6 +27,7 @@ export const env = {
     const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
     const appId = import.meta.env.VITE_FIREBASE_APP_ID;
     const measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID;
+    const authEmulatorUrl = import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL;
 
     if (!apiKey || !authDomain || !projectId || !appId) {
       return null;
@@ -38,6 +39,7 @@ export const env = {
       projectId,
       appId,
       measurementId,
+      authEmulatorUrl,
     };
   })(),
 } as const;
