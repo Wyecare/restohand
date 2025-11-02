@@ -37,13 +37,13 @@ runs:
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       with:
-        project_id: ${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-development' }}
+        project_id: ${{ inputs.environment == 'prod' && 'restohand' || 'restohand-development' }}
 
     - name: Deploy to Cloud Run
       id: deploy
       shell: bash
       run: |
-        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-development' }}"
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-development' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
 
         # Deploy to Cloud Run
@@ -97,7 +97,7 @@ runs:
     - name: Update Traffic
       shell: bash
       run: |
-        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-prod' || 'restohand-development' }}"
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-development' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
 
         # Update traffic to latest revision
