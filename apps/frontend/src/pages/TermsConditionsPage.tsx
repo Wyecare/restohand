@@ -209,9 +209,9 @@ const TermsConditionsPage = () => {
                 <p>For questions about these Terms and Conditions, please contact us:</p>
                 <div className="bg-muted p-4 rounded-lg mt-3">
                   <p><strong>RestoHand</strong></p>
-                  <p>Email: legal@restohand.com</p>
-                  <p>Phone: +91-8129639999</p>
-                  <p>Address: Kochi, Kerala, India</p>
+                  <p>Email: admin@wyecaresolutions.com</p>
+                  <p>Phone: +91 9037495218</p>
+                  <p>Address: Kottayam, Kerala, India</p>
                 </div>
               </section>
 

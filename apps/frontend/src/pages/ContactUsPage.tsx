@@ -38,7 +38,7 @@ const ContactUsPage = () => {
                   <Mail className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="font-medium">Email Support</p>
-                    <p className="text-muted-foreground">support@restohand.com</p>
+                    <p className="text-muted-foreground">admin@wyecaresolutions.com</p>
                     <p className="text-sm text-muted-foreground">For general support and inquiries</p>
                   </div>
                 </div>
@@ -47,7 +47,7 @@ const ContactUsPage = () => {
                   <Mail className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="font-medium">Sales & Business</p>
-                    <p className="text-muted-foreground">sales@restohand.com</p>
+                    <p className="text-muted-foreground">admin@wyecaresolutions.com</p>
                     <p className="text-sm text-muted-foreground">For new subscriptions and partnerships</p>
                   </div>
                 </div>
@@ -56,7 +56,7 @@ const ContactUsPage = () => {
                   <Phone className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="font-medium">Phone Support</p>
-                    <p className="text-muted-foreground">+91-8129639999</p>
+                    <p className="text-muted-foreground">+91 9037495218</p>
                     <p className="text-sm text-muted-foreground">Monday-Friday, 9:00 AM - 6:00 PM IST</p>
                   </div>
                 </div>
@@ -66,7 +66,7 @@ const ContactUsPage = () => {
                   <div>
                     <p className="font-medium">Office Address</p>
                     <p className="text-muted-foreground">
-                      Kochi, Kerala, India
+                      Kottayam, Kerala, India
                     </p>
                     <p className="text-sm text-muted-foreground">Headquarters and development center</p>
                   </div>

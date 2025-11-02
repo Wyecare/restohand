@@ -189,8 +189,8 @@ const RefundPolicyPage = () => {
                 <p>For refund requests or questions about this policy:</p>
                 <div className="bg-muted p-4 rounded-lg mt-3">
                   <p><strong>RestoHand Support</strong></p>
-                  <p>Email: support@restohand.com</p>
-                  <p>Phone: +91-8129639999</p>
+                  <p>Email: admin@wyecaresolutions.com</p>
+                  <p>Phone: +91 9037495218</p>
                   <p>Business Hours: Monday-Friday, 9:00 AM - 6:00 PM IST</p>
                   <p>Response Time: Within 24 hours</p>
                 </div>
