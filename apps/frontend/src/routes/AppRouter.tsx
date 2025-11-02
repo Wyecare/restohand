@@ -28,6 +28,10 @@ import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
 import InventoryPage from '@/pages/InventoryPage';
 import RecipesPage from '@/pages/RecipesPage';
 import SubscriptionPage from '@/pages/SubscriptionPage';
+import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
+import TermsConditionsPage from '@/pages/TermsConditionsPage';
+import RefundPolicyPage from '@/pages/RefundPolicyPage';
+import ContactUsPage from '@/pages/ContactUsPage';
 import CustomerLayout from '@/components/customer/CustomerLayout';
 
 const AppRouter = () => {
@@ -60,6 +64,12 @@ const AppRouter = () => {
         />
 
         <Route path="/staff-signup" element={<StaffSignupPage />} />
+
+        {/* Policy pages */}
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms-conditions" element={<TermsConditionsPage />} />
+        <Route path="/refund-policy" element={<RefundPolicyPage />} />
+        <Route path="/contact-us" element={<ContactUsPage />} />
 
         <Route
           path="/onboarding"
