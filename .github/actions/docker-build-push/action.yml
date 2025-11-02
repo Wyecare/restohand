@@ -63,7 +63,7 @@ runs:
         if [[ "${{ inputs.environment }}" == "dev" ]]; then
           REPOSITORY="dev-registry"
         else
-          REPOSITORY="restohand"
+          REPOSITORY="prod-registry"
         fi
 
         IMAGE_NAME="${{ inputs.registry }}/$PROJECT_ID/$REPOSITORY/${{ inputs.app-name }}"

@@ -9,6 +9,13 @@
           "restohand-development"
         ]
       }
+    },
+    "restohand": {
+      "hosting": {
+        "main": [
+          "restohand"
+        ]
+      }
     }
   },
   "etags": {}
