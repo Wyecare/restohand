@@ -91,7 +91,7 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}/${{ inputs.environment }}
       run: |
-        terraform init -reconfigure
+        terraform init
         echo "✅ Terraform initialized"
 
     - name: Terraform Plan

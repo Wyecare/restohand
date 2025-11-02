@@ -72,6 +72,7 @@
     "apps/*"
   ],
   "dependencies": {
+    "razorpay": "^2.9.5",
     "@google-cloud/storage": "^7.17.2",
     "@hookform/resolvers": "^5.2.2",
     "@nestjs/common": "^11.0.0",
