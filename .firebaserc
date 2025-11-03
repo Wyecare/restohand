@@ -16,6 +16,13 @@
           "restohand"
         ]
       }
+    },
+    "wyecare-solutions": {
+      "hosting": {
+        "main": [
+          "wyecare-solutions"
+        ]
+      }
     }
   },
   "etags": {}

@@ -9,6 +9,7 @@ import {
 import {
   onIdTokenChanged,
   signInWithPopup,
+  signInWithEmailAndPassword,
   GoogleAuthProvider,
   signOut,
   type User as FirebaseUser,
@@ -28,6 +29,7 @@ import type { SessionInfo } from '@/store/api/types';
 interface AuthContextValue {
   user: FirebaseUser | null;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -110,6 +112,10 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     await signInWithPopup(auth, provider);
   }, [auth]);
 
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  }, [auth]);
+
   const logout = useCallback(async () => {
     await signOut(auth);
     dispatch(clearAuthState());
@@ -119,9 +125,10 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     () => ({
       user,
       signInWithGoogle,
+      signInWithEmail,
       logout,
     }),
-    [user, signInWithGoogle, logout]
+    [user, signInWithGoogle, signInWithEmail, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

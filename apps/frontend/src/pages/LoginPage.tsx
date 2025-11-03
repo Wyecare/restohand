@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
@@ -15,9 +17,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
 
 const LoginPage = () => {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithEmail } = useAuth();
   const { toast } = useToast();
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [authMode, setAuthMode] = useState<'google' | 'email'>('google');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleGoogleSignIn = async () => {
     try {
@@ -38,6 +43,32 @@ const LoginPage = () => {
     }
   };
 
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast({
+        title: 'Missing credentials',
+        description: 'Please enter both email and password.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsSigningIn(true);
+      await signInWithEmail(email, password);
+    } catch (error) {
+      toast({
+        title: 'Sign-in failed',
+        description:
+          error instanceof Error ? error.message : 'Invalid email or password',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/20 p-4">
       <Card className="w-full max-w-md shadow-lg">
@@ -51,23 +82,81 @@ const LoginPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={handleGoogleSignIn}
-            disabled={isSigningIn}
-          >
-            {isSigningIn ? (
-              <span className="flex items-center gap-2">
-                <LoadingSpinner size="sm" /> Signing in...
-              </span>
-            ) : (
-              'Continue with Google'
-            )}
-          </Button>
+          <div className="flex space-x-2 mb-4">
+            <Button
+              type="button"
+              variant={authMode === 'google' ? 'default' : 'outline'}
+              onClick={() => setAuthMode('google')}
+              className="flex-1"
+            >
+              Google
+            </Button>
+            <Button
+              type="button"
+              variant={authMode === 'email' ? 'default' : 'outline'}
+              onClick={() => setAuthMode('email')}
+              className="flex-1"
+            >
+              Email
+            </Button>
+          </div>
+
+          {authMode === 'google' ? (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleSignIn}
+              disabled={isSigningIn}
+            >
+              {isSigningIn ? (
+                <span className="flex items-center gap-2">
+                  <LoadingSpinner size="sm" /> Signing in...
+                </span>
+              ) : (
+                'Continue with Google'
+              )}
+            </Button>
+          ) : (
+            <form onSubmit={handleEmailSignIn} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email (for testing only)</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="test@restohand.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={isSigningIn} className="w-full">
+                {isSigningIn ? (
+                  <span className="flex items-center gap-2">
+                    <LoadingSpinner size="sm" /> Signing in...
+                  </span>
+                ) : (
+                  'Sign in with Email'
+                )}
+              </Button>
+            </form>
+          )}
+
           <p className="text-xs text-muted-foreground text-center">
-            Staff-facing OTP/PIN login flows will be available via the kitchen
-            app.
+            {authMode === 'email'
+              ? 'Email login is for testing purposes only.'
+              : 'Staff-facing OTP/PIN login flows will be available via the kitchen app.'
+            }
           </p>
         </CardContent>
         <CardFooter>
