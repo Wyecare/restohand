@@ -44,6 +44,10 @@ export default function CustomerLayout() {
         <div className="mx-auto max-w-5xl px-4 py-6">
           <div className="flex flex-col items-center justify-center space-y-3 text-center">
             <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+              <Link to="/about-us" className="hover:text-foreground transition-colors">
+                About Us
+              </Link>
+              <span>•</span>
               <Link to="/privacy-policy" className="hover:text-foreground transition-colors">
                 Privacy Policy
               </Link>

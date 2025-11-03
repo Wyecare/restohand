@@ -32,6 +32,7 @@ import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import TermsConditionsPage from '@/pages/TermsConditionsPage';
 import RefundPolicyPage from '@/pages/RefundPolicyPage';
 import ContactUsPage from '@/pages/ContactUsPage';
+import AboutUsPage from '@/pages/AboutUsPage';
 import CustomerLayout from '@/components/customer/CustomerLayout';
 
 const AppRouter = () => {
@@ -66,6 +67,7 @@ const AppRouter = () => {
         <Route path="/staff-signup" element={<StaffSignupPage />} />
 
         {/* Policy pages */}
+        <Route path="/about-us" element={<AboutUsPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-conditions" element={<TermsConditionsPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />

@@ -204,6 +204,10 @@ export default function Sidebar() {
                   </Link>
                 </div>
                 <div className="flex gap-2 text-xs">
+                  <Link to="/about-us" className="text-muted-foreground hover:text-foreground">
+                    About Us
+                  </Link>
+                  <span className="text-muted-foreground">•</span>
                   <Link to="/contact-us" className="text-muted-foreground hover:text-foreground">
                     Contact Support
                   </Link>
