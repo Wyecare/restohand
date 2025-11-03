@@ -89,6 +89,70 @@ export class OrdersController {
     return this.ordersService.findOne(restaurantId, orderId);
   }
 
+  @Post(':orderId/payment-link')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  async createPaymentLink(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string
+  ) {
+    if (!this.razorpayService.isEnabled()) {
+      throw new BadRequestException('Online payments are not configured');
+    }
+
+    const order = await this.ordersService.findOne(restaurantId, orderId);
+    const restaurant = await this.restaurantModel.findById(restaurantId);
+
+    if (order.paymentStatus === PaymentStatus.Paid) {
+      throw new BadRequestException('Order already paid');
+    }
+
+    const amountInPaise = Math.round(order.totalAmount * 100);
+    if (amountInPaise <= 0) {
+      throw new BadRequestException('Order total must be greater than zero');
+    }
+
+    // Create payment link - this bypasses domain verification issues
+    const paymentLink = await this.razorpayService.createPaymentLink({
+      amount: amountInPaise,
+      currency: 'INR',
+      accept_partial: false,
+      description: `Payment for Order #${order.orderNumber} at ${restaurant?.name || 'Restaurant'}`,
+      customer: {
+        name: order.customerName || 'Customer',
+        contact: order.customerPhone || undefined,
+      },
+      notify: {
+        sms: false, // Don't send SMS
+        email: false, // Don't send email
+      },
+      reminder_enable: false,
+      notes: {
+        restaurantId,
+        orderId,
+        orderNumber: order.orderNumber,
+        tableNumber: order.tableNumber || '',
+      },
+      callback_url: `${process.env.FRONTEND_BASE_URL}/c/${restaurant?.slug}/order/${orderId}?payment=success`,
+      callback_method: 'get'
+    });
+
+    // Register payment intent for tracking
+    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay_link', paymentLink.id, {
+      orderNumber: order.orderNumber,
+      amount: amountInPaise,
+      currency: 'INR',
+      paymentLinkUrl: paymentLink.short_url,
+    });
+
+    return {
+      paymentLinkUrl: paymentLink.short_url,
+      paymentLinkId: paymentLink.id,
+      amount: amountInPaise,
+      currency: 'INR',
+    };
+  }
+
   @Post(':orderId/payment-intent')
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })

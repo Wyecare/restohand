@@ -17,6 +17,26 @@ interface CreateOrderParams {
   }>;
 }
 
+interface CreatePaymentLinkParams {
+  amount: number;
+  currency: string;
+  accept_partial: boolean;
+  description: string;
+  customer: {
+    name?: string;
+    contact?: string;
+    email?: string;
+  };
+  notify: {
+    sms: boolean;
+    email: boolean;
+  };
+  reminder_enable: boolean;
+  notes?: Record<string, string>;
+  callback_url?: string;
+  callback_method?: string;
+}
+
 interface CreateContactParams {
   name: string;
   email: string;
@@ -118,6 +138,27 @@ export class RazorpayService {
     }
 
     return this.client.orders.create(orderData);
+  }
+
+  async createPaymentLink(params: CreatePaymentLinkParams): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    const paymentLinkData = {
+      amount: params.amount,
+      currency: params.currency,
+      accept_partial: params.accept_partial,
+      description: params.description,
+      customer: params.customer,
+      notify: params.notify,
+      reminder_enable: params.reminder_enable,
+      notes: params.notes || {},
+      callback_url: params.callback_url,
+      callback_method: params.callback_method || 'get'
+    };
+
+    return this.client.paymentLink.create(paymentLinkData);
   }
 
   async createLinkedAccount(params: CreateLinkedAccountParams): Promise<any> {

@@ -79,6 +79,18 @@ export interface CreateUpiIntentResponse {
   settlementType: string;
 }
 
+export interface CreatePaymentLinkPayload {
+  restaurantId: string;
+  orderId: string;
+}
+
+export interface CreatePaymentLinkResponse {
+  paymentLinkUrl: string;
+  paymentLinkId: string;
+  amount: number;
+  currency: string;
+}
+
 export const ordersApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listOrders: builder.query<PaginatedResponse<Order>, ListOrdersParams>({
@@ -162,6 +174,16 @@ export const ordersApi = baseApi.injectEndpoints({
         method: 'POST',
       }),
     }),
+
+    createPaymentLink: builder.mutation<
+      CreatePaymentLinkResponse,
+      CreatePaymentLinkPayload
+    >({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/payment-link`,
+        method: 'POST',
+      }),
+    }),
   }),
   overrideExisting: false,
 });
@@ -174,4 +196,5 @@ export const {
   useUpdateOrderPaymentMutation,
   useCreatePaymentIntentMutation,
   useCreateUpiIntentMutation,
+  useCreatePaymentLinkMutation,
 } = ordersApi;

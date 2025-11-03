@@ -16,10 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
 import {
   useCreateOrderMutation,
-  useCreatePaymentIntentMutation,
-  useCreateUpiIntentMutation,
-  type CreatePaymentIntentResponse,
-  type CreateUpiIntentResponse,
+  useCreatePaymentLinkMutation,
+  type CreatePaymentLinkResponse,
 } from '@/store/api/ordersApi';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -65,8 +63,7 @@ export default function CustomerMenuPage() {
     skip: !slug,
   });
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
-  const [createPaymentIntent] = useCreatePaymentIntentMutation();
-  const [createUpiIntent] = useCreateUpiIntentMutation();
+  const [createPaymentLink] = useCreatePaymentLinkMutation();
 
   const [viewMode, setViewMode] = useState<'unified' | 'categories'>('unified');
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -229,89 +226,27 @@ export default function CustomerMenuPage() {
     setCart({});
   };
 
-  const loadRazorpayScript = useCallback(async () => {
-    if (typeof window === 'undefined') return false;
-    if (window.Razorpay) return true;
+  const openPaymentLink = useCallback(
+    async (order: { id: string; orderNumber: string }) => {
+      if (!restaurant?.id) return;
 
-    return new Promise<boolean>((resolve) => {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  }, []);
+      try {
+        const response = await createPaymentLink({
+          restaurantId: restaurant.id,
+          orderId: order.id,
+        }).unwrap();
 
-  const openRazorpayCheckout = useCallback(
-    async (
-      intent: CreatePaymentIntentResponse,
-      order: { id: string; orderNumber: string; customerName?: string; customerPhone?: string },
-      tableNumber: string
-    ) => {
-      if (typeof window === 'undefined') return;
-      if (!window.Razorpay) return;
-
-      await new Promise<void>((resolve) => {
-        let settled = false;
-        const finish = () => {
-          if (!settled) {
-            settled = true;
-            resolve();
-          }
-        };
-
-        const razorpay = new window.Razorpay({
-          key: intent.razorpayKey,
-          amount: intent.amount.toString(),
-          currency: intent.currency || 'INR',
-          name: restaurant?.name ?? 'Restohand',
-          description: `Order ${order.orderNumber}`,
-          order_id: intent.razorpayOrderId,
-          notes: {
-            restaurantId: restaurant?.id ?? '',
-            orderId: order.id,
-            tableNumber,
-          },
-          prefill: {
-            name: order.customerName ?? '',
-            contact: order.customerPhone ?? '',
-          },
-          theme: {
-            color: '#16a34a',
-          },
-          handler: () => {
-            toast({
-              title: 'Payment in progress',
-              description: 'Hang tight while we confirm this payment with the kitchen.',
-            });
-            finish();
-          },
-          modal: {
-            ondismiss: () => {
-              toast({
-                title: 'Payment pending',
-                description: 'You can complete the payment later with the staff if needed.',
-              });
-              finish();
-            },
-          },
+        // Redirect to Razorpay hosted payment page
+        window.location.href = response.paymentLinkUrl;
+      } catch (error) {
+        toast({
+          title: 'Payment link failed',
+          description: 'Could not create payment link. Please try again.',
+          variant: 'destructive',
         });
-
-        if (typeof razorpay.on === 'function') {
-          razorpay.on('payment.failed', () => {
-            toast({
-              title: 'Payment failed',
-              description: 'Please try again or ask the staff for help.',
-              variant: 'destructive',
-            });
-            finish();
-          });
-        }
-
-        razorpay.open();
-      });
+      }
     },
-    [restaurant?.id, restaurant?.name, toast]
+    [restaurant?.id, createPaymentLink, toast]
   );
 
   const handleConfirmOrder = async (
@@ -370,27 +305,9 @@ export default function CustomerMenuPage() {
       });
 
       if (paymentMethod === 'upi') {
-        try {
-          const upiResponse = await createUpiIntent({
-            restaurantId: restaurant.id,
-            orderId: order.id,
-          }).unwrap();
-
-          // Open UPI app directly with intent URL
-          window.location.href = upiResponse.upiIntent;
-
-          toast({
-            title: 'Opening payment app',
-            description: 'Please complete the payment in your UPI app.',
-          });
-        } catch (error) {
-          toast({
-            title: 'Unable to start UPI payment',
-            description:
-              error instanceof Error ? error.message : 'Please try again or contact staff.',
-            variant: 'destructive',
-          });
-        }
+        // Use payment link instead of complex checkout - this bypasses domain verification
+        await openPaymentLink(order);
+        return; // Don't navigate immediately, let payment complete first
       }
 
       navigate(`/c/${slug}/order/${order.id}?table=${trimmedTable}`);
