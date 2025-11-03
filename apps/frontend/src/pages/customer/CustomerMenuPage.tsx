@@ -226,27 +226,72 @@ export default function CustomerMenuPage() {
     setCart({});
   };
 
-  const openPaymentLink = useCallback(
-    async (order: { id: string; orderNumber: string }) => {
-      if (!restaurant?.id) return;
+  const loadRazorpayScript = useCallback(async () => {
+    if (typeof window === 'undefined') return false;
+    if (window.Razorpay) return true;
 
-      try {
-        const response = await createPaymentLink({
-          restaurantId: restaurant.id,
-          orderId: order.id,
-        }).unwrap();
+    return new Promise<boolean>((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  }, []);
 
-        // Redirect to Razorpay hosted payment page
-        window.location.href = response.paymentLinkUrl;
-      } catch (error) {
+  const openRazorpayCheckout = useCallback(
+    async (
+      intent: any,
+      order: { id: string; orderNumber: string; customerName?: string; customerPhone?: string },
+      tableNumber: string
+    ) => {
+      if (typeof window === 'undefined') return;
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
         toast({
-          title: 'Payment link failed',
-          description: 'Could not create payment link. Please try again.',
+          title: 'Payment system unavailable',
+          description: 'Unable to load payment system. Please try again.',
           variant: 'destructive',
         });
+        return;
       }
+
+      const options = {
+        key: intent.razorpayKey || process.env.VITE_RAZORPAY_KEY_ID,
+        amount: intent.amount,
+        currency: intent.currency || 'INR',
+        name: restaurant?.name || 'Restaurant',
+        description: `Order #${order.orderNumber}`,
+        order_id: intent.razorpayOrderId,
+        prefill: {
+          name: order.customerName || '',
+          contact: order.customerPhone || '',
+        },
+        theme: {
+          color: '#16a34a',
+        },
+        handler: (response: any) => {
+          toast({
+            title: 'Payment successful!',
+            description: 'Your order has been confirmed.',
+          });
+          navigate(`/c/${slug}/order/${order.id}?table=${tableNumber}&payment=success`);
+        },
+        modal: {
+          ondismiss: () => {
+            toast({
+              title: 'Payment cancelled',
+              description: 'You can complete payment later with staff if needed.',
+            });
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
     },
-    [restaurant?.id, createPaymentLink, toast]
+    [restaurant?.name, slug, navigate, toast, loadRazorpayScript]
   );
 
   const handleConfirmOrder = async (
@@ -305,9 +350,22 @@ export default function CustomerMenuPage() {
       });
 
       if (paymentMethod === 'upi') {
-        // Use payment link instead of complex checkout - this bypasses domain verification
-        await openPaymentLink(order);
-        return; // Don't navigate immediately, let payment complete first
+        try {
+          const paymentResponse = await createPaymentLink({
+            restaurantId: restaurant.id,
+            orderId: order.id,
+          }).unwrap();
+
+          // Open Razorpay standard checkout
+          await openRazorpayCheckout(paymentResponse, order, trimmedTable);
+          return; // Don't navigate immediately, let payment complete first
+        } catch (error) {
+          toast({
+            title: 'Payment setup failed',
+            description: 'Could not initialize payment. Please try again.',
+            variant: 'destructive',
+          });
+        }
       }
 
       navigate(`/c/${slug}/order/${order.id}?table=${trimmedTable}`);

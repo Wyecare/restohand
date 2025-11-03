@@ -1,8 +1,6 @@
-// theme-config.ts
-
 export const DEFAULT_THEME = {
-  preset: 'soft-sage',
-  radius: 'lg',
+  preset: 'lavender-dream',
+  radius: 'default',
   scale: 'none',
   contentLayout: 'full',
 } as const;
@@ -11,28 +9,43 @@ export type ThemeType = typeof DEFAULT_THEME;
 
 export const THEMES = [
   {
-    name: 'Soft Sage',
-    value: 'soft-sage',
-    colors: ['oklch(0.82 0.05 140)', 'oklch(0.9 0.02 100)'],
+    name: 'Default',
+    value: 'default',
+    colors: ['oklch(0.33 0 0)'],
   },
   {
-    name: 'Blush Mist',
-    value: 'blush-mist',
-    colors: ['oklch(0.88 0.09 15)', 'oklch(0.94 0.03 30)'],
+    name: 'Underground',
+    value: 'underground',
+    colors: ['oklch(0.5315 0.0694 156.19)'],
   },
   {
-    name: 'Midnight Velvet',
-    value: 'midnight-velvet',
-    colors: ['oklch(0.28 0.05 260)', 'oklch(0.18 0.02 240)'],
+    name: 'Rose Garden',
+    value: 'rose-garden',
+    colors: ['oklch(0.5827 0.2418 12.23)'],
   },
   {
-    name: 'Sandstone Calm',
-    value: 'sandstone-calm',
-    colors: ['oklch(0.83 0.07 60)', 'oklch(0.94 0.02 90)'],
+    name: 'Lake View',
+    value: 'lake-view',
+    colors: ['oklch(0.765 0.177 163.22)'],
   },
   {
-    name: 'Iris Haze',
-    value: 'iris-haze',
-    colors: ['oklch(0.72 0.08 290)', 'oklch(0.86 0.03 280)'],
+    name: 'Sunset Glow',
+    value: 'sunset-glow',
+    colors: ['oklch(0.5827 0.2187 36.98)'],
+  },
+  {
+    name: 'Forest Whisper',
+    value: 'forest-whisper',
+    colors: ['oklch(0.5276 0.1072 182.22)'],
+  },
+  {
+    name: 'Ocean Breeze',
+    value: 'ocean-breeze',
+    colors: ['oklch(0.59 0.20 277.12)'],
+  },
+  {
+    name: 'Lavender Dream',
+    value: 'lavender-dream',
+    colors: ['oklch(0.71 0.16 293.54)'],
   },
 ];

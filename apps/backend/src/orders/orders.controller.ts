@@ -112,7 +112,7 @@ export class OrdersController {
       throw new BadRequestException('Order total must be greater than zero');
     }
 
-    // Create simple Razorpay order for hosted checkout
+    // Create proper Razorpay order for standard checkout
     const razorpayOrder = await this.razorpayService.createOrder({
       amount: amountInPaise,
       currency: 'INR',
@@ -125,22 +125,23 @@ export class OrdersController {
       },
     });
 
-    // Create hosted checkout URL
-    const hostedCheckoutUrl = `https://checkout.razorpay.com/v1/checkout?key_id=${process.env.RAZORPAY_KEY_ID}&amount=${amountInPaise}&currency=INR&order_id=${razorpayOrder.id}&name=${encodeURIComponent(restaurant?.name || 'Restaurant')}&description=${encodeURIComponent(`Order #${order.orderNumber}`)}&prefill[name]=${encodeURIComponent(order.customerName || 'Customer')}&prefill[contact]=${encodeURIComponent(order.customerPhone || '')}&theme[color]=%2316a34a&callback_url=${encodeURIComponent(`${process.env.FRONTEND_BASE_URL}/c/${restaurant?.slug}/order/${orderId}?payment=success`)}`;
-
     // Register payment intent for tracking
-    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay_hosted', razorpayOrder.id, {
+    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay', razorpayOrder.id, {
       orderNumber: order.orderNumber,
       amount: amountInPaise,
       currency: 'INR',
-      hostedCheckoutUrl,
+      razorpayOrderId: razorpayOrder.id,
     });
 
     return {
-      paymentLinkUrl: hostedCheckoutUrl,
-      paymentLinkId: razorpayOrder.id,
+      razorpayKey: this.razorpayService.publicKey,
+      razorpayOrderId: razorpayOrder.id,
       amount: amountInPaise,
       currency: 'INR',
+      restaurant: {
+        name: restaurant?.name || 'Restaurant',
+        id: restaurantId,
+      },
     };
   }
 
