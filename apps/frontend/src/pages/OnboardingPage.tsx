@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -324,7 +324,25 @@ const OnboardingPage = () => {
               </div>
             </div>
 
-            <Button type="submit" disabled={isLoading} className="mt-6">
+            {/* Policy Agreement */}
+            <div className="text-center space-y-2 mt-6">
+              <div className="text-sm text-muted-foreground">
+                By completing onboarding, you agree to our{' '}
+                <Link to="/terms-conditions" className="text-primary hover:underline">
+                  Terms & Conditions
+                </Link>
+                {', '}
+                <Link to="/privacy-policy" className="text-primary hover:underline">
+                  Privacy Policy
+                </Link>
+                {', and '}
+                <Link to="/refund-policy" className="text-primary hover:underline">
+                  Refund Policy
+                </Link>
+              </div>
+            </div>
+
+            <Button type="submit" disabled={isLoading} className="mt-4">
               {isLoading ? (
                 <span className="flex items-center gap-2">
                   <LoadingSpinner size="sm" /> Setting up your restaurant...

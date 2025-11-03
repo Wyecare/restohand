@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link } from 'react-router-dom';
 import { Moon, MoonIcon, Sun, SunIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -38,6 +38,34 @@ export default function CustomerLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
+
+      {/* Footer with policy links */}
+      <footer className="border-t border-border/60 bg-background/80 backdrop-blur">
+        <div className="mx-auto max-w-5xl px-4 py-6">
+          <div className="flex flex-col items-center justify-center space-y-3 text-center">
+            <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+              <Link to="/privacy-policy" className="hover:text-foreground transition-colors">
+                Privacy Policy
+              </Link>
+              <span>•</span>
+              <Link to="/terms-conditions" className="hover:text-foreground transition-colors">
+                Terms & Conditions
+              </Link>
+              <span>•</span>
+              <Link to="/refund-policy" className="hover:text-foreground transition-colors">
+                Refund Policy
+              </Link>
+              <span>•</span>
+              <Link to="/contact-us" className="hover:text-foreground transition-colors">
+                Contact Us
+              </Link>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              © 2024 Restohand by Wyecare Solutions. All rights reserved.
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

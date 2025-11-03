@@ -185,6 +185,32 @@ export default function Sidebar() {
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
+
+          {/* Policy Links - only visible when expanded */}
+          <div className="group-data-[collapsible=icon]:hidden">
+            <SidebarMenuItem>
+              <div className="px-3 py-2 space-y-1">
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Link to="/privacy-policy" className="text-muted-foreground hover:text-foreground">
+                    Privacy
+                  </Link>
+                  <span className="text-muted-foreground">•</span>
+                  <Link to="/terms-conditions" className="text-muted-foreground hover:text-foreground">
+                    Terms
+                  </Link>
+                  <span className="text-muted-foreground">•</span>
+                  <Link to="/refund-policy" className="text-muted-foreground hover:text-foreground">
+                    Refunds
+                  </Link>
+                </div>
+                <div className="flex gap-2 text-xs">
+                  <Link to="/contact-us" className="text-muted-foreground hover:text-foreground">
+                    Contact Support
+                  </Link>
+                </div>
+              </div>
+            </SidebarMenuItem>
+          </div>
         </SidebarMenu>
       </SidebarFooter>
     </SidebarContainer>

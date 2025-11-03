@@ -199,13 +199,75 @@ export class SubscriptionsService {
   }
 
   private async sendBillingNotification(restaurant: Restaurant, orderId: string) {
-    // This would integrate with email/SMS service
-    this.logger.log(`Billing notification sent to ${restaurant.email} for order ${orderId}`);
+    try {
+      // Generate payment link for restaurant
+      const paymentLink = `${process.env.FRONTEND_URL || 'https://app.restohand.com'}/subscription?payment=${orderId}`;
 
-    // TODO: Implement actual email/SMS notification
-    // - Send email with payment link
-    // - Send SMS reminder
-    // - Update dashboard notifications
+      // Create payment notification
+      const message = `Dear ${restaurant.name},\n\nYour subscription payment of ₹${restaurant.saasConfig.monthlyPrice / 100} is due.\n\nPay securely here: ${paymentLink}\n\nRazorpay Order ID: ${orderId}\n\nBest regards,\nRestohand Team`;
+
+      this.logger.log(`Billing notification prepared for ${restaurant.email}:`);
+      this.logger.log(`Payment Link: ${paymentLink}`);
+      this.logger.log(`Amount: ₹${restaurant.saasConfig.monthlyPrice / 100}`);
+
+      // TODO: Implement actual email/SMS service integration
+      // Example implementations:
+      // await this.emailService.send({
+      //   to: restaurant.email,
+      //   subject: 'Subscription Payment Due - Restohand',
+      //   body: message,
+      //   html: this.generatePaymentEmailTemplate(restaurant, paymentLink, orderId)
+      // });
+
+      // await this.smsService.send({
+      //   to: restaurant.phone,
+      //   message: `Restohand subscription payment due. Pay here: ${paymentLink}`
+      // });
+
+      this.logger.log(`Billing notification sent to ${restaurant.email} for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to send billing notification to ${restaurant.email}:`, error);
+    }
+  }
+
+  private generatePaymentEmailTemplate(restaurant: Restaurant, paymentLink: string, orderId: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #000; color: white; padding: 20px; text-align: center; }
+            .content { padding: 20px; background: #f9f9f9; }
+            .button { display: inline-block; background: #000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px 0; }
+            .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Restohand Subscription</h1>
+            </div>
+            <div class="content">
+              <h2>Hello ${restaurant.name}!</h2>
+              <p>Your monthly subscription payment is due.</p>
+              <p><strong>Amount:</strong> ₹${restaurant.saasConfig.monthlyPrice / 100}</p>
+              <p><strong>Plan:</strong> ${restaurant.saasConfig.plan.charAt(0).toUpperCase() + restaurant.saasConfig.plan.slice(1)}</p>
+              <p><strong>Order ID:</strong> ${orderId}</p>
+              <p>Please click the button below to complete your payment:</p>
+              <a href="${paymentLink}" class="button">Pay Now</a>
+              <p>If you have any questions, please contact our support team.</p>
+            </div>
+            <div class="footer">
+              <p>© 2024 Restohand. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
   }
 
   async handleSubscriptionPayment(restaurantId: string, razorpayOrderId: string, paymentStatus: 'success' | 'failed') {

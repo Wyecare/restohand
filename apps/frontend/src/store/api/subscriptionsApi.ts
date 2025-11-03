@@ -78,6 +78,23 @@ export const subscriptionsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Restaurant', 'Subscription'],
     }),
+
+    createSubscriptionPaymentIntent: builder.mutation<
+      {
+        razorpayOrderId: string;
+        razorpayKey: string;
+        amount: number;
+        currency: string;
+        description: string;
+      },
+      { restaurantId: string; plan: 'starter' | 'pro' | 'enterprise' }
+    >({
+      query: ({ restaurantId, plan }) => ({
+        url: `/restaurants/${restaurantId}/subscription/create-payment-intent`,
+        method: 'POST',
+        body: { plan },
+      }),
+    }),
   }),
   overrideExisting: false,
 });
@@ -87,4 +104,5 @@ export const {
   useUpgradeSubscriptionMutation,
   useReactivateSubscriptionMutation,
   useOnboardRestaurantMutation,
+  useCreateSubscriptionPaymentIntentMutation,
 } = subscriptionsApi;

@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/use-toast';
-import { useGetSubscriptionStatusQuery, useUpgradeSubscriptionMutation } from '@/store/api/subscriptionsApi';
+import { useGetSubscriptionStatusQuery, useUpgradeSubscriptionMutation, useCreateSubscriptionPaymentIntentMutation } from '@/store/api/subscriptionsApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -77,6 +78,7 @@ const plans = [
 export default function SubscriptionPage() {
   const { toast } = useToast();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const [searchParams] = useSearchParams();
 
   const {
     data: subscriptionStatus,
@@ -87,23 +89,96 @@ export default function SubscriptionPage() {
   });
 
   const [upgradeSubscription, { isLoading: isUpgrading }] = useUpgradeSubscriptionMutation();
+  const [createPaymentIntent] = useCreateSubscriptionPaymentIntentMutation();
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  // Check if there's a payment parameter (from email/SMS link)
+  useEffect(() => {
+    const paymentOrderId = searchParams.get('payment');
+    if (paymentOrderId && restaurantId) {
+      // Show payment notification
+      toast({
+        title: 'Payment Due',
+        description: 'Complete your subscription payment to continue using Restohand.',
+        duration: 8000,
+      });
+    }
+  }, [searchParams, restaurantId, toast]);
+
+  // Load Razorpay script
+  const loadRazorpayScript = async (): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
   const handleUpgrade = async (newPlan: string) => {
     if (!restaurantId) return;
 
     try {
-      await upgradeSubscription({
+      // Load Razorpay script if not already loaded
+      if (!window.Razorpay) {
+        const loaded = await loadRazorpayScript();
+        if (!loaded) {
+          throw new Error('Failed to load payment gateway');
+        }
+      }
+
+      // Create payment intent
+      const paymentIntent = await createPaymentIntent({
         restaurantId,
-        data: { plan: newPlan as 'starter' | 'pro' | 'enterprise' },
+        plan: newPlan as 'starter' | 'pro' | 'enterprise',
       }).unwrap();
 
-      toast({
-        title: 'Plan upgraded successfully!',
-        description: `You've been upgraded to the ${newPlan} plan.`,
-      });
+      // Initialize Razorpay payment
+      const options = {
+        key: paymentIntent.razorpayKey,
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency,
+        name: 'Restohand Subscription',
+        description: paymentIntent.description,
+        order_id: paymentIntent.razorpayOrderId,
+        handler: async (response: any) => {
+          try {
+            // Payment successful
+            toast({
+              title: 'Payment Successful!',
+              description: `Your subscription has been upgraded to ${newPlan}.`,
+            });
+            // Refetch subscription status
+            window.location.reload();
+          } catch (error) {
+            toast({
+              title: 'Payment verification failed',
+              description: 'Please contact support if money was deducted.',
+              variant: 'destructive',
+            });
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setIsProcessingPayment(false);
+            toast({
+              title: 'Payment cancelled',
+              description: 'You can try again when ready.',
+            });
+          },
+        },
+        theme: {
+          color: '#000000',
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
     } catch (error) {
+      setIsProcessingPayment(false);
       toast({
-        title: 'Upgrade failed',
+        title: 'Payment failed',
         description: error instanceof Error ? error.message : 'Please try again',
         variant: 'destructive',
       });
@@ -386,6 +461,27 @@ export default function SubscriptionPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Policy Links Section */}
+      <div className="text-center space-y-4 mt-8 pt-8 border-t border-border/60">
+        <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
+          <span>By subscribing, you agree to our</span>
+          <Link to="/terms-conditions" className="text-primary hover:underline">
+            Terms & Conditions
+          </Link>
+          <span>•</span>
+          <Link to="/privacy-policy" className="text-primary hover:underline">
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link to="/refund-policy" className="text-primary hover:underline">
+            Refund Policy
+          </Link>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Questions? <Link to="/contact-us" className="text-primary hover:underline">Contact our support team</Link>
+        </div>
+      </div>
     </div>
   );
 }

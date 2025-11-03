@@ -10,13 +10,15 @@ import { RawBodyRequest } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RazorpayService } from './razorpay.service';
 import { OrdersService } from '../orders/orders.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
 export class WebhooksController {
   constructor(
     private readonly razorpayService: RazorpayService,
-    private readonly ordersService: OrdersService
+    private readonly ordersService: OrdersService,
+    private readonly subscriptionsService: SubscriptionsService
   ) {}
 
   @Post('razorpay')
@@ -41,7 +43,25 @@ export class WebhooksController {
       throw new BadRequestException('Invalid payload JSON');
     }
 
-    await this.ordersService.handleRazorpayWebhook(event);
+    // Check if this is a subscription payment or order payment
+    const paymentEntity = event?.payload?.payment?.entity;
+    const notes = paymentEntity?.notes || {};
+
+    if (notes.type === 'subscription') {
+      // Handle subscription payment
+      const restaurantId = notes.restaurantId;
+      const paymentStatus = event.event === 'payment.captured' ? 'success' : 'failed';
+
+      await this.subscriptionsService.handleSubscriptionPayment(
+        restaurantId,
+        paymentEntity.order_id,
+        paymentStatus
+      );
+    } else {
+      // Handle order payment
+      await this.ordersService.handleRazorpayWebhook(event);
+    }
+
     return { status: 'ok' };
   }
 }

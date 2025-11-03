@@ -26,7 +26,6 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { SimpleCombobox } from '@/components/ui/simple-combobox';
-import { MenuItemImageUpload } from './MenuItemImageUpload';
 import {
   getCategorySuggestions,
   getMenuItemSuggestions,
@@ -39,7 +38,7 @@ import {
 } from '@/store/api/restaurantsApi';
 import { useGetGstRatesQuery } from '@/store/api/gstApi';
 import type { MenuCategory } from '@/store/api/types';
-import { ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { ChevronLeft, Check } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -82,7 +81,6 @@ interface Props {
 
 const STEPS = {
   BASIC_INFO: 'basic',
-  IMAGES: 'images',
   ADVANCED: 'advanced',
 } as const;
 
@@ -101,10 +99,10 @@ export function MenuItemCreateDialog({
     useUpdateMenuItemMutation();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [currentStep, setCurrentStep] = useState<Step>(STEPS.BASIC_INFO);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [createdItemId, setCreatedItemId] = useState<string | null>(null);
   const [tagsInput, setTagsInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
 
   const { data: gstRatesResponse, isLoading: gstRatesLoading } =
     useGetGstRatesQuery(restaurantId);
@@ -130,10 +128,9 @@ export function MenuItemCreateDialog({
     },
   });
 
-  const allCategories = [
-    ...categories.map((c) => c.name),
-    ...getCategorySuggestions(),
-  ].filter((v, i, arr) => arr.indexOf(v) === i);
+  const allCategories = categories.length > 0
+    ? categories.map((c) => c.name)
+    : getCategorySuggestions();
 
   const menuItemSuggestions = selectedCategory
     ? getMenuItemSuggestions(selectedCategory)
@@ -176,11 +173,17 @@ export function MenuItemCreateDialog({
       }).unwrap();
 
       setCreatedItemId(result.id);
-      setCurrentStep(STEPS.IMAGES);
+
+      if (showAdvanced) {
+        setCurrentStep(STEPS.ADVANCED);
+      } else {
+        handleClose();
+        onSuccess?.();
+      }
 
       toast({
-        title: 'Item created successfully!',
-        description: `${data.name} has been added to your menu.`,
+        title: 'Dish added successfully!',
+        description: `${data.name} is now available in your menu.`,
       });
     } catch {
       toast({
@@ -199,7 +202,6 @@ export function MenuItemCreateDialog({
     setCreatedItemId(null);
     setTags([]);
     setTagsInput('');
-    setUploadedImages([]);
     onOpenChange(false);
   };
 
@@ -278,13 +280,6 @@ export function MenuItemCreateDialog({
     onSuccess?.();
   };
 
-  const handleImageUploaded = (imageUrl: string) => {
-    setUploadedImages((prev) => [...prev, imageUrl]);
-  };
-
-  const handleImageRemoved = (imageUrl: string) => {
-    setUploadedImages((prev) => prev.filter((url) => url !== imageUrl));
-  };
 
   const useCustomGst = form.watch('useCustomGst');
 
@@ -310,24 +305,20 @@ export function MenuItemCreateDialog({
   const getStepTitle = () => {
     switch (currentStep) {
       case STEPS.BASIC_INFO:
-        return 'Add Menu Item';
-      case STEPS.IMAGES:
-        return 'Add Images (Optional)';
+        return 'Add New Dish';
       case STEPS.ADVANCED:
-        return 'Advanced Settings';
+        return 'Tax & Details';
       default:
-        return 'Add Menu Item';
+        return 'Add New Dish';
     }
   };
 
   const getStepDescription = () => {
     switch (currentStep) {
       case STEPS.BASIC_INFO:
-        return 'Enter the basic details for your menu item';
-      case STEPS.IMAGES:
-        return 'Upload images to make your item more appealing';
+        return 'Enter dish name, category and price';
       case STEPS.ADVANCED:
-        return 'Configure additional settings and tags';
+        return 'Set tax rates and additional options';
       default:
         return '';
     }
@@ -340,67 +331,50 @@ export function MenuItemCreateDialog({
           <DialogTitle>{getStepTitle()}</DialogTitle>
           <DialogDescription>{getStepDescription()}</DialogDescription>
 
-          {/* Step indicator */}
-          <div className="flex items-center space-x-2 pt-2">
-            <div
-              className={`flex items-center ${
-                currentStep === STEPS.BASIC_INFO
-                  ? 'text-primary'
-                  : 'text-muted-foreground'
-              }`}
-            >
+          {/* Step indicator - only show if advanced */}
+          {showAdvanced && (
+            <div className="flex items-center space-x-2 pt-2">
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                className={`flex items-center ${
                   currentStep === STEPS.BASIC_INFO
-                    ? 'bg-primary text-primary-foreground'
-                    : createdItemId
-                    ? 'bg-green-500 text-white'
-                    : 'bg-muted'
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
                 }`}
               >
-                {createdItemId ? <Check className="w-3 h-3" /> : '1'}
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                    currentStep === STEPS.BASIC_INFO
+                      ? 'bg-primary text-primary-foreground'
+                      : createdItemId
+                      ? 'bg-green-600 text-white'
+                      : 'bg-muted'
+                  }`}
+                >
+                  {createdItemId ? <Check className="w-3 h-3" /> : '1'}
+                </div>
+                <span className="ml-2 text-sm">Basic Info</span>
               </div>
-              <span className="ml-2 text-sm">Basic Info</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            <div
-              className={`flex items-center ${
-                currentStep === STEPS.IMAGES
-                  ? 'text-primary'
-                  : 'text-muted-foreground'
-              }`}
-            >
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                  currentStep === STEPS.IMAGES
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
-                }`}
-              >
-                2
-              </div>
-              <span className="ml-2 text-sm">Images</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            <div
-              className={`flex items-center ${
-                currentStep === STEPS.ADVANCED
-                  ? 'text-primary'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                className={`flex items-center ${
                   currentStep === STEPS.ADVANCED
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
                 }`}
               >
-                3
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                    currentStep === STEPS.ADVANCED
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                  }`}
+                >
+                  2
+                </div>
+                <span className="ml-2 text-sm">Tax & Details</span>
               </div>
-              <span className="ml-2 text-sm">Advanced</span>
             </div>
-          </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-6">
@@ -417,7 +391,7 @@ export function MenuItemCreateDialog({
                   name="categoryName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Category *</FormLabel>
+                      <FormLabel className="text-sm font-medium">Food Category *</FormLabel>
                       <FormControl>
                         <SimpleCombobox
                           value={field.value}
@@ -426,7 +400,7 @@ export function MenuItemCreateDialog({
                             setSelectedCategory(v);
                           }}
                           suggestions={allCategories}
-                          placeholder="e.g., Breakfast, Curry"
+                          placeholder="Select or type: Breakfast, Main Course, Snacks..."
                         />
                       </FormControl>
                       <FormMessage />
@@ -440,13 +414,13 @@ export function MenuItemCreateDialog({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Item Name *</FormLabel>
+                      <FormLabel className="text-sm font-medium">Dish Name *</FormLabel>
                       <FormControl>
                         <SimpleCombobox
                           value={field.value}
                           onValueChange={(v) => form.setValue('name', v)}
                           suggestions={menuItemSuggestions}
-                          placeholder="e.g., Appam, Puttu, Dosa"
+                          placeholder="Enter dish name: Appam, Puttu, Chicken Curry..."
                         />
                       </FormControl>
                       <FormMessage />
@@ -460,10 +434,10 @@ export function MenuItemCreateDialog({
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description (optional)</FormLabel>
+                      <FormLabel className="text-sm font-medium">Description (optional)</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Short note about the dish"
+                          placeholder="Tell customers about this dish (spicy, mild, sweet...)"
                           rows={2}
                           {...field}
                         />
@@ -478,11 +452,11 @@ export function MenuItemCreateDialog({
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Price (₹) *</FormLabel>
+                      <FormLabel className="text-sm font-medium">Price (₹) *</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
-                          placeholder="e.g., 25"
+                          placeholder="Enter price: 25, 50, 100..."
                           {...field}
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
@@ -510,55 +484,28 @@ export function MenuItemCreateDialog({
                   ))}
                 </div>
 
-                <DialogFooter className="pt-4">
-                  <Button type="button" variant="outline" onClick={handleClose}>
+                <DialogFooter className="pt-6 gap-3">
+                  <Button type="button" variant="outline" onClick={handleClose} className="flex-1">
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? 'Creating...' : 'Create & Add Images'}
+                  {!showAdvanced && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowAdvanced(true)}
+                      className="flex-1"
+                    >
+                      Advanced Options
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={isLoading} className="flex-1">
+                    {isLoading ? 'Adding...' : showAdvanced ? 'Continue' : 'Add Dish'}
                   </Button>
                 </DialogFooter>
               </form>
             </Form>
           )}
 
-          {/* Step 2: Images */}
-          {currentStep === STEPS.IMAGES && createdItemId && (
-            <div className="space-y-4">
-              <MenuItemImageUpload
-                restaurantId={restaurantId}
-                itemId={createdItemId}
-                existingImages={uploadedImages}
-                onImageUploaded={handleImageUploaded}
-                onImageRemoved={handleImageRemoved}
-              />
-
-              <DialogFooter className="pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCurrentStep(STEPS.BASIC_INFO)}
-                >
-                  <ChevronLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentStep(STEPS.ADVANCED)}
-              >
-                Skip Images
-              </Button>
-                <Button
-                  type="button"
-                  onClick={() => setCurrentStep(STEPS.ADVANCED)}
-                >
-                  Continue
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
 
           {/* Step 3: Advanced Settings */}
           {currentStep === STEPS.ADVANCED && (
@@ -819,11 +766,12 @@ export function MenuItemCreateDialog({
                   </FormDescription>
                 </div>
 
-                <DialogFooter className="pt-4">
+                <DialogFooter className="pt-6 gap-3">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setCurrentStep(STEPS.IMAGES)}
+                    onClick={() => setCurrentStep(STEPS.BASIC_INFO)}
+                    className="flex-1"
                   >
                     <ChevronLeft className="w-4 h-4 mr-2" />
                     Back
@@ -832,8 +780,9 @@ export function MenuItemCreateDialog({
                     type="button"
                     disabled={isUpdating}
                     onClick={handleComplete}
+                    className="flex-1"
                   >
-                    {isUpdating ? 'Saving…' : 'Complete'}
+                    {isUpdating ? 'Saving...' : 'Save Dish'}
                   </Button>
                 </DialogFooter>
               </div>

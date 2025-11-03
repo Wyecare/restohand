@@ -4,8 +4,8 @@ import {
   useMenuTranslation,
   useCommonTranslation,
 } from '@/hooks/use-translation';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   useListMenuCategoriesQuery,
   useListMenuItemsQuery,
@@ -21,13 +21,10 @@ import {
   Utensils,
   Grid3X3,
   PlusCircle,
-  BarChart3,
-  Layers,
   ShoppingBag,
   ChefHat,
   Settings,
 } from 'lucide-react';
-import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import {
   Card,
   CardHeader,
@@ -47,17 +44,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { useToast } from '@/components/ui/use-toast';
 import type { MenuItem } from '@/store/api/types';
 
 function SimpleMenuPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
-  const [activeTab, setActiveTab] = useState('management');
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [deleteItem, setDeleteItem] = useState<MenuItem | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -83,7 +75,6 @@ function SimpleMenuPage() {
   const totalItems = menuItems.length;
   const availableItems = menuItems.filter((i) => i.isAvailable).length;
   const totalCategories = categories.length;
-  const activeCategories = categories.filter((c) => c.isActive).length;
 
   const categoryStats = categories.map((c) => ({
     name: c.name,
@@ -148,237 +139,189 @@ function SimpleMenuPage() {
   };
 
   return (
-    <div className="mx-auto space-y-6">
-      {/* Header */}
-      <div className="text-center sm:text-left">
-        <h1 className="text-2xl font-bold">
-          <span role="img" aria-label="restaurant">
-            🍽️
-          </span>{' '}
-          {tMenu('management.title')}
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          {tMenu('management.description')}
+    <div className="mx-auto space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold">Menu Management</h1>
+        <p className="text-sm text-muted-foreground">
+          Add and manage your restaurant's dishes
         </p>
       </div>
 
-      {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-6"
-      >
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="management">
-            <ChefHat className="h-4 w-4 mr-1" /> {tMenu('management.title')}
-          </TabsTrigger>
-          <TabsTrigger value="analytics">
-            <BarChart3 className="h-4 w-4 mr-1" /> {tMenu('analytics.title')}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Menu Management Tab */}
-        <TabsContent value="management" className="space-y-6">
-          {/* Quick Actions Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Quick Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold">
-                {tMenu('management.title')}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {tMenu('management.subtitle')}
+              <p className="text-xs text-muted-foreground">Total Items</p>
+              <p className="text-lg font-semibold">{totalItems}</p>
+            </div>
+            <Utensils className="h-4 w-4 text-primary" />
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">Available</p>
+              <p className="text-lg font-semibold text-green-600">
+                {availableItems}
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCategoriesExpanded(!categoriesExpanded)}
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Categories
-              </Button>
+            <div className="h-2 w-2 rounded-full bg-green-500" />
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">Categories</p>
+              <p className="text-lg font-semibold">{totalCategories}</p>
             </div>
+            <Grid3X3 className="h-4 w-4 text-primary" />
           </div>
+        </Card>
+        <Card
+          className="p-3 cursor-pointer hover:bg-accent transition-colors"
+          onClick={() => setCreateDialogOpen(true)}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">Add Item</p>
+              <p className="text-sm font-medium text-primary">Quick Add</p>
+            </div>
+            <PlusCircle className="h-4 w-4 text-primary" />
+          </div>
+        </Card>
+      </div>
 
-          {/* Collapsible Categories Section */}
-          <Collapsible
-            open={categoriesExpanded}
-            onOpenChange={setCategoriesExpanded}
-          >
-            <CollapsibleContent className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Grid3X3 className="h-5 w-5" />
-                    {tMenu('categories.management')}
-                  </CardTitle>
-                  <CardDescription>
-                    {tMenu('categories.organizeDesc')}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <SimpleCategoryManager
-                    restaurantId={restaurantId}
-                    categories={categories}
-                    isLoading={categoriesLoading}
-                  />
-                </CardContent>
-              </Card>
-            </CollapsibleContent>
-          </Collapsible>
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Button
+          onClick={() => setCreateDialogOpen(true)}
+          className="flex-1 sm:flex-none h-12"
+        >
+          <PlusCircle className="h-4 w-4 mr-2" />
+          Add New Dish
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setCategoriesExpanded(!categoriesExpanded)}
+          className="flex-1 sm:flex-none h-12"
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          Manage Categories
+        </Button>
+      </div>
 
-          {/* Menu Items Section */}
+      {/* Collapsible Categories Section */}
+      <Collapsible
+        open={categoriesExpanded}
+        onOpenChange={setCategoriesExpanded}
+      >
+        <CollapsibleContent className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Utensils className="h-5 w-5" />
-                  Menu Items
-                </div>
-                <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
-                  <PlusCircle className="h-4 w-4 mr-1" />
-                  {tMenu('items.create')}
-                </Button>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Grid3X3 className="h-4 w-4" />
+                Organize Categories
               </CardTitle>
-              <CardDescription>View and manage all your dishes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {menuItemsLoading ? (
-                <p className="text-center py-6 text-muted-foreground">
-                  Loading menu items...
-                </p>
-              ) : menuItems.length === 0 ? (
-                <div className="text-center py-8">
-                  <ChefHat className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-muted-foreground mb-4">
-                    No dishes yet. Add your first item to get started.
-                  </p>
-                  <Button onClick={() => setCreateDialogOpen(true)}>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Add First Item
-                  </Button>
-                </div>
-              ) : (
-                <MenuItemsTable
-                  menuItems={menuItems}
-                  categories={categories}
-                  isLoading={menuItemsLoading}
-                  onEdit={handleEditItem}
-                  onDelete={setDeleteItem}
-                  onToggleAvailability={handleToggleAvailability}
-                  onManageImages={handleManageImages}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Analytics Tab */}
-        <TabsContent value="analytics" className="space-y-6">
-          <div>
-            <h2 className="text-xl font-semibold">
-              {tMenu('analytics.title')}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {tMenu('analytics.description')}
-            </p>
-          </div>
-
-          <MetricsGrid columns={4}>
-            <MetricsCard
-              title={tMenu('analytics.totalItems')}
-              value={totalItems}
-              description={`${availableItems} ${tMenu('analytics.available')}`}
-              icon={Utensils}
-              iconColor="green"
-            />
-            <MetricsCard
-              title={tMenu('categories.title')}
-              value={totalCategories}
-              description={`${activeCategories} ${tCommon(
-                'status.active'
-              ).toLowerCase()}`}
-              icon={Grid3X3}
-              iconColor="blue"
-            />
-            <MetricsCard
-              title={tMenu('analytics.availability')}
-              value={
-                totalItems > 0
-                  ? Math.round((availableItems / totalItems) * 100) + '%'
-                  : '0%'
-              }
-              description={`${tMenu('analytics.of')} ${totalItems} ${tMenu(
-                'items.title'
-              ).toLowerCase()}`}
-              icon={Layers}
-              iconColor="orange"
-              badge={{
-                text: `${availableItems}/${totalItems}`,
-                variant: 'outline',
-              }}
-            />
-            <MetricsCard
-              title={tMenu('analytics.quickAdd')}
-              value={tMenu('items.create')}
-              icon={PlusCircle}
-              iconColor="purple"
-              onClick={() => setCreateDialogOpen(true)}
-              className="cursor-pointer"
-              description={tMenu('analytics.quickAddDesc')}
-            />
-          </MetricsGrid>
-
-          {/* Category Overview */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{tMenu('analytics.categoryPerformance')}</CardTitle>
-              <CardDescription>
-                {tMenu('analytics.categoryBreakdown')}
+              <CardDescription className="text-sm">
+                Create categories to organize your menu items
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {categoryStats.length === 0 ? (
-                <div className="text-center py-8">
-                  <Grid3X3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-muted-foreground mb-3">
-                    {tMenu('analytics.noCategoriesYet')}
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setActiveTab('management');
-                      setCategoriesExpanded(true);
-                    }}
-                  >
-                    <Grid3X3 className="h-4 w-4 mr-2" />
-                    {tMenu('categories.create')}
-                  </Button>
-                </div>
-              ) : (
-                <MetricsGrid columns={3}>
-                  {categoryStats.map((c) => (
-                    <MetricsCard
-                      key={c.name}
-                      title={c.name}
-                      value={`${c.itemCount} ${tMenu('items.title')}`}
-                      description={`${c.availableCount} ${tMenu(
-                        'analytics.available'
-                      )}`}
-                      icon={ShoppingBag}
-                      iconColor="gray"
-                      badge={{
-                        text: `${c.availableCount}/${c.itemCount}`,
-                        variant: 'secondary',
-                      }}
-                    />
-                  ))}
-                </MetricsGrid>
-              )}
+              <SimpleCategoryManager
+                restaurantId={restaurantId}
+                categories={categories}
+                isLoading={categoriesLoading}
+              />
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Menu Items Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Utensils className="h-4 w-4" />
+            Your Menu Items
+          </CardTitle>
+          <CardDescription className="text-sm">
+            {menuItems.length === 0
+              ? 'Start building your menu'
+              : `${menuItems.length} dishes in your menu`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {menuItemsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <p className="text-sm text-muted-foreground">
+                  Loading dishes...
+                </p>
+              </div>
+            </div>
+          ) : menuItems.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="bg-muted/50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <ChefHat className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium mb-2">No dishes yet</h3>
+              <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
+                Add your first dish to start building your digital menu. Make it
+                easy for customers to order!
+              </p>
+              <Button onClick={() => setCreateDialogOpen(true)} size="lg">
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Your First Dish
+              </Button>
+            </div>
+          ) : (
+            <MenuItemsTable
+              menuItems={menuItems}
+              categories={categories}
+              isLoading={menuItemsLoading}
+              onEdit={handleEditItem}
+              onDelete={setDeleteItem}
+              onToggleAvailability={handleToggleAvailability}
+              onManageImages={handleManageImages}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Category Overview */}
+      {categories.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              Categories Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {categoryStats.map((c) => (
+                <div
+                  key={c.name}
+                  className="border rounded-lg p-3 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-sm">{c.name}</h4>
+                    <Badge variant="secondary" className="text-xs">
+                      {c.availableCount}/{c.itemCount}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {c.itemCount} dish{c.itemCount !== 1 ? 'es' : ''} •{' '}
+                    {c.availableCount} available
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create Item Dialog */}
       <MenuItemCreateDialog

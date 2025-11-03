@@ -12,6 +12,7 @@ import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema
 import { GstModule } from '../gst/gst.module';
 import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { WebhooksController } from '../payments/webhooks.controller';
     ]),
   ],
   controllers: [OrdersController, WebhooksController],
-  providers: [OrdersService, OrdersGateway, RazorpayService],
+  providers: [OrdersService, OrdersGateway, RazorpayService, SubscriptionsService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

@@ -18,8 +18,8 @@ import { PublicModule } from '../public/public.module';
 import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
 import { GstModule } from '../gst/gst.module';
 import { FloorPlansModule } from '../floor-plans/floor-plans.module';
-// import { InventoryModule } from '../inventory/inventory.module';
-// import { RecipesModule } from '../recipes/recipes.module';
+import { InventoryModule } from '../inventory/inventory.module';
+import { RecipesModule } from '../recipes/recipes.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -49,8 +49,8 @@ import { AppService } from './app.service';
     GstModule,
     FloorPlansModule,
     SubscriptionsModule,
-    // InventoryModule,
-    // RecipesModule,
+    InventoryModule,
+    RecipesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
