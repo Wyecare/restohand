@@ -158,7 +158,47 @@ export class RazorpayService {
       callback_method: params.callback_method || 'get'
     };
 
-    return this.client.paymentLink.create(paymentLinkData);
+    try {
+      // Try the modern payment link API
+      return await (this.client as any).paymentLink.create(paymentLinkData);
+    } catch (error) {
+      this.logger.error('Payment Link API failed, falling back to direct HTTP call', error);
+
+      // Fallback: Use direct HTTP call to Razorpay Payment Links API
+      const https = require('https');
+      const auth = Buffer.from(`${this.razorpayConfig.keyId}:${this.razorpayConfig.keySecret}`).toString('base64');
+
+      return new Promise((resolve, reject) => {
+        const postData = JSON.stringify(paymentLinkData);
+        const options = {
+          hostname: 'api.razorpay.com',
+          port: 443,
+          path: '/v1/payment_links',
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
+
+        const req = https.request(options, (res: any) => {
+          let data = '';
+          res.on('data', (chunk: any) => data += chunk);
+          res.on('end', () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve(JSON.parse(data));
+            } else {
+              reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+            }
+          });
+        });
+
+        req.on('error', reject);
+        req.write(postData);
+        req.end();
+      });
+    }
   }
 
   async createLinkedAccount(params: CreateLinkedAccountParams): Promise<any> {

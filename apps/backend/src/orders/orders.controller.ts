@@ -112,42 +112,33 @@ export class OrdersController {
       throw new BadRequestException('Order total must be greater than zero');
     }
 
-    // Create payment link - this bypasses domain verification issues
-    const paymentLink = await this.razorpayService.createPaymentLink({
+    // Create simple Razorpay order for hosted checkout
+    const razorpayOrder = await this.razorpayService.createOrder({
       amount: amountInPaise,
       currency: 'INR',
-      accept_partial: false,
-      description: `Payment for Order #${order.orderNumber} at ${restaurant?.name || 'Restaurant'}`,
-      customer: {
-        name: order.customerName || 'Customer',
-        contact: order.customerPhone || undefined,
-      },
-      notify: {
-        sms: false, // Don't send SMS
-        email: false, // Don't send email
-      },
-      reminder_enable: false,
+      receipt: `order_${order.orderNumber}`,
       notes: {
         restaurantId,
         orderId,
         orderNumber: order.orderNumber,
         tableNumber: order.tableNumber || '',
       },
-      callback_url: `${process.env.FRONTEND_BASE_URL}/c/${restaurant?.slug}/order/${orderId}?payment=success`,
-      callback_method: 'get'
     });
 
+    // Create hosted checkout URL
+    const hostedCheckoutUrl = `https://checkout.razorpay.com/v1/checkout?key_id=${process.env.RAZORPAY_KEY_ID}&amount=${amountInPaise}&currency=INR&order_id=${razorpayOrder.id}&name=${encodeURIComponent(restaurant?.name || 'Restaurant')}&description=${encodeURIComponent(`Order #${order.orderNumber}`)}&prefill[name]=${encodeURIComponent(order.customerName || 'Customer')}&prefill[contact]=${encodeURIComponent(order.customerPhone || '')}&theme[color]=%2316a34a&callback_url=${encodeURIComponent(`${process.env.FRONTEND_BASE_URL}/c/${restaurant?.slug}/order/${orderId}?payment=success`)}`;
+
     // Register payment intent for tracking
-    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay_link', paymentLink.id, {
+    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay_hosted', razorpayOrder.id, {
       orderNumber: order.orderNumber,
       amount: amountInPaise,
       currency: 'INR',
-      paymentLinkUrl: paymentLink.short_url,
+      hostedCheckoutUrl,
     });
 
     return {
-      paymentLinkUrl: paymentLink.short_url,
-      paymentLinkId: paymentLink.id,
+      paymentLinkUrl: hostedCheckoutUrl,
+      paymentLinkId: razorpayOrder.id,
       amount: amountInPaise,
       currency: 'INR',
     };
