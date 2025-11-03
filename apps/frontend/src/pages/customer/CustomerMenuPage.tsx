@@ -267,17 +267,6 @@ export default function CustomerMenuPage() {
           name: restaurant?.name ?? 'Restohand',
           description: `Order ${order.orderNumber}`,
           order_id: intent.razorpayOrderId,
-          method: {
-            upi: true,
-            card: false,
-            netbanking: false,
-            wallet: false,
-            emi: false,
-            paylater: false,
-          },
-          upi: {
-            flow: 'intent',
-          },
           notes: {
             restaurantId: restaurant?.id ?? '',
             orderId: order.id,

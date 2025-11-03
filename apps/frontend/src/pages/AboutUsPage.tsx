@@ -9,8 +9,7 @@ import {
   TrendingUp,
   CheckCircle,
   MapPin,
-  Mail,
-  Phone
+  Mail
 } from 'lucide-react';
 
 const AboutUsPage = () => {
@@ -190,7 +189,7 @@ const AboutUsPage = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                 <div>
                   <h4 className="font-medium">30-Day Free Trial</h4>
                   <p className="text-sm text-muted-foreground">
@@ -200,7 +199,7 @@ const AboutUsPage = () => {
               </div>
 
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                 <div>
                   <h4 className="font-medium">Direct Settlement</h4>
                   <p className="text-sm text-muted-foreground">
@@ -210,7 +209,7 @@ const AboutUsPage = () => {
               </div>
 
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                 <div>
                   <h4 className="font-medium">24/7 Support</h4>
                   <p className="text-sm text-muted-foreground">
@@ -220,7 +219,7 @@ const AboutUsPage = () => {
               </div>
 
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
                 <div>
                   <h4 className="font-medium">No Commission</h4>
                   <p className="text-sm text-muted-foreground">
