@@ -53,6 +53,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import { StaffQrGenerator } from '@/components/staff/StaffQrGenerator';
+import StaffInvitationForm from '@/components/staff/StaffInvitationForm';
 
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
@@ -588,6 +589,7 @@ export default function StaffPage() {
             </PopoverContent>
           </Popover>
 
+          <StaffInvitationForm onSuccess={() => refetch()} />
           <Button size="sm" onClick={() => setQrDialogOpen(true)}>
             <QrCode className="h-4 w-4 mr-2" />
             {tStaff('buttons.generateQr')}

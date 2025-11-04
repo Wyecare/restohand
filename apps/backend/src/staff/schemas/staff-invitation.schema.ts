@@ -5,7 +5,7 @@ export type StaffInvitationDocument = StaffInvitation & Document;
 
 @Schema({
   timestamps: true,
-  collection: 'staff_invitations',
+  collection: 'email_staff_invitations',
 })
 export class StaffInvitation {
   @Prop({ type: Types.ObjectId, ref: 'Restaurant', required: true })
@@ -32,8 +32,8 @@ export class StaffInvitation {
   @Prop()
   usedAt?: Date;
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  invitedBy: Types.ObjectId;
+  @Prop({ required: true })
+  invitedBy: string;
 
   @Prop({ default: 0 })
   emailSentCount: number;
