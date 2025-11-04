@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/card';
 import {
   useGetPublicOrderQuery,
+  useGetPublicRestaurantQuery,
   useCancelPublicOrderMutation,
 } from '@/store/api/restaurantsApi';
 import {
@@ -106,6 +107,9 @@ export default function CustomerOrderStatusPage() {
     { slug, orderId },
     { skip: !slug || !orderId, pollingInterval: 5000 } // Poll every 5 seconds for payment updates
   );
+  const { data: restaurantData } = useGetPublicRestaurantQuery(slug, {
+    skip: !slug,
+  });
   const { toast } = useToast();
   const [hasShownPaymentSuccess, setHasShownPaymentSuccess] = useState(false);
 
@@ -214,15 +218,15 @@ export default function CustomerOrderStatusPage() {
 
   // Restaurant info for receipt
   const restaurantInfo = useMemo(() => {
-    if (!data?.restaurant) return undefined;
+    if (!restaurantData) return undefined;
     return {
-      name: data.restaurant.name,
-      address: data.restaurant.address,
-      phone: data.restaurant.contactInfo?.phone,
-      email: data.restaurant.contactInfo?.email,
-      gstNumber: data.restaurant.gstNumber,
+      name: restaurantData.name,
+      address: restaurantData.address,
+      phone: restaurantData.contactInfo?.phone,
+      email: restaurantData.contactInfo?.email,
+      gstNumber: restaurantData.gstNumber,
     };
-  }, [data?.restaurant]);
+  }, [restaurantData]);
 
   const handlePayNow = useCallback(async () => {
     if (!order || order.paymentStatus === 'paid') return;
@@ -238,8 +242,17 @@ export default function CustomerOrderStatusPage() {
         return;
       }
 
+      if (!restaurantData?.id) {
+        toast({
+          title: 'Restaurant information not found',
+          description: 'Unable to process payment. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const paymentResponse = await createPaymentLink({
-        restaurantId: order.restaurantId || '',
+        restaurantId: restaurantData.id,
         orderId: order.id,
       }).unwrap();
 
