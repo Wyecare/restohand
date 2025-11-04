@@ -9,6 +9,7 @@ import { env } from '@/config/env';
 import { Toaster } from '@/components/ui/toaster';
 import { useEffect } from 'react';
 import i18n from '@/lib/i18n';
+import { AuthDebug } from '@/components/debug/AuthDebug';
 
 export function App() {
   if (!env.apiBaseUrl || !env.firebaseConfig) {
@@ -25,6 +26,7 @@ export function App() {
                 <AppRouter />
               </BrowserRouter>
               <Toaster />
+              <AuthDebug />
             </AuthProvider>
           </ActiveThemeProvider>
         </ThemeProvider>

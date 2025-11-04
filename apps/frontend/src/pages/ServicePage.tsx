@@ -1,78 +1,87 @@
-import { useCallback, useMemo, useState, ReactNode } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
+import { motion } from 'framer-motion';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
   useListOrdersQuery,
-  useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,
 } from '@/store/api/ordersApi';
 import {
   useListRestaurantTablesQuery,
   useGetRestaurantQuery,
 } from '@/store/api/restaurantsApi';
-import type { Order } from '@/store/api/types';
+import type { Order, RestaurantTable } from '@/store/api/types';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { useToast } from '@/components/ui/use-toast';
 import {
-  OrderTicket,
-  type OrderTicketProps,
-} from '@/components/orders/OrderTicket';
+  Users,
+  ChefHat,
+  Clock,
+  Search,
+  CheckCircle,
+} from 'lucide-react';
+import WaiterMenuInterface from '@/components/service/WaiterMenuInterface';
+import PaymentInterface from '@/components/service/PaymentInterface';
 
-const serviceStatuses: Order['status'][] = ['ready', 'completed'];
+type ViewMode = 'tables' | 'menu' | 'payment';
 
-const getServiceHighlight = (order: Order): OrderTicketProps['highlight'] => {
-  if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
-    return 'danger';
+const getTableStatus = (table: RestaurantTable, orders: Order[]) => {
+  const activeOrder = orders.find(
+    (order) =>
+      order.tableNumber === table.tableNumber &&
+      !['completed', 'cancelled'].includes(order.status)
+  );
+
+  if (!activeOrder) return 'available';
+  if (activeOrder.status === 'ready') return 'ready';
+  if (['pending', 'accepted', 'in_progress'].includes(activeOrder.status)) return 'occupied';
+  return 'available';
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'available':
+      return 'bg-green-100 text-green-800 border-green-200';
+    case 'occupied':
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'ready':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200';
   }
-  const pivot = order.readyAt ?? order.createdAt;
-  if (!pivot) return 'muted';
-  const readyTime = new Date(pivot).getTime();
-  if (Number.isNaN(readyTime)) return 'muted';
-  const minutes = Math.floor((Date.now() - readyTime) / 60000);
-  if (order.status === 'ready' && minutes >= 10) return 'warning';
-  return 'muted';
 };
 
 const ServicePage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
 
+  const [viewMode, setViewMode] = useState<ViewMode>('tables');
+  const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
   const orderArgs = restaurantId
-    ? { restaurantId, limit: 40, page: 1 }
+    ? { restaurantId, limit: 100, page: 1 }
     : skipToken;
 
-  const { data, isLoading, refetch } = useListOrdersQuery(orderArgs, {
+  const { data: ordersData, refetch } = useListOrdersQuery(orderArgs, {
     skip: !restaurantId,
   });
-  const [updateStatus, { isLoading: updatingStatus }] =
-    useUpdateOrderStatusMutation();
-  const [updatePayment, { isLoading: updatingPayment }] =
-    useUpdateOrderPaymentMutation();
+  const [updatePayment] = useUpdateOrderPaymentMutation();
 
   const tablesArgs = restaurantId
     ? { restaurantId, includeInactive: false }
     : skipToken;
-  const { data: tablesData } = useListRestaurantTablesQuery(tablesArgs, {
+  const { data: tablesData, isLoading: tablesLoading } = useListRestaurantTablesQuery(tablesArgs, {
     skip: !restaurantId,
   });
   const { data: restaurant } = useGetRestaurantQuery(
@@ -80,222 +89,85 @@ const ServicePage = () => {
     { skip: !restaurantId }
   );
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'upi' | 'cash'>(
-    'all'
-  );
-  const [zoneFilter, setZoneFilter] = useState<string>('all');
+  // Memoize orders to prevent unnecessary rerenders
+  const orders = useMemo(() => ordersData?.data || [], [ordersData?.data]);
 
-  if (!restaurantId) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  const tableLookup = useMemo(() => {
-    const map = new Map<
-      string,
-      { displayName?: string; zone?: string; capacity?: number }
-    >();
-    tablesData?.forEach((table) => {
-      map.set(table.tableNumber.toLowerCase(), {
-        displayName: table.displayName ?? undefined,
-        zone: table.zone ?? undefined,
-        capacity: table.capacity ?? undefined,
-      });
-    });
-    return map;
-  }, [tablesData]);
-
-  const zones = useMemo(() => {
-    const set = new Set<string>();
-    tablesData?.forEach((table) => {
-      if (table.zone) set.add(table.zone);
-    });
-    return Array.from(set);
-  }, [tablesData]);
-
-  const buildCustomerLink = useCallback(
-    (tableNumber: string) => {
-      if (!restaurant?.slug) return null;
-      const origin =
-        typeof window !== 'undefined' ? window.location.origin : '';
-      if (!origin) return null;
-      const base = `${origin}/c/${restaurant.slug}`;
-      return tableNumber ? `${base}?table=${encodeURIComponent(tableNumber)}` : base;
-    },
-    [restaurant?.slug]
-  );
-
-  const handleCopyLink = useCallback(
-    async (tableNumber?: string | null) => {
-      const link =
-        tableNumber && tableNumber.trim().length > 0
-          ? buildCustomerLink(tableNumber)
-          : buildCustomerLink('');
-      if (!link) {
-        toast({
-          title: 'Link unavailable',
-          description: 'Restaurant slug not loaded yet.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (!navigator?.clipboard) {
-        toast({
-          title: 'Clipboard unavailable',
-          description: 'Copy manually: ' + link,
-        });
-        return;
-      }
-
-      await navigator.clipboard.writeText(link);
-      toast({
-        title: 'Link copied',
-        description: tableNumber
-          ? `Customer link for table ${tableNumber}`
-          : 'Generic menu link copied',
-      });
-    },
-    [buildCustomerLink, toast]
-  );
-
-  const orders = useMemo(() => {
-    if (!data?.data) return [];
-    return data.data
-      .filter((order) => serviceStatuses.includes(order.status))
-      .filter((order) => {
-        if (paymentFilter === 'all') return true;
-        return order.paymentMethod === paymentFilter;
-      })
-      .filter((order) => {
-        if (zoneFilter === 'all') return true;
-        const meta = order.tableNumber
-          ? tableLookup.get(order.tableNumber.toLowerCase())
-          : undefined;
-        return meta?.zone === zoneFilter;
-      })
-      .filter((order) => {
-        if (!searchTerm.trim()) return true;
-        const needle = searchTerm.trim().toLowerCase();
-        return (
-          order.orderNumber.toLowerCase().includes(needle) ||
-          (order.tableNumber ?? '').toLowerCase().includes(needle) ||
-          (order.customerName ?? '').toLowerCase().includes(needle)
-        );
-      });
-  }, [data?.data, paymentFilter, zoneFilter, searchTerm, tableLookup]);
-
-  const readyOrders = orders.filter((order) => order.status === 'ready');
-  const completedOrders = orders.filter((order) => order.status === 'completed');
-
-  const readyBadgesFor = (order: Order): ReactNode => {
-    const badges: ReactNode[] = [];
-    if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
-      badges.push(
-        <Badge
-          key="cash-due"
-          variant="destructive"
-          className="text-[10px] uppercase tracking-wide"
-        >
-          Cash due
-        </Badge>
-      );
-    }
-    return badges.length ? (
-      <div className="flex items-center gap-1">{badges}</div>
-    ) : undefined;
-  };
-
-  const completedBadgesFor = (order: Order): ReactNode => {
-    if (order.paymentStatus === 'paid') {
+  const filteredTables = useMemo(() => {
+    if (!tablesData) return [];
+    return tablesData.filter((table) => {
+      if (!searchTerm.trim()) return true;
+      const search = searchTerm.toLowerCase();
       return (
-        <Badge
-          variant="outline"
-          className="text-[10px] uppercase tracking-wide text-emerald-700 border-emerald-400/70"
-        >
-          Paid
-        </Badge>
+        table.tableNumber.toLowerCase().includes(search) ||
+        table.displayName?.toLowerCase().includes(search) ||
+        table.zone?.toLowerCase().includes(search)
       );
-    }
-    return (
-      <Badge
-        variant="destructive"
-        className="text-[10px] uppercase tracking-wide"
-      >
-        Awaiting payment
-      </Badge>
-    );
-  };
+    });
+  }, [tablesData, searchTerm]);
 
-  const readyActionsFor = (order: Order): ReactNode[] => {
-    const actions: ReactNode[] = [];
-    actions.push(
-      <Button
-        key="delivered"
-        size="sm"
-        className="flex-1"
-        disabled={updatingStatus}
-        onClick={() => handleComplete(order.id)}
-      >
-        Mark delivered
-      </Button>
+  const tablesByZone = useMemo(() => {
+    const grouped = new Map<string, RestaurantTable[]>();
+    filteredTables.forEach((table) => {
+      const zone = table.zone || 'No Zone';
+      if (!grouped.has(zone)) {
+        grouped.set(zone, []);
+      }
+      grouped.get(zone)?.push(table);
+    });
+    return grouped;
+  }, [filteredTables]);
+
+  const handleTableClick = useCallback((table: RestaurantTable) => {
+    const activeOrder = orders.find(
+      (order) =>
+        order.tableNumber === table.tableNumber &&
+        !['completed', 'cancelled'].includes(order.status)
     );
 
-    if (order.paymentMethod === 'cash' && order.paymentStatus !== 'paid') {
-      actions.push(
-        <Button
-          key="mark-paid"
-          size="sm"
-          variant="secondary"
-          className="flex-1"
-          disabled={updatingPayment}
-          onClick={() => handleMarkPaid(order.id)}
-        >
-          Collect cash
-        </Button>
-      );
-    }
+    setSelectedTable(table);
+    setSelectedOrder(activeOrder || null);
+    setViewMode('menu');
+  }, [orders]);
 
-    return actions;
-  };
-
-  const completedActionsFor = (order: Order): ReactNode[] => {
-    const actions: ReactNode[] = [];
-    if (order.paymentStatus !== 'paid') {
-      actions.push(
-        <Button
-          key="paid"
-          size="sm"
-          variant="secondary"
-          className="flex-1"
-          disabled={updatingPayment}
-          onClick={() => handleMarkPaid(order.id)}
-        >
-          Mark as paid
-        </Button>
-      );
-    }
-    return actions;
-  };
-
-  const handleComplete = async (orderId: string) => {
-    await updateStatus({
-      restaurantId,
-      orderId,
-      status: 'completed',
-      progress: 100,
-    });
+  const handleBackToTables = useCallback(() => {
+    setViewMode('tables');
+    setSelectedTable(null);
+    setSelectedOrder(null);
     refetch();
-  };
+  }, [refetch]);
 
-  const handleMarkPaid = async (orderId: string) => {
-    await updatePayment({
-      restaurantId,
-      orderId,
-      paymentStatus: 'paid',
-    });
-    refetch();
-  };
+  const handlePaymentFlow = useCallback((order: Order) => {
+    setSelectedOrder(order);
+    setViewMode('payment');
+  }, []);
+
+  const handleMarkAsPaid = useCallback(async (orderId: string, method: 'cash' | 'upi') => {
+    if (!restaurantId) return;
+
+    try {
+      await updatePayment({
+        restaurantId,
+        orderId,
+        paymentStatus: 'paid',
+        provider: method === 'upi' ? 'upi' : 'cash',
+      }).unwrap();
+
+      toast({
+        title: 'Payment confirmed! ✅',
+        description: `Order marked as paid via ${method.toUpperCase()}`,
+      });
+
+      refetch();
+      setViewMode('tables');
+      setSelectedOrder(null);
+    } catch (error) {
+      toast({
+        title: 'Failed to mark as paid',
+        description: 'Please try again',
+        variant: 'destructive',
+      });
+    }
+  }, [restaurantId, updatePayment, toast, refetch]);
 
   const handleSocketEvent = useCallback(() => {
     refetch();
@@ -303,157 +175,162 @@ const ServicePage = () => {
 
   useOrdersSocket({ onEvent: handleSocketEvent, enabled: !!restaurantId });
 
+  // Early return after all hooks
+  if (!restaurantId) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (tablesLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // Render different views based on mode
+  if (viewMode === 'menu' && selectedTable) {
+    return (
+      <WaiterMenuInterface
+        table={selectedTable}
+        existingOrder={selectedOrder}
+        restaurant={restaurant}
+        onBack={handleBackToTables}
+        onPaymentFlow={handlePaymentFlow}
+      />
+    );
+  }
+
+  if (viewMode === 'payment' && selectedOrder) {
+    return (
+      <PaymentInterface
+        order={selectedOrder}
+        restaurant={restaurant}
+        onBack={() => setViewMode('tables')}
+        onMarkAsPaid={handleMarkAsPaid}
+      />
+    );
+  }
+
+  // Tables view
   return (
-    <div className="flex min-h-screen flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Service board</h1>
-        <p className="text-muted-foreground text-sm">
-          Serve ready dishes, close out tables, and keep payment status updated.
-        </p>
-      </div>
-
-      <Card className="border-muted bg-card/60">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Filters</CardTitle>
-          <CardDescription>
-            Find tickets by table, zone, payment method, or guest.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 md:flex-row md:items-center">
-          <div className="flex w-full flex-col gap-1 md:max-w-xs">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
-              Search ticket / table
-            </p>
-            <Input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="e.g. T2 or Patel"
-            />
-          </div>
-          <div className="flex w-full flex-col gap-1 md:max-w-[200px]">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
-              Payment
-            </p>
-            <Select
-              value={paymentFilter}
-              onValueChange={(value) =>
-                setPaymentFilter(value as 'all' | 'upi' | 'cash')
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All payments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="upi">UPI</SelectItem>
-                <SelectItem value="cash">Cash</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex w-full flex-col gap-1 md:max-w-[220px]">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
-              Zone / section
-            </p>
-            <Select value={zoneFilter} onValueChange={setZoneFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All zones" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All zones</SelectItem>
-                {zones.map((zone) => (
-                  <SelectItem key={zone} value={zone}>
-                    {zone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {isLoading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <LoadingSpinner size="lg" />
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-4">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-6xl mx-auto space-y-6"
+      >
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-2">
+            <ChefHat className="h-8 w-8 text-primary" />
+            Table Service
+          </h1>
+          <p className="text-muted-foreground">
+            Take orders and manage payments for your restaurant
+          </p>
         </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">
-              Ready for pickup
-            </CardTitle>
-            <CardDescription>
-              {readyOrders.length} ticket(s) waiting to be served
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
-            {readyOrders.length ? (
-              readyOrders.map((order) => {
-                const meta = order.tableNumber
-                  ? tableLookup.get(order.tableNumber.toLowerCase())
-                  : undefined;
-                const highlight = getServiceHighlight(order);
-                const badges = readyBadgesFor(order);
-                const actions = readyActionsFor(order);
 
-                return (
-                  <OrderTicket
-                    key={order.id}
-                    order={order}
-                    tableMeta={meta}
-                    highlight={highlight}
-                    headerBadges={badges}
-                    onCopyLink={handleCopyLink}
-                    actions={actions.length ? <>{actions}</> : undefined}
-                  />
-                );
-              })
-            ) : (
-              <CardDescription>No ready orders at the moment.</CardDescription>
-            )}
+        {/* Search */}
+        <Card className="max-w-md mx-auto">
+          <CardContent className="p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tables..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="flex flex-col">
-          <CardHeader>
-              <CardTitle className="text-base font-semibold">
-                Recently completed
-              </CardTitle>
-              <CardDescription>
-                {completedOrders.length} ticket(s) awaiting payment confirmation
-              </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-0">
-            {completedOrders.length ? (
-              completedOrders.map((order) => {
-                const meta = order.tableNumber
-                  ? tableLookup.get(order.tableNumber.toLowerCase())
-                  : undefined;
-                const highlight = getServiceHighlight(order);
-                const badges = completedBadgesFor(order);
-                const actions = completedActionsFor(order);
+        {/* Tables by Zone */}
+        <div className="space-y-8">
+          {Array.from(tablesByZone.entries()).map(([zone, zoneTables]) => (
+            <motion.div
+              key={zone}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-semibold">{zone}</h2>
+                <Badge variant="outline">{zoneTables.length} tables</Badge>
+              </div>
 
-                return (
-                  <OrderTicket
-                    key={order.id}
-                    order={order}
-                    tableMeta={meta}
-                    highlight={highlight}
-                    headerBadges={badges}
-                    onCopyLink={handleCopyLink}
-                    actions={actions.length ? <>{actions}</> : undefined}
-                  />
-                );
-              })
-            ) : (
-              <CardDescription>
-                Closed tickets will accumulate here for reconciliation.
-              </CardDescription>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {zoneTables.map((table) => {
+                  const status = getTableStatus(table, orders);
+                  const activeOrder = orders.find(
+                    (order) =>
+                      order.tableNumber === table.tableNumber &&
+                      !['completed', 'cancelled'].includes(order.status)
+                  );
+
+                  return (
+                    <motion.div
+                      key={table.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Card
+                        className={`cursor-pointer transition-all duration-200 hover:shadow-lg border-2 ${getStatusColor(status)}`}
+                        onClick={() => handleTableClick(table)}
+                      >
+                        <CardContent className="p-4 text-center space-y-2">
+                          <div className="text-2xl font-bold">
+                            {table.displayName || table.tableNumber}
+                          </div>
+
+                          <div className="space-y-1">
+                            <Badge
+                              variant={status === 'available' ? 'default' : 'secondary'}
+                              className="text-xs capitalize"
+                            >
+                              {status === 'available' && <CheckCircle className="h-3 w-3 mr-1" />}
+                              {status === 'occupied' && <Clock className="h-3 w-3 mr-1" />}
+                              {status === 'ready' && <Users className="h-3 w-3 mr-1" />}
+                              {status}
+                            </Badge>
+
+                            {table.capacity && (
+                              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                                <Users className="h-3 w-3" />
+                                {table.capacity}
+                              </div>
+                            )}
+                          </div>
+
+                          {activeOrder && (
+                            <div className="space-y-1">
+                              <div className="text-xs font-medium">#{activeOrder.orderNumber}</div>
+                              <div className="text-xs text-muted-foreground">
+                                ₹{activeOrder.totalAmount.toFixed(0)}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {filteredTables.length === 0 && (
+          <Card className="max-w-md mx-auto text-center p-8">
+            <div className="text-4xl mb-4" role="img" aria-label="Search">
+              🔍
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No tables found</h3>
+            <p className="text-muted-foreground">Try adjusting your search</p>
+          </Card>
+        )}
+      </motion.div>
     </div>
   );
 };

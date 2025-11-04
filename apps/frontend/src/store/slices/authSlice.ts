@@ -38,6 +38,17 @@ const authSlice = createSlice({
     },
     setCredentials(state, action: PayloadAction<CredentialsPayload>) {
       const { idToken, refreshToken, expiresIn, session } = action.payload;
+
+      // Debug logging
+      console.log('🔑 Setting credentials:', {
+        hasIdToken: !!idToken,
+        sessionId: session?.id,
+        userId: session?.userId,
+        restaurantId: session?.restaurantId,
+        roles: session?.roles,
+        displayName: session?.displayName
+      });
+
       state.idToken = idToken;
       state.refreshToken = refreshToken ?? state.refreshToken;
       state.tokenExpiresAt =
@@ -100,5 +111,13 @@ export const selectAuthSession = (state: { auth: AuthState }) =>
 export const selectActiveRestaurantId = (state: { auth: AuthState }) =>
   state.auth.session?.restaurantId ?? null;
 const EMPTY_ROLES: string[] = [];
-export const selectUserRoles = (state: { auth: AuthState }) =>
-  state.auth.session?.roles ?? EMPTY_ROLES;
+export const selectUserRoles = (state: { auth: AuthState }) => {
+  const roles = state.auth.session?.roles ?? EMPTY_ROLES;
+  console.log('👤 Getting user roles:', {
+    sessionExists: !!state.auth.session,
+    roles,
+    sessionId: state.auth.session?.id,
+    userId: state.auth.session?.userId
+  });
+  return roles;
+};

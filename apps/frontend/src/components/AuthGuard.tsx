@@ -29,6 +29,18 @@ export function AuthGuard({
   const hasRoles = roles.length > 0;
   const needsOnboarding = isAuthenticated && !hasRoles;
 
+  // Debug logging
+  console.log('🔐 AuthGuard Debug:', {
+    path: location.pathname,
+    requireAuth,
+    allowedRoles,
+    isAuthenticated,
+    status,
+    roles,
+    hasRoles,
+    needsOnboarding,
+  });
+
   // const { logout } = useAuth();
 
   // useEffect(() => {
@@ -63,16 +75,29 @@ export function AuthGuard({
   if (allowedRoles && allowedRoles.length > 0) {
     const hasRequiredRole = roles.some((role) => allowedRoles.includes(role));
 
+    console.log('🎭 Role Check Debug:', {
+      allowedRoles,
+      userRoles: roles,
+      hasRequiredRole,
+      roleMatches: roles.map(role => ({
+        role,
+        isAllowed: allowedRoles.includes(role)
+      }))
+    });
+
     if (!hasRequiredRole) {
       // Special case: if user just authenticated but has no roles yet,
       // it might be a timing issue with Firebase custom claims propagation
       if (needsOnboarding) {
+        console.log('⏳ No roles yet, checking if onboarding or loading...');
         // Only redirect to onboarding if this route allows manager role
         if (allowedRoles.includes('manager')) {
+          console.log('➡️ Redirecting to onboarding (manager route)');
           return <Navigate to="/onboarding" replace />;
         } else {
           // For staff routes (chef, waiter, cashier), show loading instead of forbidden
           // This gives time for claims to propagate
+          console.log('⏳ Showing loading for staff route (waiting for claims)');
           return (
             <div className="flex min-h-screen items-center justify-center bg-background">
               <div className="text-center space-y-4">
@@ -85,9 +110,13 @@ export function AuthGuard({
       }
 
       // User has roles but not the required ones - redirect to forbidden
+      console.log('🚫 User has roles but not the required ones. Redirecting to forbidden.');
+      console.log('User roles:', roles);
+      console.log('Required roles:', allowedRoles);
       return <Navigate to="/forbidden" replace />;
     }
     // User has the required role - allow access
+    console.log('✅ User has required role. Allowing access.');
   }
 
   return <>{children}</>;
