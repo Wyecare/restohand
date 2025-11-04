@@ -129,6 +129,7 @@ export default function StaffInviteSignupPage() {
       await completeSignup({
         token,
         firebaseUid: userCredential.user.uid,
+        name: data.name,
       }).unwrap();
 
       // Force Firebase token refresh to get updated custom claims

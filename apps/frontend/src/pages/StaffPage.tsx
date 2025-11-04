@@ -9,23 +9,17 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import {
-  Copy,
-  Share2,
   Filter,
   Mail,
   Phone,
   Clock4,
   RefreshCcw,
-  X,
-  UserPlus2,
   Users,
-  QrCode,
 } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -35,7 +29,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import {
   Popover,
   PopoverTrigger,
@@ -52,39 +45,24 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
-import { StaffQrGenerator } from '@/components/staff/StaffQrGenerator';
 import StaffInvitationForm from '@/components/staff/StaffInvitationForm';
 
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 
 import {
-  useInviteStaffMutation,
   useListStaffQuery,
   useResetStaffPinMutation,
   useUpdateStaffMutation,
 } from '@/store/api/staffApi';
 import type { StaffMember } from '@/store/api/types';
-import {
-  useStaffTranslation,
-  useCommonTranslation,
-} from '@/hooks/use-translation';
+import { useStaffTranslation } from '@/hooks/use-translation';
 
-type InviteShareContext = {
-  id: string;
-  name: string;
-  role: string;
-  email?: string;
-  phoneNumber?: string;
-  temporaryPin: string;
-  action: 'invite' | 'reset';
-};
 
 export default function StaffPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
   const { t: tStaff } = useStaffTranslation();
-  const { t: tCommon } = useCommonTranslation();
 
   // --- Role options ---
   const roleOptions = [
@@ -107,7 +85,6 @@ export default function StaffPage() {
   const staff = staffResponse?.data ?? [];
   const meta = staffResponse?.meta ?? {};
 
-  const [inviteStaff, { isLoading: isInviting }] = useInviteStaffMutation();
   const [resetStaffPin] = useResetStaffPinMutation();
   const [updateStaff] = useUpdateStaffMutation();
 
@@ -117,14 +94,6 @@ export default function StaffPage() {
     'all' | 'active' | 'inactive'
   >('all');
   const [roleFilter, setRoleFilter] = React.useState<'all' | string>('all');
-  const [shareContext, setShareContext] =
-    React.useState<InviteShareContext | null>(null);
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [qrDialogOpen, setQrDialogOpen] = React.useState(false);
-  const [inviteName, setInviteName] = React.useState('');
-  const [inviteEmail, setInviteEmail] = React.useState('');
-  const [invitePhone, setInvitePhone] = React.useState('');
-  const [inviteRole, setInviteRole] = React.useState(roleOptions[0].value);
   const [updatingIds, setUpdatingIds] = React.useState<Set<string>>(
     () => new Set()
   );
@@ -167,57 +136,6 @@ export default function StaffPage() {
     });
   }, [staff, statusFilter, roleFilter]);
 
-  // --- Invite handler ---
-  async function handleInviteSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!inviteName.trim()) {
-      toast({
-        title: tStaff('messages.nameRequired'),
-        description: tStaff('messages.enterStaffName'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const res = await inviteStaff({
-        name: inviteName,
-        email: inviteEmail || undefined,
-        phoneNumber: invitePhone || undefined,
-        role: inviteRole,
-      }).unwrap();
-
-      toast({
-        title: tStaff('messages.staffInvited'),
-        description: tStaff('messages.inviteSuccess'),
-      });
-
-      setShareContext({
-        id: res.staff.id,
-        name: res.staff.name,
-        email: res.staff.email,
-        phoneNumber: res.staff.phoneNumber,
-        role: res.staff.roles[0] ?? inviteRole,
-        temporaryPin: res.temporaryPin,
-        action: 'invite',
-      });
-
-      setDialogOpen(false);
-      setInviteName('');
-      setInviteEmail('');
-      setInvitePhone('');
-      setInviteRole(roleOptions[0].value);
-    } catch (err) {
-      toast({
-        title: tStaff('messages.unableToInvite'),
-        description:
-          err instanceof Error
-            ? err.message
-            : tStaff('messages.unexpectedError'),
-        variant: 'destructive',
-      });
-    }
-  }
 
   // --- Row actions ---
   async function handleResetPin(member: StaffMember) {
@@ -230,15 +148,6 @@ export default function StaffPage() {
         description: tStaff('messages.pinResetSuccess'),
       });
 
-      setShareContext({
-        id: res.staff.id,
-        name: res.staff.name,
-        email: res.staff.email,
-        phoneNumber: res.staff.phoneNumber,
-        role: res.staff.roles[0] ?? member.roles[0],
-        temporaryPin: res.temporaryPin,
-        action: 'reset',
-      });
     } catch (err) {
       toast({
         title: tStaff('messages.unableToResetPin'),
@@ -436,84 +345,6 @@ export default function StaffPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  // --- Share message ---
-  const shareMessage = React.useMemo(() => {
-    if (!shareContext) return '';
-    const roleLabel =
-      roleOptions.find((r) => r.value === shareContext.role)?.label ??
-      shareContext.role;
-    const loginUrl =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/staff-login`
-        : 'https://restohand.app/staff-login';
-    const contactLine = shareContext.phoneNumber
-      ? `Login with phone: ${shareContext.phoneNumber}`
-      : shareContext.email
-      ? `Login with email: ${shareContext.email}`
-      : undefined;
-    const intro =
-      shareContext.action === 'invite'
-        ? `You're invited to Restohand as ${roleLabel}.`
-        : `Your Restohand PIN has been reset for the ${roleLabel} dashboard.`;
-    const firstName = shareContext.name?.split?.(' ')?.[0] ?? shareContext.name;
-    const msgLines = [
-      `Hi ${firstName},`,
-      intro,
-      `Use PIN ${shareContext.temporaryPin} to sign in.`,
-      contactLine,
-      `Dashboard: ${loginUrl}`,
-      '',
-      'Need help? Ask your manager.',
-    ].filter(Boolean) as string[];
-    return msgLines.join('\n');
-  }, [shareContext]);
-
-  const handleCopyShare = async () => {
-    if (!shareMessage) return;
-    try {
-      await navigator.clipboard.writeText(shareMessage);
-      toast({
-        title: tStaff('messages.copiedToClipboard'),
-        description: tStaff('messages.readyToPaste'),
-      });
-    } catch (err) {
-      toast({
-        title: tStaff('messages.unableToCopy'),
-        description:
-          err instanceof Error
-            ? err.message
-            : tStaff('messages.clipboardNotAvailable'),
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleNativeShare = async () => {
-    if (!shareMessage) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title:
-            shareContext?.action === 'invite'
-              ? 'Restohand staff invite'
-              : 'Restohand staff PIN reset',
-          text: shareMessage,
-        });
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
-        toast({
-          title: tStaff('messages.unableToShare'),
-          description:
-            err instanceof Error
-              ? err.message
-              : tStaff('messages.unexpectedError'),
-          variant: 'destructive',
-        });
-      }
-    } else {
-      await handleCopyShare();
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -590,18 +421,6 @@ export default function StaffPage() {
           </Popover>
 
           <StaffInvitationForm onSuccess={() => refetch()} />
-          <Button size="sm" onClick={() => setQrDialogOpen(true)}>
-            <QrCode className="h-4 w-4 mr-2" />
-            {tStaff('buttons.generateQr')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setDialogOpen(true)}
-          >
-            <UserPlus2 className="h-4 w-4 mr-2" />
-            {tStaff('buttons.legacyInvite')}
-          </Button>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCcw className="h-4 w-4 mr-2" />
             {tStaff('buttons.refresh')}
@@ -735,68 +554,7 @@ export default function StaffPage() {
         </CardContent>
       </Card>
 
-      {/* Share message */}
-      {shareContext && (
-        <Card className="border-primary/40 border-dashed bg-primary/5">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <CardTitle className="text-base font-semibold">
-                  {tStaff('management.shareAccess')}
-                </CardTitle>
-                <Badge variant="outline" className="capitalize text-xs">
-                  {shareContext.action === 'invite'
-                    ? tStaff('share.newInvite')
-                    : tStaff('share.pinReset')}
-                </Badge>
-              </div>
-              <CardDescription className="text-sm">
-                {tStaff('management.shareAccessDesc', {
-                  name: shareContext.name,
-                })}
-              </CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={tStaff('share.dismissPrompt')}
-              onClick={() => setShareContext(null)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                className="text-xs"
-                onClick={handleCopyShare}
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                {tStaff('buttons.copyMessage')}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="text-xs"
-                onClick={handleNativeShare}
-              >
-                <Share2 className="mr-2 h-4 w-4" />
-                {tStaff('buttons.share')}
-              </Button>
-            </div>
-            <div className="whitespace-pre-wrap rounded-md border border-dashed border-muted-foreground/40 bg-background p-4 text-xs font-mono leading-relaxed text-muted-foreground">
-              {shareMessage}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* QR Generator */}
-      <StaffQrGenerator isOpen={qrDialogOpen} onOpenChange={setQrDialogOpen} />
     </div>
   );
 }

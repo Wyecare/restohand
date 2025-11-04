@@ -23,6 +23,10 @@ export class CompleteSignupDto {
   @ApiProperty({ description: 'Firebase UID of the created user' })
   @IsString()
   firebaseUid: string;
+
+  @ApiProperty({ description: 'Full name of the staff member' })
+  @IsString()
+  name: string;
 }
 
 export class VerifyInviteResponseDto {

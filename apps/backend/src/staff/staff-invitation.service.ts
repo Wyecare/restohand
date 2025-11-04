@@ -193,6 +193,7 @@ export class StaffInvitationService {
     // Create new user
     const user = await this.userModel.create({
       firebaseUid: dto.firebaseUid,
+      name: dto.name,
       email: invitation.email,
       roles: [invitation.role as UserRole],
       restaurantId: invitation.restaurantId,
