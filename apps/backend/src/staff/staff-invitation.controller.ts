@@ -7,13 +7,15 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { GetUser } from '../auth/decorators/get-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { StaffInvitationService } from './staff-invitation.service';
 import {
   InviteStaffDto,
@@ -28,18 +30,19 @@ export class StaffInvitationController {
 
   @Post()
   @UseGuards(FirebaseAuthGuard, RolesGuard)
-  @Roles(UserRole.Manager, UserRole.Owner)
+  @Roles(UserRole.Manager)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send staff invitation email' })
   @ApiResponse({ status: 201, description: 'Invitation sent successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 409, description: 'User already exists or invitation pending' })
   async inviteStaff(
+    @Req() req: Request,
     @Param('restaurantId') restaurantId: string,
-    @GetUser('uid') userId: string,
     @Body() dto: InviteStaffDto,
   ) {
-    return this.staffInvitationService.inviteStaff(restaurantId, userId, dto);
+    const actor = req.user as AuthenticatedUser;
+    return this.staffInvitationService.inviteStaff(restaurantId, actor.uid, dto);
   }
 }
 
