@@ -24,22 +24,41 @@ export class WebhooksController {
   @Post('razorpay')
   @HttpCode(200)
   async handleRazorpayWebhook(@Req() req: RawBodyRequest<Request>) {
+    console.log('=== WEBHOOK DEBUG START ===');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Raw body exists:', !!req.rawBody);
+    console.log('Raw body type:', typeof req.rawBody);
+    console.log('Raw body length:', req.rawBody?.length);
+
     const signature = req.headers['x-razorpay-signature'] as string | undefined;
     const payload = req.rawBody?.toString();
 
+    console.log('Signature exists:', !!signature);
+    console.log('Signature value:', signature);
+    console.log('Payload exists:', !!payload);
+    console.log('Payload length:', payload?.length);
+
     if (!payload) {
+      console.log('ERROR: Missing payload');
       throw new BadRequestException('Missing payload');
     }
 
     const valid = this.razorpayService.verifyWebhookSignature(payload, signature);
+    console.log('Signature validation result:', valid);
+
     if (!valid) {
+      console.log('ERROR: Invalid signature');
       throw new BadRequestException('Invalid signature');
     }
+
+    console.log('Signature validation passed');
 
     let event: any;
     try {
       event = JSON.parse(payload);
+      console.log('Parsed event:', JSON.stringify(event, null, 2));
     } catch (error) {
+      console.log('ERROR: Invalid payload JSON', error);
       throw new BadRequestException('Invalid payload JSON');
     }
 
@@ -47,7 +66,11 @@ export class WebhooksController {
     const paymentEntity = event?.payload?.payment?.entity;
     const notes = paymentEntity?.notes || {};
 
+    console.log('Payment entity:', JSON.stringify(paymentEntity, null, 2));
+    console.log('Notes:', JSON.stringify(notes, null, 2));
+
     if (notes.type === 'subscription') {
+      console.log('Processing subscription payment');
       // Handle subscription payment
       const restaurantId = notes.restaurantId;
       const paymentStatus = event.event === 'payment.captured' ? 'success' : 'failed';
@@ -58,10 +81,12 @@ export class WebhooksController {
         paymentStatus
       );
     } else {
+      console.log('Processing order payment');
       // Handle order payment
       await this.ordersService.handleRazorpayWebhook(event);
     }
 
+    console.log('=== WEBHOOK DEBUG END ===');
     return { status: 'ok' };
   }
 }
