@@ -10,6 +10,8 @@ import {
   Utensils,
   AlertCircle,
   IndianRupee,
+  CreditCard,
+  Plus,
 } from 'lucide-react';
 import {
   Card,
@@ -22,6 +24,9 @@ import {
   useGetPublicOrderQuery,
   useCancelPublicOrderMutation,
 } from '@/store/api/restaurantsApi';
+import {
+  useCreatePaymentLinkMutation,
+} from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import type { Order } from '@/store/api/types';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +35,26 @@ import { Separator } from '@/components/ui/separator';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import { ReceiptDialog } from '@/components/customer/ReceiptDialog';
+
+declare global {
+  interface Window {
+    Razorpay?: any;
+  }
+}
+
+const loadRazorpayScript = async () => {
+  if (typeof window === 'undefined') return false;
+  if (window.Razorpay) return true;
+
+  return new Promise<boolean>((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 const progressDisplay = (value: Order['progress']) => {
   switch (value) {
@@ -89,6 +114,10 @@ export default function CustomerOrderStatusPage() {
   const [deviceOrders, setDeviceOrders] = useState<DeviceOrder[]>([]);
   const [cancelOrder, { isLoading: isCancelling }] =
     useCancelPublicOrderMutation();
+  const [createPaymentLink, { isLoading: isProcessingPayment }] =
+    useCreatePaymentLinkMutation();
+  const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
 
   const handleSocketEvent = useCallback(
     (incoming: Order) => {
@@ -104,6 +133,8 @@ export default function CustomerOrderStatusPage() {
   const progressValue = order?.progress ?? 0;
   const isCashDue =
     order?.paymentMethod === 'cash' && order.paymentStatus !== 'paid';
+  const canPayOnline = order?.paymentStatus !== 'paid';
+  const isOrderReady = order && order.status === 'ready';
   const subtotal = order?.subTotalAmount ?? order?.totalAmount ?? 0;
   const cgst = order?.cgstAmount ?? 0;
   const sgst = order?.sgstAmount ?? 0;
@@ -181,14 +212,79 @@ export default function CustomerOrderStatusPage() {
     });
   }, [order, slug]);
 
-  const receiptUrl = useMemo(() => {
-    if (!order) return null;
-    const template = import.meta.env.VITE_BILL_DOWNLOAD_URL as
-      | string
-      | undefined;
-    if (!template) return null;
-    return template.replace(':slug', slug).replace(':orderId', order.id);
-  }, [order, slug]);
+  // Restaurant info for receipt
+  const restaurantInfo = useMemo(() => {
+    if (!data?.restaurant) return undefined;
+    return {
+      name: data.restaurant.name,
+      address: data.restaurant.address,
+      phone: data.restaurant.contactInfo?.phone,
+      email: data.restaurant.contactInfo?.email,
+      gstNumber: data.restaurant.gstNumber,
+    };
+  }, [data?.restaurant]);
+
+  const handlePayNow = useCallback(async () => {
+    if (!order || order.paymentStatus === 'paid') return;
+
+    try {
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
+        toast({
+          title: 'Payment system unavailable',
+          description: 'Unable to load payment system. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const paymentResponse = await createPaymentLink({
+        restaurantId: order.restaurantId || '',
+        orderId: order.id,
+      }).unwrap();
+
+      const options = {
+        key: paymentResponse.razorpayKey || process.env.VITE_RAZORPAY_KEY_ID,
+        amount: paymentResponse.amount,
+        currency: paymentResponse.currency || 'INR',
+        name: 'Restaurant Order',
+        description: `Order #${order.orderNumber}`,
+        order_id: paymentResponse.razorpayOrderId,
+        prefill: {
+          name: '',
+          contact: '',
+        },
+        theme: {
+          color: '#16a34a',
+        },
+        handler: () => {
+          toast({
+            title: 'Payment successful! 🎉',
+            description: 'Your payment has been confirmed.',
+          });
+          setShowPaymentOptions(false);
+          refetch();
+        },
+        modal: {
+          ondismiss: () => {
+            toast({
+              title: 'Payment cancelled',
+              description: 'You can complete payment later with staff if needed.',
+            });
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      toast({
+        title: 'Payment setup failed',
+        description: 'Could not initialize payment. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }, [order, createPaymentLink, toast, refetch]);
 
   const handleCancelOrder = useCallback(async () => {
     if (!order || !canCancelOrder) {
@@ -297,6 +393,19 @@ export default function CustomerOrderStatusPage() {
                 Start a new order
               </Button>
             )}
+            {order && order.status !== 'cancelled' && order.status !== 'completed' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const tableSuffix = tableFromQuery ? `?table=${encodeURIComponent(tableFromQuery)}` : '';
+                  navigate(`/c/${slug}${tableSuffix}`);
+                }}
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Add more items
+              </Button>
+            )}
           </motion.div>
         )}
 
@@ -338,10 +447,10 @@ export default function CustomerOrderStatusPage() {
               </Badge>
               <Badge
                 variant={
-                  order.paymentMethod === 'cash' ? 'destructive' : 'secondary'
+                  order.paymentStatus === 'paid' ? 'default' : 'destructive'
                 }
               >
-                {order.paymentMethod === 'cash' ? 'Cash due' : 'UPI'}
+                {order.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'}
               </Badge>
               <Badge variant="outline" className="capitalize">
                 {paymentStatusLabel(order.paymentStatus)}
@@ -371,6 +480,22 @@ export default function CustomerOrderStatusPage() {
                 Please settle your bill with the staff when the order arrives.
                 They will confirm your ticket number #{order.orderNumber} before
                 marking it paid.
+              </div>
+            )}
+            {canPayOnline && (
+              <div className="pt-2">
+                <Button
+                  onClick={handlePayNow}
+                  disabled={isProcessingPayment}
+                  className="w-full"
+                  size="lg"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  {isProcessingPayment ? 'Processing...' : 'Pay Now'}
+                </Button>
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  Secure payment via Razorpay • Cards, UPI, Wallets accepted
+                </p>
               </div>
             )}
           </CardContent>
@@ -485,13 +610,14 @@ export default function CustomerOrderStatusPage() {
                 </p>
               )}
             </div>
-            {receiptUrl && (
-              <Button asChild variant="outline" size="sm" className="w-full">
-                <a href={receiptUrl} target="_blank" rel="noopener noreferrer">
-                  Download receipt
-                </a>
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setShowReceiptDialog(true)}
+            >
+              View Receipt
+            </Button>
           </CardContent>
         </Card>
       </motion.div>
@@ -584,6 +710,16 @@ export default function CustomerOrderStatusPage() {
           This page auto-refreshes as your order updates.
         </p>
       </motion.div>
+
+      {/* Receipt Dialog */}
+      {order && (
+        <ReceiptDialog
+          open={showReceiptDialog}
+          onOpenChange={setShowReceiptDialog}
+          order={order}
+          restaurantInfo={restaurantInfo}
+        />
+      )}
     </motion.div>
   );
 }

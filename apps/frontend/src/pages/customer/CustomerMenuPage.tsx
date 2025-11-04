@@ -295,8 +295,7 @@ export default function CustomerMenuPage() {
   );
 
   const handleConfirmOrder = async (
-    tableNumber: string,
-    paymentMethod: 'upi' | 'cash'
+    tableNumber: string
   ) => {
     if (!restaurant) return;
     const trimmedTable = tableNumber.trim();
@@ -325,7 +324,7 @@ export default function CustomerMenuPage() {
     const payload = {
       restaurantId: restaurant.id,
       tableNumber: trimmedTable,
-      paymentMethod,
+      paymentMethod: 'cash', // Default to cash, customer can choose payment method later
       items: Object.values(cart).map((entry) => ({
         menuItemId: entry.id,
         name: entry.name,
@@ -345,28 +344,9 @@ export default function CustomerMenuPage() {
       setCartPanelOpen(false);
       setTableDialogOpen(false);
       toast({
-        title: 'Order placed',
-        description: `Ticket #${order.orderNumber} created.`,
+        title: 'Order placed! 🍽️',
+        description: `Ticket #${order.orderNumber} created. You can pay when you're ready to leave.`,
       });
-
-      if (paymentMethod === 'upi') {
-        try {
-          const paymentResponse = await createPaymentLink({
-            restaurantId: restaurant.id,
-            orderId: order.id,
-          }).unwrap();
-
-          // Open Razorpay standard checkout
-          await openRazorpayCheckout(paymentResponse, order, trimmedTable);
-          return; // Don't navigate immediately, let payment complete first
-        } catch (error) {
-          toast({
-            title: 'Payment setup failed',
-            description: 'Could not initialize payment. Please try again.',
-            variant: 'destructive',
-          });
-        }
-      }
 
       navigate(`/c/${slug}/order/${order.id}?table=${trimmedTable}`);
     } catch (err) {
@@ -404,10 +384,7 @@ export default function CustomerMenuPage() {
       >
         <div className="max-w-lg mx-auto space-y-4">
           <div className="text-center">
-            <h1 className="text-2xl font-bold">{restaurant?.name || 'Menu'}</h1>
-            <p className="text-sm text-muted-foreground">
-              What would you like today?
-            </p>
+            <h1 className="text-xl font-bold">{restaurant?.name || 'Menu'}</h1>
           </div>
 
           {/* Search and Filters */}
@@ -434,17 +411,6 @@ export default function CustomerMenuPage() {
               >
                 <span>{category.icon}</span>
                 {category.name}
-                {category.id !== 'all' && (
-                  <Badge variant="secondary" className="ml-1 text-xs">
-                    {
-                      displayItems.filter((item) =>
-                        category.id === 'uncategorised'
-                          ? item._categoryId === 'uncategorised'
-                          : item._categoryId === category.id
-                      ).length
-                    }
-                  </Badge>
-                )}
               </Button>
             ))}
           </div>
@@ -468,15 +434,13 @@ export default function CustomerMenuPage() {
             >
               {searchQuery || Object.values(filters).some(Boolean) ? (
                 <>
-                  <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-lg font-semibold mb-2">
+                  <div className="text-4xl mb-3">🔍</div>
+                  <h3 className="text-base font-semibold mb-2">
                     No matches found
                   </h3>
-                  <p className="text-muted-foreground mb-4">
-                    Try adjusting your search or filters
-                  </p>
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={() => {
                       setSearchQuery('');
                       setFilters({
@@ -488,37 +452,34 @@ export default function CustomerMenuPage() {
                       });
                     }}
                   >
-                    Clear search & filters
+                    Clear filters
                   </Button>
                 </>
               ) : (
                 <>
-                  <div className="text-6xl mb-4">🍽️</div>
-                  <h3 className="text-lg font-semibold mb-2">
+                  <div className="text-4xl mb-3">🍽️</div>
+                  <h3 className="text-base font-semibold">
                     No items available
                   </h3>
-                  <p className="text-muted-foreground">
-                    Check back later for delicious options!
-                  </p>
                 </>
               )}
             </motion.div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="space-y-3">
             {displayItems.map((item, index) => {
               const entry = cart[item.id];
               return (
                 <motion.div
                   key={item.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
+                  transition={{ delay: index * 0.03 }}
                 >
-                  <Card className="overflow-hidden border shadow-sm hover:shadow-md transition-all duration-200">
-                    <div className="flex gap-4 p-4">
+                  <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm hover:shadow-md transition-all duration-200">
+                    <div className="flex gap-3">
                       {/* Item Image */}
-                      <div className="relative w-20 h-20 bg-muted rounded-lg overflow-hidden shrink-0">
+                      <div className="relative w-16 h-16 bg-muted rounded-lg overflow-hidden shrink-0">
                         <img
                           src={item.imageUrls?.[0] || '/placeholder.svg'}
                           alt={item.name}
@@ -540,55 +501,35 @@ export default function CustomerMenuPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1 min-w-0 mr-2">
-                            <h3 className="font-medium text-base truncate">
+                            <h3 className="font-semibold text-sm truncate text-gray-900">
                               {item.name}
                             </h3>
                             {item.description && (
-                              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">
                                 {item.description}
                               </p>
                             )}
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-bold text-lg">
+                            <p className="font-bold text-sm text-gray-900">
                               {formatCurrency(item.pricing.amount)}
                             </p>
                           </div>
                         </div>
 
                         {/* Tags */}
-                        <div className="flex items-center gap-1 mb-3">
+                        <div className="flex items-center gap-1 mb-2">
                           {item._isVegetarian && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-green-50 text-green-700 border-green-200"
-                            >
-                              🌱 Veg
-                            </Badge>
+                            <span className="text-green-600 text-xs">🌱</span>
                           )}
                           {item._isSpicy && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-red-50 text-red-700 border-red-200"
-                            >
-                              🌶️ Spicy
-                            </Badge>
+                            <span className="text-red-600 text-xs">🌶️</span>
                           )}
                           {item._isPopular && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200"
-                            >
-                              ⭐ Popular
-                            </Badge>
+                            <span className="text-yellow-600 text-xs">⭐</span>
                           )}
                           {item._isQuick && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-blue-50 text-blue-700 border-blue-200"
-                            >
-                              ⚡ Quick
-                            </Badge>
+                            <span className="text-blue-600 text-xs">⚡</span>
                           )}
                         </div>
 
@@ -599,25 +540,25 @@ export default function CustomerMenuPage() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8 rounded-full"
+                                className="h-7 w-7 rounded-full"
                                 onClick={() => handleRemove(item.id)}
                               >
-                                <Minus className="h-4 w-4" />
+                                <Minus className="h-3 w-3" />
                               </Button>
-                              <span className="w-8 text-center font-medium">
+                              <span className="w-6 text-center font-medium text-sm">
                                 {entry.quantity}
                               </span>
                               <Button
                                 size="icon"
-                                className="h-8 w-8 rounded-full"
+                                className="h-7 w-7 rounded-full"
                                 onClick={() =>
                                   handleAdd(item.id, item.name, item.pricing)
                                 }
                               >
-                                <Plus className="h-4 w-4" />
+                                <Plus className="h-3 w-3" />
                               </Button>
                             </div>
-                            <p className="text-sm font-medium">
+                            <p className="text-xs font-medium text-gray-700">
                               {formatCurrency(
                                 item.pricing.amount * entry.quantity
                               )}
@@ -625,17 +566,17 @@ export default function CustomerMenuPage() {
                           </div>
                         ) : (
                           <Button
-                            className="w-full"
+                            className="w-full h-8 text-xs"
                             onClick={() =>
                               handleAdd(item.id, item.name, item.pricing)
                             }
                           >
-                            Add to Cart
+                            Add
                           </Button>
                         )}
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </motion.div>
               );
             })}

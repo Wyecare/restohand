@@ -9,7 +9,9 @@ const ContactUsPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle form submission
-    alert('Thank you for your message! We will get back to you within 24 hours.');
+    alert(
+      'Thank you for your message! We will get back to you within 24 hours.'
+    );
   };
 
   return (
@@ -18,8 +20,8 @@ const ContactUsPage = () => {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4">Contact Us</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Have questions about RestoHand? We're here to help! Reach out to our team
-            and we'll get back to you as soon as possible.
+            Have questions about RestoHand? We're here to help! Reach out to our
+            team and we'll get back to you as soon as possible.
           </p>
         </div>
 
@@ -38,8 +40,12 @@ const ContactUsPage = () => {
                   <Mail className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="font-medium">Email Support</p>
-                    <p className="text-muted-foreground">admin@wyecaresolutions.com</p>
-                    <p className="text-sm text-muted-foreground">For general support and inquiries</p>
+                    <p className="text-muted-foreground">
+                      admin@wyecaresolutions.com
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      For general support and inquiries
+                    </p>
                   </div>
                 </div>
 
@@ -47,8 +53,12 @@ const ContactUsPage = () => {
                   <Mail className="h-5 w-5 text-primary mt-0.5" />
                   <div>
                     <p className="font-medium">Sales & Business</p>
-                    <p className="text-muted-foreground">admin@wyecaresolutions.com</p>
-                    <p className="text-sm text-muted-foreground">For new subscriptions and partnerships</p>
+                    <p className="text-muted-foreground">
+                      admin@wyecaresolutions.com
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      For new subscriptions and partnerships
+                    </p>
                   </div>
                 </div>
 
@@ -57,7 +67,9 @@ const ContactUsPage = () => {
                   <div>
                     <p className="font-medium">Phone Support</p>
                     <p className="text-muted-foreground">+91 9037495218</p>
-                    <p className="text-sm text-muted-foreground">Monday-Friday, 9:00 AM - 6:00 PM IST</p>
+                    <p className="text-sm text-muted-foreground">
+                      Monday-Friday, 9:00 AM - 6:00 PM IST
+                    </p>
                   </div>
                 </div>
 
@@ -68,7 +80,9 @@ const ContactUsPage = () => {
                     <p className="text-muted-foreground">
                       Kottayam, Kerala, India
                     </p>
-                    <p className="text-sm text-muted-foreground">Headquarters and development center</p>
+                    <p className="text-sm text-muted-foreground">
+                      Headquarters and development center
+                    </p>
                   </div>
                 </div>
 
@@ -77,7 +91,9 @@ const ContactUsPage = () => {
                   <div>
                     <p className="font-medium">Response Time</p>
                     <p className="text-muted-foreground">Within 24 hours</p>
-                    <p className="text-sm text-muted-foreground">We typically respond much faster!</p>
+                    <p className="text-sm text-muted-foreground">
+                      We typically respond much faster!
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -131,11 +147,19 @@ const ContactUsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">First Name *</Label>
-                    <Input id="firstName" placeholder="Enter your first name" required />
+                    <Input
+                      id="firstName"
+                      placeholder="Enter your first name"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Last Name *</Label>
-                    <Input id="lastName" placeholder="Enter your last name" required />
+                    <Input
+                      id="lastName"
+                      placeholder="Enter your last name"
+                      required
+                    />
                   </div>
                 </div>
 
@@ -181,7 +205,7 @@ const ContactUsPage = () => {
                     id="category"
                     className="w-full p-2 border border-input rounded-md bg-background"
                   >
-                    <option value="">Select a category</option>
+                    <option value="none">Select a category</option>
                     <option value="technical">Technical Support</option>
                     <option value="billing">Billing & Subscriptions</option>
                     <option value="setup">Setup & Onboarding</option>
@@ -206,7 +230,8 @@ const ContactUsPage = () => {
                 </Button>
 
                 <p className="text-sm text-muted-foreground text-center">
-                  By submitting this form, you agree to our Privacy Policy and Terms of Service.
+                  By submitting this form, you agree to our Privacy Policy and
+                  Terms of Service.
                 </p>
               </form>
             </CardContent>
@@ -221,42 +246,49 @@ const ContactUsPage = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="font-medium mb-2">How quickly can I get started?</h4>
+                <h4 className="font-medium mb-2">
+                  How quickly can I get started?
+                </h4>
                 <p className="text-sm text-muted-foreground mb-4">
-                  You can start your 30-day free trial immediately. Setup typically takes 15-30 minutes
-                  with our guided onboarding process.
+                  You can start your 30-day free trial immediately. Setup
+                  typically takes 15-30 minutes with our guided onboarding
+                  process.
                 </p>
 
                 <h4 className="font-medium mb-2">Is there a setup fee?</h4>
                 <p className="text-sm text-muted-foreground mb-4">
-                  No setup fees! Our plans include everything you need to get started,
-                  including onboarding support and training.
+                  No setup fees! Our plans include everything you need to get
+                  started, including onboarding support and training.
                 </p>
 
                 <h4 className="font-medium mb-2">Can I cancel anytime?</h4>
                 <p className="text-sm text-muted-foreground">
-                  Yes, you can cancel your subscription at any time. There are no long-term
-                  contracts or cancellation fees.
+                  Yes, you can cancel your subscription at any time. There are
+                  no long-term contracts or cancellation fees.
                 </p>
               </div>
 
               <div>
-                <h4 className="font-medium mb-2">Do you take commission on orders?</h4>
+                <h4 className="font-medium mb-2">
+                  Do you take commission on orders?
+                </h4>
                 <p className="text-sm text-muted-foreground mb-4">
-                  No! We only charge a fixed monthly subscription fee. 100% of your customer
-                  payments go directly to your bank account.
+                  No! We only charge a fixed monthly subscription fee. 100% of
+                  your customer payments go directly to your bank account.
                 </p>
 
-                <h4 className="font-medium mb-2">What payment methods do you support?</h4>
+                <h4 className="font-medium mb-2">
+                  What payment methods do you support?
+                </h4>
                 <p className="text-sm text-muted-foreground mb-4">
-                  We support UPI, cards, net banking, and wallets through our Razorpay integration.
-                  All payments are processed securely.
+                  We support UPI, cards, net banking, and wallets through our
+                  Razorpay integration. All payments are processed securely.
                 </p>
 
                 <h4 className="font-medium mb-2">Do you provide training?</h4>
                 <p className="text-sm text-muted-foreground">
-                  Yes! We provide comprehensive onboarding and training for you and your staff.
-                  Our support team is always available to help.
+                  Yes! We provide comprehensive onboarding and training for you
+                  and your staff. Our support team is always available to help.
                 </p>
               </div>
             </div>
