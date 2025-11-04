@@ -26,6 +26,7 @@ import {
 } from '@/store/slices/authSlice';
 import { useGetRestaurantQuery } from '@/store/api/restaurantsApi';
 import { useListOrdersQuery } from '@/store/api/ordersApi';
+import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import {
   RefreshCw,
@@ -64,6 +65,12 @@ const DashboardPage = () => {
   } = useListOrdersQuery(
     restaurantId ? { restaurantId, limit: 5, page: 1 } : skipToken
   );
+
+  // Real-time order updates via WebSocket
+  useOrdersSocket({
+    onEvent: refetchOrders,
+    enabled: !!restaurantId
+  });
 
   const totalOrders = recentOrders?.total ?? 0;
   const totalRevenue = recentOrders?.data.reduce(

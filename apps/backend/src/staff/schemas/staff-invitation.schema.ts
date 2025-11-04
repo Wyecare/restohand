@@ -1,0 +1,50 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+export type StaffInvitationDocument = StaffInvitation & Document;
+
+@Schema({
+  timestamps: true,
+  collection: 'staff_invitations',
+})
+export class StaffInvitation {
+  @Prop({ type: Types.ObjectId, ref: 'Restaurant', required: true })
+  restaurantId: Types.ObjectId;
+
+  @Prop({ required: true, lowercase: true, trim: true })
+  email: string;
+
+  @Prop({ required: true, enum: ['manager', 'chef', 'waiter', 'cashier'] })
+  role: string;
+
+  @Prop({ required: true, unique: true })
+  token: string;
+
+  @Prop({ required: true })
+  expiresAt: Date;
+
+  @Prop({ default: false })
+  isUsed: boolean;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  usedBy?: Types.ObjectId;
+
+  @Prop()
+  usedAt?: Date;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  invitedBy: Types.ObjectId;
+
+  @Prop({ default: 0 })
+  emailSentCount: number;
+
+  @Prop()
+  lastEmailSentAt?: Date;
+}
+
+export const StaffInvitationSchema = SchemaFactory.createForClass(StaffInvitation);
+
+// Indexes
+StaffInvitationSchema.index({ token: 1 });
+StaffInvitationSchema.index({ email: 1, restaurantId: 1 });
+StaffInvitationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

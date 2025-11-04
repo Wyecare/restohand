@@ -422,6 +422,7 @@ export class OrdersService {
     );
 
     if (orderDoc.paymentStatus !== PaymentStatus.Paid) {
+      this.logger.log(`Updating payment status to PAID for order ${orderDoc._id}`);
       await this.updatePayment(
         orderDoc.restaurantId.toString(),
         orderDoc._id.toString(),
@@ -431,6 +432,9 @@ export class OrdersService {
           provider: 'razorpay',
         }
       );
+      this.logger.log(`Payment status updated and WebSocket event emitted for order ${orderDoc._id}`);
+    } else {
+      this.logger.log(`Order ${orderDoc._id} already marked as PAID, skipping update`);
     }
   }
 

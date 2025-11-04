@@ -17,6 +17,7 @@ import KitchenPage from '@/pages/KitchenPage';
 import ServicePage from '@/pages/ServicePage';
 import StaffLoginPage from '@/pages/StaffLoginPage';
 import StaffSignupPage from '@/pages/StaffSignupPage';
+import StaffInviteSignupPage from '@/pages/StaffInviteSignupPage';
 import ForbiddenPage from '@/pages/ForbiddenPage';
 import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
 import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
@@ -65,6 +66,8 @@ const AppRouter = () => {
         />
 
         <Route path="/staff-signup" element={<StaffSignupPage />} />
+
+        <Route path="/staff-invite-signup" element={<StaffInviteSignupPage />} />
 
         {/* Policy pages */}
         <Route path="/about-us" element={<AboutUsPage />} />

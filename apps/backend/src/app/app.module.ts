@@ -21,6 +21,7 @@ import { FloorPlansModule } from '../floor-plans/floor-plans.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { RecipesModule } from '../recipes/recipes.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { StaffModule } from '../staff/staff.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -51,6 +52,7 @@ import { AppService } from './app.service';
     SubscriptionsModule,
     InventoryModule,
     RecipesModule,
+    StaffModule,
   ],
   controllers: [AppController],
   providers: [AppService],

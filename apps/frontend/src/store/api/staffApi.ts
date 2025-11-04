@@ -29,6 +29,41 @@ export interface StaffInvitation {
   usedAt?: string;
 }
 
+// New email-based invitation interfaces
+export interface EmailInviteStaffPayload {
+  restaurantId: string;
+  email: string;
+  role: 'chef' | 'waiter' | 'cashier';
+}
+
+export interface EmailInviteStaffResponse {
+  message: string;
+  token: string;
+}
+
+export interface VerifyInviteResponse {
+  valid: boolean;
+  email?: string;
+  role?: string;
+  restaurantName?: string;
+  message?: string;
+}
+
+export interface CompleteSignupPayload {
+  token: string;
+  firebaseUid: string;
+}
+
+export interface CompleteSignupResponse {
+  message: string;
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    restaurantId: string;
+  };
+}
+
 export const staffApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listStaff: builder.query<StaffMember[], void>({
@@ -81,6 +116,31 @@ export const staffApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: [{ type: 'StaffInvitation', id: 'LIST' }],
     }),
+
+    // New email-based invitation endpoints
+    inviteStaffByEmail: builder.mutation<EmailInviteStaffResponse, EmailInviteStaffPayload>({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/staff/invitations`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [{ type: 'Staff', id: 'LIST' }],
+    }),
+
+    verifyInvite: builder.query<VerifyInviteResponse, string>({
+      query: (token) => ({
+        url: `/staff/invitations/verify/${token}`,
+        method: 'GET',
+      }),
+    }),
+
+    completeSignup: builder.mutation<CompleteSignupResponse, CompleteSignupPayload>({
+      query: (body) => ({
+        url: `/staff/invitations/complete-signup`,
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -91,4 +151,7 @@ export const {
   useResetStaffPinMutation,
   useListStaffInvitationsQuery,
   useRevokeStaffInvitationMutation,
+  useInviteStaffByEmailMutation,
+  useVerifyInviteQuery,
+  useCompleteSignupMutation,
 } = staffApi;
