@@ -22,7 +22,6 @@ import { StaffResponseDto, StaffInviteResponseDto } from './dtos/staff-response.
 import { InviteStaffRequestDto } from './dtos/invite-staff.request';
 import { UpdateStaffDto } from './dtos/update-staff.dto';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
-import { StaffInvitationService } from './staff-invitation.service';
 import { StaffQrService } from './staff-qr.service';
 import { CreateStaffInvitationDto, StaffInvitationResponseDto } from './dtos/staff-invitation.dto';
 import { GenerateStaffQrDto, StaffQrResponseDto } from './dtos/staff-qr.dto';
@@ -34,7 +33,6 @@ import { GenerateStaffQrDto, StaffQrResponseDto } from './dtos/staff-qr.dto';
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
-    private readonly staffInvitationService: StaffInvitationService,
     private readonly staffQrService: StaffQrService
   ) {}
 
@@ -59,22 +57,23 @@ export class UsersController {
   @ApiOperation({ summary: '[LEGACY] Invite a staff member via SMS invitation' })
   @ApiOkResponse({ type: StaffInvitationResponseDto })
   smsInvite(@Req() req: Request, @Body() body: CreateStaffInvitationDto) {
-    return this.staffInvitationService.createInvitation(req.user as AuthenticatedUser, body);
+    // Legacy endpoint - replaced by email invitations in /staff/invitations
+    throw new Error('SMS invitations are deprecated. Use email invitations instead.');
   }
 
   @Get('invitations')
   @ApiOperation({ summary: 'List pending staff invitations' })
   @ApiOkResponse({ type: [StaffInvitationResponseDto] })
   listInvitations(@Req() req: Request) {
-    const actor = req.user as AuthenticatedUser;
-    return this.staffInvitationService.listInvitations(actor.restaurantId!);
+    // Legacy endpoint - replaced by email invitations in /staff/invitations
+    return [];
   }
 
   @Post('invitations/:id/revoke')
   @ApiOperation({ summary: 'Revoke a pending staff invitation' })
   revokeInvitation(@Req() req: Request, @Param('id') invitationId: string) {
-    const actor = req.user as AuthenticatedUser;
-    return this.staffInvitationService.revokeInvitation(actor.restaurantId!, invitationId);
+    // Legacy endpoint - replaced by email invitations in /staff/invitations
+    return { message: 'This feature has been moved to email invitations' };
   }
 
   // Legacy PIN-based invitation (keep for backward compatibility)
