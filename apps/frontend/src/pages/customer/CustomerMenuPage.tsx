@@ -1,31 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
-import {
-  useCreateOrderMutation,
-  useCreatePaymentLinkMutation,
-  type CreatePaymentLinkResponse,
-} from '@/store/api/ordersApi';
+import { useCreateOrderMutation } from '@/store/api/ordersApi';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { ShoppingCart, Plus, Minus, Star, Clock, Flame } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Search, X, Sparkles } from 'lucide-react';
 import TableDialog from './TableDialog';
-import { CartBottomBar } from '@/components/customer/CartBottomBar';
-import { CartPanel } from '@/components/customer/CartPanel';
-import { MenuSearch, FilterOptions } from '@/components/customer/MenuSearch';
+import { Input } from '@/components/ui/input';
 
 declare global {
   interface Window {
@@ -43,11 +29,11 @@ interface CartEntry {
   quantity: number;
 }
 
-const formatCurrency = (amount: number, currency = 'INR') =>
+const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
+    currency: 'INR',
+    maximumFractionDigits: 0,
   }).format(amount);
 
 export default function CustomerMenuPage() {
@@ -63,22 +49,12 @@ export default function CustomerMenuPage() {
     skip: !slug,
   });
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
-  const [createPaymentLink] = useCreatePaymentLinkMutation();
 
-  const [viewMode, setViewMode] = useState<'unified' | 'categories'>('unified');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [cart, setCart] = useState<Record<string, CartEntry>>({});
-  const [cartPanelOpen, setCartPanelOpen] = useState(false);
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState<FilterOptions>({
-    vegetarian: false,
-    nonVegetarian: false,
-    spicy: false,
-    popular: false,
-    quickPrep: false,
-  });
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const restaurant = data?.restaurant;
   const categories = data?.menu.categories ?? [];
@@ -117,7 +93,6 @@ export default function CustomerMenuPage() {
   const filteredProducts = useMemo(() => {
     let filtered = allProducts;
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -129,27 +104,8 @@ export default function CustomerMenuPage() {
       );
     }
 
-    // Apply filters
-    if (filters.vegetarian && !filters.nonVegetarian) {
-      filtered = filtered.filter((item) => item._isVegetarian);
-    } else if (filters.nonVegetarian && !filters.vegetarian) {
-      filtered = filtered.filter((item) => !item._isVegetarian);
-    }
-
-    if (filters.spicy) {
-      filtered = filtered.filter((item) => item._isSpicy);
-    }
-
-    if (filters.popular) {
-      filtered = filtered.filter((item) => item._isPopular);
-    }
-
-    if (filters.quickPrep) {
-      filtered = filtered.filter((item) => item._isQuick);
-    }
-
     return filtered;
-  }, [allProducts, searchQuery, filters]);
+  }, [allProducts, searchQuery]);
 
   const displayItems = useMemo(() => {
     if (activeCategory === 'all') {
@@ -168,8 +124,11 @@ export default function CustomerMenuPage() {
     );
 
     return [
-      { id: 'all', name: 'All Items', icon: '🍽️' },
-      ...categoriesWithItems,
+      { id: 'all', name: 'All', icon: '🍽️' },
+      ...categoriesWithItems.map((c) => ({
+        ...c,
+        icon: c.icon || '🍴',
+      })),
       ...(hasUncategorised
         ? [{ id: 'uncategorised', name: 'Others', icon: '✨' }]
         : []),
@@ -204,107 +163,14 @@ export default function CustomerMenuPage() {
     });
   };
 
-  const handleUpdateQuantity = (id: string, quantity: number) => {
-    if (quantity <= 0) {
-      handleRemoveItem(id);
-      return;
-    }
-    setCart((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], quantity },
-    }));
-  };
-
-  const handleRemoveItem = (id: string) => {
-    setCart((prev) => {
-      const { [id]: _, ...rest } = prev;
-      return rest;
-    });
-  };
-
-  const handleClearCart = () => {
-    setCart({});
-  };
-
-  const loadRazorpayScript = useCallback(async () => {
-    if (typeof window === 'undefined') return false;
-    if (window.Razorpay) return true;
-
-    return new Promise<boolean>((resolve) => {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  }, []);
-
-  const openRazorpayCheckout = useCallback(
-    async (
-      intent: any,
-      order: { id: string; orderNumber: string; customerName?: string; customerPhone?: string },
-      tableNumber: string
-    ) => {
-      if (typeof window === 'undefined') return;
-
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded || !window.Razorpay) {
-        toast({
-          title: 'Payment system unavailable',
-          description: 'Unable to load payment system. Please try again.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const options = {
-        key: intent.razorpayKey || process.env.VITE_RAZORPAY_KEY_ID,
-        amount: intent.amount,
-        currency: intent.currency || 'INR',
-        name: restaurant?.name || 'Restaurant',
-        description: `Order #${order.orderNumber}`,
-        order_id: intent.razorpayOrderId,
-        prefill: {
-          name: order.customerName || '',
-          contact: order.customerPhone || '',
-        },
-        theme: {
-          color: '#16a34a',
-        },
-        handler: (response: any) => {
-          toast({
-            title: 'Payment successful!',
-            description: 'Your order has been confirmed.',
-          });
-          navigate(`/c/${slug}/order/${order.id}?table=${tableNumber}&payment=success`);
-        },
-        modal: {
-          ondismiss: () => {
-            toast({
-              title: 'Payment cancelled',
-              description: 'You can complete payment later with staff if needed.',
-            });
-          },
-        },
-      };
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-    },
-    [restaurant?.name, slug, navigate, toast, loadRazorpayScript]
-  );
-
-  const handleConfirmOrder = async (
-    tableNumber: string
-  ) => {
+  const handleConfirmOrder = async (tableNumber: string) => {
     if (!restaurant) return;
     const trimmedTable = tableNumber.trim();
 
     if (!trimmedTable) {
       toast({
         title: 'Add a table or name',
-        description:
-          'Please enter a table number or takeaway name before placing the order.',
+        description: 'Please enter a table number or name.',
         variant: 'destructive',
       });
       return;
@@ -313,8 +179,7 @@ export default function CustomerMenuPage() {
     if (Object.keys(cart).length === 0) {
       toast({
         title: 'Cart is empty',
-        description:
-          'Add at least one item to your cart before placing an order.',
+        description: 'Add items to your cart first.',
         variant: 'destructive',
       });
       setTableDialogOpen(false);
@@ -324,7 +189,7 @@ export default function CustomerMenuPage() {
     const payload = {
       restaurantId: restaurant.id,
       tableNumber: trimmedTable,
-      paymentMethod: 'cash', // Default to cash, customer can choose payment method later
+      paymentMethod: 'cash',
       items: Object.values(cart).map((entry) => ({
         menuItemId: entry.id,
         name: entry.name,
@@ -336,16 +201,13 @@ export default function CustomerMenuPage() {
       })),
     };
 
-    setIsProcessingPayment(true);
-
     try {
       const order = await createOrder(payload).unwrap();
       setCart({});
-      setCartPanelOpen(false);
       setTableDialogOpen(false);
       toast({
-        title: 'Order placed! 🍽️',
-        description: `Ticket #${order.orderNumber} created. You can pay when you're ready to leave.`,
+        title: 'Order placed! 🎉',
+        description: `Order #${order.orderNumber} created`,
       });
 
       navigate(`/c/${slug}/order/${order.id}?table=${trimmedTable}`);
@@ -355,61 +217,119 @@ export default function CustomerMenuPage() {
         description: err instanceof Error ? err.message : 'Unexpected error',
         variant: 'destructive',
       });
-    } finally {
-      setIsProcessingPayment(false);
     }
   };
 
   if (isLoading)
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <LoadingSpinner size="lg" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/20">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <img
+            src="/gifs/food-pending.gif"
+            alt="Loading menu"
+            className="w-48 h-48 mx-auto mb-4 rounded-2xl"
+          />
+          <p className="text-lg text-muted-foreground">Loading menu...</p>
+        </motion.div>
       </div>
     );
 
   if (isError || !restaurant)
     return (
-      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-        Unable to load menu. Please try again later.
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-8">
+          <div className="text-6xl mb-4">😕</div>
+          <h2 className="text-xl font-bold mb-2">Menu Unavailable</h2>
+          <p className="text-muted-foreground">
+            Unable to load the menu. Please try again later.
+          </p>
+        </Card>
       </div>
     );
 
   return (
-    <div className="relative min-h-screen bg-background pb-32">
+    <div className="relative min-h-screen bg-gradient-to-b from-background via-muted/5 to-background pb-32">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b p-4"
+        className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b"
       >
-        <div className="max-w-lg mx-auto space-y-4">
-          <div className="text-center">
-            <h1 className="text-xl font-bold">{restaurant?.name || 'Menu'}</h1>
+        <div className="max-w-2xl mx-auto p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1">
+              <h1 className="text-2xl font-black tracking-tight">
+                {restaurant?.name || 'Menu'}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {allProducts.length} items available
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={() => setShowSearch(!showSearch)}
+            >
+              {showSearch ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Search className="h-5 w-5" />
+              )}
+            </Button>
           </div>
 
-          {/* Search and Filters */}
-          <MenuSearch
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            filters={filters}
-            onFiltersChange={setFilters}
-          />
+          {/* Search Bar */}
+          <AnimatePresence>
+            {showSearch && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="relative mt-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search menu..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 h-11"
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
 
-      {/* Category Tabs */}
-      <div className="sticky top-[140px] z-20 bg-background/95 backdrop-blur-md border-b">
+      {/* Category Pills */}
+      <div className="sticky top-[88px] z-20 bg-background/95 backdrop-blur-lg border-b">
         <ScrollArea className="w-full">
-          <div className="flex gap-2 p-4 max-w-lg mx-auto">
+          <div className="flex gap-2 p-3 max-w-2xl mx-auto">
             {availableCategories.map((category) => (
               <Button
                 key={category.id}
                 variant={activeCategory === category.id ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setActiveCategory(category.id)}
-                className="shrink-0 flex items-center gap-2"
+                className="shrink-0 h-9 px-4 rounded-full"
               >
-                <span>{category.icon}</span>
+                <span className="mr-1.5">{category.icon}</span>
                 {category.name}
               </Button>
             ))}
@@ -422,151 +342,136 @@ export default function CustomerMenuPage() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="p-4 max-w-lg mx-auto space-y-4"
+        transition={{ delay: 0.1 }}
+        className="p-4 max-w-2xl mx-auto"
       >
         {displayItems.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-16">
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.3 }}
             >
-              {searchQuery || Object.values(filters).some(Boolean) ? (
-                <>
-                  <div className="text-4xl mb-3">🔍</div>
-                  <h3 className="text-base font-semibold mb-2">
-                    No matches found
-                  </h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setFilters({
-                        vegetarian: false,
-                        nonVegetarian: false,
-                        spicy: false,
-                        popular: false,
-                        quickPrep: false,
-                      });
-                    }}
-                  >
-                    Clear filters
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="text-4xl mb-3">🍽️</div>
-                  <h3 className="text-base font-semibold">
-                    No items available
-                  </h3>
-                </>
-              )}
+              <div className="text-6xl mb-4">🔍</div>
+              <h3 className="text-xl font-bold mb-2">No items found</h3>
+              <p className="text-muted-foreground mb-4">
+                Try adjusting your search
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchQuery('');
+                  setActiveCategory('all');
+                }}
+              >
+                Clear filters
+              </Button>
             </motion.div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             {displayItems.map((item, index) => {
               const entry = cart[item.id];
               return (
                 <motion.div
                   key={item.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.02 }}
                 >
-                  <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm hover:shadow-md transition-all duration-200">
-                    <div className="flex gap-3">
+                  <Card className=" py-2 overflow-hidden border hover:shadow-md transition-all duration-200 hover:border-primary/30 h-full">
+                    <CardContent className="px-2 py-0 flex flex-col h-full">
                       {/* Item Image */}
-                      <div className="relative w-16 h-16 bg-muted rounded-lg overflow-hidden shrink-0">
-                        <img
-                          src={item.imageUrls?.[0] || '/placeholder.svg'}
-                          alt={item.name}
-                          className="absolute inset-0 h-full w-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src =
-                              'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgMTJMMTEgMTRMMTUgMTBNMjEgMTJDMjEgMTYuOTcwNiAxNi45NzA2IDIxIDEyIDIxQzcuMDI5NCAyMSAzIDE2Ljk3MDYgMyAxMkMzIDcuMDI5NCA3LjAyOTQgMyAxMiAzQzE2Ljk3MDYgMyAyMSA3LjAyOTQgMjEgMTJaIiBzdHJva2U9IiNhMWE5YjgiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+';
-                          }}
-                        />
-                        {item.imageUrls && item.imageUrls.length > 1 && (
-                          <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
-                            +{item.imageUrls.length - 1}
+                      <div className="relative w-full aspect-square rounded-md overflow-hidden mb-2 bg-gradient-to-br from-muted to-muted/50">
+                        {item.imageUrls?.[0] ? (
+                          <img
+                            src={item.imageUrls[0]}
+                            alt={item.name}
+                            className="absolute inset-0 h-full w-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-4xl opacity-30">🍽️</span>
+                          </div>
+                        )}
+                        {/* Veg/Non-veg indicator */}
+                        <div className="absolute top-1.5 left-1.5 z-10">
+                          {item._isVegetarian ? (
+                            <div className="w-4 h-4 bg-white rounded-sm border-2 border-green-600 flex items-center justify-center shadow-sm">
+                              <div className="w-2 h-2 bg-green-600 rounded-full" />
+                            </div>
+                          ) : (
+                            <div className="w-4 h-4 bg-white rounded-sm border-2 border-red-600 flex items-center justify-center shadow-sm">
+                              <div className="w-2 h-2 bg-red-600 rounded-full" />
+                            </div>
+                          )}
+                        </div>
+                        {/* Popular badge */}
+                        {item._isPopular && (
+                          <div className="absolute top-1.5 right-1.5 bg-yellow-500 rounded-full p-0.5 shadow-sm z-10">
+                            <Sparkles className="h-3 w-3 text-white fill-white" />
+                          </div>
+                        )}
+                        {/* Tags on image */}
+                        {(item._isSpicy || item._isQuick) && (
+                          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+                            {item._isSpicy && (
+                              <span className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs">
+                                🌶️
+                              </span>
+                            )}
+                            {item._isQuick && (
+                              <span className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs">
+                                ⚡
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
 
                       {/* Item Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 min-w-0 mr-2">
-                            <h3 className="font-semibold text-sm truncate text-gray-900">
-                              {item.name}
-                            </h3>
-                            {item.description && (
-                              <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">
-                                {item.description}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="font-bold text-sm text-gray-900">
-                              {formatCurrency(item.pricing.amount)}
-                            </p>
-                          </div>
-                        </div>
+                      <div className="flex-1 flex flex-col px-1">
+                        <h3 className="font-bold text-xs line-clamp-2 mb-1.5 leading-tight">
+                          {item.name}
+                        </h3>
 
-                        {/* Tags */}
-                        <div className="flex items-center gap-1 mb-2">
-                          {item._isVegetarian && (
-                            <span className="text-green-600 text-xs">🌱</span>
-                          )}
-                          {item._isSpicy && (
-                            <span className="text-red-600 text-xs">🌶️</span>
-                          )}
-                          {item._isPopular && (
-                            <span className="text-yellow-600 text-xs">⭐</span>
-                          )}
-                          {item._isQuick && (
-                            <span className="text-blue-600 text-xs">⚡</span>
-                          )}
-                        </div>
+                        {/* Price */}
+                        <p className="text-base font-black mb-2">
+                          {formatCurrency(item.pricing.amount)}
+                        </p>
 
-                        {/* Add to Cart */}
+                        {/* Add Button */}
                         {entry ? (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 rounded-full"
-                                onClick={() => handleRemove(item.id)}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-6 text-center font-medium text-sm">
-                                {entry.quantity}
-                              </span>
-                              <Button
-                                size="icon"
-                                className="h-7 w-7 rounded-full"
-                                onClick={() =>
-                                  handleAdd(item.id, item.name, item.pricing)
-                                }
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <p className="text-xs font-medium text-gray-700">
-                              {formatCurrency(
-                                item.pricing.amount * entry.quantity
-                              )}
-                            </p>
+                          <div className="flex items-center justify-center gap-1.5 bg-primary rounded-full px-1.5 py-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
+                              onClick={() => handleRemove(item.id)}
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </Button>
+                            <span className="w-5 text-center font-bold text-sm text-primary-foreground">
+                              {entry.quantity}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
+                              onClick={() =>
+                                handleAdd(item.id, item.name, item.pricing)
+                              }
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         ) : (
                           <Button
-                            className="w-full h-8 text-xs"
+                            size="sm"
+                            className="w-full rounded-full h-7 font-semibold text-xs"
                             onClick={() =>
                               handleAdd(item.id, item.name, item.pricing)
                             }
@@ -575,8 +480,8 @@ export default function CustomerMenuPage() {
                           </Button>
                         )}
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 </motion.div>
               );
             })}
@@ -584,29 +489,44 @@ export default function CustomerMenuPage() {
         )}
       </motion.div>
 
-      {/* Cart Bottom Bar */}
+      {/* Floating Cart Button */}
       <AnimatePresence>
-        <CartBottomBar
-          cart={cart}
-          totalItems={totalItems}
-          totalAmount={totalAmount}
-          onViewCart={() => setCartPanelOpen(true)}
-          onCheckout={() => setTableDialogOpen(true)}
-        />
+        {totalItems > 0 && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-0 right-0 z-40 px-4"
+          >
+            <div className="max-w-2xl mx-auto">
+              <Button
+                size="lg"
+                className="w-full h-16 rounded-2xl shadow-2xl text-lg font-bold relative overflow-hidden"
+                onClick={() => setTableDialogOpen(true)}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80" />
+                <div className="relative flex items-center justify-between w-full px-2">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/20 rounded-full p-2">
+                      <ShoppingCart className="h-6 w-6" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm opacity-90">{totalItems} items</p>
+                      <p className="text-base font-black">
+                        {formatCurrency(totalAmount)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">
+                    <span className="font-bold">Place Order</span>
+                    <Plus className="h-5 w-5" />
+                  </div>
+                </div>
+              </Button>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
-
-      {/* Cart Panel */}
-      <CartPanel
-        open={cartPanelOpen}
-        onOpenChange={setCartPanelOpen}
-        cart={cart}
-        totalItems={totalItems}
-        totalAmount={totalAmount}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-        onCheckout={() => setTableDialogOpen(true)}
-        onClearCart={handleClearCart}
-      />
 
       {/* Table Dialog */}
       <TableDialog
@@ -614,7 +534,7 @@ export default function CustomerMenuPage() {
         onOpenChange={setTableDialogOpen}
         totalAmount={totalAmount}
         itemCount={totalItems}
-        isPlacingOrder={isPlacingOrder || isProcessingPayment}
+        isPlacingOrder={isPlacingOrder}
         onConfirm={handleConfirmOrder}
         defaultTable={tableFromUrl}
       />

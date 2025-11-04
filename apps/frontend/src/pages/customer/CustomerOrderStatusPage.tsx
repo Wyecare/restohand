@@ -2,38 +2,18 @@
 
 import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-  Clock,
-  CheckCircle2,
-  Loader2,
-  Utensils,
-  AlertCircle,
-  IndianRupee,
-  CreditCard,
-  Plus,
-} from 'lucide-react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, CreditCard, X } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   useGetPublicOrderQuery,
   useGetPublicRestaurantQuery,
   useCancelPublicOrderMutation,
 } from '@/store/api/restaurantsApi';
-import {
-  useCreatePaymentLinkMutation,
-} from '@/store/api/ordersApi';
+import { useCreatePaymentLinkMutation } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import type { Order } from '@/store/api/types';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ReceiptDialog } from '@/components/customer/ReceiptDialog';
@@ -57,31 +37,54 @@ const loadRazorpayScript = async () => {
   });
 };
 
-const progressDisplay = (value: Order['progress']) => {
-  switch (value) {
-    case 0:
-      return 'Not started';
-    case 40:
-      return 'Prep started';
-    case 60:
-      return 'Almost ready';
-    case 100:
-      return 'Ready for pickup';
-    default:
-      return `${value}%`;
+// Simplified status display
+const getStatusInfo = (order: Order) => {
+  const { status, progress } = order;
+
+  if (status === 'cancelled') {
+    return {
+      gif: '/gifs/cancel.gif', // You'll replace this
+      title: 'Order Cancelled',
+      message: 'This order has been cancelled',
+      color: 'text-red-500',
+    };
   }
-};
 
-const progressIcon = (value: Order['progress']) => {
-  if (value < 40)
-    return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
-  if (value < 100)
-    return <Utensils className="h-5 w-5 text-primary animate-pulse" />;
-  return <CheckCircle2 className="h-5 w-5 text-green-500" />;
-};
+  if (status === 'completed') {
+    return {
+      gif: '/gifs/completed.gif', // You'll replace this
+      title: 'Order Complete! 🎉',
+      message: 'Thanks for ordering with us!',
+      color: 'text-green-500',
+    };
+  }
 
-const paymentStatusLabel = (status: Order['paymentStatus']) =>
-  status.replace('_', ' ');
+  if (status === 'ready' || progress === 100) {
+    return {
+      gif: '/gifs/ready.gif', // You'll replace this
+      title: 'Your Order is Ready! 🍽️',
+      message: 'Please collect your order',
+      color: 'text-green-500',
+    };
+  }
+
+  if (status === 'in_progress' || progress >= 40) {
+    return {
+      gif: '/gifs/cooking.gif', // You'll replace this
+      title: 'Cooking Your Food 👨‍🍳',
+      message: 'Your order is being prepared',
+      color: 'text-orange-500',
+    };
+  }
+
+  // pending or accepted
+  return {
+    gif: '/gifs/food-pending.gif',
+    title: 'Order Received ✓',
+    message: "We'll start preparing soon",
+    color: 'text-blue-500',
+  };
+};
 
 type DeviceOrder = {
   orderId: string;
@@ -96,7 +99,7 @@ const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(value);
 
 export default function CustomerOrderStatusPage() {
@@ -105,7 +108,7 @@ export default function CustomerOrderStatusPage() {
   const [searchParams] = useSearchParams();
   const { data, isLoading, isError, refetch } = useGetPublicOrderQuery(
     { slug, orderId },
-    { skip: !slug || !orderId, pollingInterval: 5000 } // Poll every 5 seconds for payment updates
+    { skip: !slug || !orderId, pollingInterval: 5000 }
   );
   const { data: restaurantData } = useGetPublicRestaurantQuery(slug, {
     skip: !slug,
@@ -120,8 +123,8 @@ export default function CustomerOrderStatusPage() {
     useCancelPublicOrderMutation();
   const [createPaymentLink, { isLoading: isProcessingPayment }] =
     useCreatePaymentLinkMutation();
-  const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  const [showItems, setShowItems] = useState(false);
 
   const handleSocketEvent = useCallback(
     (incoming: Order) => {
@@ -134,17 +137,9 @@ export default function CustomerOrderStatusPage() {
 
   useOrdersSocket({ onEvent: handleSocketEvent, enabled: !!orderId });
 
-  const progressValue = order?.progress ?? 0;
   const isCashDue =
     order?.paymentMethod === 'cash' && order.paymentStatus !== 'paid';
   const canPayOnline = order?.paymentStatus !== 'paid';
-  const isOrderReady = order && order.status === 'ready';
-  const subtotal = order?.subTotalAmount ?? order?.totalAmount ?? 0;
-  const cgst = order?.cgstAmount ?? 0;
-  const sgst = order?.sgstAmount ?? 0;
-  const igst = order?.igstAmount ?? 0;
-  const discount = order?.discountAmount ?? 0;
-  const roundOff = order?.roundOffAmount ?? 0;
   const tableFromQuery = searchParams.get('table') ?? undefined;
   const cancellableStatuses: Array<Order['status']> = [
     'pending',
@@ -154,11 +149,6 @@ export default function CustomerOrderStatusPage() {
   const canCancelOrder = !!order && cancellableStatuses.includes(order.status);
   const canStartNewOrder =
     !!order && (order.status === 'completed' || order.status === 'cancelled');
-
-  const pastOrders = useMemo(() => {
-    if (!orderId) return deviceOrders;
-    return deviceOrders.filter((entry) => entry.orderId !== orderId);
-  }, [deviceOrders, orderId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -182,16 +172,25 @@ export default function CustomerOrderStatusPage() {
     }
   }, []);
 
-  // Show payment success notification when payment status changes to paid
+  // Show payment success notification
   useEffect(() => {
-    if (order?.paymentStatus === 'paid' && order?.paymentMethod === 'upi' && !hasShownPaymentSuccess) {
+    if (
+      order?.paymentStatus === 'paid' &&
+      order?.paymentMethod === 'upi' &&
+      !hasShownPaymentSuccess
+    ) {
       toast({
         title: 'Payment successful! 🎉',
-        description: 'Your payment has been confirmed. The kitchen will start preparing your order.',
+        description: 'Your order is being prepared',
       });
       setHasShownPaymentSuccess(true);
     }
-  }, [order?.paymentStatus, order?.paymentMethod, hasShownPaymentSuccess, toast]);
+  }, [
+    order?.paymentStatus,
+    order?.paymentMethod,
+    hasShownPaymentSuccess,
+    toast,
+  ]);
 
   useEffect(() => {
     if (!order || typeof window === 'undefined') return;
@@ -275,14 +274,14 @@ export default function CustomerOrderStatusPage() {
             title: 'Payment successful! 🎉',
             description: 'Your payment has been confirmed.',
           });
-          setShowPaymentOptions(false);
           refetch();
         },
         modal: {
           ondismiss: () => {
             toast({
               title: 'Payment cancelled',
-              description: 'You can complete payment later with staff if needed.',
+              description:
+                'You can complete payment later with staff if needed.',
             });
           },
         },
@@ -297,7 +296,7 @@ export default function CustomerOrderStatusPage() {
         variant: 'destructive',
       });
     }
-  }, [order, createPaymentLink, toast, refetch]);
+  }, [order, createPaymentLink, toast, refetch, restaurantData?.id]);
 
   const handleCancelOrder = useCallback(async () => {
     if (!order || !canCancelOrder) {
@@ -319,18 +318,19 @@ export default function CustomerOrderStatusPage() {
     } catch (error) {
       toast({
         title: 'Unable to cancel order',
-        description: error instanceof Error ? error.message : 'Unexpected error',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error',
         variant: 'destructive',
       });
     }
-  }, [cancelOrder, canCancelOrder, order, orderId, refetch, slug, toast]);
+  }, [cancelOrder, canCancelOrder, order, orderId, slug, toast]);
 
   const handleStartNewOrder = useCallback(
     (force = false) => {
       if (!force && !canStartNewOrder) {
         toast({
           title: 'Order still in progress',
-          description: 'Please wait for the current ticket to finish before starting a new one.',
+          description: 'Please wait for the current order to finish.',
         });
         return;
       }
@@ -341,7 +341,9 @@ export default function CustomerOrderStatusPage() {
       }
       setDeviceOrders([]);
       setDeviceId(null);
-      const tableSuffix = tableFromQuery ? `?table=${encodeURIComponent(tableFromQuery)}` : '';
+      const tableSuffix = tableFromQuery
+        ? `?table=${encodeURIComponent(tableFromQuery)}`
+        : '';
       navigate(`/c/${slug}${tableSuffix}`);
     },
     [canStartNewOrder, navigate, slug, tableFromQuery, toast]
@@ -349,390 +351,278 @@ export default function CustomerOrderStatusPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <LoadingSpinner size="lg" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/20">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <img
+            src="/gifs/food-pending.gif"
+            alt="Loading"
+            className="w-48 h-48 mx-auto mb-4 rounded-2xl"
+          />
+          <p className="text-lg text-muted-foreground">Loading your order...</p>
+        </motion.div>
       </div>
     );
   }
 
   if (isError || !order) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-        <AlertCircle className="mr-2 h-5 w-5" />
-        Order not found or unavailable.
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-8">
+          <div className="text-6xl mb-4">😕</div>
+          <h2 className="text-xl font-bold mb-2">Order Not Found</h2>
+          <p className="text-muted-foreground mb-4">
+            We couldn't find this order. It may have been removed or the link is
+            incorrect.
+          </p>
+          <Button onClick={() => navigate(`/c/${slug}`)}>Back to Menu</Button>
+        </Card>
       </div>
     );
   }
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 25 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-10"
-    >
-      {/* Header */}
-      <div className="relative text-center space-y-2">
-        <motion.h1
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-3xl font-extrabold tracking-tight"
-        >
-          Ticket #{order.orderNumber}
-        </motion.h1>
-        <p className="text-sm text-muted-foreground">
-          Stay tuned — we’ll update you as your order moves through the kitchen.
-        </p>
-        {(canCancelOrder || canStartNewOrder) && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-            className="flex flex-wrap items-center justify-center gap-2 pt-1"
-          >
-            {canCancelOrder && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleCancelOrder}
-                disabled={isCancelling}
-              >
-                {isCancelling ? 'Cancelling...' : 'Cancel order'}
-              </Button>
-            )}
-            {canStartNewOrder && (
-              <Button variant="outline" size="sm" onClick={handleStartNewOrder}>
-                Start a new order
-              </Button>
-            )}
-            {order && order.status !== 'cancelled' && order.status !== 'completed' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const tableSuffix = tableFromQuery ? `?table=${encodeURIComponent(tableFromQuery)}` : '';
-                  navigate(`/c/${slug}${tableSuffix}`);
-                }}
-              >
-                <Plus className="mr-1 h-4 w-4" />
-                Add more items
-              </Button>
-            )}
-          </motion.div>
-        )}
+  const statusInfo = getStatusInfo(order);
 
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background via-muted/10 to-background">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="mx-auto max-w-2xl px-4 py-8 space-y-6"
+      >
+        {/* Main Status Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="overflow-hidden border-2 shadow-xl">
+            <CardContent className="p-8 text-center space-y-6">
+              {/* GIF Animation */}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.2, type: 'spring' }}
+                className="flex justify-center"
+              >
+                <img
+                  src={statusInfo.gif}
+                  alt="Order status"
+                  className="w-56 h-56 rounded-3xl shadow-lg"
+                />
+              </motion.div>
+
+              {/* Order Number */}
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">
+                  Order Number
+                </p>
+                <h1 className="text-5xl font-black tracking-tight">
+                  #{order.orderNumber}
+                </h1>
+              </div>
+
+              {/* Status Message */}
+              <div>
+                <h2 className={`text-2xl font-bold ${statusInfo.color} mb-2`}>
+                  {statusInfo.title}
+                </h2>
+                <p className="text-muted-foreground text-lg">
+                  {statusInfo.message}
+                </p>
+              </div>
+
+              {/* Payment Badge */}
+              {order.paymentStatus !== 'paid' && (
+                <Badge variant="destructive" className="text-base px-4 py-2">
+                  Payment Pending
+                </Badge>
+              )}
+              {order.paymentStatus === 'paid' && (
+                <Badge
+                  variant="default"
+                  className="text-base px-4 py-2 bg-green-500"
+                >
+                  ✓ Paid
+                </Badge>
+              )}
+
+              {/* Cash Payment Notice */}
+              {/* {isCashDue && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="rounded-xl bg-amber-50 text-amber-900 border-2 border-amber-200 p-4"
+                >
+                  <p className="font-medium">
+                    💵 Pay with cash when your order arrives
+                  </p>
+                  <p className="text-sm mt-1">
+                    Show order #{order.orderNumber} to staff
+                  </p>
+                </motion.div>
+              )} */}
+
+              {/* Total Amount */}
+              <div className="pt-4 border-t-2 border-dashed">
+                <p className="text-sm text-muted-foreground mb-1">
+                  Total Amount
+                </p>
+                <p className="text-4xl font-bold">
+                  {formatCurrency(order.totalAmount)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="grid grid-cols-2 gap-3"
+        >
+          {canPayOnline && (
+            <Button
+              onClick={handlePayNow}
+              disabled={isProcessingPayment}
+              size="lg"
+              className="col-span-2 h-14 text-lg"
+            >
+              <CreditCard className="mr-2 h-5 w-5" />
+              {isProcessingPayment ? 'Processing...' : 'Pay Now'}
+            </Button>
+          )}
+
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => setShowItems(!showItems)}
+            className="h-12"
+          >
+            {showItems ? 'Hide' : 'View'} Items
+          </Button>
+
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => setShowReceiptDialog(true)}
+            className="h-12"
+          >
+            View Receipt
+          </Button>
+
+          {order.status !== 'cancelled' && order.status !== 'completed' && (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => {
+                const tableSuffix = tableFromQuery
+                  ? `?table=${encodeURIComponent(tableFromQuery)}`
+                  : '';
+                navigate(`/c/${slug}${tableSuffix}`);
+              }}
+              className="col-span-2 h-12"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add More Items
+            </Button>
+          )}
+
+          {canCancelOrder && (
+            <Button
+              variant="destructive"
+              size="lg"
+              onClick={handleCancelOrder}
+              disabled={isCancelling}
+              className="col-span-2 h-12"
+            >
+              {isCancelling ? 'Cancelling...' : 'Cancel Order'}
+            </Button>
+          )}
+
+          {canStartNewOrder && (
+            <Button
+              variant="default"
+              size="lg"
+              onClick={handleStartNewOrder}
+              className="col-span-2 h-12"
+            >
+              Start New Order
+            </Button>
+          )}
+        </motion.div>
+
+        {/* Items List (Collapsible) */}
+        <AnimatePresence>
+          {showItems && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="overflow-hidden">
+                <CardContent className="p-6 space-y-3">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold">Your Items</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowItems(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {order.items.map((item, index) => (
+                    <div
+                      key={`${item.name}-${index}`}
+                      className="flex items-center justify-between py-3 border-b last:border-0"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          ₹{item.pricing.unitAmount} × {item.quantity}
+                        </p>
+                      </div>
+                      <p className="text-lg font-bold">
+                        ₹{(item.pricing.unitAmount * item.quantity).toFixed(0)}
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Help Section */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="absolute right-1/2 translate-x-1/2 mt-4 flex items-center justify-center gap-2 rounded-full bg-primary/10 px-4 py-1 text-sm text-primary shadow-sm z-50"
+          className="text-center text-sm text-muted-foreground space-y-2 pt-4"
         >
-          {progressIcon(progressValue)}
-          <span>{progressDisplay(progressValue)}</span>
+          <p>
+            Need help? Show order <strong>#{order.orderNumber}</strong> to staff
+          </p>
+          <p className="text-xs">This page updates automatically</p>
         </motion.div>
-      </div>
 
-      {/* Order Progress */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.3 }}
-      >
-        <Card className="overflow-hidden border-0 shadow-md backdrop-blur-sm bg-gradient-to-br from-background/70 to-muted/30">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Order progress</span>
-              {progressIcon(progressValue)}
-            </CardTitle>
-            <CardDescription>
-              Latest update: {progressDisplay(progressValue)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Progress
-              value={progressValue}
-              className="h-3 overflow-hidden rounded-full"
-            />
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-              <Badge variant="secondary" className="capitalize">
-                {order.status.replace('_', ' ')}
-              </Badge>
-              <Badge
-                variant={
-                  order.paymentStatus === 'paid' ? 'default' : 'destructive'
-                }
-              >
-                {order.paymentStatus === 'paid' ? 'Paid' : 'Payment pending'}
-              </Badge>
-              <Badge variant="outline" className="capitalize">
-                {paymentStatusLabel(order.paymentStatus)}
-              </Badge>
-            </div>
-            <Separator />
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>
-                <Clock className="mr-1 inline h-4 w-4" />
-                Placed on: {new Date(order.createdAt).toLocaleString()}
-              </p>
-              {order.readyAt && (
-                <p>
-                  <Utensils className="mr-1 inline h-4 w-4" />
-                  Ready at: {new Date(order.readyAt).toLocaleString()}
-                </p>
-              )}
-              {order.paidAt && (
-                <p>
-                  <CheckCircle2 className="mr-1 inline h-4 w-4 text-green-500" />
-                  Paid at: {new Date(order.paidAt).toLocaleString()}
-                </p>
-              )}
-            </div>
-            {isCashDue && (
-              <div className="rounded-md bg-amber-50 text-amber-900 border border-amber-200 px-3 py-2 text-sm">
-                Please settle your bill with the staff when the order arrives.
-                They will confirm your ticket number #{order.orderNumber} before
-                marking it paid.
-              </div>
-            )}
-            {canPayOnline && (
-              <div className="pt-2">
-                <Button
-                  onClick={handlePayNow}
-                  disabled={isProcessingPayment}
-                  className="w-full"
-                  size="lg"
-                >
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  {isProcessingPayment ? 'Processing...' : 'Pay Now'}
-                </Button>
-                <p className="text-xs text-center text-muted-foreground mt-2">
-                  Secure payment via Razorpay • Cards, UPI, Wallets accepted
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Receipt Dialog */}
+        {order && (
+          <ReceiptDialog
+            open={showReceiptDialog}
+            onOpenChange={setShowReceiptDialog}
+            order={order}
+            restaurantInfo={restaurantInfo}
+          />
+        )}
       </motion.div>
-
-      {/* Order Items */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.4 }}
-      >
-        <Card className="border-0 shadow-md backdrop-blur-sm bg-gradient-to-br from-background/70 to-muted/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Utensils className="h-5 w-5 text-primary" />
-              Items
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {order.items.map((item, index) => (
-              <motion.div
-                key={`${item.name}-${index}`}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="flex items-center justify-between rounded-lg bg-muted/30 p-2 px-3 text-sm"
-              >
-                <span>{item.name}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-muted-foreground">
-                    ×{item.quantity}
-                  </span>
-                  <span className="font-medium text-foreground">
-                    ₹{item.pricing.unitAmount.toFixed(2)}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
-            <Separator />
-            <div className="flex items-center justify-between text-sm font-semibold pt-1">
-              <span>Total</span>
-              <span className="flex items-center gap-1">
-                <IndianRupee className="h-4 w-4" />
-                {order.totalAmount.toFixed(2)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Payment summary */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.45 }}
-      >
-        <Card className="border-0 shadow-md backdrop-blur-sm bg-gradient-to-br from-background/70 to-muted/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IndianRupee className="h-5 w-5 text-primary" />
-              Bill summary
-            </CardTitle>
-            <CardDescription>
-              Here&apos;s the total for this ticket.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span>Subtotal</span>
-                <span>{formatCurrency(subtotal)}</span>
-              </div>
-              {discount > 0 && (
-                <div className="flex items-center justify-between">
-                  <span>Discounts</span>
-                  <span>-{formatCurrency(discount)}</span>
-                </div>
-              )}
-              {cgst > 0 && (
-                <div className="flex items-center justify-between">
-                  <span>CGST</span>
-                  <span>{formatCurrency(cgst)}</span>
-                </div>
-              )}
-              {sgst > 0 && (
-                <div className="flex items-center justify-between">
-                  <span>SGST</span>
-                  <span>{formatCurrency(sgst)}</span>
-                </div>
-              )}
-              {igst > 0 && (
-                <div className="flex items-center justify-between">
-                  <span>IGST</span>
-                  <span>{formatCurrency(igst)}</span>
-                </div>
-              )}
-              {Math.abs(roundOff) > 0.004 && (
-                <div className="flex items-center justify-between">
-                  <span>Round-off</span>
-                  <span>{formatCurrency(roundOff)}</span>
-                </div>
-              )}
-              <Separator />
-              <div className="flex items-center justify-between text-base font-semibold text-foreground">
-                <span>Total payable</span>
-                <span>{formatCurrency(order.totalAmount)}</span>
-              </div>
-              {order.taxType && (
-                <p className="text-xs text-muted-foreground">
-                  Tax type: {order.taxType === 'inter-state' ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)'}
-                </p>
-              )}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => setShowReceiptDialog(true)}
-            >
-              View Receipt
-            </Button>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Help card */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.5 }}
-      >
-        <Card className="border border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle>Need help?</CardTitle>
-            <CardDescription>
-              Show this screen to staff or reach out if anything feels off.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>
-              For urgent assistance, let the staff know your ticket number{' '}
-              <strong>#{order.orderNumber}</strong>.
-            </p>
-            <p>
-              You can also email{' '}
-              <a
-                className="text-primary hover:underline"
-                href="mailto:support@restohand.in"
-              >
-                support@restohand.in
-              </a>{' '}
-              with any concerns.
-            </p>
-            {deviceId && (
-              <p className="text-xs text-muted-foreground/80">
-                Device reference: <span className="font-mono">{deviceId}</span>
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Order history */}
-      {pastOrders.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55 }}
-        >
-          <Card className="border-0 shadow-md backdrop-blur-sm bg-gradient-to-br from-background/70 to-muted/30">
-            <CardHeader>
-              <CardTitle>Orders on this device</CardTitle>
-              <CardDescription>
-                Quick glance at the last few tickets placed from here.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              {pastOrders.map((entry) => (
-                <div
-                  key={entry.orderId}
-                  className="flex items-center justify-between rounded-md border border-border/40 px-3 py-2"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      Ticket #{entry.orderNumber}
-                    </p>
-                    <p className="text-xs">
-                      {new Date(entry.createdAt).toLocaleString()} •{' '}
-                      {entry.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
-                    </p>
-                  </div>
-                  <span className="font-medium text-foreground">
-                    {formatCurrency(entry.totalAmount)}
-                  </span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Thank You Footer */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
-        className="mt-4 text-center text-sm text-muted-foreground"
-      >
-        <p>Thank you for ordering with us! 🍽️</p>
-        <p className="text-xs">
-          This page auto-refreshes as your order updates.
-        </p>
-      </motion.div>
-
-      {/* Receipt Dialog */}
-      {order && (
-        <ReceiptDialog
-          open={showReceiptDialog}
-          onOpenChange={setShowReceiptDialog}
-          order={order}
-          restaurantInfo={restaurantInfo}
-        />
-      )}
-    </motion.div>
+    </div>
   );
 }

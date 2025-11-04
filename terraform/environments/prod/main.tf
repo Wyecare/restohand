@@ -102,6 +102,7 @@ module "secrets" {
     "razorpay-key-id"       = var.razorpay_key_id
     "razorpay-key-secret"   = var.razorpay_key_secret
     "razorpay-webhook-secret" = var.razorpay_webhook_secret
+    "firebase-storage-bucket" = var.firebase_storage_bucket
   }
 
   secret_accessors = [] # Will be configured after deployment
@@ -177,6 +178,12 @@ module "run_api" {
         secret_name = module.secrets.secret_names["firebase-web-api-key"]
         version     = "latest"
       }
+
+      FIREBASE_STORAGE_BUCKET = {
+        secret_name = module.secrets.secret_names["firebase-storage-bucket"]
+        version     = "latest"
+      }
+
       FRONTEND_URL = {
         secret_name = module.secrets.secret_names["frontend_url"]
         version     = "latest"

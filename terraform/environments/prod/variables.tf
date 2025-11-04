@@ -213,3 +213,9 @@ variable "razorpay_key_id" {
     description = "Razorpay Webhook Secret"
     type        = string
   }
+
+  variable "firebase_storage_bucket" {
+    description = "Firebase Storage Bucket name"
+    type        = string
+    default     = ""
+  }
