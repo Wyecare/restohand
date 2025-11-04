@@ -13,7 +13,7 @@ import SettingsPageNew from '@/pages/SettingsPageNew';
 import OnboardingPage from '@/pages/OnboardingPage';
 import StaffPage from '@/pages/StaffPage';
 import TablesPage from '@/pages/TablesPage';
-import KitchenPage from '@/pages/KitchenPage';
+import EnhancedKitchenPage from '@/pages/EnhancedKitchenPage';
 import ServicePage from '@/pages/ServicePage';
 import StaffLoginPage from '@/pages/StaffLoginPage';
 import StaffSignupPage from '@/pages/StaffSignupPage';
@@ -119,7 +119,7 @@ const AppRouter = () => {
           path="/kitchen"
           element={
             <AuthGuard allowedRoles={['chef']}>
-              <KitchenPage />
+              <EnhancedKitchenPage />
             </AuthGuard>
           }
         />

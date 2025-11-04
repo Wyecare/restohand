@@ -31,24 +31,26 @@ import { RestaurantsService } from './restaurants.service';
 
 @ApiTags('restaurants')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
-@Roles(UserRole.Manager)
 @Controller('restaurants')
 export class RestaurantsController {
   constructor(private readonly restaurantsService: RestaurantsService) {}
 
   @Post()
+  @Roles(UserRole.Manager)
   @ApiCreatedResponse({ type: RestaurantResponseDto })
   async create(@Body() dto: CreateRestaurantDto, @Req() req: Request) {
     return this.restaurantsService.create(dto, req.user);
   }
 
   @Get()
+  @Roles(UserRole.Manager)
   @ApiOkResponse({ type: RestaurantListResponseDto })
   async findAll(@Query() query: QueryRestaurantsDto) {
     return this.restaurantsService.findAll(query);
   }
 
   @Get(':id')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiOkResponse({ type: RestaurantResponseDto })
   async findOne(@Param('id') id: string) {
@@ -56,6 +58,7 @@ export class RestaurantsController {
   }
 
   @Patch(':id')
+  @Roles(UserRole.Manager)
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiOkResponse({ type: RestaurantResponseDto })
   async update(
@@ -66,6 +69,7 @@ export class RestaurantsController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.Manager)
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiOkResponse({ description: 'Restaurant archived successfully' })
   async remove(@Param('id') id: string) {
@@ -74,6 +78,7 @@ export class RestaurantsController {
   }
 
   @Get(':id/qrcode')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'id', description: 'Restaurant ID' })
   @ApiQuery({ name: 'table', required: false })
   async generateQr(

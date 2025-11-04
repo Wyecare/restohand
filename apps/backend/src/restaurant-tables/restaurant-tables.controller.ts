@@ -27,12 +27,12 @@ import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
 
 @ApiTags('restaurant-tables')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
-@Roles(UserRole.Manager)
 @Controller('restaurants/:restaurantId/tables')
 export class RestaurantTablesController {
   constructor(private readonly tablesService: RestaurantTablesService) {}
 
   @Get()
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiOkResponse({ type: [RestaurantTableResponseDto] })
   async list(@Param('restaurantId') restaurantId: string) {
@@ -40,6 +40,7 @@ export class RestaurantTablesController {
   }
 
   @Post()
+  @Roles(UserRole.Manager)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiCreatedResponse({ type: RestaurantTableResponseDto })
   async create(
@@ -50,6 +51,7 @@ export class RestaurantTablesController {
   }
 
   @Patch(':tableId')
+  @Roles(UserRole.Manager)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiParam({ name: 'tableId', description: 'Table ID' })
   @ApiOkResponse({ type: RestaurantTableResponseDto })
@@ -62,6 +64,7 @@ export class RestaurantTablesController {
   }
 
   @Delete(':tableId')
+  @Roles(UserRole.Manager)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiParam({ name: 'tableId', description: 'Table ID' })
   @ApiOkResponse({ description: 'Table archived successfully' })
@@ -74,6 +77,7 @@ export class RestaurantTablesController {
   }
 
   @Post(':tableId/reactivate')
+  @Roles(UserRole.Manager)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiParam({ name: 'tableId', description: 'Table ID' })
   @ApiOkResponse({ type: RestaurantTableResponseDto })
@@ -85,6 +89,7 @@ export class RestaurantTablesController {
   }
 
   @Get(':tableId/qrcode')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiParam({ name: 'tableId', description: 'Table ID' })
   async generateQr(
