@@ -23,15 +23,15 @@ export class WebhooksController {
 
   @Post('razorpay')
   @HttpCode(200)
-  async handleRazorpayWebhook(@Req() req: RawBodyRequest<Request>) {
+  async handleRazorpayWebhook(@Req() req: Request) {
     console.log('=== WEBHOOK DEBUG START ===');
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('Raw body exists:', !!req.rawBody);
-    console.log('Raw body type:', typeof req.rawBody);
-    console.log('Raw body length:', req.rawBody?.length);
+    console.log('Body exists:', !!req.body);
+    console.log('Body type:', typeof req.body);
+    console.log('Body length:', req.body?.length);
 
     const signature = req.headers['x-razorpay-signature'] as string | undefined;
-    const payload = req.rawBody?.toString();
+    const payload = req.body?.toString();
 
     console.log('Signature exists:', !!signature);
     console.log('Signature value:', signature);
