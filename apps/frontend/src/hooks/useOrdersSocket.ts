@@ -8,7 +8,10 @@ type OrdersSocketOptions = {
   enabled?: boolean;
 };
 
-export const useOrdersSocket = ({ onEvent, enabled = true }: OrdersSocketOptions) => {
+export const useOrdersSocket = ({
+  onEvent,
+  enabled = true,
+}: OrdersSocketOptions) => {
   useEffect(() => {
     if (!enabled) {
       return;

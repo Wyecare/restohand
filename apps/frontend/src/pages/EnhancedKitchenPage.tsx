@@ -383,9 +383,23 @@ const EnhancedKitchenPage = () => {
     refetch();
   };
 
-  const handleSocketEvent = useCallback(() => {
-    refetch();
-  }, [refetch]);
+  const handleSocketEvent = useCallback(
+    (data) => {
+      console.log('Received order event via socket:', data);
+      if (data.status === 'pending') {
+        sounds.newOrder();
+      } else if (data.status === 'accepted' || data.status === 'in_progress') {
+        // No sound for these statuses
+      } else if (data.status === 'cancelled') {
+        sounds.urgent();
+      } else {
+        sounds.notification();
+        // No sound for other statuses
+      }
+      refetch();
+    },
+    [refetch]
+  );
 
   useOrdersSocket({ onEvent: handleSocketEvent, enabled: !!restaurantId });
 
