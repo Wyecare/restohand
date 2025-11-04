@@ -94,8 +94,8 @@ const StaffLoginPage = () => {
 
       toast({ title: 'Welcome back!' });
 
-      // Navigate based on role (will be handled by auth state changes)
-      navigate('/dashboard', { replace: true });
+      // Navigation will be handled by the Navigate components at the top
+      // based on the updated role state, so no need to explicitly navigate
     } catch (error: any) {
       let errorMessage = 'Failed to sign in';
 

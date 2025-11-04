@@ -28,6 +28,7 @@ export function AuthGuard({
   const roles = useAppSelector(selectUserRoles);
   const hasRoles = roles.length > 0;
   const needsOnboarding = isAuthenticated && !hasRoles;
+
   // const { logout } = useAuth();
 
   // useEffect(() => {
@@ -58,31 +59,35 @@ export function AuthGuard({
     return <Navigate to={target} replace />;
   }
 
-  if (
-    allowedRoles &&
-    allowedRoles.length > 0 &&
-    !roles.some((role) => allowedRoles.includes(role))
-  ) {
-    // Special case: if user just authenticated but has no roles yet,
-    // it might be a timing issue with Firebase custom claims propagation
-    if (needsOnboarding) {
-      // Only redirect to onboarding if this route allows manager role
-      if (allowedRoles.includes('manager')) {
-        return <Navigate to="/onboarding" replace />;
-      } else {
-        // For staff routes (chef, waiter, cashier), show loading instead of forbidden
-        // This gives time for claims to propagate
-        return (
-          <div className="flex min-h-screen items-center justify-center bg-background">
-            <div className="text-center space-y-4">
-              <LoadingSpinner size="lg" />
-              <p className="text-sm text-muted-foreground">Setting up your account...</p>
+  // Check if user has the required roles
+  if (allowedRoles && allowedRoles.length > 0) {
+    const hasRequiredRole = roles.some((role) => allowedRoles.includes(role));
+
+    if (!hasRequiredRole) {
+      // Special case: if user just authenticated but has no roles yet,
+      // it might be a timing issue with Firebase custom claims propagation
+      if (needsOnboarding) {
+        // Only redirect to onboarding if this route allows manager role
+        if (allowedRoles.includes('manager')) {
+          return <Navigate to="/onboarding" replace />;
+        } else {
+          // For staff routes (chef, waiter, cashier), show loading instead of forbidden
+          // This gives time for claims to propagate
+          return (
+            <div className="flex min-h-screen items-center justify-center bg-background">
+              <div className="text-center space-y-4">
+                <LoadingSpinner size="lg" />
+                <p className="text-sm text-muted-foreground">Setting up your account...</p>
+              </div>
             </div>
-          </div>
-        );
+          );
+        }
       }
+
+      // User has roles but not the required ones - redirect to forbidden
+      return <Navigate to="/forbidden" replace />;
     }
-    return <Navigate to="/forbidden" replace />;
+    // User has the required role - allow access
   }
 
   return <>{children}</>;

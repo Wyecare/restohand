@@ -3,7 +3,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Copy, Smartphone, Clock, AlertTriangle, Timer, User, MapPin } from 'lucide-react';
+import {
+  Copy,
+  Smartphone,
+  Clock,
+  AlertTriangle,
+  ShoppingBag,
+  User,
+} from 'lucide-react';
 import { Order } from '@/store/api/types';
 import { cn } from '@/lib/utils';
 import { useTicketTimer } from '@/hooks/useTicketTimer';
@@ -29,32 +36,35 @@ export interface EnhancedOrderTicketProps {
 }
 
 const highlightClasses: Record<Highlight, string> = {
-  muted: 'border-border/60 hover:border-border',
-  warning: 'border-amber-300/70 bg-amber-50/30 dark:bg-amber-900/10 hover:border-amber-400/80 shadow-amber-100/50 dark:shadow-amber-900/20',
-  danger: 'border-destructive/60 bg-destructive/5 hover:border-destructive/80 shadow-destructive/10 animate-pulse',
+  muted: 'border-border/60 shadow-sm',
+  warning: 'border-amber-300/60 bg-amber-50/30 dark:bg-amber-950/10 shadow-md',
+  danger:
+    'border-orange-300/60 bg-orange-50/30 dark:bg-orange-950/10 shadow-lg',
 };
 
-const getTimerBadgeClass = (severity: ReturnType<typeof useTicketTimer>['severity']) => {
+const getTimerBadgeClass = (
+  severity: ReturnType<typeof useTicketTimer>['severity']
+) => {
   switch (severity) {
     case 'danger':
-      return 'border-destructive bg-destructive text-destructive-foreground animate-pulse';
+      return 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-700';
     case 'warning':
-      return 'border-amber-500 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300';
+      return 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800';
     default:
-      return 'border-border bg-muted/50 text-muted-foreground';
+      return 'bg-muted/50 text-muted-foreground border-border';
   }
 };
 
-const getStatusIndicator = (status: Order['status']) => {
+const getStatusColor = (status: Order['status']) => {
   switch (status) {
     case 'pending':
-      return { color: 'bg-red-500', label: 'New Order', pulse: true };
+      return 'bg-orange-500';
     case 'accepted':
-      return { color: 'bg-blue-500', label: 'Accepted', pulse: false };
+      return 'bg-blue-500';
     case 'in_progress':
-      return { color: 'bg-orange-500', label: 'Cooking', pulse: true };
+      return 'bg-amber-500';
     default:
-      return { color: 'bg-gray-500', label: status, pulse: false };
+      return 'bg-gray-500';
   }
 };
 
@@ -71,7 +81,7 @@ export function EnhancedOrderTicket({
 }: EnhancedOrderTicketProps) {
   const timer = useTicketTimer(order.createdAt);
   const tableNumber = order.tableNumber ?? undefined;
-  const statusIndicator = getStatusIndicator(order.status);
+  const statusColor = getStatusColor(order.status);
 
   const showCopyButtons = typeof onCopyLink === 'function';
   const hasItems = showItems && order.items?.length;
@@ -99,149 +109,133 @@ export function EnhancedOrderTicket({
   return (
     <Card
       className={cn(
-        'relative overflow-hidden rounded-xl border-2 p-0 shadow-lg transition-all duration-300 hover:shadow-xl',
+        'overflow-hidden border transition-all duration-200 hover:shadow-lg',
         highlightClasses[highlight],
         className
       )}
     >
-      {/* Status Strip */}
-      <div className={cn(
-        'h-1.5 w-full',
-        statusIndicator.color,
-        statusIndicator.pulse && 'animate-pulse'
-      )} />
+      {/* Compact Status Strip */}
+      <div className={cn('h-1 w-full', statusColor)} />
 
-      <div className="p-4">
-        {/* Header Section */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="space-y-2 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-bold text-lg">#{order.orderNumber}</h3>
+      <div className="p-3 space-y-2">
+        {/* Compact Header - Single Row */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="font-bold text-base">#{order.orderNumber}</span>
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[10px] h-5 px-1.5',
+                getTimerBadgeClass(timer.severity)
+              )}
+            >
+              <Clock className="h-2.5 w-2.5 mr-0.5" />
+              {timer.label}
+            </Badge>
+            {timer.severity === 'danger' && (
               <Badge
                 variant="outline"
-                className={cn(
-                  'text-xs font-semibold uppercase tracking-wider',
-                  getTimerBadgeClass(timer.severity)
-                )}
+                className="text-[10px] h-5 px-1.5 border-orange-400 bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300"
               >
-                <Clock className="h-3 w-3 mr-1" />
-                {timer.label}
+                <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
+                URGENT
               </Badge>
-              {timer.severity === 'danger' && (
-                <Badge variant="destructive" className="text-xs animate-bounce">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  URGENT
-                </Badge>
-              )}
-              {headerBadges}
-            </div>
-
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <User className="h-3 w-3" />
-                <span className="font-medium">{order.customerName ?? 'Guest'}</span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                <span>Table {tableNumber ?? '—'}</span>
-                {tableMeta && (
-                  <span className="text-xs">
-                    {tableMeta.displayName && `• ${tableMeta.displayName}`}
-                    {tableMeta.zone && ` • ${tableMeta.zone}`}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Timer className="h-3 w-3" />
-                <span>{order.items.length} item{order.items.length > 1 ? 's' : ''}</span>
-              </div>
-            </div>
+            )}
+            {headerBadges}
           </div>
 
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-1.5">
             <Badge
               variant="secondary"
-              className="text-sm font-bold px-3 py-1"
+              className="text-xs font-semibold h-6 px-2"
             >
               ₹{order.totalAmount.toFixed(2)}
             </Badge>
             <Badge
-              variant={order.paymentMethod === 'cash' ? 'destructive' : 'outline'}
-              className="text-xs uppercase font-semibold"
+              variant={
+                order.paymentMethod === 'cash' ? 'destructive' : 'outline'
+              }
+              className="text-[10px] h-5 px-1.5"
             >
-              {order.paymentMethod === 'cash' ? 'Cash' : 'UPI'}
+              {order.paymentMethod === 'cash' ? 'CASH' : 'UPI'}
             </Badge>
-            {showCopyButtons && (
-              <div className="flex gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={linker(tableNumber)}
-                  title="Copy table link"
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={linker('')}
-                  title="Copy generic link"
-                >
-                  <Smartphone className="h-3 w-3" />
-                </Button>
-              </div>
+          </div>
+        </div>
+
+        {/* Compact Info Row */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <User className="h-3 w-3" />
+            <span className="truncate max-w-[100px]">
+              {order.customerName ?? 'Guest'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="font-medium">Table {tableNumber ?? '—'}</span>
+            {tableMeta?.zone && (
+              <span className="text-[10px] opacity-70">({tableMeta.zone})</span>
             )}
           </div>
-        </div>
 
-        {/* Progress Bar */}
-        <div className="mb-3">
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              {statusIndicator.label}
-            </span>
-            <span className="text-xs font-medium text-muted-foreground">
-              {progress}%
-            </span>
+          <div className="flex items-center gap-1 ml-auto">
+            <ShoppingBag className="h-3 w-3" />
+            <span>{order.items.length}</span>
           </div>
-          <Progress
-            value={progress}
-            className="h-2"
-          />
+
+          {showCopyButtons && (
+            <div className="flex gap-0.5">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={linker(tableNumber)}
+                title="Copy table link"
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={linker('')}
+                title="Copy generic link"
+              >
+                <Smartphone className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Items List */}
+        {/* Compact Progress Bar */}
+        {progress > 0 && (
+          <div className="space-y-1">
+            <Progress value={progress} className="h-1.5" />
+          </div>
+        )}
+
+        {/* Compact Items List */}
         {hasItems && (
-          <div className="mb-4">
-            <div className="space-y-2">
-              {order.items.map((item, index) => (
-                <div
-                  key={`${order.id}-${item.menuItemId ?? item.name}-${index}`}
-                  className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/30 border border-border/50"
-                >
-                  <span className="flex-1 truncate font-medium text-sm">{item.name}</span>
-                  <Badge variant="outline" className="text-xs font-bold">
-                    ×{item.quantity}
-                  </Badge>
-                </div>
-              ))}
-            </div>
+          <div className="space-y-1">
+            {order.items.map((item, index) => (
+              <div
+                key={`${order.id}-${item.menuItemId ?? item.name}-${index}`}
+                className="flex items-center justify-between gap-2 py-1 px-2 rounded bg-muted/30 text-xs"
+              >
+                <span className="flex-1 truncate font-medium">{item.name}</span>
+                <span className="text-muted-foreground font-semibold">
+                  ×{item.quantity}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
         {/* Actions */}
-        {actions && (
-          <div className="flex flex-wrap gap-2 mb-2">
-            {actions}
-          </div>
-        )}
+        {actions && <div className="pt-1">{actions}</div>}
 
         {/* Footer */}
-        {footer && <div className="pt-2 border-t border-border/50">{footer}</div>}
+        {footer && <div className="pt-2 border-t">{footer}</div>}
       </div>
     </Card>
   );

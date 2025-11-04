@@ -9,15 +9,11 @@ interface SoundConfig {
 }
 
 const defaultSounds: SoundConfig = {
-  // Using data URLs for built-in browser sounds
-  newOrder:
-    'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCjmY4Ly6gVkSCjSH3ve4jEkJElW57sSvYCUINpjN6rtmJFkFQZLM3qhjHhI2jdPw2G4jDFWvws/NkCkFKnbL3tdwJhU+ltLh0YdwDgUnc93Q0iYGOYzBxjyehQAKIW1m',
-  urgent:
-    'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCjmY4Ly6gVkSCjSH3ve4jEkJElW57sSvYCUINpjN6rtmJFkFQZLM3qhjHhI2jdPw2G4jDFWvws/NkCkFKnbL3tdwJhU+ltLh0YdwDgUnc93Q0iYGOYzBxjyehQAKIW1m',
-  completed:
-    'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCjmY4Ly6gVkSCjSH3ve4jEkJElW57sSvYCUINpjN6rtmJFkFQZLM3qhjHhI2jdPw2G4jDFWvws/NkCkFKnbL3tdwJhU+ltLh0YdwDgUnc93Q0iYGOYzBxjyehQAKIW1m',
-  notification:
-    'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCjmY4Ly6gVkSCjSH3ve4jEkJElW57sSvYCUINpjN6rtmJFkFQZLM3qhjHhI2jdPw2G4jDFWvws/NkCkFKnbL3tdwJhU+ltLh0YdwDgUnc93Q0iYGOYzBxjyehQAKIW1m',
+  // Using MP3 files from public folder
+  newOrder: '/new-order.mp3',
+  urgent: '/urgent.mp3',
+  completed: '/completed.mp3',
+  notification: '/new-order.mp3', // Using new-order sound for notifications
 };
 
 type SoundType = keyof SoundConfig;

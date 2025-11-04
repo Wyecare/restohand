@@ -19,6 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -40,6 +45,7 @@ import {
   type EnhancedOrderTicketProps,
 } from '@/components/kitchen/EnhancedOrderTicket';
 import { useKitchenSounds } from '@/hooks/useKitchenSounds';
+import { Filter, X } from 'lucide-react';
 
 const statusesInKitchen: Order['status'][] = [
   'pending',
@@ -56,6 +62,26 @@ const statusLabel: Record<Order['status'], string> = {
   cancelled: 'Cancelled',
 };
 
+const statusConfig = {
+  pending: {
+    label: 'New Orders',
+    icon: '🔔',
+    color: 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800',
+  },
+  accepted: {
+    label: 'Accepted',
+    icon: '✓',
+    color:
+      'bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800',
+  },
+  in_progress: {
+    label: 'Cooking',
+    icon: '🔥',
+    color:
+      'bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800',
+  },
+};
+
 const EnhancedKitchenPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
@@ -67,6 +93,7 @@ const EnhancedKitchenPage = () => {
   );
   const [zoneFilter, setZoneFilter] = useState<string>('all');
   const [previousOrderCount, setPreviousOrderCount] = useState(0);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   // Initialize kitchen sounds
   const {
@@ -124,7 +151,9 @@ const EnhancedKitchenPage = () => {
         typeof window !== 'undefined' ? window.location.origin : '';
       if (!origin) return null;
       const base = `${origin}/c/${restaurant.slug}`;
-      return tableNumber ? `${base}?table=${encodeURIComponent(tableNumber)}` : base;
+      return tableNumber
+        ? `${base}?table=${encodeURIComponent(tableNumber)}`
+        : base;
     },
     [restaurant?.slug]
   );
@@ -202,7 +231,9 @@ const EnhancedKitchenPage = () => {
     return map;
   }, [filteredOrders]);
 
-  const getTicketHighlight = (order: Order): EnhancedOrderTicketProps['highlight'] => {
+  const getTicketHighlight = (
+    order: Order
+  ): EnhancedOrderTicketProps['highlight'] => {
     if (!order.createdAt) return 'muted';
     const created = new Date(order.createdAt).getTime();
     if (Number.isNaN(created)) return 'muted';
@@ -220,9 +251,9 @@ const EnhancedKitchenPage = () => {
         <Badge
           key="cash-due"
           variant="destructive"
-          className="text-[10px] uppercase tracking-wide"
+          className="text-[9px] px-1.5 py-0 h-4"
         >
-          Cash due
+          CASH DUE
         </Badge>
       );
     }
@@ -232,9 +263,9 @@ const EnhancedKitchenPage = () => {
         <Badge
           key="almost"
           variant="outline"
-          className="text-[10px] uppercase tracking-wide text-amber-700 border-amber-400/70"
+          className="text-[9px] px-1.5 py-0 h-4 text-amber-700 border-amber-400"
         >
-          Almost ready
+          ALMOST READY
         </Badge>
       );
     }
@@ -255,10 +286,12 @@ const EnhancedKitchenPage = () => {
           size="sm"
           variant="secondary"
           disabled={disabled}
-          onClick={() => handleUpdate(order.id, 'accepted', order.progress ?? 0)}
-          className="flex-1"
+          onClick={() =>
+            handleUpdate(order.id, 'accepted', order.progress ?? 0)
+          }
+          className="flex-1 h-8 text-xs"
         >
-          Accept Order
+          Accept
         </Button>
       );
       buttons.push(
@@ -267,7 +300,7 @@ const EnhancedKitchenPage = () => {
           size="sm"
           disabled={disabled}
           onClick={() => handleUpdate(order.id, 'in_progress', 40)}
-          className="flex-1"
+          className="flex-1 h-8 text-xs"
         >
           Start Cooking
         </Button>
@@ -282,9 +315,9 @@ const EnhancedKitchenPage = () => {
           size="sm"
           disabled={disabled}
           onClick={() => handleUpdate(order.id, 'in_progress', 40)}
-          className="flex-1"
+          className="flex-1 h-8 text-xs"
         >
-          Begin Cooking
+          Start Cooking
         </Button>
       );
       buttons.push(
@@ -294,7 +327,7 @@ const EnhancedKitchenPage = () => {
           variant="outline"
           disabled={disabled}
           onClick={() => handleUpdate(order.id, 'ready', 100)}
-          className="flex-1"
+          className="flex-1 h-8 text-xs"
         >
           Mark Ready
         </Button>
@@ -310,7 +343,7 @@ const EnhancedKitchenPage = () => {
           variant="secondary"
           disabled={disabled}
           onClick={() => handleUpdate(order.id, 'in_progress', 60)}
-          className="flex-1"
+          className="flex-1 h-8 text-xs"
         >
           Almost Ready
         </Button>
@@ -321,7 +354,7 @@ const EnhancedKitchenPage = () => {
           size="sm"
           disabled={disabled}
           onClick={() => handleUpdate(order.id, 'ready', 100)}
-          className="flex-1"
+          className="flex-1 h-8 text-xs"
         >
           Order Ready
         </Button>
@@ -336,7 +369,11 @@ const EnhancedKitchenPage = () => {
     return <Navigate to="/onboarding" replace />;
   }
 
-  const handleUpdate = async (orderId: string, status: Order['status'], progress?: number) => {
+  const handleUpdate = async (
+    orderId: string,
+    status: Order['status'],
+    progress?: number
+  ) => {
     await updateStatus({
       restaurantId,
       orderId,
@@ -356,18 +393,18 @@ const EnhancedKitchenPage = () => {
   useEffect(() => {
     if (!data?.data) return;
 
-    const currentOrderCount = data.data.filter(order =>
+    const currentOrderCount = data.data.filter((order) =>
       statusesInKitchen.includes(order.status)
     ).length;
 
     if (previousOrderCount > 0 && currentOrderCount > previousOrderCount) {
-      // New order detected
       sounds.newOrder();
 
-      // Check for urgent orders
-      const urgentOrders = data.data.filter(order => {
+      const urgentOrders = data.data.filter((order) => {
         if (!order.createdAt || order.status === 'ready') return false;
-        const minutes = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+        const minutes = Math.floor(
+          (Date.now() - new Date(order.createdAt).getTime()) / 60000
+        );
         return minutes >= 15;
       });
 
@@ -379,9 +416,18 @@ const EnhancedKitchenPage = () => {
     setPreviousOrderCount(currentOrderCount);
   }, [data?.data, previousOrderCount, sounds]);
 
+  const hasActiveFilters =
+    paymentFilter !== 'all' || zoneFilter !== 'all' || searchTerm.trim() !== '';
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setPaymentFilter('all');
+    setZoneFilter('all');
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Professional Kitchen Header */}
+      {/* Compact Header */}
       <KitchenHeader
         orders={filteredOrders}
         restaurant={{
@@ -392,126 +438,182 @@ const EnhancedKitchenPage = () => {
         onSoundToggle={toggleSounds}
       />
 
-      <div className="flex-1 p-3 md:p-4 lg:p-6 space-y-6">
-        {/* Real-time Statistics */}
+      <div className="flex-1 p-2 sm:p-3 md:p-4 space-y-3">
+        {/* Compact Stats */}
         <KitchenStats orders={filteredOrders} />
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center py-20">
             <LoadingSpinner size="lg" />
           </div>
-        ) : filteredOrders.length === 0 ? (
+        ) : filteredOrders.length === 0 && !hasActiveFilters ? (
           <Card className="border-dashed border-2 bg-muted/20">
-            <CardHeader className="text-center py-12">
-              <CardTitle className="text-xl">🍳 Kitchen is quiet</CardTitle>
-              <CardDescription className="text-base mt-2">
-                No active orders right now. New tickets will appear here instantly!
+            <CardHeader className="text-center py-8">
+              <CardTitle className="text-lg">No Active Orders</CardTitle>
+              <CardDescription className="text-sm mt-1">
+                New orders will appear here automatically
               </CardDescription>
             </CardHeader>
           </Card>
         ) : (
           <>
-            {/* Enhanced Filters Section */}
-            <Card className="bg-muted/20 border-0 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  🔍 Quick Filters
-                </CardTitle>
-                <CardDescription>
-                  Filter orders by search term, payment method, or dining zone
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                    Search Orders
-                  </label>
-                  <Input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Order #, table, or customer name"
-                    className="bg-background"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                    Payment Method
-                  </label>
-                  <Select
-                    value={paymentFilter}
-                    onValueChange={(value) =>
-                      setPaymentFilter(value as 'all' | 'upi' | 'cash')
-                    }
-                  >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Payments</SelectItem>
-                      <SelectItem value="upi">UPI Only</SelectItem>
-                      <SelectItem value="cash">Cash Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                    Dining Zone
-                  </label>
-                  <Select value={zoneFilter} onValueChange={setZoneFilter}>
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="All zones" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Zones</SelectItem>
-                      {zones.map((zone) => (
-                        <SelectItem key={zone} value={zone}>
-                          {zone}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Compact Filter Bar */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Search Input */}
+              <div className="flex-1 min-w-[200px]">
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search orders..."
+                  className="h-9"
+                />
+              </div>
 
-            {/* Professional Order Columns */}
-            <div className="grid gap-4 lg:grid-cols-3">
+              {/* Filter Popover */}
+              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filters
+                    {hasActiveFilters && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 h-5 w-5 rounded-full p-0 text-xs"
+                      >
+                        {
+                          [
+                            paymentFilter !== 'all',
+                            zoneFilter !== 'all',
+                            searchTerm.trim() !== '',
+                          ].filter(Boolean).length
+                        }
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm">Filter Orders</h4>
+                      {hasActiveFilters && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearFilters}
+                          className="h-7 text-xs"
+                        >
+                          Clear all
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Payment Method
+                        </label>
+                        <Select
+                          value={paymentFilter}
+                          onValueChange={(value) =>
+                            setPaymentFilter(value as 'all' | 'upi' | 'cash')
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Payments</SelectItem>
+                            <SelectItem value="upi">UPI Only</SelectItem>
+                            <SelectItem value="cash">Cash Only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {zones.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Dining Zone
+                          </label>
+                          <Select
+                            value={zoneFilter}
+                            onValueChange={setZoneFilter}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="All zones" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Zones</SelectItem>
+                              {zones.map((zone) => (
+                                <SelectItem key={zone} value={zone}>
+                                  {zone}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Active Filter Chips */}
+              {hasActiveFilters && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {paymentFilter !== 'all' && (
+                    <Badge variant="secondary" className="gap-1 h-7">
+                      {paymentFilter.toUpperCase()}
+                      <X
+                        className="h-3 w-3 cursor-pointer"
+                        onClick={() => setPaymentFilter('all')}
+                      />
+                    </Badge>
+                  )}
+                  {zoneFilter !== 'all' && (
+                    <Badge variant="secondary" className="gap-1 h-7">
+                      Zone: {zoneFilter}
+                      <X
+                        className="h-3 w-3 cursor-pointer"
+                        onClick={() => setZoneFilter('all')}
+                      />
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Compact Order Columns */}
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {statusesInKitchen.map((status) => {
                 const statusOrders = grouped[status] || [];
-                const statusColors = {
-                  pending: 'border-red-200 bg-red-50/30 dark:border-red-800 dark:bg-red-900/10',
-                  accepted: 'border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-900/10',
-                  in_progress: 'border-orange-200 bg-orange-50/30 dark:border-orange-800 dark:bg-orange-900/10'
-                };
+                const config =
+                  statusConfig[status as keyof typeof statusConfig];
 
                 return (
-                  <Card key={status} className={cn(
-                    'flex flex-col min-h-[400px] transition-all duration-200',
-                    statusColors[status as keyof typeof statusColors]
-                  )}>
-                    <CardHeader className="pb-4 border-b border-border/50">
+                  <Card
+                    key={status}
+                    className={cn('flex flex-col', config.color)}
+                  >
+                    <CardHeader className="pb-3 border-b space-y-0">
                       <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg font-bold flex items-center gap-2">
-                          {status === 'pending' && '🔔'}
-                          {status === 'accepted' && '👨‍🍳'}
-                          {status === 'in_progress' && '🔥'}
-                          {statusLabel[status]}
-                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{config.icon}</span>
+                          <CardTitle className="text-base font-semibold">
+                            {config.label}
+                          </CardTitle>
+                        </div>
                         <Badge
-                          variant={statusOrders.length > 0 ? 'default' : 'secondary'}
-                          className="text-sm font-bold px-3 py-1"
+                          variant={
+                            statusOrders.length > 0 ? 'default' : 'secondary'
+                          }
+                          className="text-sm font-semibold h-6 min-w-[28px] justify-center"
                         >
                           {statusOrders.length}
                         </Badge>
                       </div>
-                      <CardDescription className="text-sm">
-                        {statusOrders.length === 0
-                          ? `No ${statusLabel[status].toLowerCase()} orders`
-                          : `${statusOrders.length} active order${statusOrders.length !== 1 ? 's' : ''}`
-                        }
-                      </CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-1 p-4 space-y-4">
+
+                    <CardContent className="flex-1 p-3 space-y-2 min-h-[200px]">
                       {statusOrders.length > 0 ? (
                         statusOrders.map((order) => {
                           const meta = order.tableNumber
@@ -529,20 +631,22 @@ const EnhancedKitchenPage = () => {
                               highlight={highlight}
                               headerBadges={headerBadges}
                               onCopyLink={handleCopyLink}
-                              actions={actions.length ? <div className="flex flex-wrap gap-2">{actions}</div> : undefined}
+                              actions={
+                                actions.length ? (
+                                  <div className="flex gap-2">{actions}</div>
+                                ) : undefined
+                              }
                             />
                           );
                         })
                       ) : (
-                        <div className="flex-1 flex items-center justify-center py-12">
-                          <div className="text-center space-y-2">
-                            <div className="text-4xl opacity-50">
-                              {status === 'pending' && '⏳'}
-                              {status === 'accepted' && '✅'}
-                              {status === 'in_progress' && '⏱️'}
+                        <div className="flex items-center justify-center h-full py-8">
+                          <div className="text-center space-y-1">
+                            <div className="text-3xl opacity-40">
+                              {config.icon}
                             </div>
-                            <p className="text-muted-foreground text-sm">
-                              No {statusLabel[status].toLowerCase()} orders
+                            <p className="text-xs text-muted-foreground">
+                              No {config.label.toLowerCase()} orders
                             </p>
                           </div>
                         </div>
@@ -552,6 +656,28 @@ const EnhancedKitchenPage = () => {
                 );
               })}
             </div>
+
+            {/* Show message when filters result in no orders */}
+            {filteredOrders.length === 0 && hasActiveFilters && (
+              <Card className="border-dashed">
+                <CardHeader className="text-center py-8">
+                  <CardTitle className="text-base">
+                    No orders match your filters
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="h-auto p-0"
+                    >
+                      Clear filters
+                    </Button>{' '}
+                    to see all orders
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
           </>
         )}
       </div>
