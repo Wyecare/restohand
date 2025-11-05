@@ -155,10 +155,10 @@ class PaymentConfig {
   // Linked account status tracking
   @Prop({
     type: String,
-    enum: ['pending_setup', 'pending_approval', 'approved', 'rejected', 'suspended'],
+    enum: ['pending_setup', 'pending_approval', 'approved', 'rejected', 'suspended', 'route_not_available'],
     default: 'pending_setup'
   })
-  status!: 'pending_setup' | 'pending_approval' | 'approved' | 'rejected' | 'suspended';
+  status!: 'pending_setup' | 'pending_approval' | 'approved' | 'rejected' | 'suspended' | 'route_not_available';
 
   @Prop({ type: String, trim: true })
   error?: string;

@@ -34,7 +34,7 @@ export interface PaymentConfig {
   canReceivePayments: boolean;
   directSettlement: boolean;
   settlementType: 'instant' | 'scheduled' | 'transfers';
-  status: 'pending_setup' | 'pending_approval' | 'approved' | 'rejected' | 'suspended';
+  status: 'pending_setup' | 'pending_approval' | 'approved' | 'rejected' | 'suspended' | 'route_not_available';
   error?: string;
   setupAttempts: number;
   lastAttempt?: string;

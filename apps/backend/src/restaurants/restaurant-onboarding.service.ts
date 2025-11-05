@@ -58,40 +58,60 @@ export class RestaurantOnboardingService {
       try {
         this.logger.log(`Attempting to create Razorpay linked account for ${data.name}`);
 
-        const linkedAccountData = {
-          email: data.email,
-          phone: data.phone,
-          type: 'standard',
-          reference_id: `restaurant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          legal_business_name: data.name,
-          business_type: data.businessType,
-          profile: {
-            category: 'food_and_beverages',
-            subcategory: 'restaurant',
-            addresses: {
-              registered: {
-                street1: data.address.street,
-                street2: '',
-                city: data.address.city,
-                state: data.address.state,
-                postal_code: data.address.postalCode,
-                country: data.address.country,
+        // Check if Route feature is available (RBI compliance requirement)
+        const isRouteEnabled = process.env.RAZORPAY_ROUTE_ENABLED === 'true';
+
+        if (!isRouteEnabled) {
+          this.logger.warn('Route feature not enabled - using standard payment flow');
+          setupError = 'Route feature requires RBI compliance verification. Contact support to enable.';
+          paymentStatus = 'route_not_available';
+          canReceivePayments = false; // Will use standard payment flow
+        } else {
+          const linkedAccountData = {
+            email: data.email,
+            phone: data.phone,
+            type: 'standard',
+            reference_id: `restaurant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            legal_business_name: data.name,
+            business_type: data.businessType,
+            profile: {
+              category: 'food_and_beverages',
+              subcategory: 'restaurant',
+              addresses: {
+                registered: {
+                  street1: data.address.street,
+                  street2: '',
+                  city: data.address.city,
+                  state: data.address.state,
+                  postal_code: data.address.postalCode,
+                  country: data.address.country,
+                }
               }
             }
-          }
-        };
+          };
 
-        const linkedAccount = await this.razorpayService.createLinkedAccount(linkedAccountData);
-        linkedAccountId = linkedAccount.id;
-        paymentStatus = 'pending_approval';
-        canReceivePayments = linkedAccount.status === 'activated';
+          const linkedAccount = await this.razorpayService.createLinkedAccount(linkedAccountData);
+          linkedAccountId = linkedAccount.id;
+          paymentStatus = 'pending_approval';
+          canReceivePayments = linkedAccount.status === 'activated';
 
-        this.logger.log(`Linked account created successfully: ${linkedAccountId}, status: ${linkedAccount.status}`);
+          this.logger.log(`Linked account created successfully: ${linkedAccountId}, status: ${linkedAccount.status}`);
+        }
       } catch (razorpayError) {
         this.logger.warn(`Failed to create Razorpay linked account: ${razorpayError.message}`);
-        this.logger.warn('Continuing onboarding - restaurant can set up payments later via settings');
-        setupError = razorpayError.message;
-        paymentStatus = 'pending_setup';
+
+        // Check if it's a Route access denied error
+        if (razorpayError.error?.code === 'BAD_REQUEST_ERROR' && razorpayError.error?.description === 'Access Denied') {
+          this.logger.warn('Route feature access denied - likely RBI compliance requirements not met');
+          setupError = 'Route feature requires RBI compliance verification (₹40L+ turnover). Using standard payments.';
+          paymentStatus = 'route_not_available';
+        } else {
+          setupError = razorpayError.message;
+          paymentStatus = 'pending_setup';
+        }
+
+        this.logger.warn('Continuing onboarding - restaurant can still accept payments via standard flow');
+        canReceivePayments = false;
         // Continue with onboarding even if linked account creation fails
       }
 

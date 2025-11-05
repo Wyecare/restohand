@@ -358,6 +358,79 @@ export class RazorpayService {
     return this.client.transfers.create(transferData);
   }
 
+  // Alternative: Direct bank transfer using Payouts API (works without Route)
+  async createPayout(params: {
+    fundAccountId: string;
+    amount: number;
+    currency: string;
+    purpose: string;
+    notes?: Record<string, string>;
+    queueIfLowBalance?: boolean;
+  }): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    this.logger.log(`Creating payout of ₹${params.amount/100} to fund account: ${params.fundAccountId}`);
+
+    const payoutData = {
+      account_number: process.env.RAZORPAY_ACCOUNT_NUMBER, // Your X account number
+      fund_account_id: params.fundAccountId,
+      amount: params.amount,
+      currency: params.currency,
+      mode: 'IMPS', // IMPS/NEFT/RTGS
+      purpose: params.purpose, // 'refund', 'cashback', 'payout', etc.
+      queue_if_low_balance: params.queueIfLowBalance || true,
+      reference_id: `payout_${Date.now()}`,
+      narration: 'Restaurant Settlement',
+      notes: params.notes || {}
+    };
+
+    try {
+      return await this.client.payouts.create(payoutData);
+    } catch (error) {
+      this.logger.error(`Payout failed: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  // Create fund account for restaurant bank details
+  async createFundAccountForRestaurant(restaurantId: string, bankDetails: {
+    accountNumber: string;
+    ifscCode: string;
+    accountHolderName: string;
+  }): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    // First create a contact
+    const contact = await this.client.customers.create({
+      name: bankDetails.accountHolderName,
+      email: `restaurant-${restaurantId}@restohand.com`,
+      contact: '9999999999', // Use restaurant phone if available
+      type: 'vendor',
+      reference_id: restaurantId,
+      notes: {
+        restaurant_id: restaurantId
+      }
+    });
+
+    // Then create fund account
+    const fundAccount = await this.client.fundAccount.create({
+      contact_id: contact.id,
+      account_type: 'bank_account',
+      bank_account: {
+        name: bankDetails.accountHolderName,
+        account_number: bankDetails.accountNumber,
+        ifsc: bankDetails.ifscCode
+      }
+    });
+
+    this.logger.log(`Fund account created for restaurant ${restaurantId}: ${fundAccount.id}`);
+    return { contact, fundAccount };
+  }
+
   async getTransfer(transferId: string): Promise<any> {
     if (!this.client) {
       throw new InternalServerErrorException('Razorpay is not configured');

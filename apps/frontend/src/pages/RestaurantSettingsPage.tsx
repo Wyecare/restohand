@@ -161,6 +161,8 @@ const RestaurantSettingsPage = () => {
         return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'pending_approval':
         return <Clock className="h-4 w-4 text-yellow-600" />;
+      case 'route_not_available':
+        return <AlertCircle className="h-4 w-4 text-blue-600" />;
       case 'rejected':
       case 'suspended':
         return <XCircle className="h-4 w-4 text-red-600" />;
@@ -172,11 +174,13 @@ const RestaurantSettingsPage = () => {
   const getPaymentStatusText = (status: string) => {
     switch (status) {
       case 'approved':
-        return 'Payments Enabled';
+        return 'Direct Payments Enabled';
       case 'pending_approval':
         return 'Pending Approval';
       case 'pending_setup':
         return 'Setup Required';
+      case 'route_not_available':
+        return 'Standard Payments Only';
       case 'rejected':
         return 'Rejected';
       case 'suspended':
@@ -372,6 +376,27 @@ const RestaurantSettingsPage = () => {
                   <p className="text-xs text-muted-foreground">
                     Account ID: {paymentStatus.linkedAccountId}
                   </p>
+                </div>
+              )}
+
+              {paymentStatus?.status === 'route_not_available' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-blue-700">
+                    Direct payments require RBI compliance verification (₹40L+ annual turnover). Currently using standard payment flow.
+                  </p>
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <p className="text-xs text-blue-800">
+                      <strong>To enable direct payments:</strong>
+                      <br />• Annual turnover must exceed ₹40 lakhs
+                      <br />• Submit GST returns and business documents to Razorpay
+                      <br />• Contact Razorpay support to apply for Route feature
+                    </p>
+                  </div>
+                  {paymentStatus.error && (
+                    <p className="text-xs text-muted-foreground">
+                      Details: {paymentStatus.error}
+                    </p>
+                  )}
                 </div>
               )}
 
