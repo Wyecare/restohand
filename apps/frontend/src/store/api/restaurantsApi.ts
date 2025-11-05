@@ -10,6 +10,7 @@ import type {
   PublicOrder,
   RestaurantTable,
   Order,
+  ServiceTablesResponse,
 } from './types';
 
 export interface ListRestaurantsParams {
@@ -266,6 +267,28 @@ export const restaurantsApi = baseApi.injectEndpoints({
           : [{ type: 'RestaurantTable' as const, id: `LIST-${restaurantId}` }],
     }),
 
+    listServiceTables: builder.query<
+      ServiceTablesResponse,
+      { restaurantId: string }
+    >({
+      query: ({ restaurantId }) => ({
+        url: `/restaurants/${restaurantId}/tables/service-view`,
+      }),
+      providesTags: (result, _error, { restaurantId }) =>
+        result
+          ? [
+              ...result.tables.map((table) => ({
+                type: 'RestaurantTable' as const,
+                id: table.id,
+              })),
+              {
+                type: 'RestaurantTable' as const,
+                id: `SERVICE-${restaurantId}`,
+              },
+            ]
+          : [{ type: 'RestaurantTable' as const, id: `SERVICE-${restaurantId}` }],
+    }),
+
     createRestaurantTable: builder.mutation<
       RestaurantTable,
       { restaurantId: string; body: CreateRestaurantTablePayload }
@@ -507,6 +530,7 @@ export const {
   useUploadMenuItemImageMutation,
   useRemoveMenuItemImageMutation,
   useListRestaurantTablesQuery,
+  useListServiceTablesQuery,
   useCreateRestaurantTableMutation,
   useUpdateRestaurantTableMutation,
   useArchiveRestaurantTableMutation,

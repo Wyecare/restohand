@@ -76,6 +76,7 @@ export interface RestaurantTable {
   layoutRotation?: number;
   createdAt: string;
   updatedAt: string;
+  activeOrder?: Order;
 }
 
 export interface MenuCategory {
@@ -260,6 +261,20 @@ export interface RestaurantQrCodeResponse {
   table: string | null;
   url: string;
   dataUrl: string;
+}
+
+export interface ServiceTablesStats {
+  totalTables: number;
+  occupiedTables: number;
+  activeOrders: number;
+  readyOrders: number;
+  unpaidOrders: number;
+  todaysRevenue: number;
+}
+
+export interface ServiceTablesResponse {
+  tables: RestaurantTable[];
+  stats: ServiceTablesStats;
 }
 
 export interface PublicRestaurant {

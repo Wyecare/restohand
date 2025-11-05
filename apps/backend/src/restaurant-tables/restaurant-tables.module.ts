@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module';
 import { RestaurantTable, RestaurantTableSchema } from './schemas/restaurant-table.schema';
 import { RestaurantTablesService } from './restaurant-tables.service';
 import { RestaurantTablesController } from './restaurant-tables.controller';
+import { Order, OrderSchema } from '../orders/schemas/order.schema';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { RestaurantTablesController } from './restaurant-tables.controller';
     AuthModule,
     MongooseModule.forFeature([
       { name: RestaurantTable.name, schema: RestaurantTableSchema },
+      { name: Order.name, schema: OrderSchema },
     ]),
   ],
   providers: [RestaurantTablesService],

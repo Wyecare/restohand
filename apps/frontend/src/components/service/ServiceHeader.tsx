@@ -23,11 +23,11 @@ import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession } from '@/store/slices/authSlice';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
-import type { Order, RestaurantTable } from '@/store/api/types';
+import type { RestaurantTable, ServiceTablesStats } from '@/store/api/types';
 
 interface ServiceHeaderProps {
-  orders: Order[];
   tables: RestaurantTable[];
+  stats?: ServiceTablesStats;
   restaurant?: {
     name?: string;
     logoUrl?: string;
@@ -35,8 +35,8 @@ interface ServiceHeaderProps {
 }
 
 export function ServiceHeader({
-  orders,
   tables,
+  stats,
   restaurant,
 }: ServiceHeaderProps) {
   const { user, logout } = useAuth();
@@ -50,35 +50,32 @@ export function ServiceHeader({
   }, []);
 
   // Calculate service stats
-  const activeOrders = orders.filter(
-    (order) => !['completed', 'cancelled'].includes(order.status)
-  ).length;
+  const derivedStats = React.useMemo(() => {
+    const occupiedTables = tables.filter((table) => !!table.activeOrder).length;
+    const readyOrders = tables.filter(
+      (table) => table.activeOrder?.status === 'ready'
+    ).length;
+    const unpaidOrders = tables.filter(
+      (table) =>
+        table.activeOrder &&
+        table.activeOrder.paymentStatus !== 'paid' &&
+        table.activeOrder.status !== 'cancelled'
+    ).length;
 
-  const occupiedTables = tables.filter(table => {
-    return orders.some(order =>
-      order.tableNumber === table.tableNumber &&
-      !['completed', 'cancelled'].includes(order.status)
-    );
-  }).length;
+    return {
+      totalTables: tables.length,
+      occupiedTables,
+      activeOrders: occupiedTables,
+      readyOrders,
+      unpaidOrders,
+    };
+  }, [tables]);
 
-  const readyOrders = orders.filter(
-    (order) => order.status === 'ready'
-  ).length;
-
-  const unpaidOrders = orders.filter(
-    (order) => order.paymentStatus === 'unpaid' && order.status !== 'cancelled'
-  ).length;
-
-  const todaysRevenue = React.useMemo(() => {
-    const todaysPaidOrders = orders.filter(
-      (order) =>
-        order.paymentStatus === 'paid' &&
-        order.createdAt &&
-        new Date(order.createdAt).toDateString() === new Date().toDateString()
-    );
-
-    return todaysPaidOrders.reduce((acc, order) => acc + order.totalAmount, 0);
-  }, [orders]);
+  const activeOrders = stats?.activeOrders ?? derivedStats.activeOrders;
+  const occupiedTables = stats?.occupiedTables ?? derivedStats.occupiedTables;
+  const readyOrders = stats?.readyOrders ?? derivedStats.readyOrders;
+  const unpaidOrders = stats?.unpaidOrders ?? derivedStats.unpaidOrders;
+  const todaysRevenue = stats?.todaysRevenue ?? 0;
 
   const derivedUser = React.useMemo(() => {
     const nameParts = (session?.displayName ?? '').split(' ');

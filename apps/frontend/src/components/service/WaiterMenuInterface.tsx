@@ -69,7 +69,9 @@ export default function WaiterMenuInterface({
   const [createOrder] = useCreateOrderMutation();
 
   const activeExistingOrder =
-    existingOrder && existingOrder.paymentStatus !== 'paid'
+    existingOrder &&
+    existingOrder.paymentStatus !== 'paid' &&
+    !['completed', 'cancelled'].includes(existingOrder.status)
       ? existingOrder
       : null;
 

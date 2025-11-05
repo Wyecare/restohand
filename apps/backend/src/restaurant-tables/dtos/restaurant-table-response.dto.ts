@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { OrderResponseDto } from '../../orders/dtos/order-response.dto';
 
 export class RestaurantTableResponseDto {
   @ApiProperty()
@@ -45,4 +46,7 @@ export class RestaurantTableResponseDto {
 
   @ApiProperty()
   updatedAt!: string;
+
+  @ApiProperty({ required: false, type: () => OrderResponseDto })
+  activeOrder?: OrderResponseDto;
 }

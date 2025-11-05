@@ -13,17 +13,17 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiParam,
-  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-  import { Roles } from '../auth/decorators/roles.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { RestaurantTablesService } from './restaurant-tables.service';
 import { CreateRestaurantTableDto } from './dtos/create-restaurant-table.dto';
 import { RestaurantTableResponseDto } from './dtos/restaurant-table-response.dto';
 import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
+import { ServiceTablesResponseDto } from './dtos/service-table-response.dto';
 
 @ApiTags('restaurant-tables')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
@@ -37,6 +37,14 @@ export class RestaurantTablesController {
   @ApiOkResponse({ type: [RestaurantTableResponseDto] })
   async list(@Param('restaurantId') restaurantId: string) {
     return this.tablesService.list(restaurantId);
+  }
+
+  @Get('service-view')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
+  @ApiOkResponse({ type: ServiceTablesResponseDto })
+  async listForService(@Param('restaurantId') restaurantId: string) {
+    return this.tablesService.listForService(restaurantId);
   }
 
   @Post()

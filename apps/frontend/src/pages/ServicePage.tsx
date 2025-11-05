@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { motion } from 'framer-motion';
@@ -11,12 +11,9 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Input } from '@/components/ui/input';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { useUpdateOrderPaymentMutation } from '@/store/api/ordersApi';
 import {
-  useListOrdersQuery,
-  useUpdateOrderPaymentMutation,
-} from '@/store/api/ordersApi';
-import {
-  useListRestaurantTablesQuery,
+  useListServiceTablesQuery,
   useGetRestaurantQuery,
 } from '@/store/api/restaurantsApi';
 import type { Order, RestaurantTable } from '@/store/api/types';
@@ -35,18 +32,8 @@ import { ServiceHeader } from '@/components/service/ServiceHeader';
 
 type ViewMode = 'tables' | 'menu' | 'payment';
 
-const isOrderActiveForTable = (order: Order) =>
-  order.paymentStatus !== 'paid' &&
-  !['completed', 'cancelled'].includes(order.status);
-
-const findActiveOrderForTable = (tableNumber: string, orders: Order[]) =>
-  orders.find(
-    (order) =>
-      order.tableNumber === tableNumber && isOrderActiveForTable(order)
-  );
-
-const getTableStatus = (table: RestaurantTable, orders: Order[]) => {
-  const activeOrder = findActiveOrderForTable(table.tableNumber, orders);
+const getTableStatus = (table: RestaurantTable) => {
+  const activeOrder = table.activeOrder;
 
   if (!activeOrder) return 'available';
   if (activeOrder.status === 'ready') return 'ready';
@@ -72,36 +59,40 @@ const ServicePage = () => {
   const { toast } = useToast();
 
   const [viewMode, setViewMode] = useState<ViewMode>('tables');
-  const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-
-  const orderArgs = restaurantId
-    ? { restaurantId, limit: 100, page: 1 }
-    : skipToken;
-
-  const { data: ordersData, refetch } = useListOrdersQuery(orderArgs, {
-    skip: !restaurantId,
-  });
   const [updatePayment] = useUpdateOrderPaymentMutation();
 
-  const tablesArgs = restaurantId
-    ? { restaurantId, includeInactive: false }
-    : skipToken;
-  const { data: tablesData, isLoading: tablesLoading } = useListRestaurantTablesQuery(tablesArgs, {
-    skip: !restaurantId,
-  });
+  const {
+    data: serviceTablesData,
+    isLoading: tablesLoading,
+    refetch: refetchTables,
+  } = useListServiceTablesQuery(
+    restaurantId ? { restaurantId } : skipToken
+  );
   const { data: restaurant } = useGetRestaurantQuery(
     restaurantId ?? skipToken,
     { skip: !restaurantId }
   );
+  const tables = serviceTablesData?.tables ?? [];
+  const stats = serviceTablesData?.stats;
 
-  // Memoize orders to prevent unnecessary rerenders
-  const orders = useMemo(() => ordersData?.data || [], [ordersData?.data]);
+  const selectedTable = useMemo(
+    () => tables.find((table) => table.id === selectedTableId) ?? null,
+    [tables, selectedTableId]
+  );
+
+  const selectedOrder = selectedTable?.activeOrder ?? null;
+
+  useEffect(() => {
+    if (selectedTableId && !selectedTable && viewMode !== 'tables') {
+      setViewMode('tables');
+      setSelectedTableId(null);
+    }
+  }, [selectedTableId, selectedTable, viewMode]);
 
   const filteredTables = useMemo(() => {
-    if (!tablesData) return [];
-    return tablesData.filter((table) => {
+    return tables.filter((table) => {
       if (!searchTerm.trim()) return true;
       const search = searchTerm.toLowerCase();
       return (
@@ -110,7 +101,7 @@ const ServicePage = () => {
         table.zone?.toLowerCase().includes(search)
       );
     });
-  }, [tablesData, searchTerm]);
+  }, [tables, searchTerm]);
 
   const tablesByZone = useMemo(() => {
     const grouped = new Map<string, RestaurantTable[]>();
@@ -125,22 +116,17 @@ const ServicePage = () => {
   }, [filteredTables]);
 
   const handleTableClick = useCallback((table: RestaurantTable) => {
-    const activeOrder = findActiveOrderForTable(table.tableNumber, orders);
-
-    setSelectedTable(table);
-    setSelectedOrder(activeOrder || null);
+    setSelectedTableId(table.id);
     setViewMode('menu');
-  }, [orders]);
+  }, []);
 
   const handleBackToTables = useCallback(() => {
     setViewMode('tables');
-    setSelectedTable(null);
-    setSelectedOrder(null);
-    refetch();
-  }, [refetch]);
+    setSelectedTableId(null);
+    refetchTables();
+  }, [refetchTables]);
 
-  const handlePaymentFlow = useCallback((order: Order) => {
-    setSelectedOrder(order);
+  const handlePaymentFlow = useCallback((_order: Order) => {
     setViewMode('payment');
   }, []);
 
@@ -160,9 +146,9 @@ const ServicePage = () => {
         description: `Order marked as paid via ${method.toUpperCase()}`,
       });
 
-      refetch();
+      refetchTables();
       setViewMode('tables');
-      setSelectedOrder(null);
+      setSelectedTableId(null);
     } catch (error) {
       toast({
         title: 'Failed to mark as paid',
@@ -170,11 +156,11 @@ const ServicePage = () => {
         variant: 'destructive',
       });
     }
-  }, [restaurantId, updatePayment, toast, refetch]);
+  }, [restaurantId, updatePayment, toast, refetchTables]);
 
   const handleSocketEvent = useCallback(() => {
-    refetch();
-  }, [refetch]);
+    refetchTables();
+  }, [refetchTables]);
 
   useOrdersSocket({ onEvent: handleSocketEvent, enabled: !!restaurantId });
 
@@ -209,7 +195,7 @@ const ServicePage = () => {
       <PaymentInterface
         order={selectedOrder}
         restaurant={restaurant}
-        onBack={() => setViewMode('tables')}
+        onBack={handleBackToTables}
         onMarkAsPaid={handleMarkAsPaid}
       />
     );
@@ -220,8 +206,8 @@ const ServicePage = () => {
     <div className="min-h-screen bg-background">
       {/* Service Header */}
       <ServiceHeader
-        orders={orders}
-        tables={filteredTables}
+        tables={tables}
+        stats={stats}
         restaurant={restaurant}
       />
 
@@ -273,8 +259,8 @@ const ServicePage = () => {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {zoneTables.map((table) => {
-                  const status = getTableStatus(table, orders);
-                  const activeOrder = findActiveOrderForTable(table.tableNumber, orders);
+                  const status = getTableStatus(table);
+                  const activeOrder = table.activeOrder;
 
                   return (
                     <motion.div

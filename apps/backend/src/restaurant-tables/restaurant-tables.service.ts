@@ -4,18 +4,25 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model } from 'mongoose';
+import { FilterQuery, Model, Types } from 'mongoose';
 import { RestaurantsService } from '../restaurants/restaurants.service';
 import { RestaurantTable, RestaurantTableDocument } from './schemas/restaurant-table.schema';
 import { CreateRestaurantTableDto } from './dtos/create-restaurant-table.dto';
 import { RestaurantTableResponseDto } from './dtos/restaurant-table-response.dto';
 import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
+import { Order, OrderDocument } from '../orders/schemas/order.schema';
+import { OrderStatus } from '../common/enums/order-status.enum';
+import { PaymentStatus } from '../common/enums/payment-status.enum';
+import { OrderResponseDto } from '../orders/dtos/order-response.dto';
+import { ServiceTablesResponseDto } from './dtos/service-table-response.dto';
 
 @Injectable()
 export class RestaurantTablesService {
   constructor(
     @InjectModel(RestaurantTable.name)
     private readonly tableModel: Model<RestaurantTableDocument>,
+    @InjectModel(Order.name)
+    private readonly orderModel: Model<OrderDocument>,
     private readonly restaurantsService: RestaurantsService
   ) {}
 
@@ -29,6 +36,87 @@ export class RestaurantTablesService {
       .exec();
 
     return tables.map((table) => this.toDto(table));
+  }
+
+  async listForService(restaurantId: string): Promise<ServiceTablesResponseDto> {
+    await this.ensureRestaurantExists(restaurantId);
+
+    const tables = await this.tableModel
+      .find({
+        restaurantId,
+        isActive: true,
+      })
+      .sort({ displayOrder: 1, tableNumber: 1 })
+      .exec();
+
+    const tableNumbers = tables
+      .map((table) => table.tableNumber)
+      .filter((tableNumber): tableNumber is string => !!tableNumber);
+
+    const restaurantObjectId = new Types.ObjectId(restaurantId);
+
+    const activeStatuses = [
+      OrderStatus.Pending,
+      OrderStatus.Accepted,
+      OrderStatus.InProgress,
+      OrderStatus.Ready,
+    ];
+
+    let activeOrders: OrderDocument[] = [];
+
+    if (tableNumbers.length > 0) {
+      activeOrders = await this.orderModel
+        .find({
+          restaurantId: restaurantObjectId,
+          tableNumber: { $in: tableNumbers },
+          status: { $in: activeStatuses },
+          paymentStatus: { $ne: PaymentStatus.Paid },
+        })
+        .sort({ createdAt: -1 })
+        .exec();
+    }
+
+    const activeOrderMap = new Map<string, OrderDocument>();
+    activeOrders.forEach((order) => {
+      const tableKey = order.tableNumber?.toLowerCase();
+      if (!tableKey) {
+        return;
+      }
+      if (!activeOrderMap.has(tableKey)) {
+        activeOrderMap.set(tableKey, order);
+      }
+    });
+
+    const tablesDto = tables.map((table) => {
+      const key = table.tableNumber.toLowerCase();
+      const activeOrder = activeOrderMap.get(key);
+      return this.toDto(table, activeOrder);
+    });
+
+    const occupiedTables = tablesDto.filter((table) => !!table.activeOrder).length;
+    const readyOrders = tablesDto.filter(
+      (table) => table.activeOrder?.status === OrderStatus.Ready
+    ).length;
+    const unpaidOrders = tablesDto.filter(
+      (table) =>
+        table.activeOrder &&
+        table.activeOrder.paymentStatus !== PaymentStatus.Paid &&
+        table.activeOrder.status !== OrderStatus.Cancelled
+    ).length;
+
+    const todaysRevenue = await this.calculateTodaysRevenue(restaurantObjectId);
+
+    return {
+      tables: tablesDto,
+      stats: {
+        totalTables: tables.length,
+        occupiedTables,
+        activeOrders: activeOrderMap.size,
+        readyOrders,
+        unpaidOrders,
+        todaysRevenue,
+      },
+    };
   }
 
   async create(
@@ -168,7 +256,10 @@ export class RestaurantTablesService {
     await this.restaurantsService.findById(restaurantId);
   }
 
-  private toDto(doc: RestaurantTableDocument): RestaurantTableResponseDto {
+  private toDto(
+    doc: RestaurantTableDocument,
+    activeOrder?: OrderDocument
+  ): RestaurantTableResponseDto {
     return {
       id: doc._id.toString(),
       restaurantId: doc.restaurantId.toString(),
@@ -185,6 +276,114 @@ export class RestaurantTablesService {
       layoutRotation: doc.layoutRotation,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
+      activeOrder: activeOrder ? this.mapOrderToDto(activeOrder) : undefined,
     };
+  }
+
+  private mapOrderToDto(order: OrderDocument): OrderResponseDto {
+    return {
+      id: order._id.toString(),
+      restaurantId: order.restaurantId.toString(),
+      sessionId: order.sessionId?.toString(),
+      createdBy: order.createdBy?.toString(),
+      orderNumber: order.orderNumber,
+      tableNumber: order.tableNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail,
+      customerGstin: order.customerGstin,
+      customerState: order.customerState,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      progress: order.progress,
+      items: order.items.map((item) => ({
+        menuItemId: item.menuItemId?.toString(),
+        name: item.name,
+        quantity: item.quantity,
+        pricing: {
+          unitAmount: item.pricing.unitAmount,
+          currency: item.pricing.currency,
+          taxAmount: item.pricing.taxAmount,
+          discountAmount: item.pricing.discountAmount,
+        },
+        gst: item.gst
+          ? {
+              hsnCode: item.gst.hsnCode,
+              gstRateId: item.gst.gstRateId,
+              gstRate: item.gst.gstRate,
+              cgstAmount: item.gst.cgstAmount,
+              sgstAmount: item.gst.sgstAmount,
+              igstAmount: item.gst.igstAmount,
+              totalTaxAmount: item.gst.totalTaxAmount,
+              taxableAmount: item.gst.taxableAmount,
+              totalWithTax: item.gst.totalWithTax,
+              grossAmount:
+                item.gst.grossAmount ??
+                this.roundToTwo(item.pricing.unitAmount * item.quantity),
+              isTaxInclusive: item.gst.isTaxInclusive ?? false,
+            }
+          : undefined,
+        notes: item.notes,
+      })),
+      subTotalAmount: order.subTotalAmount,
+      taxAmount: order.taxAmount,
+      cgstAmount: order.cgstAmount,
+      sgstAmount: order.sgstAmount,
+      igstAmount: order.igstAmount,
+      discountAmount: order.discountAmount,
+      grossAmount:
+        order.grossAmount ??
+        this.roundToTwo(order.subTotalAmount + (order.discountAmount ?? 0)),
+      totalAmount: order.totalAmount,
+      roundOffAmount: order.roundOffAmount,
+      taxType: order.taxType
+        ? (order.taxType as 'intra-state' | 'inter-state')
+        : undefined,
+      notes: order.notes,
+      statusNote: order.statusNote,
+      paidAt: order.paidAt?.toISOString(),
+      paymentProvider: order.paymentProvider,
+      paymentTransactionId: order.paymentTransactionId,
+      razorpayOrderId: order.razorpayOrderId,
+      paymentMeta: order.paymentMeta ?? undefined,
+      readyAt: order.readyAt?.toISOString(),
+      paymentIntentUrl: order.paymentIntentUrl,
+      taxInvoiceNumber: order.taxInvoiceNumber,
+      taxInvoiceGeneratedAt: order.taxInvoiceGeneratedAt?.toISOString(),
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+    };
+  }
+
+  private roundToTwo(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private async calculateTodaysRevenue(
+    restaurantId: Types.ObjectId
+  ): Promise<number> {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const aggregation = await this.orderModel.aggregate<{ total: number }>([
+      {
+        $match: {
+          restaurantId,
+          paymentStatus: PaymentStatus.Paid,
+          createdAt: { $gte: startOfToday, $lte: endOfToday },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$totalAmount' },
+        },
+      },
+    ]);
+
+    return aggregation[0]?.total ?? 0;
   }
 }
