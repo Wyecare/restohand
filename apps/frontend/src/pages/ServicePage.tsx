@@ -35,12 +35,18 @@ import { ServiceHeader } from '@/components/service/ServiceHeader';
 
 type ViewMode = 'tables' | 'menu' | 'payment';
 
-const getTableStatus = (table: RestaurantTable, orders: Order[]) => {
-  const activeOrder = orders.find(
+const isOrderActiveForTable = (order: Order) =>
+  order.paymentStatus !== 'paid' &&
+  !['completed', 'cancelled'].includes(order.status);
+
+const findActiveOrderForTable = (tableNumber: string, orders: Order[]) =>
+  orders.find(
     (order) =>
-      order.tableNumber === table.tableNumber &&
-      !['completed', 'cancelled'].includes(order.status)
+      order.tableNumber === tableNumber && isOrderActiveForTable(order)
   );
+
+const getTableStatus = (table: RestaurantTable, orders: Order[]) => {
+  const activeOrder = findActiveOrderForTable(table.tableNumber, orders);
 
   if (!activeOrder) return 'available';
   if (activeOrder.status === 'ready') return 'ready';
@@ -119,11 +125,7 @@ const ServicePage = () => {
   }, [filteredTables]);
 
   const handleTableClick = useCallback((table: RestaurantTable) => {
-    const activeOrder = orders.find(
-      (order) =>
-        order.tableNumber === table.tableNumber &&
-        !['completed', 'cancelled'].includes(order.status)
-    );
+    const activeOrder = findActiveOrderForTable(table.tableNumber, orders);
 
     setSelectedTable(table);
     setSelectedOrder(activeOrder || null);
@@ -272,11 +274,7 @@ const ServicePage = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {zoneTables.map((table) => {
                   const status = getTableStatus(table, orders);
-                  const activeOrder = orders.find(
-                    (order) =>
-                      order.tableNumber === table.tableNumber &&
-                      !['completed', 'cancelled'].includes(order.status)
-                  );
+                  const activeOrder = findActiveOrderForTable(table.tableNumber, orders);
 
                   return (
                     <motion.div

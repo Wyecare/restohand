@@ -7,6 +7,7 @@ import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.sche
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { OrdersService } from '../orders/orders.service';
 import { OrderStatus } from '../common/enums/order-status.enum';
+import { PaymentStatus } from '../common/enums/payment-status.enum';
 
 @Injectable()
 export class PublicService {
@@ -200,7 +201,7 @@ export class PublicService {
       .sort({ createdAt: -1 }) // Get the most recent order
       .lean();
 
-    if (!order) {
+    if (!order || order.paymentStatus === PaymentStatus.Paid) {
       return null;
     }
 

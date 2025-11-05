@@ -68,6 +68,11 @@ export default function WaiterMenuInterface({
   );
   const [createOrder] = useCreateOrderMutation();
 
+  const activeExistingOrder =
+    existingOrder && existingOrder.paymentStatus !== 'paid'
+      ? existingOrder
+      : null;
+
   const categories = data?.menu.categories ?? [];
   const uncategorised = data?.menu.uncategorised ?? [];
 
@@ -215,8 +220,8 @@ export default function WaiterMenuInterface({
   };
 
   const handlePaymentAction = () => {
-    if (existingOrder) {
-      onPaymentFlow(existingOrder);
+    if (activeExistingOrder) {
+      onPaymentFlow(activeExistingOrder);
     }
   };
 
@@ -293,7 +298,7 @@ export default function WaiterMenuInterface({
           </div>
 
           {/* Existing Order Alert */}
-          {existingOrder && (
+          {activeExistingOrder && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -302,15 +307,15 @@ export default function WaiterMenuInterface({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-blue-900">
-                    Active Order #{existingOrder.orderNumber}
+                    Active Order #{activeExistingOrder.orderNumber}
                   </p>
                   <div className="flex items-center gap-2 text-sm text-blue-700">
                     <Clock className="h-3 w-3" />
-                    <span className="capitalize">{existingOrder.status.replace('_', ' ')}</span>
-                    <span>• ₹{existingOrder.totalAmount.toFixed(0)}</span>
+                    <span className="capitalize">{activeExistingOrder.status.replace('_', ' ')}</span>
+                    <span>• ₹{activeExistingOrder.totalAmount.toFixed(0)}</span>
                   </div>
                 </div>
-                {existingOrder.status === 'ready' && (
+                {activeExistingOrder.status === 'ready' && (
                   <Button
                     onClick={handlePaymentAction}
                     size="sm"
