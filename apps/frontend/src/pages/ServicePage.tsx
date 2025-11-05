@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import WaiterMenuInterface from '@/components/service/WaiterMenuInterface';
 import PaymentInterface from '@/components/service/PaymentInterface';
+import { ServiceHeader } from '@/components/service/ServiceHeader';
 
 type ViewMode = 'tables' | 'menu' | 'payment';
 
@@ -214,22 +215,30 @@ const ServicePage = () => {
 
   // Tables view
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-4">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-6xl mx-auto space-y-6"
-      >
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-2">
-            <ChefHat className="h-8 w-8 text-primary" />
-            Table Service
-          </h1>
-          <p className="text-muted-foreground">
-            Take orders and manage payments for your restaurant
-          </p>
-        </div>
+    <div className="min-h-screen bg-background">
+      {/* Service Header */}
+      <ServiceHeader
+        orders={orders}
+        tables={filteredTables}
+        restaurant={restaurant}
+      />
+
+      <div className="bg-gradient-to-b from-background to-muted/20 p-4">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-6xl mx-auto space-y-6"
+        >
+          {/* Page Title */}
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-2">
+              <Users className="h-8 w-8 text-primary" />
+              Table Service
+            </h1>
+            <p className="text-muted-foreground">
+              Take orders and manage payments for your restaurant
+            </p>
+          </div>
 
         {/* Search */}
         <Card className="max-w-md mx-auto">
@@ -330,7 +339,8 @@ const ServicePage = () => {
             <p className="text-muted-foreground">Try adjusting your search</p>
           </Card>
         )}
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 };

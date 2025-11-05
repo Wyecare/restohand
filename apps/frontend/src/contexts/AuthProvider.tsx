@@ -9,6 +9,8 @@ import {
 import {
   onIdTokenChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signOut,
@@ -35,6 +37,11 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Utility to detect mobile devices
+const isMobileDevice = () => {
+  return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 const mapClaimsToSession = (user: FirebaseUser, claims: any): SessionInfo => ({
   userId: user.uid,
   displayName: user.displayName ?? undefined,
@@ -55,6 +62,19 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
   useEffect(() => {
     dispatch(setAuthPending());
+
+    // Handle redirect results on app startup
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          console.log('✅ User signed in via redirect:', result.user.email);
+        }
+      })
+      .catch((error) => {
+        console.error('❌ Redirect sign-in error:', error);
+        dispatch(setAuthError(error.message));
+      });
+
     const unsubscribe = onIdTokenChanged(
       auth,
       async (firebaseUser) => {
@@ -109,7 +129,40 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
 
   const signInWithGoogle = useCallback(async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    const isMobile = isMobileDevice();
+
+    console.log(`🔍 Starting Google sign-in (${isMobile ? 'mobile' : 'desktop'})`);
+
+    if (isMobile) {
+      // Use redirect for mobile devices by default
+      console.log('📱 Using redirect flow for mobile device');
+      await signInWithRedirect(auth, provider);
+      return; // Redirect doesn't return immediately
+    }
+
+    // Try popup first for desktop, with fallback to redirect
+    try {
+      console.log('🖥️ Attempting popup sign-in for desktop');
+      await signInWithPopup(auth, provider);
+      console.log('✅ Popup sign-in successful');
+    } catch (error: any) {
+      console.warn('⚠️ Popup sign-in failed:', error.code, error.message);
+
+      // Check for popup-related errors
+      if (
+        error.code === 'auth/popup-closed-by-user' ||
+        error.code === 'auth/popup-blocked' ||
+        error.code === 'auth/cancelled-popup-request' ||
+        error.code === 'auth/unauthorized-domain'
+      ) {
+        console.log('🔄 Falling back to redirect sign-in');
+        await signInWithRedirect(auth, provider);
+        return; // Redirect doesn't return immediately
+      }
+
+      // Re-throw other errors
+      throw error;
+    }
   }, [auth]);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {

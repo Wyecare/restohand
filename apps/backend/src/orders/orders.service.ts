@@ -801,11 +801,18 @@ export class OrdersService {
   }
 
   private async generateOrderNumber(restaurantId: string): Promise<string> {
-    // Generate globally unique order number using timestamp + random suffix
-    const timestamp = Date.now().toString();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const globalCount = await this.orderModel.countDocuments({});
-    return `ORD-${timestamp.slice(-6)}${random}${(globalCount + 1).toString().padStart(3, '0')}`;
+    // Get restaurant to fetch its slug
+    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
+    if (!restaurant) {
+      throw new Error('Restaurant not found');
+    }
+
+    // Count orders for this specific restaurant to get next order number
+    const restaurantOrderCount = await this.orderModel.countDocuments({ restaurantId });
+    const orderNumber = (restaurantOrderCount + 1).toString().padStart(4, '0');
+
+    // Format: {restaurant-slug}-{order-number}
+    return `${restaurant.slug}-${orderNumber}`;
   }
 
   private async transferToRestaurant(order: OrderDocument): Promise<void> {

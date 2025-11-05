@@ -31,11 +31,38 @@ const LoginPage = () => {
         console.warn('Google client ID not configured');
       }
       await signInWithGoogle();
-    } catch (error) {
+
+      // Note: For redirect flow, the page will reload and user won't see this message
+      console.log('✅ Google sign-in completed successfully');
+    } catch (error: any) {
+      console.error('❌ Google sign-in error:', error);
+
+      let title = 'Sign-in failed';
+      let description = 'Unexpected error occurred';
+
+      // Provide user-friendly error messages
+      if (error.code === 'auth/popup-closed-by-user') {
+        title = 'Sign-in cancelled';
+        description = 'The sign-in window was closed. Please try again.';
+      } else if (error.code === 'auth/popup-blocked') {
+        title = 'Popup blocked';
+        description = 'Please allow popups for this site and try again.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        title = 'Domain not authorized';
+        description = 'This domain is not authorized for Google sign-in.';
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        title = 'Sign-in cancelled';
+        description = 'Sign-in was cancelled. Please try again.';
+      } else if (error.code === 'auth/network-request-failed') {
+        title = 'Network error';
+        description = 'Please check your internet connection and try again.';
+      } else if (error.message) {
+        description = error.message;
+      }
+
       toast({
-        title: 'Sign-in failed',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+        title,
+        description,
         variant: 'destructive',
       });
     } finally {
@@ -152,12 +179,18 @@ const LoginPage = () => {
             </form>
           )}
 
-          <p className="text-xs text-muted-foreground text-center">
-            {authMode === 'email'
-              ? 'Email login is for testing purposes only.'
-              : 'Staff-facing OTP/PIN login flows will be available via the kitchen app.'
-            }
-          </p>
+          <div className="text-xs text-muted-foreground text-center space-y-1">
+            {authMode === 'email' ? (
+              <p>Email login is for testing purposes only.</p>
+            ) : (
+              <>
+                <p>If the popup doesn't work, we'll redirect you to Google automatically.</p>
+                <p className="text-[10px]">
+                  Staff-facing OTP/PIN login flows are available via the kitchen app.
+                </p>
+              </>
+            )}
+          </div>
         </CardContent>
         <CardFooter>
           <div className="flex w-full flex-col gap-2 text-center text-xs text-muted-foreground">
