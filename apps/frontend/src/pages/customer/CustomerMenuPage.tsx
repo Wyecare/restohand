@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
-import { Badge } from '@/components/ui/badge';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
 import { useCreateOrderMutation } from '@/store/api/ordersApi';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { ShoppingCart, Plus, Minus, Search, X, Sparkles } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Search, X, Sparkles, Clock, Receipt } from 'lucide-react';
 import TableDialog from './TableDialog';
 import { Input } from '@/components/ui/input';
+import type { CreateOrderPayload } from '@/store/api/ordersApi';
+import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
 
 declare global {
   interface Window {
@@ -22,12 +23,67 @@ declare global {
 interface CartEntry {
   id: string;
   name: string;
-  pricing: {
-    amount: number;
-    currency?: string;
-  };
+  pricing: MenuItemPricing;
   quantity: number;
 }
+
+type DisplayCategory = {
+  id: string;
+  name: string;
+  icon: {
+    symbol: string;
+    label: string;
+  };
+};
+
+type AugmentedMenuItem = PublicMenuCategory['items'][number] & {
+  _categoryId: string;
+  _categoryName: string;
+  _isVegetarian: boolean;
+  _isSpicy: boolean;
+  _isPopular: boolean;
+  _isQuick: boolean;
+};
+
+const AccessibleEmoji = ({
+  symbol,
+  label,
+  className,
+}: {
+  symbol: string;
+  label: string;
+  className?: string;
+}) => (
+  <span role="img" aria-label={label} className={className}>
+    {symbol}
+  </span>
+);
+
+const determineCategoryIcon = (name: string): DisplayCategory['icon'] => {
+  const lower = name.toLowerCase();
+  if (lower.includes('drink') || lower.includes('beverage')) {
+    return { symbol: '🥤', label: `${name} category` };
+  }
+  if (lower.includes('dessert') || lower.includes('sweet')) {
+    return { symbol: '🍨', label: `${name} category` };
+  }
+  if (lower.includes('starter') || lower.includes('snack')) {
+    return { symbol: '🥟', label: `${name} category` };
+  }
+  if (lower.includes('veg') || lower.includes('vegetarian')) {
+    return { symbol: '🥦', label: `${name} category` };
+  }
+  if (lower.includes('non-veg') || lower.includes('meat')) {
+    return { symbol: '🍗', label: `${name} category` };
+  }
+  return { symbol: '🍴', label: `${name} category` };
+};
+
+const formatOrderStatus = (status: string) =>
+  status
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -43,50 +99,71 @@ export default function CustomerMenuPage() {
   const { toast } = useToast();
 
   const slug = params.slug ?? '';
-  const tableFromUrl = searchParams.get('table') ?? undefined;
+  const initialTableParam = searchParams.get('table');
+  const tableFromUrl =
+    initialTableParam && initialTableParam.trim().length > 0
+      ? initialTableParam.trim()
+      : undefined;
 
-  const { data, isLoading, isError } = useGetPublicMenuQuery(slug, {
-    skip: !slug,
-  });
+  const { data, isLoading, isError } = useGetPublicMenuQuery(
+    { slug, table: tableFromUrl },
+    { skip: !slug }
+  );
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [cart, setCart] = useState<Record<string, CartEntry>>({});
+
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
+  // Extract data from the API response
   const restaurant = data?.restaurant;
-  const categories = data?.menu.categories ?? [];
-  const uncategorised = data?.menu.uncategorised ?? [];
+  const menu = data?.menu;
+  const activeOrder = data?.activeOrder;
+  const categories = useMemo(
+    () => menu?.categories ?? [],
+    [menu]
+  );
+  const uncategorised = useMemo(
+    () => menu?.uncategorised ?? [],
+    [menu]
+  );
 
-  const allProducts = useMemo(() => {
+  const allProducts = useMemo<AugmentedMenuItem[]>(() => {
     const grouped = categories.flatMap((c) =>
-      c.items.map((i) => ({
-        ...i,
-        _categoryId: c.id,
-        _categoryName: c.name,
-        _isVegetarian:
-          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
-        _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
-        _isPopular:
-          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
-        _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
-      }))
+      c.items.map(
+        (i) =>
+          ({
+            ...i,
+            _categoryId: c.id,
+            _categoryName: c.name,
+            _isVegetarian:
+              i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+            _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
+            _isPopular:
+              i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+            _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
+          } satisfies AugmentedMenuItem)
+      )
     );
     return [
       ...grouped,
-      ...uncategorised.map((i) => ({
-        ...i,
-        _categoryId: 'uncategorised',
-        _categoryName: 'Others',
-        _isVegetarian:
-          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
-        _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
-        _isPopular:
-          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
-        _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
-      })),
+      ...uncategorised.map(
+        (i) =>
+          ({
+            ...i,
+            _categoryId: 'uncategorised',
+            _categoryName: 'Others',
+            _isVegetarian:
+              i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+            _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
+            _isPopular:
+              i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+            _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
+          } satisfies AugmentedMenuItem)
+      ),
     ];
   }, [categories, uncategorised]);
 
@@ -114,7 +191,7 @@ export default function CustomerMenuPage() {
     return filteredProducts.filter((p) => p._categoryId === activeCategory);
   }, [filteredProducts, activeCategory]);
 
-  const availableCategories = useMemo(() => {
+  const availableCategories = useMemo<DisplayCategory[]>(() => {
     const categoriesWithItems = categories.filter((c) =>
       filteredProducts.some((item) => item._categoryId === c.id)
     );
@@ -123,16 +200,24 @@ export default function CustomerMenuPage() {
       (item) => item._categoryId === 'uncategorised'
     );
 
-    return [
-      { id: 'all', name: 'All', icon: '🍽️' },
+    const displayCategories: DisplayCategory[] = [
+      { id: 'all', name: 'All', icon: { symbol: '🍽️', label: 'All dishes' } },
       ...categoriesWithItems.map((c) => ({
-        ...c,
-        icon: c.icon || '🍴',
+        id: c.id,
+        name: c.name,
+        icon: determineCategoryIcon(c.name),
       })),
-      ...(hasUncategorised
-        ? [{ id: 'uncategorised', name: 'Others', icon: '✨' }]
-        : []),
     ];
+
+    if (hasUncategorised) {
+      displayCategories.push({
+        id: 'uncategorised',
+        name: 'Others',
+        icon: { symbol: '✨', label: 'Other items' },
+      });
+    }
+
+    return displayCategories;
   }, [categories, filteredProducts]);
 
   const totalItems = Object.values(cart).reduce(
@@ -144,7 +229,7 @@ export default function CustomerMenuPage() {
     0
   );
 
-  const handleAdd = (id: string, name: string, pricing: any) => {
+  const handleAdd = (id: string, name: string, pricing: MenuItemPricing) => {
     setCart((prev) => ({
       ...prev,
       [id]: { id, name, pricing, quantity: (prev[id]?.quantity ?? 0) + 1 },
@@ -186,7 +271,7 @@ export default function CustomerMenuPage() {
       return;
     }
 
-    const payload = {
+    const payload: CreateOrderPayload = {
       restaurantId: restaurant.id,
       tableNumber: trimmedTable,
       paymentMethod: 'cash',
@@ -210,7 +295,8 @@ export default function CustomerMenuPage() {
         description: `Order #${order.orderNumber} created`,
       });
 
-      navigate(`/c/${slug}/order/${order.id}?table=${trimmedTable}`);
+      const encodedTable = encodeURIComponent(trimmedTable);
+      navigate(`/c/${slug}/order/${order.id}?table=${encodedTable}`);
     } catch (err) {
       toast({
         title: 'Unable to place order',
@@ -222,7 +308,7 @@ export default function CustomerMenuPage() {
 
   if (isLoading)
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/20">
+      <div className="flex min-h-screen items-center justify-center bg-linear-to-b from-background to-muted/20">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -242,7 +328,11 @@ export default function CustomerMenuPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="max-w-md w-full text-center p-8">
-          <div className="text-6xl mb-4">😕</div>
+          <AccessibleEmoji
+            symbol="😕"
+            label="Menu unavailable"
+            className="text-6xl mb-4"
+          />
           <h2 className="text-xl font-bold mb-2">Menu Unavailable</h2>
           <p className="text-muted-foreground">
             Unable to load the menu. Please try again later.
@@ -252,14 +342,14 @@ export default function CustomerMenuPage() {
     );
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-background via-muted/5 to-background pb-32">
+    <div className="relative min-h-screen bg-linear-to-b from-background via-muted/5 to-background pb-32">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b"
       >
-        <div className="max-w-2xl mx-auto p-4">
+        <div className="max-w-2xl mx-auto p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1">
               <h1 className="text-2xl font-black tracking-tight">
@@ -292,7 +382,7 @@ export default function CustomerMenuPage() {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="relative mt-3">
+                <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search menu..."
@@ -314,29 +404,74 @@ export default function CustomerMenuPage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          <AnimatePresence>
+            {activeOrder && tableFromUrl && (
+              <motion.div
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+              >
+                <Card className="border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-orange-100 dark:bg-orange-900/50 rounded-full p-2">
+                          <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-orange-900 dark:text-orange-100">
+                            Active Order for Table {tableFromUrl}
+                          </h3>
+                          <p className="text-sm text-orange-700 dark:text-orange-300">
+                            Order #{activeOrder.orderNumber} • {formatOrderStatus(activeOrder.status)}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-900/50"
+                        onClick={() => {
+                          const encodedTable = encodeURIComponent(tableFromUrl);
+                          navigate(`/c/${slug}/order/${activeOrder.id}?table=${encodedTable}`);
+                        }}
+                      >
+                        <Receipt className="h-4 w-4 mr-2" />
+                        View Order
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="border-t border-border/70 pt-3 pb-1">
+            <ScrollArea className="w-full">
+              <div className="flex gap-2 max-w-2xl mx-auto pb-1">
+                {availableCategories.map((category) => (
+                  <Button
+                    key={category.id}
+                    variant={activeCategory === category.id ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActiveCategory(category.id)}
+                    className="shrink-0 h-9 px-4 rounded-full"
+                  >
+                    <AccessibleEmoji
+                      symbol={category.icon.symbol}
+                      label={category.icon.label}
+                      className="mr-1.5"
+                    />
+                    {category.name}
+                  </Button>
+                ))}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
         </div>
       </motion.div>
-
-      {/* Category Pills */}
-      <div className="sticky top-[88px] z-20 bg-background/95 backdrop-blur-lg border-b">
-        <ScrollArea className="w-full">
-          <div className="flex gap-2 p-3 max-w-2xl mx-auto">
-            {availableCategories.map((category) => (
-              <Button
-                key={category.id}
-                variant={activeCategory === category.id ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setActiveCategory(category.id)}
-                className="shrink-0 h-9 px-4 rounded-full"
-              >
-                <span className="mr-1.5">{category.icon}</span>
-                {category.name}
-              </Button>
-            ))}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </div>
 
       {/* Menu Items */}
       <motion.div
@@ -351,7 +486,9 @@ export default function CustomerMenuPage() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
             >
-              <div className="text-6xl mb-4">🔍</div>
+          <div className="text-6xl mb-4">
+            <AccessibleEmoji symbol="🔍" label="No items found" />
+          </div>
               <h3 className="text-xl font-bold mb-2">No items found</h3>
               <p className="text-muted-foreground mb-4">
                 Try adjusting your search
@@ -381,7 +518,7 @@ export default function CustomerMenuPage() {
                   <Card className=" py-2 overflow-hidden border hover:shadow-md transition-all duration-200 hover:border-primary/30 h-full">
                     <CardContent className="px-2 py-0 flex flex-col h-full">
                       {/* Item Image */}
-                      <div className="relative w-full aspect-square rounded-md overflow-hidden mb-2 bg-gradient-to-br from-muted to-muted/50">
+                      <div className="relative w-full aspect-square rounded-md overflow-hidden mb-2 bg-linear-to-br from-muted to-muted/50">
                         {item.imageUrls?.[0] ? (
                           <img
                             src={item.imageUrls[0]}
@@ -394,7 +531,11 @@ export default function CustomerMenuPage() {
                           />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-4xl opacity-30">🍽️</span>
+                            <AccessibleEmoji
+                              symbol="🍽️"
+                              label="Dish placeholder"
+                              className="text-4xl opacity-30"
+                            />
                           </div>
                         )}
                         {/* Veg/Non-veg indicator */}
@@ -419,14 +560,18 @@ export default function CustomerMenuPage() {
                         {(item._isSpicy || item._isQuick) && (
                           <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
                             {item._isSpicy && (
-                              <span className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs">
-                                🌶️
-                              </span>
+                              <AccessibleEmoji
+                                symbol="🌶️"
+                                label="Spicy"
+                                className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
+                              />
                             )}
                             {item._isQuick && (
-                              <span className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs">
-                                ⚡
-                              </span>
+                              <AccessibleEmoji
+                                symbol="⚡"
+                                label="Quick serve"
+                                className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
+                              />
                             )}
                           </div>
                         )}
@@ -504,7 +649,7 @@ export default function CustomerMenuPage() {
                 className="w-full h-16 rounded-2xl shadow-2xl text-lg font-bold relative overflow-hidden"
                 onClick={() => setTableDialogOpen(true)}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80" />
+                <div className="absolute inset-0 bg-linear-to-r from-primary to-primary/80" />
                 <div className="relative flex items-center justify-between w-full px-2">
                   <div className="flex items-center gap-3">
                     <div className="bg-white/20 rounded-full p-2">

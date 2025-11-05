@@ -181,4 +181,58 @@ export class PublicService {
       }
     );
   }
+
+  async getActiveOrderForTable(restaurantId: string, tableNumber: string, restaurantSlug: string) {
+    // Find the most recent order for this table that is still active
+    const activeStatuses = [
+      OrderStatus.Pending,
+      OrderStatus.Accepted,
+      OrderStatus.InProgress,
+      OrderStatus.Ready
+    ];
+
+    const order = await this.orderModel
+      .findOne({
+        restaurantId,
+        tableNumber,
+        status: { $in: activeStatuses }
+      })
+      .sort({ createdAt: -1 }) // Get the most recent order
+      .lean();
+
+    if (!order) {
+      return null;
+    }
+
+    return {
+      id: order._id.toString(),
+      restaurantSlug,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      progress: order.progress,
+      tableNumber: order.tableNumber,
+      customerName: order.customerName,
+      subTotalAmount: order.subTotalAmount ?? order.totalAmount,
+      grossAmount: order.grossAmount ?? order.totalAmount,
+      taxAmount: order.taxAmount ?? 0,
+      cgstAmount: order.cgstAmount ?? 0,
+      sgstAmount: order.sgstAmount ?? 0,
+      igstAmount: order.igstAmount ?? 0,
+      discountAmount: order.discountAmount ?? 0,
+      roundOffAmount: order.roundOffAmount ?? 0,
+      totalAmount: order.totalAmount,
+      taxType: order.taxType,
+      createdAt: order.createdAt,
+      readyAt: order.readyAt,
+      paidAt: order.paidAt,
+      items: order.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        pricing: item.pricing,
+        gst: item.gst,
+      })),
+    };
+  }
 }

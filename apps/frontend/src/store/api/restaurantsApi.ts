@@ -408,10 +408,13 @@ export const restaurantsApi = baseApi.injectEndpoints({
     }),
 
     getPublicMenu: builder.query<
-      { restaurant: PublicRestaurant; menu: PublicMenuPayload },
-      string
+      { restaurant: PublicRestaurant; menu: PublicMenuPayload; activeOrder?: PublicOrder },
+      { slug: string; table?: string }
     >({
-      query: (slug) => `/public/restaurants/${slug}/menu`,
+      query: ({ slug, table }) => ({
+        url: `/public/restaurants/${slug}/menu`,
+        params: table ? { table } : {}
+      }),
     }),
 
     getPublicOrder: builder.query<

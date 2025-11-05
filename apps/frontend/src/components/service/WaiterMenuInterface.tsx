@@ -62,9 +62,10 @@ export default function WaiterMenuInterface({
   const [showSearch, setShowSearch] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
-  const { data, isLoading, isError } = useGetPublicMenuQuery(restaurant?.slug || '', {
-    skip: !restaurant?.slug,
-  });
+  const { data, isLoading, isError } = useGetPublicMenuQuery(
+    { slug: restaurant?.slug ?? '' },
+    { skip: !restaurant?.slug }
+  );
   const [createOrder] = useCreateOrderMutation();
 
   const categories = data?.menu.categories ?? [];

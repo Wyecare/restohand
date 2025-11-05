@@ -42,16 +42,24 @@ interface NavLink {
 }
 
 const managerLinks: NavLink[] = [
-  { titleKey: 'navigation.dashboard', href: '/dashboard', icon: LayoutDashboard },
+  {
+    titleKey: 'navigation.dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+  },
   { titleKey: 'navigation.orders', href: '/orders', icon: ShoppingBag },
   { titleKey: 'navigation.menu', href: '/menu', icon: UtensilsCrossed },
-  { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
-  { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
+  // { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
+  // { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
   { titleKey: 'navigation.tables', href: '/tables', icon: Table },
   { titleKey: 'navigation.staff', href: '/staff', icon: Users },
   { titleKey: 'navigation.customerQR', href: '/customer-qr', icon: QrCode },
   { titleKey: 'navigation.reports', href: '/reports', icon: BarChart3 },
-  { titleKey: 'navigation.subscription', href: '/subscription', icon: CreditCard },
+  {
+    titleKey: 'navigation.subscription',
+    href: '/subscription',
+    icon: CreditCard,
+  },
   { titleKey: 'navigation.settings', href: '/settings', icon: Settings },
 ];
 
@@ -191,24 +199,39 @@ export default function Sidebar() {
             <SidebarMenuItem>
               <div className="px-3 py-2 space-y-1">
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <Link to="/privacy-policy" className="text-muted-foreground hover:text-foreground">
+                  <Link
+                    to="/privacy-policy"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     Privacy
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link to="/terms-conditions" className="text-muted-foreground hover:text-foreground">
+                  <Link
+                    to="/terms-conditions"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     Terms
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link to="/refund-policy" className="text-muted-foreground hover:text-foreground">
+                  <Link
+                    to="/refund-policy"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     Refunds
                   </Link>
                 </div>
                 <div className="flex gap-2 text-xs">
-                  <Link to="/about-us" className="text-muted-foreground hover:text-foreground">
+                  <Link
+                    to="/about-us"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     About Us
                   </Link>
                   <span className="text-muted-foreground">•</span>
-                  <Link to="/contact-us" className="text-muted-foreground hover:text-foreground">
+                  <Link
+                    to="/contact-us"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     Contact Support
                   </Link>
                 </div>

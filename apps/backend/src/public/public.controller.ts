@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Res } from '@nestjs/common';
+import { Controller, Get, Param, Post, Res, Query } from '@nestjs/common';
 import { PublicService } from './public.service';
 import { Response } from 'express';
 
@@ -12,10 +12,21 @@ export class PublicController {
   }
 
   @Get('restaurants/:slug/menu')
-  async getMenu(@Param('slug') slug: string) {
+  async getMenu(@Param('slug') slug: string, @Query('table') table?: string) {
     const restaurant = await this.publicService.getRestaurantBySlug(slug);
     const menu = await this.publicService.getMenuForRestaurant(restaurant.id);
-    return { restaurant, menu };
+
+    // If table is specified, check for active orders on that table
+    let activeOrder = null;
+    if (table?.trim()) {
+      activeOrder = await this.publicService.getActiveOrderForTable(
+        restaurant.id,
+        table.trim(),
+        restaurant.slug
+      );
+    }
+
+    return { restaurant, menu, activeOrder };
   }
 
   @Get('restaurants/:slug/orders/:orderId')
