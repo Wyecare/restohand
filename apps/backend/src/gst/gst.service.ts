@@ -9,14 +9,23 @@ import { FilterQuery, Model } from 'mongoose';
 import { GstRate, GstRateDocument } from './schemas/gst-rate.schema';
 import { HsnCode, HsnCodeDocument } from './schemas/hsn-code.schema';
 import { TaxInvoice, TaxInvoiceDocument } from './schemas/tax-invoice.schema';
-import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../restaurants/schemas/restaurant.schema';
 import { CreateGstRateDto } from './dtos/create-gst-rate.dto';
 import { QueryGstRatesDto } from './dtos/query-gst-rates.dto';
 import { UpdateGstRateDto } from './dtos/update-gst-rate.dto';
 import { CreateHsnCodeDto } from './dtos/create-hsn-code.dto';
 import { QueryHsnCodesDto } from './dtos/query-hsn-codes.dto';
-import { GstRateResponseDto, GstRateListResponseDto } from './dtos/gst-rate-response.dto';
-import { HsnCodeResponseDto, HsnCodeListResponseDto } from './dtos/hsn-code-response.dto';
+import {
+  GstRateResponseDto,
+  GstRateListResponseDto,
+} from './dtos/gst-rate-response.dto';
+import {
+  HsnCodeResponseDto,
+  HsnCodeListResponseDto,
+} from './dtos/hsn-code-response.dto';
 import { PaginationUtil } from '../common/utils/pagination.util';
 
 export interface TaxCalculation {
@@ -60,7 +69,7 @@ export class GstService {
     @InjectModel(TaxInvoice.name)
     private readonly taxInvoiceModel: Model<TaxInvoiceDocument>,
     @InjectModel(Restaurant.name)
-    private readonly restaurantModel: Model<RestaurantDocument>,
+    private readonly restaurantModel: Model<RestaurantDocument>
   ) {}
 
   // GST Rate Management
@@ -69,7 +78,12 @@ export class GstService {
     dto: CreateGstRateDto
   ): Promise<GstRateResponseDto> {
     // Validate GST rate calculations
-    this.validateGstRates(dto.cgstRate, dto.sgstRate, dto.igstRate, dto.totalGstRate);
+    this.validateGstRates(
+      dto.cgstRate,
+      dto.sgstRate,
+      dto.igstRate,
+      dto.totalGstRate
+    );
 
     // If setting as default, unset other defaults
     if (dto.isDefault) {
@@ -113,7 +127,7 @@ export class GstService {
         .limit(limit),
     ]);
 
-    const data = gstRates.map(rate => this.toGstRateDto(rate));
+    const data = gstRates.map((rate) => this.toGstRateDto(rate));
 
     return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
@@ -130,8 +144,12 @@ export class GstService {
     id: string,
     dto: UpdateGstRateDto
   ): Promise<GstRateResponseDto> {
-    if (dto.cgstRate !== undefined || dto.sgstRate !== undefined ||
-        dto.igstRate !== undefined || dto.totalGstRate !== undefined) {
+    if (
+      dto.cgstRate !== undefined ||
+      dto.sgstRate !== undefined ||
+      dto.igstRate !== undefined ||
+      dto.totalGstRate !== undefined
+    ) {
       const existing = await this.gstRateModel.findById(id);
       if (!existing) {
         throw new NotFoundException(`GST rate ${id} not found`);
@@ -150,7 +168,11 @@ export class GstService {
       const existing = await this.gstRateModel.findById(id);
       if (existing) {
         await this.gstRateModel.updateMany(
-          { restaurantId: existing.restaurantId, isDefault: true, _id: { $ne: id } },
+          {
+            restaurantId: existing.restaurantId,
+            isDefault: true,
+            _id: { $ne: id },
+          },
           { $set: { isDefault: false } }
         );
       }
@@ -184,7 +206,9 @@ export class GstService {
     }
   }
 
-  async getDefaultGstRate(restaurantId: string): Promise<GstRateResponseDto | null> {
+  async getDefaultGstRate(
+    restaurantId: string
+  ): Promise<GstRateResponseDto | null> {
     const defaultRate = await this.gstRateModel.findOne({
       restaurantId,
       isDefault: true,
@@ -206,8 +230,13 @@ export class GstService {
     return this.toHsnCodeDto(hsnCode);
   }
 
-  async findHsnCodes(query: QueryHsnCodesDto = {}): Promise<HsnCodeListResponseDto> {
-    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query, 50);
+  async findHsnCodes(
+    query: QueryHsnCodesDto = {}
+  ): Promise<HsnCodeListResponseDto> {
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(
+      query,
+      50
+    );
 
     // Build filter
     const filter: FilterQuery<HsnCodeDocument> = { isActive: true };
@@ -223,7 +252,7 @@ export class GstService {
         $or: [
           { description: { $regex: query.search, $options: 'i' } },
           { code: { $regex: query.search, $options: 'i' } },
-        ]
+        ],
       };
     }
 
@@ -239,7 +268,7 @@ export class GstService {
         .limit(limit),
     ]);
 
-    const data = hsnCodes.map(code => this.toHsnCodeDto(code));
+    const data = hsnCodes.map((code) => this.toHsnCodeDto(code));
 
     return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
@@ -309,7 +338,8 @@ export class GstService {
 
       if (gstRate.totalGstRate > 0) {
         if (item.isTaxInclusive) {
-          const baseAmount = amountAfterDiscount / (1 + gstRate.totalGstRate / 100);
+          const baseAmount =
+            amountAfterDiscount / (1 + gstRate.totalGstRate / 100);
           taxableAmount = this.roundToTwo(baseAmount);
           taxAmount = this.roundToTwo(amountAfterDiscount - taxableAmount);
         } else {
@@ -418,8 +448,12 @@ export class GstService {
     const invoiceNumber = await this.generateInvoiceNumber(restaurantId);
     const restaurant = await this.getRestaurantDetails(restaurantId);
 
-    const roundOffAmount = this.calculateRoundOff(orderData.summary.totalAmount);
-    const finalAmount = this.roundToTwo(orderData.summary.totalAmount + roundOffAmount);
+    const roundOffAmount = this.calculateRoundOff(
+      orderData.summary.totalAmount
+    );
+    const finalAmount = this.roundToTwo(
+      orderData.summary.totalAmount + roundOffAmount
+    );
 
     await this.taxInvoiceModel.create({
       restaurantId,
@@ -431,7 +465,7 @@ export class GstService {
       customerEmail: orderData.customerEmail,
       customerGstin: orderData.customerGstin,
       tableNumber: orderData.tableNumber,
-      lineItems: orderData.items.map(item => ({
+      lineItems: orderData.items.map((item) => ({
         name: item.name,
         hsnCode: item.hsnCode,
         quantity: item.quantity,
@@ -478,8 +512,10 @@ export class GstService {
     // For inter-state: IGST should equal total GST
     const intraTotalRate = cgstRate + sgstRate;
 
-    if (Math.abs(intraTotalRate - totalGstRate) > 0.01 &&
-        Math.abs(igstRate - totalGstRate) > 0.01) {
+    if (
+      Math.abs(intraTotalRate - totalGstRate) > 0.01 &&
+      Math.abs(igstRate - totalGstRate) > 0.01
+    ) {
       throw new BadRequestException(
         'GST rates validation failed. Total GST should equal CGST+SGST or IGST'
       );
@@ -516,7 +552,10 @@ export class GstService {
     }
 
     if (hsnCode) {
-      const hsn = await this.hsnCodeModel.findOne({ code: hsnCode, isActive: true });
+      const hsn = await this.hsnCodeModel.findOne({
+        code: hsnCode,
+        isActive: true,
+      });
       if (hsn) {
         const rate = await this.gstRateModel.findOne({
           restaurantId,
@@ -619,7 +658,9 @@ export class GstService {
     };
   }
 
-  private async getRestaurantState(restaurantId: string): Promise<{ state: string }> {
+  private async getRestaurantState(
+    restaurantId: string
+  ): Promise<{ state: string }> {
     const restaurant = await this.restaurantModel
       .findById(restaurantId, { address: 1 })
       .lean();
@@ -637,27 +678,26 @@ export class GstService {
   }
 
   private async getRestaurantDetails(restaurantId: string): Promise<{
-    gstin: string;
+    gstin?: string;
     name: string;
     address: Record<string, unknown>;
   }> {
-    const restaurant = await this.restaurantModel
-      .findById(restaurantId)
-      .lean();
+    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
 
     if (!restaurant) {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    if (!restaurant.gstin) {
-      throw new BadRequestException('Restaurant GSTIN is not configured');
-    }
+    // if (!restaurant.gstin) {
+    //   throw new BadRequestException('Restaurant GSTIN is not configured');
+    // }
 
     const { address } = restaurant;
-    const { _id, ...addressWithoutId } = (address as Record<string, unknown>) ?? {};
+    const { _id, ...addressWithoutId } =
+      (address as Record<string, unknown>) ?? {};
 
     return {
-      gstin: restaurant.gstin,
+      // gstin: restaurant.gstin,
       name: restaurant.name,
       address: addressWithoutId,
     };

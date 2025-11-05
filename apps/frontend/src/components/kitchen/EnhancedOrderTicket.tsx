@@ -23,6 +23,15 @@ type TableMeta = {
 
 type Highlight = 'muted' | 'warning' | 'danger';
 
+const statusCopy: Record<Order['status'], string> = {
+  pending: 'Pending',
+  accepted: 'Accepted',
+  in_progress: 'Cooking',
+  ready: 'Ready',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+
 export interface EnhancedOrderTicketProps {
   order: Order;
   tableMeta?: TableMeta;
@@ -36,10 +45,11 @@ export interface EnhancedOrderTicketProps {
 }
 
 const highlightClasses: Record<Highlight, string> = {
-  muted: 'border-border/60 shadow-sm',
-  warning: 'border-amber-300/60 bg-amber-50/30 dark:bg-amber-950/10 shadow-md',
+  muted: 'border-border/60 bg-card/95 backdrop-blur shadow-sm',
+  warning:
+    'border-amber-200 bg-amber-50/70 dark:bg-amber-950/20 dark:border-amber-900/40 shadow-md',
   danger:
-    'border-orange-300/60 bg-orange-50/30 dark:bg-orange-950/10 shadow-lg',
+    'border-rose-200 bg-rose-50/70 dark:bg-rose-950/20 dark:border-rose-900/40 shadow-lg',
 };
 
 const getTimerBadgeClass = (
@@ -47,24 +57,24 @@ const getTimerBadgeClass = (
 ) => {
   switch (severity) {
     case 'danger':
-      return 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-700';
+      return 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800';
     case 'warning':
       return 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800';
     default:
-      return 'bg-muted/50 text-muted-foreground border-border';
+      return 'bg-muted/40 text-muted-foreground border-border/80';
   }
 };
 
 const getStatusColor = (status: Order['status']) => {
   switch (status) {
     case 'pending':
-      return 'bg-orange-500';
+      return 'bg-sky-500';
     case 'accepted':
-      return 'bg-blue-500';
+      return 'bg-indigo-500';
     case 'in_progress':
       return 'bg-amber-500';
     default:
-      return 'bg-gray-500';
+      return 'bg-muted-foreground';
   }
 };
 
@@ -178,10 +188,10 @@ export function EnhancedOrderTicket({
             )}
           </div>
 
-          <div className="flex items-center gap-1 ml-auto">
-            <ShoppingBag className="h-3 w-3" />
-            <span>{order.items.length}</span>
-          </div>
+        <div className="flex items-center gap-1 ml-auto text-muted-foreground/90">
+          <ShoppingBag className="h-3 w-3" />
+          <span>{order.items.length}</span>
+        </div>
 
           {showCopyButtons && (
             <div className="flex gap-0.5">
@@ -207,35 +217,42 @@ export function EnhancedOrderTicket({
           )}
         </div>
 
-        {/* Compact Progress Bar */}
         {progress > 0 && (
           <div className="space-y-1">
             <Progress value={progress} className="h-1.5" />
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>{statusCopy[order.status]}</span>
+              <span>{progress}%</span>
+            </div>
           </div>
         )}
 
-        {/* Compact Items List */}
         {hasItems && (
-          <div className="space-y-1">
-            {order.items.map((item, index) => (
-              <div
-                key={`${order.id}-${item.menuItemId ?? item.name}-${index}`}
-                className="flex items-center justify-between gap-2 py-1 px-2 rounded bg-muted/30 text-xs"
-              >
-                <span className="flex-1 truncate font-medium">{item.name}</span>
-                <span className="text-muted-foreground font-semibold">
-                  ×{item.quantity}
-                </span>
+          <div className="rounded-md border border-border/60 bg-muted/20 dark:bg-muted/10">
+            <div className="max-h-40 overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted/60">
+              <div className="divide-y divide-border/60">
+                {order.items.map((item, index) => (
+                  <div
+                    key={`${order.id}-${item.menuItemId ?? item.name}-${index}`}
+                    className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs"
+                  >
+                    <span className="flex-1 truncate font-medium text-foreground/90">
+                      {item.name}
+                    </span>
+                    <span className="text-muted-foreground font-semibold">
+                      ×{item.quantity}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         )}
 
         {/* Actions */}
-        {actions && <div className="pt-1">{actions}</div>}
+        {actions && <div className="pt-1 flex gap-2">{actions}</div>}
 
-        {/* Footer */}
-        {footer && <div className="pt-2 border-t">{footer}</div>}
+        {footer && <div className="pt-2 border-t border-border/60">{footer}</div>}
       </div>
     </Card>
   );

@@ -141,34 +141,40 @@ export function KitchenHeader({
 
           {/* Inline Quick Stats - Desktop Only */}
           <div className="hidden lg:flex items-center gap-2 ml-2">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
-              <div className="h-1.5 w-1.5 rounded-full bg-red-500" />
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/40">
+              <div className="h-1.5 w-1.5 rounded-full bg-sky-500" />
               <span className="text-xs font-semibold">{pendingOrders}</span>
-              <span className="text-[10px] text-muted-foreground">new</span>
+              <span className="text-[10px] text-sky-700/80 dark:text-sky-300/80">
+                new
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
-              <div className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40">
+              <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               <span className="text-xs font-semibold">{inProgressOrders}</span>
-              <span className="text-[10px] text-muted-foreground">cooking</span>
+              <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80">
+                cooking
+              </span>
             </div>
 
             {urgentOrders > 0 && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-red-100 dark:bg-red-950/40 border border-red-300 dark:border-red-700">
-                <div className="h-1.5 w-1.5 rounded-full bg-red-600" />
-                <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40">
+                <div className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                <span className="text-xs font-semibold text-rose-600 dark:text-rose-300">
                   {urgentOrders}
                 </span>
-                <span className="text-[10px] text-red-600/80 dark:text-red-400/80">
+                <span className="text-[10px] text-rose-600/80 dark:text-rose-300/80">
                   urgent
                 </span>
               </div>
             )}
 
             {avgPrepTime > 0 && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-border/50">
                 <Clock className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs font-semibold">{avgPrepTime}m</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {avgPrepTime}m
+                </span>
               </div>
             )}
           </div>
@@ -178,7 +184,10 @@ export function KitchenHeader({
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Mobile: Show urgent count badge */}
           {urgentOrders > 0 && (
-            <Badge variant="destructive" className="lg:hidden text-xs h-6 px-2">
+            <Badge
+              variant="secondary"
+              className="lg:hidden text-xs h-6 px-2 bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300"
+            >
               {urgentOrders} urgent
             </Badge>
           )}
@@ -188,12 +197,12 @@ export function KitchenHeader({
             variant="ghost"
             size="icon"
             onClick={() => onSoundToggle(!soundEnabled)}
-            className={cn(
-              'h-8 w-8 sm:h-9 sm:w-9',
-              soundEnabled
-                ? 'text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950'
-                : 'text-muted-foreground'
-            )}
+          className={cn(
+            'h-8 w-8 sm:h-9 sm:w-9',
+            soundEnabled
+                ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                : 'text-muted-foreground hover:text-foreground'
+          )}
             title={soundEnabled ? 'Sound enabled' : 'Sound disabled'}
           >
             {soundEnabled ? (

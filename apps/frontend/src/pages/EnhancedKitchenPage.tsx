@@ -49,8 +49,8 @@ import { Filter, X } from 'lucide-react';
 
 const statusesInKitchen: Order['status'][] = [
   'pending',
-  'accepted',
   'in_progress',
+  'accepted',
 ];
 
 const statusLabel: Record<Order['status'], string> = {
@@ -66,19 +66,19 @@ const statusConfig = {
   pending: {
     label: 'New Orders',
     icon: '🔔',
-    color: 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800',
+    color: 'bg-sky-50 border-sky-200 dark:bg-sky-950/20 dark:border-sky-900/40',
   },
   accepted: {
     label: 'Accepted',
     icon: '✓',
     color:
-      'bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800',
+      'bg-indigo-50 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-900/40',
   },
   in_progress: {
     label: 'Cooking',
     icon: '🔥',
     color:
-      'bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800',
+      'bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/40',
   },
 };
 
@@ -222,8 +222,8 @@ const EnhancedKitchenPage = () => {
   const grouped = useMemo(() => {
     const map: Record<string, Order[]> = {
       pending: [],
-      accepted: [],
       in_progress: [],
+      accepted: [],
     };
     filteredOrders.forEach((order) => {
       map[order.status]?.push(order);
@@ -250,10 +250,10 @@ const EnhancedKitchenPage = () => {
       badges.push(
         <Badge
           key="cash-due"
-          variant="destructive"
-          className="text-[9px] px-1.5 py-0 h-4"
+          variant="outline"
+          className="text-[9px] px-1.5 py-0 h-4 border-amber-300 text-amber-700 bg-amber-50/70 dark:bg-amber-950/40"
         >
-          CASH DUE
+          Cash Due
         </Badge>
       );
     }
@@ -263,9 +263,9 @@ const EnhancedKitchenPage = () => {
         <Badge
           key="almost"
           variant="outline"
-          className="text-[9px] px-1.5 py-0 h-4 text-amber-700 border-amber-400"
+          className="text-[9px] px-1.5 py-0 h-4 border-emerald-300 text-emerald-700 bg-emerald-50/70 dark:bg-emerald-950/40"
         >
-          ALMOST READY
+          Almost Ready
         </Badge>
       );
     }
@@ -284,12 +284,12 @@ const EnhancedKitchenPage = () => {
         <Button
           key="accept"
           size="sm"
-          variant="secondary"
+          variant="outline"
           disabled={disabled}
           onClick={() =>
             handleUpdate(order.id, 'accepted', order.progress ?? 0)
           }
-          className="flex-1 h-8 text-xs"
+          className="flex-1 h-8 text-xs border-sky-300 text-sky-700 hover:bg-sky-50"
         >
           Accept
         </Button>
@@ -300,7 +300,7 @@ const EnhancedKitchenPage = () => {
           size="sm"
           disabled={disabled}
           onClick={() => handleUpdate(order.id, 'in_progress', 40)}
-          className="flex-1 h-8 text-xs"
+          className="flex-1 h-8 text-xs bg-primary/95 text-primary-foreground hover:bg-primary"
         >
           Start Cooking
         </Button>
@@ -315,7 +315,7 @@ const EnhancedKitchenPage = () => {
           size="sm"
           disabled={disabled}
           onClick={() => handleUpdate(order.id, 'in_progress', 40)}
-          className="flex-1 h-8 text-xs"
+          className="flex-1 h-8 text-xs bg-primary/95 text-primary-foreground hover:bg-primary"
         >
           Start Cooking
         </Button>
@@ -385,7 +385,6 @@ const EnhancedKitchenPage = () => {
 
   const handleSocketEvent = useCallback(
     (data) => {
-      console.log('Received order event via socket:', data);
       if (data.status === 'pending') {
         sounds.newOrder();
       } else if (data.status === 'accepted' || data.status === 'in_progress') {
@@ -440,8 +439,7 @@ const EnhancedKitchenPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Compact Header */}
+    <div className="min-h-screen bg-linear-to-br from-background via-background/95 to-muted/40">
       <KitchenHeader
         orders={filteredOrders}
         restaurant={{
@@ -452,8 +450,7 @@ const EnhancedKitchenPage = () => {
         onSoundToggle={toggleSounds}
       />
 
-      <div className="flex-1 p-2 sm:p-3 md:p-4 space-y-3">
-        {/* Compact Stats */}
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 pb-6 pt-4 sm:px-4 lg:px-6">
         <KitchenStats orders={filteredOrders} />
 
         {isLoading ? (
@@ -461,143 +458,148 @@ const EnhancedKitchenPage = () => {
             <LoadingSpinner size="lg" />
           </div>
         ) : filteredOrders.length === 0 && !hasActiveFilters ? (
-          <Card className="border-dashed border-2 bg-muted/20">
-            <CardHeader className="text-center py-8">
-              <CardTitle className="text-lg">No Active Orders</CardTitle>
-              <CardDescription className="text-sm mt-1">
-                New orders will appear here automatically
+          <Card className="border-dashed border-2 bg-card/80 backdrop-blur">
+            <CardHeader className="text-center py-10">
+              <CardTitle className="text-lg font-semibold">No Active Orders</CardTitle>
+              <CardDescription className="text-sm mt-2">
+                New tickets will show up here instantly
               </CardDescription>
             </CardHeader>
           </Card>
         ) : (
           <>
-            {/* Compact Filter Bar */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Search Input */}
-              <div className="flex-1 min-w-[200px]">
-                <Input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search orders..."
-                  className="h-9"
-                />
-              </div>
+            <Card className="border border-border/60 bg-card/80 backdrop-blur">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                  <Input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search by order, table, or guest"
+                    className="h-10 md:flex-1"
+                  />
 
-              {/* Filter Popover */}
-              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 gap-2">
-                    <Filter className="h-4 w-4" />
-                    Filters
+                  <div className="flex items-center gap-2 md:w-auto">
+                    <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-10 gap-2">
+                          <Filter className="h-4 w-4" />
+                          Filters
+                          {hasActiveFilters && (
+                            <Badge
+                              variant="secondary"
+                              className="ml-1 h-5 w-5 rounded-full p-0 text-xs"
+                            >
+                              {
+                                [
+                                  paymentFilter !== 'all',
+                                  zoneFilter !== 'all',
+                                  searchTerm.trim() !== '',
+                                ].filter(Boolean).length
+                              }
+                            </Badge>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80" align="end">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-sm">Filter orders</h4>
+                            {hasActiveFilters && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={clearFilters}
+                                className="h-7 text-xs"
+                              >
+                                Clear all
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                Payment method
+                              </label>
+                              <Select
+                                value={paymentFilter}
+                                onValueChange={(value) =>
+                                  setPaymentFilter(value as 'all' | 'upi' | 'cash')
+                                }
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">All payments</SelectItem>
+                                  <SelectItem value="upi">UPI</SelectItem>
+                                  <SelectItem value="cash">Cash</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {zones.length > 0 && (
+                              <div className="space-y-2">
+                                <label className="text-xs font-medium text-muted-foreground">
+                                  Dining zone
+                                </label>
+                                <Select
+                                  value={zoneFilter}
+                                  onValueChange={setZoneFilter}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="All zones" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All zones</SelectItem>
+                                    {zones.map((zone) => (
+                                      <SelectItem key={zone} value={zone}>
+                                        {zone}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+
                     {hasActiveFilters && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 h-5 w-5 rounded-full p-0 text-xs"
-                      >
-                        {
-                          [
-                            paymentFilter !== 'all',
-                            zoneFilter !== 'all',
-                            searchTerm.trim() !== '',
-                          ].filter(Boolean).length
-                        }
+                      <Button variant="ghost" size="sm" className="h-10" onClick={clearFilters}>
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {hasActiveFilters && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {paymentFilter !== 'all' && (
+                      <Badge variant="secondary" className="gap-1 h-7">
+                        {paymentFilter.toUpperCase()}
+                        <X
+                          className="h-3 w-3 cursor-pointer"
+                          onClick={() => setPaymentFilter('all')}
+                        />
                       </Badge>
                     )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80" align="end">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-sm">Filter Orders</h4>
-                      {hasActiveFilters && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={clearFilters}
-                          className="h-7 text-xs"
-                        >
-                          Clear all
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Payment Method
-                        </label>
-                        <Select
-                          value={paymentFilter}
-                          onValueChange={(value) =>
-                            setPaymentFilter(value as 'all' | 'upi' | 'cash')
-                          }
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Payments</SelectItem>
-                            <SelectItem value="upi">UPI Only</SelectItem>
-                            <SelectItem value="cash">Cash Only</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {zones.length > 0 && (
-                        <div className="space-y-2">
-                          <label className="text-xs font-medium text-muted-foreground">
-                            Dining Zone
-                          </label>
-                          <Select
-                            value={zoneFilter}
-                            onValueChange={setZoneFilter}
-                          >
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder="All zones" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All Zones</SelectItem>
-                              {zones.map((zone) => (
-                                <SelectItem key={zone} value={zone}>
-                                  {zone}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
+                    {zoneFilter !== 'all' && (
+                      <Badge variant="secondary" className="gap-1 h-7">
+                        Zone: {zoneFilter}
+                        <X
+                          className="h-3 w-3 cursor-pointer"
+                          onClick={() => setZoneFilter('all')}
+                        />
+                      </Badge>
+                    )}
                   </div>
-                </PopoverContent>
-              </Popover>
+                )}
+              </CardContent>
+            </Card>
 
-              {/* Active Filter Chips */}
-              {hasActiveFilters && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {paymentFilter !== 'all' && (
-                    <Badge variant="secondary" className="gap-1 h-7">
-                      {paymentFilter.toUpperCase()}
-                      <X
-                        className="h-3 w-3 cursor-pointer"
-                        onClick={() => setPaymentFilter('all')}
-                      />
-                    </Badge>
-                  )}
-                  {zoneFilter !== 'all' && (
-                    <Badge variant="secondary" className="gap-1 h-7">
-                      Zone: {zoneFilter}
-                      <X
-                        className="h-3 w-3 cursor-pointer"
-                        onClick={() => setZoneFilter('all')}
-                      />
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Compact Order Columns */}
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
               {statusesInKitchen.map((status) => {
                 const statusOrders = grouped[status] || [];
                 const config =
@@ -606,7 +608,10 @@ const EnhancedKitchenPage = () => {
                 return (
                   <Card
                     key={status}
-                    className={cn('flex flex-col', config.color)}
+                    className={cn(
+                      'flex flex-col border border-border/60 bg-card/85 backdrop-blur',
+                      config.color
+                    )}
                   >
                     <CardHeader className="pb-3 border-b space-y-0">
                       <div className="flex items-center justify-between">
@@ -673,7 +678,7 @@ const EnhancedKitchenPage = () => {
 
             {/* Show message when filters result in no orders */}
             {filteredOrders.length === 0 && hasActiveFilters && (
-              <Card className="border-dashed">
+              <Card className="border-dashed bg-card/80 backdrop-blur">
                 <CardHeader className="text-center py-8">
                   <CardTitle className="text-base">
                     No orders match your filters

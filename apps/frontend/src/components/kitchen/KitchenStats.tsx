@@ -117,9 +117,9 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
   };
 
   return (
-    <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+    <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
       {/* Active Orders */}
-      <Card className="border-primary/20">
+      <Card className="border border-border/60 bg-card/95 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0">
           <CardTitle className="text-xs font-medium">Active</CardTitle>
           <BarChart3 className="h-3.5 w-3.5 text-primary" />
@@ -137,8 +137,9 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
       {/* Urgent Orders */}
       <Card
         className={cn(
+          'border border-border/60 bg-card/95 backdrop-blur-sm',
           stats.urgent > 0 &&
-            'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20'
+            'border-rose-200 bg-rose-50/70 dark:border-rose-900/50 dark:bg-rose-950/20'
         )}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0">
@@ -147,7 +148,7 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
             className={cn(
               'h-3.5 w-3.5',
               stats.urgent > 0
-                ? 'text-red-600 dark:text-red-400'
+                ? 'text-rose-600 dark:text-rose-300'
                 : 'text-muted-foreground'
             )}
           />
@@ -157,7 +158,7 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
             className={cn(
               'text-xl font-bold',
               stats.urgent > 0
-                ? 'text-red-600 dark:text-red-400'
+                ? 'text-rose-600 dark:text-rose-300'
                 : 'text-muted-foreground'
             )}
           >
@@ -170,7 +171,7 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
       </Card>
 
       {/* Average Prep Time */}
-      <Card>
+      <Card className="border border-border/60 bg-card/95 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0">
           <CardTitle className="text-xs font-medium">Avg Time</CardTitle>
           <Timer className="h-3.5 w-3.5 text-muted-foreground" />
@@ -191,7 +192,7 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
       </Card>
 
       {/* Completed Today */}
-      <Card>
+      <Card className="border border-border/60 bg-card/95 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0">
           <CardTitle className="text-xs font-medium">Done</CardTitle>
           <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
@@ -207,7 +208,7 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
       </Card>
 
       {/* Kitchen Efficiency */}
-      <Card>
+      <Card className="border border-border/60 bg-card/95 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0">
           <CardTitle className="text-xs font-medium">Efficiency</CardTitle>
           <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
@@ -226,12 +227,7 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
       </Card>
 
       {/* Rush Hour Indicator */}
-      <Card
-        className={cn(
-          stats.isRushHour &&
-            'border-orange-300 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20'
-        )}
-      >
+      <Card className="border border-border/60 bg-card/95 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0">
           <CardTitle className="text-xs font-medium">Status</CardTitle>
           <Clock
@@ -245,8 +241,13 @@ export function KitchenStats({ orders }: KitchenStatsProps) {
         </CardHeader>
         <CardContent className="pb-2">
           <Badge
-            variant={stats.isRushHour ? 'destructive' : 'secondary'}
-            className="text-[10px] h-5 px-2 mb-1"
+            variant="outline"
+            className={cn(
+              'text-[10px] h-5 px-2 mb-1 border border-border/60',
+              stats.isRushHour
+                ? 'text-orange-600 border-orange-300 bg-orange-50/70 dark:bg-orange-950/30 dark:text-orange-300'
+                : 'text-muted-foreground'
+            )}
           >
             {stats.isRushHour ? 'Rush' : 'Normal'}
           </Badge>
