@@ -208,9 +208,12 @@ export class RazorpayService {
 
     this.logger.log(`Creating linked account for reference: ${params.reference_id}`);
 
+    // Validate and format data for Indian requirements
+    const formattedPhone = params.phone.startsWith('+91') ? params.phone : `+91${params.phone.replace(/^0/, '')}`;
+
     const accountData = {
       email: params.email,
-      phone: params.phone,
+      phone: formattedPhone,
       type: 'standard', // Standard account type for restaurants
       reference_id: params.reference_id,
       legal_business_name: params.legal_business_name,
@@ -218,6 +221,14 @@ export class RazorpayService {
       profile: {
         category: 'food_and_beverages',
         subcategory: 'restaurant',
+        addresses: params.profile?.addresses ? {
+          registered: {
+            ...params.profile.addresses.registered,
+            // Ensure postal code is 6 digits for India
+            postal_code: params.profile.addresses.registered.postal_code.replace(/\D/g, '').padStart(6, '0').substring(0, 6),
+            country: 'IN' // Force India for now
+          }
+        } : undefined,
         ...params.profile
       }
     };
@@ -229,7 +240,14 @@ export class RazorpayService {
       this.logger.log(`Linked account created successfully: ${account.id}`);
       return account;
     } catch (error) {
-      this.logger.error(`Failed to create linked account: ${error.message}`, error.stack);
+      this.logger.error(`Failed to create linked account: ${error.message}`, error);
+      this.logger.error(`Error details:`, JSON.stringify(error, null, 2));
+
+      // Log the full error response for debugging
+      if (error.response) {
+        this.logger.error(`Razorpay API Response:`, JSON.stringify(error.response.data, null, 2));
+      }
+
       throw error;
     }
   }
