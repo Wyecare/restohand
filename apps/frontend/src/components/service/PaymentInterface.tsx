@@ -13,6 +13,8 @@ import {
   Clock,
   Copy,
   Smartphone,
+  Download,
+  Receipt,
 } from 'lucide-react';
 import type { Order, Restaurant } from '@/store/api/types';
 import QRCode from 'qrcode';
@@ -41,6 +43,7 @@ export default function PaymentInterface({
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi'>('upi');
   const [isProcessing, setIsProcessing] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [receiptQrCodeDataUrl, setReceiptQrCodeDataUrl] = useState<string>('');
 
   // Generate UPI QR code
   const upiString = useMemo(() => {
@@ -76,6 +79,33 @@ export default function PaymentInterface({
       }
     }
   }, [upiString]);
+
+  // Generate customer receipt URL and QR code
+  const receiptUrl = useMemo(() => {
+    if (order.paymentStatus === 'paid') {
+      return `${window.location.origin}/receipts/${order.orderNumber}`;
+    }
+    return '';
+  }, [order.orderNumber, order.paymentStatus]);
+
+  // Generate receipt QR code
+  useMemo(async () => {
+    if (receiptUrl) {
+      try {
+        const qrData = await QRCode.toDataURL(receiptUrl, {
+          width: 256,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF',
+          },
+        });
+        setReceiptQrCodeDataUrl(qrData);
+      } catch (error) {
+        console.error('Failed to generate receipt QR code:', error);
+      }
+    }
+  }, [receiptUrl]);
 
   const handleCopyUPI = async () => {
     if (!restaurant?.upi?.vpa) return;
@@ -159,6 +189,77 @@ export default function PaymentInterface({
             </div>
           </CardContent>
         </Card>
+
+        {/* Customer Receipt QR Code - Show when paid */}
+        {order.paymentStatus === 'paid' && receiptQrCodeDataUrl && (
+          <Card className="border-2 bg-green-50 border-green-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-green-700">
+                <Receipt className="h-5 w-5" />
+                Customer Receipt
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-center space-y-3">
+                <p className="text-sm text-green-600 font-medium">
+                  Payment Complete! Show this QR code to customer
+                </p>
+
+                {/* Receipt QR Code */}
+                <div className="flex justify-center">
+                  <div className="bg-white p-4 rounded-xl shadow-md border-2 border-green-200">
+                    <img
+                      src={receiptQrCodeDataUrl}
+                      alt="Receipt QR Code"
+                      className="w-48 h-48"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-green-700">
+                    Scan to view & download receipt
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Customer can scan this QR code to view order details and download PDF receipt
+                  </p>
+                </div>
+
+                {/* Receipt URL for manual access */}
+                <div className="p-3 bg-white rounded-lg border border-green-200">
+                  <p className="text-xs text-muted-foreground mb-1">Or visit manually:</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs font-mono text-green-700 break-all">
+                      {receiptUrl}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-green-600"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(receiptUrl);
+                          toast({
+                            title: 'Receipt URL copied! 📋',
+                            description: 'Share this with customer',
+                          });
+                        } catch (error) {
+                          toast({
+                            title: 'Copy failed',
+                            description: 'Please share URL manually',
+                            variant: 'destructive',
+                          });
+                        }
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Payment Methods */}
         {order.paymentStatus !== 'paid' && (

@@ -801,8 +801,11 @@ export class OrdersService {
   }
 
   private async generateOrderNumber(restaurantId: string): Promise<string> {
-    const count = await this.orderModel.countDocuments({ restaurantId });
-    return `ORD-${(count + 1).toString().padStart(4, '0')}`;
+    // Generate globally unique order number using timestamp + random suffix
+    const timestamp = Date.now().toString();
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const globalCount = await this.orderModel.countDocuments({});
+    return `ORD-${timestamp.slice(-6)}${random}${(globalCount + 1).toString().padStart(3, '0')}`;
   }
 
   private async transferToRestaurant(order: OrderDocument): Promise<void> {

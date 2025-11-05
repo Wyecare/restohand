@@ -26,7 +26,6 @@ export function App() {
                 <AppRouter />
               </BrowserRouter>
               <Toaster />
-              <AuthDebug />
             </AuthProvider>
           </ActiveThemeProvider>
         </ThemeProvider>

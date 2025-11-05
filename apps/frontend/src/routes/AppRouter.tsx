@@ -22,6 +22,8 @@ import ForbiddenPage from '@/pages/ForbiddenPage';
 import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
 import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
 import ReportsPage from '@/pages/ReportsPage';
+import ReceiptPage from '@/pages/ReceiptPage';
+import ReceiptLookupPage from '@/pages/ReceiptLookupPage';
 import GstSettingsPage from '@/pages/GstSettingsPage';
 import CustomerQrPage from '@/pages/CustomerQrPage';
 import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
@@ -59,7 +61,7 @@ const AppRouter = () => {
         <Route
           path="/staff-login"
           element={
-            <AuthGuard requireAuth={false} redirectAuthenticatedTo="/kitchen">
+            <AuthGuard requireAuth={false}>
               <StaffLoginPage />
             </AuthGuard>
           }
@@ -67,7 +69,10 @@ const AppRouter = () => {
 
         <Route path="/staff-signup" element={<StaffSignupPage />} />
 
-        <Route path="/staff-invite-signup" element={<StaffInviteSignupPage />} />
+        <Route
+          path="/staff-invite-signup"
+          element={<StaffInviteSignupPage />}
+        />
 
         {/* Policy pages */}
         <Route path="/about-us" element={<AboutUsPage />} />
@@ -75,6 +80,10 @@ const AppRouter = () => {
         <Route path="/terms-conditions" element={<TermsConditionsPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/contact-us" element={<ContactUsPage />} />
+
+        {/* Public receipt routes */}
+        <Route path="/receipts" element={<ReceiptLookupPage />} />
+        <Route path="/receipts/:orderNumber" element={<ReceiptPage />} />
 
         <Route
           path="/onboarding"
@@ -84,7 +93,6 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
-
 
         {/* Protected routes */}
         <Route

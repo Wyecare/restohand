@@ -361,7 +361,7 @@ export class OrdersController {
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: OrderResponseDto })
-  @Roles(UserRole.Manager, UserRole.Cashier)
+  @Roles(UserRole.Manager, UserRole.Cashier, UserRole.Waiter)
   async updatePayment(
     @Param('restaurantId') restaurantId: string,
     @Param('orderId') orderId: string,
