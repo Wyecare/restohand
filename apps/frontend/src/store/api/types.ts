@@ -27,6 +27,20 @@ export interface RestaurantAddress {
   country: string;
 }
 
+export interface PaymentConfig {
+  linkedAccountId?: string;
+  razorpayContactId?: string;
+  razorpayFundAccountId?: string;
+  canReceivePayments: boolean;
+  directSettlement: boolean;
+  settlementType: 'instant' | 'scheduled' | 'transfers';
+  status: 'pending_setup' | 'pending_approval' | 'approved' | 'rejected' | 'suspended';
+  error?: string;
+  setupAttempts: number;
+  lastAttempt?: string;
+  approvedAt?: string;
+}
+
 export interface Restaurant {
   id: string;
   name: string;
@@ -41,6 +55,7 @@ export interface Restaurant {
   gstin?: string;
   applyDefaultGstToMenuItems: boolean;
   isActive: boolean;
+  paymentConfig?: PaymentConfig;
   createdAt: string;
   updatedAt: string;
 }

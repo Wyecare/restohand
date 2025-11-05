@@ -151,6 +151,26 @@ class PaymentConfig {
     default: 'transfers'
   })
   settlementType!: 'instant' | 'scheduled' | 'transfers';
+
+  // Linked account status tracking
+  @Prop({
+    type: String,
+    enum: ['pending_setup', 'pending_approval', 'approved', 'rejected', 'suspended'],
+    default: 'pending_setup'
+  })
+  status!: 'pending_setup' | 'pending_approval' | 'approved' | 'rejected' | 'suspended';
+
+  @Prop({ type: String, trim: true })
+  error?: string;
+
+  @Prop({ type: Number, default: 0 })
+  setupAttempts!: number;
+
+  @Prop({ type: Date })
+  lastAttempt?: Date;
+
+  @Prop({ type: Date })
+  approvedAt?: Date;
 }
 
 const PaymentConfigSchema = SchemaFactory.createForClass(PaymentConfig);

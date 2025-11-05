@@ -14,12 +14,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Building2, MapPin, Phone, Mail, CreditCard } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, CreditCard, CheckCircle, AlertCircle, Clock, XCircle } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
   useGetRestaurantQuery,
   useUpdateRestaurantMutation,
+  useSetupLinkedAccountMutation,
+  useGetPaymentStatusQuery,
 } from '@/store/api/restaurantsApi';
 
 const RestaurantSettingsPage = () => {
@@ -35,6 +37,11 @@ const RestaurantSettingsPage = () => {
   );
   const [updateRestaurant, { isLoading: isUpdating }] =
     useUpdateRestaurantMutation();
+  const [setupLinkedAccount, { isLoading: isSettingUpPayment }] =
+    useSetupLinkedAccountMutation();
+  const { data: paymentStatus, refetch: refetchPaymentStatus } = useGetPaymentStatusQuery(
+    restaurantId ?? ''
+  );
 
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
@@ -117,6 +124,65 @@ const RestaurantSettingsPage = () => {
           error instanceof Error ? error.message : 'Unexpected error occurred',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleSetupPayment = async () => {
+    if (!restaurantId) return;
+
+    try {
+      const result = await setupLinkedAccount({ restaurantId }).unwrap();
+
+      if (result.success) {
+        toast({
+          title: 'Payment setup initiated',
+          description: 'Your linked account has been created. It may take a few minutes to be approved by Razorpay.',
+        });
+        refetchPaymentStatus();
+      } else {
+        toast({
+          title: 'Setup failed',
+          description: result.error || 'Failed to setup payment account',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Setup failed',
+        description: error instanceof Error ? error.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getPaymentStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'pending_approval':
+        return <Clock className="h-4 w-4 text-yellow-600" />;
+      case 'rejected':
+      case 'suspended':
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  const getPaymentStatusText = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'Payments Enabled';
+      case 'pending_approval':
+        return 'Pending Approval';
+      case 'pending_setup':
+        return 'Setup Required';
+      case 'rejected':
+        return 'Rejected';
+      case 'suspended':
+        return 'Suspended';
+      default:
+        return 'Unknown Status';
     }
   };
 
@@ -251,55 +317,147 @@ const RestaurantSettingsPage = () => {
             </CardTitle>
             <CardDescription>UPI and payment configuration</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="upi-vpa">UPI Handle *</Label>
-                <Input
-                  id="upi-vpa"
-                  value={upiVpa}
-                  onChange={(event) => setUpiVpa(event.target.value)}
-                  placeholder="example@upi"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="upi-display-name">Display Name</Label>
-                <Input
-                  id="upi-display-name"
-                  value={upiDisplayName}
-                  onChange={(event) => setUpiDisplayName(event.target.value)}
-                  placeholder="Name shown in payment apps"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="upi-mode">UPI Mode</Label>
-                <Select
-                  value={upiMode}
-                  onValueChange={(value) =>
-                    setUpiMode(value as 'static' | 'dynamic')
-                  }
-                >
-                  <SelectTrigger id="upi-mode">
-                    <SelectValue placeholder="Select mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="static">Static</SelectItem>
-                    <SelectItem value="dynamic">Dynamic</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" disabled={isUpdating} className="w-full">
-                {isUpdating ? (
-                  <>
-                    <LoadingSpinner size="sm" className="mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Payment Settings'
+          <CardContent className="space-y-6">
+            {/* Direct Payment Status */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Direct Payment Status</Label>
+                {paymentStatus && (
+                  <div className="flex items-center gap-2">
+                    {getPaymentStatusIcon(paymentStatus.status)}
+                    <span className="text-sm">{getPaymentStatusText(paymentStatus.status)}</span>
+                  </div>
                 )}
-              </Button>
-            </form>
+              </div>
+
+              {paymentStatus?.status === 'pending_setup' && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Set up direct payments to automatically receive customer payments to your account.
+                  </p>
+                  <Button
+                    onClick={handleSetupPayment}
+                    disabled={isSettingUpPayment}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {isSettingUpPayment ? (
+                      <>
+                        <LoadingSpinner size="sm" className="mr-2" />
+                        Setting up...
+                      </>
+                    ) : (
+                      'Setup Direct Payments'
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {paymentStatus?.status === 'pending_approval' && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Your payment account is being reviewed by Razorpay. This usually takes 1-2 business days.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Account ID: {paymentStatus.linkedAccountId}
+                  </p>
+                </div>
+              )}
+
+              {paymentStatus?.status === 'approved' && paymentStatus.canReceivePayments && (
+                <div className="space-y-2">
+                  <p className="text-sm text-green-700">
+                    ✓ Direct payments are enabled. Customer payments will be automatically transferred to your account.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Account ID: {paymentStatus.linkedAccountId}
+                  </p>
+                </div>
+              )}
+
+              {(paymentStatus?.status === 'rejected' || paymentStatus?.status === 'suspended') && (
+                <div className="space-y-3">
+                  <p className="text-sm text-red-700">
+                    Payment setup failed. Please contact support or try setting up again.
+                  </p>
+                  {paymentStatus.error && (
+                    <p className="text-xs text-muted-foreground">
+                      Error: {paymentStatus.error}
+                    </p>
+                  )}
+                  <Button
+                    onClick={handleSetupPayment}
+                    disabled={isSettingUpPayment}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {isSettingUpPayment ? (
+                      <>
+                        <LoadingSpinner size="sm" className="mr-2" />
+                        Retrying...
+                      </>
+                    ) : (
+                      'Retry Setup'
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* UPI Settings */}
+            <div className="border-t pt-4">
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="upi-vpa">UPI Handle *</Label>
+                  <Input
+                    id="upi-vpa"
+                    value={upiVpa}
+                    onChange={(event) => setUpiVpa(event.target.value)}
+                    placeholder="example@upi"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Fallback payment method for manual transactions
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upi-display-name">Display Name</Label>
+                  <Input
+                    id="upi-display-name"
+                    value={upiDisplayName}
+                    onChange={(event) => setUpiDisplayName(event.target.value)}
+                    placeholder="Name shown in payment apps"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upi-mode">UPI Mode</Label>
+                  <Select
+                    value={upiMode}
+                    onValueChange={(value) =>
+                      setUpiMode(value as 'static' | 'dynamic')
+                    }
+                  >
+                    <SelectTrigger id="upi-mode">
+                      <SelectValue placeholder="Select mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="static">Static</SelectItem>
+                      <SelectItem value="dynamic">Dynamic</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" disabled={isUpdating} className="w-full">
+                  {isUpdating ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save UPI Settings'
+                  )}
+                </Button>
+              </form>
+            </div>
           </CardContent>
         </Card>
       </div>

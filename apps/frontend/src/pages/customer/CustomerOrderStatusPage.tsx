@@ -150,6 +150,12 @@ export default function CustomerOrderStatusPage() {
   const canStartNewOrder =
     !!order && (order.status === 'completed' || order.status === 'cancelled');
 
+  // Allow customers to go back to menu if order is paid and ready/completed
+  const canReturnToMenu =
+    !!order &&
+    order.paymentStatus === 'paid' &&
+    (order.status === 'ready' || order.status === 'completed');
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const existingId = localStorage.getItem('restohand:device-id');
@@ -516,7 +522,10 @@ export default function CustomerOrderStatusPage() {
             View Receipt
           </Button>
 
-          {order.status !== 'cancelled' && order.status !== 'completed' && (
+          {/* Add More Items button - show for active orders */}
+          {order.status !== 'cancelled' &&
+           order.status !== 'completed' &&
+           order.paymentStatus === 'paid' && (
             <Button
               variant="outline"
               size="lg"
@@ -553,6 +562,45 @@ export default function CustomerOrderStatusPage() {
               className="col-span-2 h-12"
             >
               Start New Order
+            </Button>
+          )}
+
+          {/* Back to Menu button for paid orders that are ready/completed */}
+          {!canStartNewOrder && canReturnToMenu && (
+            <Button
+              variant="default"
+              size="lg"
+              onClick={() => {
+                const tableSuffix = tableFromQuery
+                  ? `?table=${encodeURIComponent(tableFromQuery)}`
+                  : '';
+                navigate(`/c/${slug}${tableSuffix}`);
+              }}
+              className="col-span-2 h-12"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Back to Menu
+            </Button>
+          )}
+
+          {/* General Back to Menu button - always available unless order is completed/cancelled */}
+          {!canStartNewOrder &&
+           !canReturnToMenu &&
+           order.status !== 'cancelled' &&
+           order.status !== 'completed' && (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => {
+                const tableSuffix = tableFromQuery
+                  ? `?table=${encodeURIComponent(tableFromQuery)}`
+                  : '';
+                navigate(`/c/${slug}${tableSuffix}`);
+              }}
+              className="col-span-2 h-12"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Back to Menu
             </Button>
           )}
         </motion.div>

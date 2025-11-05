@@ -28,12 +28,16 @@ import { RestaurantResponseDto } from './dtos/restaurant-response.dto';
 import { UpdateRestaurantDto } from './dtos/update-restaurant.dto';
 import { QueryRestaurantsDto } from './dtos/query-restaurants.dto';
 import { RestaurantsService } from './restaurants.service';
+import { RestaurantOnboardingService } from './restaurant-onboarding.service';
 
 @ApiTags('restaurants')
 @UseGuards(FirebaseAuthGuard, RolesGuard)
 @Controller('restaurants')
 export class RestaurantsController {
-  constructor(private readonly restaurantsService: RestaurantsService) {}
+  constructor(
+    private readonly restaurantsService: RestaurantsService,
+    private readonly onboardingService: RestaurantOnboardingService
+  ) {}
 
   @Post()
   @Roles(UserRole.Manager)
@@ -86,5 +90,54 @@ export class RestaurantsController {
     @Query('table') table?: string
   ) {
     return this.restaurantsService.generateQrCode(id, table);
+  }
+
+  @Post(':id/payment/setup-linked-account')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiOkResponse({
+    description: 'Setup linked account response',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        linkedAccountId: { type: 'string' },
+        status: { type: 'string' },
+        error: { type: 'string' }
+      }
+    }
+  })
+  async setupLinkedAccount(@Param('id') id: string) {
+    return this.onboardingService.setupLinkedAccount(id);
+  }
+
+  @Get(':id/payment/status')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiOkResponse({
+    description: 'Payment status information',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string' },
+        canReceivePayments: { type: 'boolean' },
+        linkedAccountId: { type: 'string' },
+        error: { type: 'string' },
+        setupAttempts: { type: 'number' },
+        lastAttempt: { type: 'string' }
+      }
+    }
+  })
+  async getPaymentStatus(@Param('id') id: string) {
+    const restaurant = await this.restaurantsService.findById(id);
+
+    return {
+      status: restaurant.paymentConfig?.status || 'pending_setup',
+      canReceivePayments: restaurant.paymentConfig?.canReceivePayments || false,
+      linkedAccountId: restaurant.paymentConfig?.linkedAccountId,
+      error: restaurant.paymentConfig?.error,
+      setupAttempts: restaurant.paymentConfig?.setupAttempts || 0,
+      lastAttempt: restaurant.paymentConfig?.lastAttempt?.toISOString(),
+    };
   }
 }

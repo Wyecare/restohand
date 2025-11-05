@@ -49,20 +49,50 @@ export class RestaurantOnboardingService {
     this.logger.log(`Starting SaaS onboarding for restaurant: ${data.name}`);
 
     try {
-      // 1. Create Razorpay contact and fund account for transfers
-      let razorpayContactId = null;
-      let razorpayFundAccountId = null;
+      // 1. Attempt to create Razorpay linked account for direct settlement
+      let linkedAccountId = null;
       let canReceivePayments = false;
+      let paymentStatus = 'pending_setup';
+      let setupError = null;
 
       try {
-        // For now, skip complex transfers setup and use direct settlement via linked accounts
-        // This will be handled separately when restaurant sets up payment acceptance
-        this.logger.log('Skipping contact/fund account creation - will use linked accounts for direct settlement');
-        canReceivePayments = false; // Will be enabled when linked account is set up
+        this.logger.log(`Attempting to create Razorpay linked account for ${data.name}`);
+
+        const linkedAccountData = {
+          email: data.email,
+          phone: data.phone,
+          type: 'standard',
+          reference_id: `restaurant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          legal_business_name: data.name,
+          business_type: data.businessType,
+          profile: {
+            category: 'food_and_beverages',
+            subcategory: 'restaurant',
+            addresses: {
+              registered: {
+                street1: data.address.street,
+                street2: '',
+                city: data.address.city,
+                state: data.address.state,
+                postal_code: data.address.postalCode,
+                country: data.address.country,
+              }
+            }
+          }
+        };
+
+        const linkedAccount = await this.razorpayService.createLinkedAccount(linkedAccountData);
+        linkedAccountId = linkedAccount.id;
+        paymentStatus = 'pending_approval';
+        canReceivePayments = linkedAccount.status === 'activated';
+
+        this.logger.log(`Linked account created successfully: ${linkedAccountId}, status: ${linkedAccount.status}`);
       } catch (razorpayError) {
-        this.logger.warn(`Failed to create Razorpay contact/fund account: ${razorpayError.message}`);
-        this.logger.warn('Continuing onboarding without transfers - restaurant can still process orders');
-        // Continue with onboarding even if contact/fund account creation fails
+        this.logger.warn(`Failed to create Razorpay linked account: ${razorpayError.message}`);
+        this.logger.warn('Continuing onboarding - restaurant can set up payments later via settings');
+        setupError = razorpayError.message;
+        paymentStatus = 'pending_setup';
+        // Continue with onboarding even if linked account creation fails
       }
 
       // 2. Create restaurant with SaaS configuration
@@ -97,12 +127,17 @@ export class RestaurantOnboardingService {
 
         // Payment Configuration
         paymentConfig: {
-          linkedAccountId: null, // Not using Route feature
-          razorpayContactId,
-          razorpayFundAccountId,
+          linkedAccountId,
+          razorpayContactId: null,
+          razorpayFundAccountId: null,
           canReceivePayments,
-          directSettlement: !!razorpayFundAccountId,
-          settlementType: razorpayFundAccountId ? 'transfers' : 'scheduled',
+          directSettlement: !!linkedAccountId,
+          settlementType: linkedAccountId ? 'instant' : 'scheduled',
+          status: paymentStatus,
+          error: setupError,
+          setupAttempts: setupError ? 1 : 0,
+          lastAttempt: setupError ? new Date() : undefined,
+          approvedAt: canReceivePayments ? new Date() : undefined,
         },
 
         // Business Details
@@ -222,6 +257,108 @@ export class RestaurantOnboardingService {
       'saasConfig.subscriptionStatus': status,
       'saasConfig.lastUpdated': new Date(),
     });
+  }
+
+  async setupLinkedAccount(restaurantId: string): Promise<{
+    success: boolean;
+    linkedAccountId?: string;
+    status?: string;
+    error?: string;
+  }> {
+    this.logger.log(`Setting up linked account for restaurant: ${restaurantId}`);
+
+    try {
+      const restaurant = await this.restaurantModel.findById(restaurantId);
+      if (!restaurant) {
+        throw new BadRequestException('Restaurant not found');
+      }
+
+      // Check if already has a linked account
+      if (restaurant.paymentConfig?.linkedAccountId) {
+        this.logger.log(`Restaurant ${restaurantId} already has linked account: ${restaurant.paymentConfig.linkedAccountId}`);
+
+        // Check current status from Razorpay
+        const status = await this.razorpayService.getLinkedAccountStatus(restaurant.paymentConfig.linkedAccountId);
+
+        // Update local status
+        await this.restaurantModel.findByIdAndUpdate(restaurantId, {
+          'paymentConfig.status': status.canReceivePayments ? 'approved' : 'pending_approval',
+          'paymentConfig.canReceivePayments': status.canReceivePayments,
+          'paymentConfig.approvedAt': status.canReceivePayments ? new Date() : undefined,
+          'paymentConfig.error': status.details.error || null,
+        });
+
+        return {
+          success: true,
+          linkedAccountId: restaurant.paymentConfig.linkedAccountId,
+          status: status.status,
+        };
+      }
+
+      // Create new linked account
+      const linkedAccountData = {
+        email: restaurant.email || restaurant.contactEmail || `contact@${restaurant.slug}.com`,
+        phone: restaurant.phone || restaurant.contactPhone || '9999999999',
+        type: 'standard',
+        reference_id: `restaurant_${restaurantId}_${Date.now()}`,
+        legal_business_name: restaurant.legalName || restaurant.name,
+        business_type: restaurant.businessDetails?.businessType || 'sole_proprietorship',
+        profile: {
+          category: 'food_and_beverages',
+          subcategory: 'restaurant',
+          addresses: {
+            registered: {
+              street1: restaurant.address.line1,
+              street2: restaurant.address.line2 || '',
+              city: restaurant.address.city,
+              state: restaurant.address.state,
+              postal_code: restaurant.address.postalCode,
+              country: restaurant.address.country,
+            }
+          }
+        }
+      };
+
+      const linkedAccount = await this.razorpayService.createLinkedAccount(linkedAccountData);
+
+      // Update restaurant with linked account details
+      await this.restaurantModel.findByIdAndUpdate(restaurantId, {
+        'paymentConfig.linkedAccountId': linkedAccount.id,
+        'paymentConfig.status': 'pending_approval',
+        'paymentConfig.canReceivePayments': linkedAccount.status === 'activated',
+        'paymentConfig.directSettlement': true,
+        'paymentConfig.settlementType': 'instant',
+        'paymentConfig.setupAttempts': (restaurant.paymentConfig?.setupAttempts || 0) + 1,
+        'paymentConfig.lastAttempt': new Date(),
+        'paymentConfig.error': null,
+        'paymentConfig.approvedAt': linkedAccount.status === 'activated' ? new Date() : undefined,
+      });
+
+      this.logger.log(`Linked account created successfully for restaurant ${restaurantId}: ${linkedAccount.id}`);
+
+      return {
+        success: true,
+        linkedAccountId: linkedAccount.id,
+        status: linkedAccount.status,
+      };
+
+    } catch (error) {
+      this.logger.error(`Failed to setup linked account for restaurant ${restaurantId}: ${error.message}`, error.stack);
+
+      // Update error details
+      const restaurant = await this.restaurantModel.findById(restaurantId);
+      await this.restaurantModel.findByIdAndUpdate(restaurantId, {
+        'paymentConfig.status': 'pending_setup',
+        'paymentConfig.error': error.message,
+        'paymentConfig.setupAttempts': (restaurant?.paymentConfig?.setupAttempts || 0) + 1,
+        'paymentConfig.lastAttempt': new Date(),
+      });
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
   }
 
   private generateSlug(name: string): string {

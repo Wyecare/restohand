@@ -208,15 +208,30 @@ export class RazorpayService {
 
     this.logger.log(`Creating linked account for reference: ${params.reference_id}`);
 
-    return this.client.accounts.create({
+    const accountData = {
       email: params.email,
       phone: params.phone,
-      type: params.type,
+      type: 'standard', // Standard account type for restaurants
       reference_id: params.reference_id,
       legal_business_name: params.legal_business_name,
       business_type: params.business_type,
-      profile: params.profile
-    });
+      profile: {
+        category: 'food_and_beverages',
+        subcategory: 'restaurant',
+        ...params.profile
+      }
+    };
+
+    this.logger.log(`Creating linked account with data:`, JSON.stringify(accountData, null, 2));
+
+    try {
+      const account = await this.client.accounts.create(accountData);
+      this.logger.log(`Linked account created successfully: ${account.id}`);
+      return account;
+    } catch (error) {
+      this.logger.error(`Failed to create linked account: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async getLinkedAccount(accountId: string): Promise<any> {
@@ -224,7 +239,45 @@ export class RazorpayService {
       throw new InternalServerErrorException('Razorpay is not configured');
     }
 
-    return this.client.accounts.fetch(accountId);
+    try {
+      const account = await this.client.accounts.fetch(accountId);
+      this.logger.log(`Fetched linked account ${accountId}: status=${account.status}`);
+      return account;
+    } catch (error) {
+      this.logger.error(`Failed to fetch linked account ${accountId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getLinkedAccountStatus(accountId: string): Promise<{
+    status: string;
+    canReceivePayments: boolean;
+    details: any;
+  }> {
+    try {
+      const account = await this.getLinkedAccount(accountId);
+
+      const canReceivePayments = account.status === 'activated';
+
+      return {
+        status: account.status,
+        canReceivePayments,
+        details: {
+          id: account.id,
+          status: account.status,
+          activated_at: account.activated_at,
+          created_at: account.created_at,
+          legal_business_name: account.legal_business_name,
+          business_type: account.business_type,
+        }
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        canReceivePayments: false,
+        details: { error: error.message }
+      };
+    }
   }
 
   // Transfers API Methods for instant restaurant payments

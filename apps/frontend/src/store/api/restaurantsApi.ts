@@ -447,6 +447,41 @@ export const restaurantsApi = baseApi.injectEndpoints({
         params: table ? { table } : undefined,
       }),
     }),
+
+    setupLinkedAccount: builder.mutation<
+      {
+        success: boolean;
+        linkedAccountId?: string;
+        status?: string;
+        error?: string;
+      },
+      { restaurantId: string }
+    >({
+      query: ({ restaurantId }) => ({
+        url: `/restaurants/${restaurantId}/payment/setup-linked-account`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Restaurant', id: restaurantId },
+      ],
+    }),
+
+    getPaymentStatus: builder.query<
+      {
+        status: string;
+        canReceivePayments: boolean;
+        linkedAccountId?: string;
+        error?: string;
+        setupAttempts: number;
+        lastAttempt?: string;
+      },
+      string
+    >({
+      query: (restaurantId) => `/restaurants/${restaurantId}/payment/status`,
+      providesTags: (_result, _error, restaurantId) => [
+        { type: 'Restaurant', id: restaurantId },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -479,4 +514,6 @@ export const {
   useGetPublicOrderQuery,
   useCancelPublicOrderMutation,
   useGetRestaurantQrCodeQuery,
+  useSetupLinkedAccountMutation,
+  useGetPaymentStatusQuery,
 } = restaurantsApi;
