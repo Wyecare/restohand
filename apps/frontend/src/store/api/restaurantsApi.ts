@@ -30,6 +30,7 @@ export interface CreateRestaurantPayload {
   timezone?: string;
   address: Restaurant['address'];
   upi: Restaurant['upi'];
+  settings?: Partial<Restaurant['settings']>;
   languages?: string[];
   gstin?: string;
   applyDefaultGstToMenuItems?: boolean;
@@ -74,6 +75,13 @@ export interface CreateRestaurantTablePayload {
   layoutWidth?: number;
   layoutHeight?: number;
   layoutRotation?: number;
+}
+
+export interface BulkCreateTablesPayload {
+  layout: '4' | '6' | '8' | '16';
+  tablePrefix?: string;
+  capacity?: number;
+  zone?: string;
 }
 
 export type UpdateRestaurantTablePayload =
@@ -295,6 +303,20 @@ export const restaurantsApi = baseApi.injectEndpoints({
     >({
       query: ({ restaurantId, body }) => ({
         url: `/restaurants/${restaurantId}/tables`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'RestaurantTable', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
+    bulkCreateRestaurantTables: builder.mutation<
+      RestaurantTable[],
+      { restaurantId: string; body: BulkCreateTablesPayload }
+    >({
+      query: ({ restaurantId, body }) => ({
+        url: `/restaurants/${restaurantId}/tables/bulk`,
         method: 'POST',
         body,
       }),
@@ -532,6 +554,7 @@ export const {
   useListRestaurantTablesQuery,
   useListServiceTablesQuery,
   useCreateRestaurantTableMutation,
+  useBulkCreateRestaurantTablesMutation,
   useUpdateRestaurantTableMutation,
   useArchiveRestaurantTableMutation,
   useReactivateRestaurantTableMutation,

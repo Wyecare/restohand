@@ -23,6 +23,7 @@ import { RestaurantTablesService } from './restaurant-tables.service';
 import { CreateRestaurantTableDto } from './dtos/create-restaurant-table.dto';
 import { RestaurantTableResponseDto } from './dtos/restaurant-table-response.dto';
 import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
+import { BulkCreateTablesDto } from './dtos/bulk-create-tables.dto';
 import { ServiceTablesResponseDto } from './dtos/service-table-response.dto';
 
 @ApiTags('restaurant-tables')
@@ -56,6 +57,17 @@ export class RestaurantTablesController {
     @Body() dto: CreateRestaurantTableDto
   ) {
     return this.tablesService.create(restaurantId, dto);
+  }
+
+  @Post('bulk')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
+  @ApiCreatedResponse({ type: [RestaurantTableResponseDto] })
+  async bulkCreate(
+    @Param('restaurantId') restaurantId: string,
+    @Body() dto: BulkCreateTablesDto
+  ) {
+    return this.tablesService.bulkCreate(restaurantId, dto);
   }
 
   @Patch(':tableId')

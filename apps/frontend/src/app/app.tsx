@@ -19,7 +19,7 @@ export function App() {
   return (
     <Provider store={store}>
       <I18nextProvider i18n={i18n}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <ActiveThemeProvider>
             <AuthProvider>
               <BrowserRouter>

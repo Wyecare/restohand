@@ -10,6 +10,7 @@ import { RestaurantTable, RestaurantTableDocument } from './schemas/restaurant-t
 import { CreateRestaurantTableDto } from './dtos/create-restaurant-table.dto';
 import { RestaurantTableResponseDto } from './dtos/restaurant-table-response.dto';
 import { UpdateRestaurantTableDto } from './dtos/update-restaurant-table.dto';
+import { BulkCreateTablesDto, BulkTableLayout } from './dtos/bulk-create-tables.dto';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
@@ -250,6 +251,124 @@ export class RestaurantTablesService {
       restaurantId,
       table.tableNumber
     );
+  }
+
+  async bulkCreate(
+    restaurantId: string,
+    dto: BulkCreateTablesDto
+  ): Promise<RestaurantTableResponseDto[]> {
+    await this.ensureRestaurantExists(restaurantId);
+
+    // Get existing table numbers to determine the next available number
+    const existingTables = await this.tableModel
+      .find({ restaurantId })
+      .select('tableNumber')
+      .exec();
+
+    const existingNumbers = new Set(
+      existingTables.map(t => t.tableNumber.toLowerCase())
+    );
+
+    const prefix = dto.tablePrefix || 'T';
+    const capacity = dto.capacity || 4;
+    const zone = dto.zone?.trim() || undefined;
+
+    // Generate next available table numbers
+    const getNextTableNumbers = (count: number): string[] => {
+      const numbers: string[] = [];
+      let current = 1;
+
+      while (numbers.length < count) {
+        const tableNumber = `${prefix}${current}`;
+        if (!existingNumbers.has(tableNumber.toLowerCase())) {
+          numbers.push(tableNumber);
+        }
+        current++;
+      }
+      return numbers;
+    };
+
+    // Define layout configurations
+    const layoutConfigs = {
+      [BulkTableLayout.LAYOUT_4]: {
+        count: 4,
+        positions: [
+          { x: 200, y: 150 }, // Left top
+          { x: 200, y: 280 }, // Left bottom
+          { x: 700, y: 150 }, // Right top
+          { x: 700, y: 280 }, // Right bottom
+        ],
+      },
+      [BulkTableLayout.LAYOUT_6]: {
+        count: 6,
+        positions: [
+          { x: 150, y: 120 }, // Left top
+          { x: 150, y: 250 }, // Left middle
+          { x: 150, y: 380 }, // Left bottom
+          { x: 750, y: 120 }, // Right top
+          { x: 750, y: 250 }, // Right middle
+          { x: 750, y: 380 }, // Right bottom
+        ],
+      },
+      [BulkTableLayout.LAYOUT_8]: {
+        count: 8,
+        positions: [
+          { x: 120, y: 100 }, // Left top
+          { x: 120, y: 200 }, // Left middle-top
+          { x: 120, y: 300 }, // Left middle-bottom
+          { x: 120, y: 400 }, // Left bottom
+          { x: 780, y: 100 }, // Right top
+          { x: 780, y: 200 }, // Right middle-top
+          { x: 780, y: 300 }, // Right middle-bottom
+          { x: 780, y: 400 }, // Right bottom
+        ],
+      },
+      [BulkTableLayout.LAYOUT_16]: {
+        count: 16,
+        positions: [
+          // Left group 1 (2x2)
+          { x: 100, y: 80 },
+          { x: 200, y: 80 },
+          { x: 100, y: 180 },
+          { x: 200, y: 180 },
+          // Left group 2 (2x2)
+          { x: 100, y: 320 },
+          { x: 200, y: 320 },
+          { x: 100, y: 420 },
+          { x: 200, y: 420 },
+          // Right group 1 (2x2)
+          { x: 700, y: 80 },
+          { x: 800, y: 80 },
+          { x: 700, y: 180 },
+          { x: 800, y: 180 },
+          // Right group 2 (2x2)
+          { x: 700, y: 320 },
+          { x: 800, y: 320 },
+          { x: 700, y: 420 },
+          { x: 800, y: 420 },
+        ],
+      },
+    };
+
+    const config = layoutConfigs[dto.layout];
+    const tableNumbers = getNextTableNumbers(config.count);
+
+    // Create tables in bulk
+    const tablesToCreate = tableNumbers.map((tableNumber, index) => ({
+      restaurantId,
+      tableNumber,
+      capacity,
+      zone,
+      displayOrder: index,
+      layoutX: config.positions[index].x,
+      layoutY: config.positions[index].y,
+      layoutWidth: 80,
+      layoutHeight: 80,
+      layoutRotation: 0,
+    }));
+
+    const createdTables = await this.tableModel.insertMany(tablesToCreate);
+    return createdTables.map(table => this.toDto(table));
   }
 
   private async ensureRestaurantExists(restaurantId: string) {

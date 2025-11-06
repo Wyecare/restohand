@@ -12,9 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Building2, MapPin, Phone, Mail, CreditCard, CheckCircle, AlertCircle, Clock, XCircle } from 'lucide-react';
+import { Building2, MapPin, Phone, Mail, CreditCard, CheckCircle, AlertCircle, Clock, XCircle, Settings } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -56,6 +57,7 @@ const RestaurantSettingsPage = () => {
   const [upiVpa, setUpiVpa] = useState('');
   const [upiDisplayName, setUpiDisplayName] = useState('');
   const [upiMode, setUpiMode] = useState<'static' | 'dynamic'>('static');
+  const [selfOrderingEnabled, setSelfOrderingEnabled] = useState(false);
 
   useEffect(() => {
     if (!restaurant) return;
@@ -72,6 +74,7 @@ const RestaurantSettingsPage = () => {
     setUpiVpa(restaurant.upi.vpa);
     setUpiDisplayName(restaurant.upi.displayName);
     setUpiMode(restaurant.upi.mode ?? 'static');
+    setSelfOrderingEnabled(restaurant.settings?.selfOrderingEnabled ?? false);
   }, [restaurant]);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -113,6 +116,9 @@ const RestaurantSettingsPage = () => {
             vpa: upiVpa.trim(),
             displayName: upiDisplayName.trim() || name,
             mode: upiMode,
+          },
+          settings: {
+            selfOrderingEnabled,
           },
         },
       }).unwrap();
@@ -483,6 +489,50 @@ const RestaurantSettingsPage = () => {
                 </Button>
               </form>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Restaurant Features */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Restaurant Features
+            </CardTitle>
+            <CardDescription>
+              Configure customer-facing features and services
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="self-ordering-toggle" className="text-base font-medium">
+                  Customer Self-Ordering
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Allow customers to place orders by scanning table QR codes
+                </p>
+              </div>
+              <Switch
+                id="self-ordering-toggle"
+                checked={selfOrderingEnabled}
+                onCheckedChange={setSelfOrderingEnabled}
+              />
+            </div>
+            <Button
+              onClick={handleSubmit}
+              disabled={isUpdating}
+              className="w-full"
+            >
+              {isUpdating ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Saving...
+                </>
+              ) : (
+                'Save Settings'
+              )}
+            </Button>
           </CardContent>
         </Card>
       </div>

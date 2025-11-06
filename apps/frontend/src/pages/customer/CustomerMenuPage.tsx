@@ -341,6 +341,28 @@ export default function CustomerMenuPage() {
       </div>
     );
 
+  // Check if self-ordering is disabled
+  if (restaurant && !restaurant.settings?.selfOrderingEnabled) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-8">
+          <AccessibleEmoji
+            symbol="🍽️"
+            label="Self-ordering disabled"
+            className="text-6xl mb-4"
+          />
+          <h2 className="text-xl font-bold mb-2">Self-Ordering Not Available</h2>
+          <p className="text-muted-foreground mb-4">
+            This restaurant currently accepts orders through waitstaff only.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Please ask a waiter to assist you with your order.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen bg-linear-to-b from-background via-muted/5 to-background pb-32">
       {/* Header */}

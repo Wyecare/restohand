@@ -27,6 +27,14 @@ export interface RestaurantAddress {
   country: string;
 }
 
+export interface RestaurantSettings {
+  orderNumberPrefix: string;
+  currency: string;
+  locale: string;
+  enableTax: boolean;
+  selfOrderingEnabled: boolean;
+}
+
 export interface PaymentConfig {
   linkedAccountId?: string;
   razorpayContactId?: string;
@@ -51,6 +59,7 @@ export interface Restaurant {
   timezone: string;
   address: RestaurantAddress;
   upi: RestaurantUpiConfig;
+  settings: RestaurantSettings;
   languages: string[];
   gstin?: string;
   applyDefaultGstToMenuItems: boolean;
@@ -286,6 +295,7 @@ export interface PublicRestaurant {
   timezone: string;
   upi: Restaurant['upi'];
   languages: string[];
+  settings: RestaurantSettings;
 }
 
 export interface PublicOrder {

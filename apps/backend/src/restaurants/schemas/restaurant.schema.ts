@@ -58,6 +58,9 @@ class RestaurantSettings {
 
   @Prop({ type: Boolean, default: true })
   enableTax!: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  selfOrderingEnabled!: boolean;
 }
 
 const RestaurantSettingsSchema =

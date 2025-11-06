@@ -41,6 +41,7 @@ export class PublicService {
       timezone: restaurant.timezone,
       upi: restaurant.upi,
       languages: restaurant.languages,
+      settings: restaurant.settings,
     };
   }
 

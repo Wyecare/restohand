@@ -21,12 +21,13 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { Stage, Layer, Text } from 'react-konva';
 import { TableShape } from '@/components/floor-plan/TableShape';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Grid3X3, Copy } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
   useArchiveRestaurantTableMutation,
   useCreateRestaurantTableMutation,
+  useBulkCreateRestaurantTablesMutation,
   useGenerateRestaurantTableQrMutation,
   useListRestaurantTablesQuery,
   useUpdateRestaurantTableMutation,
@@ -69,9 +70,16 @@ const TablesPage = () => {
     useState<RestaurantTable | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isNewTableDialogOpen, setIsNewTableDialogOpen] = useState(false);
+  const [isBulkCreateDialogOpen, setIsBulkCreateDialogOpen] = useState(false);
   const [newTableForm, setNewTableForm] = useState({
     tableNumber: '',
     displayName: '',
+    capacity: '4',
+    zone: '',
+  });
+  const [bulkCreateForm, setBulkCreateForm] = useState({
+    layout: '4' as '4' | '6' | '8' | '16',
+    tablePrefix: 'T',
     capacity: '4',
     zone: '',
   });
@@ -89,6 +97,8 @@ const TablesPage = () => {
 
   const [createTable, { isLoading: isCreating }] =
     useCreateRestaurantTableMutation();
+  const [bulkCreateTables, { isLoading: isBulkCreating }] =
+    useBulkCreateRestaurantTablesMutation();
   const [updateTable, { isLoading: isUpdating }] =
     useUpdateRestaurantTableMutation();
   const [archiveTable, { isLoading: isArchiving }] =
@@ -255,6 +265,44 @@ const TablesPage = () => {
     }
   };
 
+  const handleBulkCreateTables = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!restaurantId) return;
+
+    try {
+      const result = await bulkCreateTables({
+        restaurantId,
+        body: {
+          layout: bulkCreateForm.layout,
+          tablePrefix: bulkCreateForm.tablePrefix || undefined,
+          capacity: bulkCreateForm.capacity ? Number(bulkCreateForm.capacity) : undefined,
+          zone: bulkCreateForm.zone.trim() || undefined,
+        },
+      }).unwrap();
+
+      toast({
+        title: `${result.length} tables created successfully`,
+        description: `Layout ${bulkCreateForm.layout} applied with prefix ${bulkCreateForm.tablePrefix}`
+      });
+
+      setBulkCreateForm({
+        layout: '4',
+        tablePrefix: 'T',
+        capacity: '4',
+        zone: '',
+      });
+      setIsBulkCreateDialogOpen(false);
+      refetch();
+    } catch (error) {
+      toast({
+        title: 'Unable to create tables',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleTableClick = (table: RestaurantTable) => {
     setSelectedTableForConfig(table);
     setIsConfigOpen(true);
@@ -309,25 +357,43 @@ const TablesPage = () => {
     }
   };
 
-  const isBusy = isCreating || isUpdating || isArchiving;
+  const isBusy = isCreating || isBulkCreating || isUpdating || isArchiving;
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-lg">Table Layout</CardTitle>
-            <CardDescription>
-              Drag tables to position them in your restaurant layout.
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-xl">Restaurant Floor Plan</CardTitle>
+            <CardDescription className="text-sm">
+              Design your restaurant layout by adding individual tables or creating bulk layouts.
+              Drag tables to reposition them.
             </CardDescription>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+              <span>📊 {tables.length} tables total</span>
+              <span>🎯 Click table to configure</span>
+              <span>🖱️ Drag to reposition</span>
+            </div>
           </div>
-          <Button
-            onClick={() => setIsNewTableDialogOpen(true)}
-            disabled={isBusy}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Table
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkCreateDialogOpen(true)}
+              disabled={isBusy}
+              className="flex-1 md:flex-none"
+            >
+              <Grid3X3 className="w-4 h-4 mr-2" />
+              Bulk Create
+            </Button>
+            <Button
+              onClick={() => setIsNewTableDialogOpen(true)}
+              disabled={isBusy}
+              className="flex-1 md:flex-none"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Table
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div
@@ -470,6 +536,124 @@ const TablesPage = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Create Tables Dialog */}
+      <Dialog
+        open={isBulkCreateDialogOpen}
+        onOpenChange={setIsBulkCreateDialogOpen}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk Create Tables</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBulkCreateTables} className="space-y-4">
+            <div>
+              <Label htmlFor="layout">Layout Pattern</Label>
+              <select
+                id="layout"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                value={bulkCreateForm.layout}
+                onChange={(e) =>
+                  setBulkCreateForm({
+                    ...bulkCreateForm,
+                    layout: e.target.value as '4' | '6' | '8' | '16',
+                  })
+                }
+              >
+                <option value="4">4 Tables (2 left, 2 right)</option>
+                <option value="6">6 Tables (3 left, 3 right)</option>
+                <option value="8">8 Tables (4 left, 4 right)</option>
+                <option value="16">16 Tables (2 groups of 4 on each side)</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="table-prefix">Table Prefix</Label>
+                <Input
+                  id="table-prefix"
+                  placeholder="T"
+                  value={bulkCreateForm.tablePrefix}
+                  onChange={(e) =>
+                    setBulkCreateForm({
+                      ...bulkCreateForm,
+                      tablePrefix: e.target.value,
+                    })
+                  }
+                  maxLength={5}
+                />
+              </div>
+              <div>
+                <Label htmlFor="bulk-capacity">Capacity</Label>
+                <Input
+                  id="bulk-capacity"
+                  type="number"
+                  min="1"
+                  max="20"
+                  placeholder="4"
+                  value={bulkCreateForm.capacity}
+                  onChange={(e) =>
+                    setBulkCreateForm({
+                      ...bulkCreateForm,
+                      capacity: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="bulk-zone">Zone (Optional)</Label>
+              <Input
+                id="bulk-zone"
+                placeholder="e.g. Main Hall, Patio"
+                value={bulkCreateForm.zone}
+                onChange={(e) =>
+                  setBulkCreateForm({
+                    ...bulkCreateForm,
+                    zone: e.target.value,
+                  })
+                }
+                maxLength={40}
+              />
+            </div>
+
+            <div className="border rounded-lg p-4 bg-muted/50">
+              <p className="text-sm font-medium mb-2">Layout Preview</p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                {bulkCreateForm.layout === '4' && (
+                  <p>Creates 4 tables: 2 positioned on the left side, 2 on the right side</p>
+                )}
+                {bulkCreateForm.layout === '6' && (
+                  <p>Creates 6 tables: 3 positioned vertically on the left, 3 on the right</p>
+                )}
+                {bulkCreateForm.layout === '8' && (
+                  <p>Creates 8 tables: 4 positioned vertically on the left, 4 on the right</p>
+                )}
+                {bulkCreateForm.layout === '16' && (
+                  <p>Creates 16 tables: 2 groups of 4 tables in 2x2 formation on each side</p>
+                )}
+                <p className="pt-1 text-muted-foreground">
+                  Tables will be auto-numbered starting from the next available number.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsBulkCreateDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isBulkCreating}>
+                {isBulkCreating ? 'Creating...' : `Create ${bulkCreateForm.layout} Tables`}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 

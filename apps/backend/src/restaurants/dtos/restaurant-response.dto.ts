@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { RestaurantAddressDto } from './address.dto';
 import { RestaurantUpiConfigDto } from './upi-config.dto';
+import { RestaurantSettingsDto } from './restaurant-settings.dto';
 
 export class RestaurantResponseDto {
   @ApiProperty()
@@ -29,6 +30,9 @@ export class RestaurantResponseDto {
 
   @ApiProperty({ type: RestaurantUpiConfigDto })
   upi!: RestaurantUpiConfigDto;
+
+  @ApiProperty({ type: RestaurantSettingsDto })
+  settings!: RestaurantSettingsDto;
 
   @ApiProperty({ required: false })
   gstin?: string;

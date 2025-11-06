@@ -180,6 +180,7 @@ export class RestaurantsService {
       timezone: json.timezone,
       address: json.address,
       upi: json.upi,
+      settings: json.settings,
       languages: json.languages,
       gstin: json.gstin,
       applyDefaultGstToMenuItems: json.applyDefaultGstToMenuItems ?? false,

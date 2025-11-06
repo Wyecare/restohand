@@ -15,6 +15,7 @@ import {
 import { Type } from 'class-transformer';
 import { RestaurantAddressDto } from './address.dto';
 import { RestaurantUpiConfigDto } from './upi-config.dto';
+import { RestaurantSettingsDto } from './restaurant-settings.dto';
 
 export class CreateRestaurantDto {
   @ApiProperty({ example: 'Restohand Café' })
@@ -63,6 +64,12 @@ export class CreateRestaurantDto {
   @ValidateNested()
   @Type(() => RestaurantUpiConfigDto)
   upi!: RestaurantUpiConfigDto;
+
+  @ApiProperty({ type: RestaurantSettingsDto, required: false })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestaurantSettingsDto)
+  settings?: RestaurantSettingsDto;
 
   @ApiProperty({
     example: '32ABCDE1234F1Z5',
