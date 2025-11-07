@@ -8,7 +8,16 @@ import { useToast } from '@/components/ui/use-toast';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
 import { useCreateOrderMutation } from '@/store/api/ordersApi';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { ShoppingCart, Plus, Minus, Search, X, Sparkles, Clock, Receipt } from 'lucide-react';
+import {
+  ShoppingCart,
+  Plus,
+  Minus,
+  Search,
+  X,
+  Sparkles,
+  Clock,
+  Receipt,
+} from 'lucide-react';
 import TableDialog from './TableDialog';
 import { Input } from '@/components/ui/input';
 import type { CreateOrderPayload } from '@/store/api/ordersApi';
@@ -122,14 +131,8 @@ export default function CustomerMenuPage() {
   const restaurant = data?.restaurant;
   const menu = data?.menu;
   const activeOrder = data?.activeOrder;
-  const categories = useMemo(
-    () => menu?.categories ?? [],
-    [menu]
-  );
-  const uncategorised = useMemo(
-    () => menu?.uncategorised ?? [],
-    [menu]
-  );
+  const categories = useMemo(() => menu?.categories ?? [], [menu]);
+  const uncategorised = useMemo(() => menu?.uncategorised ?? [], [menu]);
 
   const allProducts = useMemo<AugmentedMenuItem[]>(() => {
     const grouped = categories.flatMap((c) =>
@@ -342,7 +345,8 @@ export default function CustomerMenuPage() {
     );
 
   // Check if self-ordering is disabled - show menu but disable ordering
-  const isSelfOrderingEnabled = restaurant?.settings?.selfOrderingEnabled ?? true;
+  const isSelfOrderingEnabled =
+    restaurant?.settings?.selfOrderingEnabled ?? true;
 
   return (
     <div className="relative min-h-screen bg-linear-to-b from-background via-muted/5 to-background pb-32">
@@ -427,7 +431,8 @@ export default function CustomerMenuPage() {
                             Active Order for Table {tableFromUrl}
                           </h3>
                           <p className="text-sm text-orange-700 dark:text-orange-300">
-                            Order #{activeOrder.orderNumber} • {formatOrderStatus(activeOrder.status)}
+                            Order #{activeOrder.orderNumber} •{' '}
+                            {formatOrderStatus(activeOrder.status)}
                           </p>
                         </div>
                       </div>
@@ -437,7 +442,9 @@ export default function CustomerMenuPage() {
                         className="border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-900/50"
                         onClick={() => {
                           const encodedTable = encodeURIComponent(tableFromUrl);
-                          navigate(`/c/${slug}/order/${activeOrder.id}?table=${encodedTable}`);
+                          navigate(
+                            `/c/${slug}/order/${activeOrder.id}?table=${encodedTable}`
+                          );
                         }}
                       >
                         <Receipt className="h-4 w-4 mr-2" />
@@ -450,39 +457,15 @@ export default function CustomerMenuPage() {
             )}
           </AnimatePresence>
 
-          {/* Self-ordering disabled notice */}
-          {!isSelfOrderingEnabled && (
-            <motion.div
-              initial={{ opacity: 0, y: -12 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20 mb-3">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-blue-100 dark:bg-blue-900/50 rounded-full p-2">
-                      <AccessibleEmoji symbol="ℹ️" label="Information" className="text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-blue-900 dark:text-blue-100">
-                        Menu View Only
-                      </h3>
-                      <p className="text-sm text-blue-700 dark:text-blue-300">
-                        Self-ordering is currently disabled. Please ask a waiter to assist you with your order.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
           <div className="border-t border-border/70 pt-3 pb-1">
             <ScrollArea className="w-full">
               <div className="flex gap-2 max-w-2xl mx-auto pb-1">
                 {availableCategories.map((category) => (
                   <Button
                     key={category.id}
-                    variant={activeCategory === category.id ? 'default' : 'outline'}
+                    variant={
+                      activeCategory === category.id ? 'default' : 'outline'
+                    }
                     size="sm"
                     onClick={() => setActiveCategory(category.id)}
                     className="shrink-0 h-9 px-4 rounded-full"
@@ -515,9 +498,9 @@ export default function CustomerMenuPage() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
             >
-          <div className="text-6xl mb-4">
-            <AccessibleEmoji symbol="🔍" label="No items found" />
-          </div>
+              <div className="text-6xl mb-4">
+                <AccessibleEmoji symbol="🔍" label="No items found" />
+              </div>
               <h3 className="text-xl font-bold mb-2">No items found</h3>
               <p className="text-muted-foreground mb-4">
                 Try adjusting your search
@@ -567,18 +550,6 @@ export default function CustomerMenuPage() {
                             />
                           </div>
                         )}
-                        {/* Veg/Non-veg indicator */}
-                        <div className="absolute top-1.5 left-1.5 z-10">
-                          {item._isVegetarian ? (
-                            <div className="w-4 h-4 bg-white rounded-sm border-2 border-green-600 flex items-center justify-center shadow-sm">
-                              <div className="w-2 h-2 bg-green-600 rounded-full" />
-                            </div>
-                          ) : (
-                            <div className="w-4 h-4 bg-white rounded-sm border-2 border-red-600 flex items-center justify-center shadow-sm">
-                              <div className="w-2 h-2 bg-red-600 rounded-full" />
-                            </div>
-                          )}
-                        </div>
                         {/* Popular badge */}
                         {item._isPopular && (
                           <div className="absolute top-1.5 right-1.5 bg-yellow-500 rounded-full p-0.5 shadow-sm z-10">

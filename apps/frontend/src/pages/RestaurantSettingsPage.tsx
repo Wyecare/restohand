@@ -11,11 +11,28 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Building2, MapPin, Phone, Mail, CreditCard, CheckCircle, AlertCircle, Clock, XCircle, Settings } from 'lucide-react';
+import {
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
+  Clock,
+  XCircle,
+  Settings,
+} from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -40,9 +57,8 @@ const RestaurantSettingsPage = () => {
     useUpdateRestaurantMutation();
   const [setupLinkedAccount, { isLoading: isSettingUpPayment }] =
     useSetupLinkedAccountMutation();
-  const { data: paymentStatus, refetch: refetchPaymentStatus } = useGetPaymentStatusQuery(
-    restaurantId ?? ''
-  );
+  const { data: paymentStatus, refetch: refetchPaymentStatus } =
+    useGetPaymentStatusQuery(restaurantId ?? '');
 
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
@@ -142,7 +158,8 @@ const RestaurantSettingsPage = () => {
       if (result.success) {
         toast({
           title: 'Payment setup initiated',
-          description: 'Your linked account has been created. It may take a few minutes to be approved by Razorpay.',
+          description:
+            'Your linked account has been created. It may take a few minutes to be approved by Razorpay.',
         });
         refetchPaymentStatus();
       } else {
@@ -155,7 +172,8 @@ const RestaurantSettingsPage = () => {
     } catch (error) {
       toast({
         title: 'Setup failed',
-        description: error instanceof Error ? error.message : 'Unexpected error occurred',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error occurred',
         variant: 'destructive',
       });
     }
@@ -329,111 +347,6 @@ const RestaurantSettingsPage = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Direct Payment Status */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Direct Payment Status</Label>
-                {paymentStatus && (
-                  <div className="flex items-center gap-2">
-                    {getPaymentStatusIcon(paymentStatus.status)}
-                    <span className="text-sm">{getPaymentStatusText(paymentStatus.status)}</span>
-                  </div>
-                )}
-              </div>
-
-              {paymentStatus?.status === 'pending_setup' && (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Set up direct payments to automatically receive customer payments to your account.
-                  </p>
-                  <Button
-                    onClick={handleSetupPayment}
-                    disabled={isSettingUpPayment}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {isSettingUpPayment ? (
-                      <>
-                        <LoadingSpinner size="sm" className="mr-2" />
-                        Setting up...
-                      </>
-                    ) : (
-                      'Setup Direct Payments'
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {paymentStatus?.status === 'pending_approval' && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Your payment account is being reviewed by Razorpay. This usually takes 1-2 business days.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Account ID: {paymentStatus.linkedAccountId}
-                  </p>
-                </div>
-              )}
-
-              {paymentStatus?.status === 'approved' && paymentStatus.canReceivePayments && (
-                <div className="space-y-2">
-                  <p className="text-sm text-green-700">
-                    ✓ Direct payments are enabled. Customer payments will be automatically transferred to your account.
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Account ID: {paymentStatus.linkedAccountId}
-                  </p>
-                </div>
-              )}
-
-              {paymentStatus?.status === 'route_not_available' && (
-                <div className="space-y-3">
-                  <p className="text-sm text-blue-700">
-                    Direct payments require RBI compliance verification (₹40L+ annual turnover). Currently using standard payment flow.
-                  </p>
-                  <div className="bg-blue-50 p-3 rounded-md">
-                    <p className="text-xs text-blue-800">
-                      <strong>To enable direct payments:</strong>
-                      <br />• Annual turnover must exceed ₹40 lakhs
-                      <br />• Submit GST returns and business documents to Razorpay
-                      <br />• Contact Razorpay support to apply for Route feature
-                    </p>
-                  </div>
-                  {paymentStatus.error && (
-                    <p className="text-xs text-muted-foreground">
-                      Details: {paymentStatus.error}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {(paymentStatus?.status === 'rejected' || paymentStatus?.status === 'suspended') && (
-                <div className="space-y-3">
-                  <p className="text-sm text-red-700">
-                    Payment setup failed. Please contact support or try setting up again.
-                  </p>
-                  {paymentStatus.error && (
-                    <p className="text-xs text-muted-foreground">
-                      Error: {paymentStatus.error}
-                    </p>
-                  )}
-                  <Button
-                    onClick={handleSetupPayment}
-                    disabled={isSettingUpPayment}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {isSettingUpPayment ? (
-                      <>
-                        <LoadingSpinner size="sm" className="mr-2" />
-                        Retrying...
-                      </>
-                    ) : (
-                      'Retry Setup'
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
 
             {/* UPI Settings */}
             <div className="border-t pt-4">
@@ -460,23 +373,6 @@ const RestaurantSettingsPage = () => {
                     placeholder="Name shown in payment apps"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="upi-mode">UPI Mode</Label>
-                  <Select
-                    value={upiMode}
-                    onValueChange={(value) =>
-                      setUpiMode(value as 'static' | 'dynamic')
-                    }
-                  >
-                    <SelectTrigger id="upi-mode">
-                      <SelectValue placeholder="Select mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="static">Static</SelectItem>
-                      <SelectItem value="dynamic">Dynamic</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <Button type="submit" disabled={isUpdating} className="w-full">
                   {isUpdating ? (
                     <>
@@ -493,7 +389,7 @@ const RestaurantSettingsPage = () => {
         </Card>
 
         {/* Restaurant Features */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -506,7 +402,10 @@ const RestaurantSettingsPage = () => {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <Label htmlFor="self-ordering-toggle" className="text-base font-medium">
+                <Label
+                  htmlFor="self-ordering-toggle"
+                  className="text-base font-medium"
+                >
                   Customer Self-Ordering
                 </Label>
                 <p className="text-sm text-muted-foreground">
@@ -534,7 +433,7 @@ const RestaurantSettingsPage = () => {
               )}
             </Button>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Address Information */}
