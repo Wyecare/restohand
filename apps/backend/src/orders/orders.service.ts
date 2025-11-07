@@ -321,8 +321,8 @@ export class OrdersService {
     }
 
     if (dto.paymentStatus === PaymentStatus.Paid) {
-      // Automatically transfer money to restaurant after payment
-      await this.transferToRestaurant(updated);
+      // Skip automatic transfer for direct payments (not using Razorpay transfers)
+      // await this.transferToRestaurant(updated);
 
       updated = await this.ensureTaxInvoice(updated);
 
