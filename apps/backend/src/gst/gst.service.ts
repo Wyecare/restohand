@@ -491,7 +491,7 @@ export class GstService {
       discountAmount:
         orderData.discountAmount ?? orderData.summary.discountAmount ?? 0,
       roundOffAmount,
-      restaurantGstin: restaurant.gstin,
+      restaurantGstin: restaurant.gstin || 'NA',
       restaurantName: restaurant.name,
       restaurantAddress: restaurant.address,
       taxType: orderData.summary.taxType,
@@ -697,7 +697,7 @@ export class GstService {
       (address as Record<string, unknown>) ?? {};
 
     return {
-      // gstin: restaurant.gstin,
+      gstin: restaurant.gstin,
       name: restaurant.name,
       address: addressWithoutId,
     };
