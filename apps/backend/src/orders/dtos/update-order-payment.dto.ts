@@ -19,4 +19,13 @@ export class UpdateOrderPaymentDto {
   @IsString()
   @MaxLength(60)
   provider?: string;
+
+  @ApiPropertyOptional({
+    example: 'upi',
+    description: 'Payment method used (upi, cash, card, etc.)'
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  paymentMethod?: string;
 }

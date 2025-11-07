@@ -341,27 +341,8 @@ export default function CustomerMenuPage() {
       </div>
     );
 
-  // Check if self-ordering is disabled
-  if (restaurant && !restaurant.settings?.selfOrderingEnabled) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center p-8">
-          <AccessibleEmoji
-            symbol="🍽️"
-            label="Self-ordering disabled"
-            className="text-6xl mb-4"
-          />
-          <h2 className="text-xl font-bold mb-2">Self-Ordering Not Available</h2>
-          <p className="text-muted-foreground mb-4">
-            This restaurant currently accepts orders through waitstaff only.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Please ask a waiter to assist you with your order.
-          </p>
-        </Card>
-      </div>
-    );
-  }
+  // Check if self-ordering is disabled - show menu but disable ordering
+  const isSelfOrderingEnabled = restaurant?.settings?.selfOrderingEnabled ?? true;
 
   return (
     <div className="relative min-h-screen bg-linear-to-b from-background via-muted/5 to-background pb-32">
@@ -468,6 +449,32 @@ export default function CustomerMenuPage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Self-ordering disabled notice */}
+          {!isSelfOrderingEnabled && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20 mb-3">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 dark:bg-blue-900/50 rounded-full p-2">
+                      <AccessibleEmoji symbol="ℹ️" label="Information" className="text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-blue-900 dark:text-blue-100">
+                        Menu View Only
+                      </h3>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Self-ordering is currently disabled. Please ask a waiter to assist you with your order.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
           <div className="border-t border-border/70 pt-3 pb-1">
             <ScrollArea className="w-full">
@@ -610,41 +617,45 @@ export default function CustomerMenuPage() {
                           {formatCurrency(item.pricing.amount)}
                         </p>
 
-                        {/* Add Button */}
-                        {entry ? (
-                          <div className="flex items-center justify-center gap-1.5 bg-primary rounded-full px-1.5 py-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
-                              onClick={() => handleRemove(item.id)}
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </Button>
-                            <span className="w-5 text-center font-bold text-sm text-primary-foreground">
-                              {entry.quantity}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
-                              onClick={() =>
-                                handleAdd(item.id, item.name, item.pricing)
-                              }
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="w-full rounded-full h-7 font-semibold text-xs"
-                            onClick={() =>
-                              handleAdd(item.id, item.name, item.pricing)
-                            }
-                          >
-                            Add
-                          </Button>
+                        {/* Add Button - only show if self-ordering is enabled */}
+                        {isSelfOrderingEnabled && (
+                          <>
+                            {entry ? (
+                              <div className="flex items-center justify-center gap-1.5 bg-primary rounded-full px-1.5 py-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
+                                  onClick={() => handleRemove(item.id)}
+                                >
+                                  <Minus className="h-3.5 w-3.5" />
+                                </Button>
+                                <span className="w-5 text-center font-bold text-sm text-primary-foreground">
+                                  {entry.quantity}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
+                                  onClick={() =>
+                                    handleAdd(item.id, item.name, item.pricing)
+                                  }
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="w-full rounded-full h-7 font-semibold text-xs"
+                                onClick={() =>
+                                  handleAdd(item.id, item.name, item.pricing)
+                                }
+                              >
+                                Add
+                              </Button>
+                            )}
+                          </>
                         )}
                       </div>
                     </CardContent>
@@ -656,9 +667,9 @@ export default function CustomerMenuPage() {
         )}
       </motion.div>
 
-      {/* Floating Cart Button */}
+      {/* Floating Cart Button - only show if self-ordering is enabled */}
       <AnimatePresence>
-        {totalItems > 0 && (
+        {isSelfOrderingEnabled && totalItems > 0 && (
           <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

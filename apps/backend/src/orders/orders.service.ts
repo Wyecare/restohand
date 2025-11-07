@@ -325,6 +325,10 @@ export class OrdersService {
       updateDoc.paymentTransactionId = dto.transactionId;
     }
 
+    if (dto.paymentMethod !== undefined) {
+      updateDoc.paymentMethod = dto.paymentMethod;
+    }
+
     let updated = await this.orderModel.findOneAndUpdate(
       { _id: orderId, restaurantId },
       { $set: updateDoc },
