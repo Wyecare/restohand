@@ -3,13 +3,14 @@
 import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, CreditCard, Smartphone } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   useGetPublicOrderQuery,
   useGetPublicRestaurantQuery,
   useCancelPublicOrderMutation,
 } from '@/store/api/restaurantsApi';
+import { useCreateUpiIntentMutation } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import type { Order } from '@/store/api/types';
 import { Badge } from '@/components/ui/badge';
@@ -100,6 +101,8 @@ export default function CustomerOrderStatusPage() {
   const [deviceOrders, setDeviceOrders] = useState<DeviceOrder[]>([]);
   const [cancelOrder, { isLoading: isCancelling }] =
     useCancelPublicOrderMutation();
+  const [createUpiIntent, { isLoading: isCreatingUpiIntent }] =
+    useCreateUpiIntentMutation();
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [showItems, setShowItems] = useState(false);
 
@@ -185,6 +188,39 @@ export default function CustomerOrderStatusPage() {
       gstNumber: restaurantData.gstNumber,
     };
   }, [restaurantData]);
+
+  // Handle UPI payment intent
+  const handlePayWithUPI = useCallback(async () => {
+    if (!order || !restaurantData?.id || order.paymentStatus === 'paid') return;
+
+    try {
+      // Create UPI intent via API
+      const response = await createUpiIntent({
+        restaurantId: restaurantData.id,
+        orderId: order.id,
+      }).unwrap();
+
+      // Check if we have a valid UPI intent
+      if (response.upiIntent) {
+        // Try to open UPI intent directly
+        window.location.href = response.upiIntent;
+
+        toast({
+          title: 'Opening UPI app... 📱',
+          description: 'Complete payment in your UPI app, then show confirmation to staff',
+        });
+      } else {
+        throw new Error('UPI intent not generated');
+      }
+    } catch (error) {
+      console.error('UPI payment error:', error);
+      toast({
+        title: 'Payment setup failed',
+        description: 'Could not open UPI app. Please try again or pay with staff.',
+        variant: 'destructive',
+      });
+    }
+  }, [order, createUpiIntent, toast, restaurantData?.id]);
 
   const handleCancelOrder = useCallback(async () => {
     if (!order || !canCancelOrder) {
@@ -323,19 +359,28 @@ export default function CustomerOrderStatusPage() {
                 </p>
               </div>
 
-              {/* Payment Status - Waiter Handled */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="rounded-xl bg-blue-50 text-blue-900 border-2 border-blue-200 p-4 dark:bg-blue-950/20 dark:text-blue-100 dark:border-blue-800"
-              >
-                <p className="font-medium text-base">
-                  💰 Payment handled by staff
-                </p>
-                <p className="text-sm mt-1 opacity-80">
-                  Our staff will assist you with payment when you're ready
-                </p>
-              </motion.div>
+              {/* Payment Status */}
+              {order.paymentStatus === 'paid' ? (
+                <Badge
+                  variant="default"
+                  className="text-base px-4 py-2 bg-green-500"
+                >
+                  ✓ Payment Complete
+                </Badge>
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="rounded-xl bg-orange-50 text-orange-900 border-2 border-orange-200 p-4 dark:bg-orange-950/20 dark:text-orange-100 dark:border-orange-800"
+                >
+                  <p className="font-medium text-base">
+                    💳 Payment Pending
+                  </p>
+                  <p className="text-sm mt-1 opacity-80">
+                    Pay now with UPI or ask staff for assistance
+                  </p>
+                </motion.div>
+              )}
 
               {/* Total Amount */}
               <div className="pt-4 border-t-2 border-dashed">
@@ -357,6 +402,18 @@ export default function CustomerOrderStatusPage() {
           transition={{ delay: 0.3 }}
           className="grid grid-cols-2 gap-3"
         >
+          {/* Pay Now Button - Show when payment is pending */}
+          {order.paymentStatus !== 'paid' && (
+            <Button
+              onClick={handlePayWithUPI}
+              disabled={isCreatingUpiIntent}
+              size="lg"
+              className="col-span-2 h-14 text-lg font-bold bg-green-600 hover:bg-green-700"
+            >
+              <Smartphone className="mr-2 h-5 w-5" />
+              {isCreatingUpiIntent ? 'Opening UPI...' : 'Pay Now with UPI'}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="lg"
@@ -498,6 +555,25 @@ export default function CustomerOrderStatusPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Payment Instructions - Show after customer pays */}
+        {order.paymentStatus !== 'paid' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-center bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800"
+          >
+            <div className="text-blue-900 dark:text-blue-100 space-y-2">
+              <p className="font-medium text-sm">
+                💡 After paying with UPI:
+              </p>
+              <p className="text-xs">
+                Show your payment confirmation to any staff member. They will mark your order as paid and you'll get a receipt!
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         {/* Help Section */}
         <motion.div

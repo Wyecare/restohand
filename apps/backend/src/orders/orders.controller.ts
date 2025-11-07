@@ -321,7 +321,7 @@ export class OrdersController {
     const merchantVPA = restaurant?.upi?.vpa || 'restohand@paytm'; // Fallback VPA
     const merchantName = restaurant?.upi?.displayName || restaurant?.name || 'RestoHand';
 
-    const upiIntent = `upi://pay?pa=${merchantVPA}&pn=${encodeURIComponent(merchantName)}&am=${(amountInPaise/100).toFixed(2)}&tr=${razorpayOrder.id}&cu=INR&mode=02`;
+    const upiIntent = `upi://pay?pa=${merchantVPA}&pn=${encodeURIComponent(merchantName)}&am=${(amountInPaise/100).toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Order ${order.orderNumber}`)}&tr=${razorpayOrder.id}`;
 
     await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay_upi', razorpayOrder.id, {
       orderNumber: order.orderNumber,
