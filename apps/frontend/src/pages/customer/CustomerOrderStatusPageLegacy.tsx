@@ -1,15 +1,21 @@
+/**
+ * @deprecated This file contains Razorpay payment integration.
+ * Use CustomerOrderStatusPage.tsx for payment-free customer ordering.
+ * This file is kept for future use when RBI compliance requirements are met.
+ */
 'use client';
 
 import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X } from 'lucide-react';
+import { Plus, CreditCard, X } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   useGetPublicOrderQuery,
   useGetPublicRestaurantQuery,
   useCancelPublicOrderMutation,
 } from '@/store/api/restaurantsApi';
+import { useCreatePaymentLinkMutation } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import type { Order } from '@/store/api/types';
 import { Badge } from '@/components/ui/badge';
@@ -17,13 +23,32 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ReceiptDialog } from '@/components/customer/ReceiptDialog';
 
+declare global {
+  interface Window {
+    Razorpay?: any;
+  }
+}
+
+const loadRazorpayScript = async () => {
+  if (typeof window === 'undefined') return false;
+  if (window.Razorpay) return true;
+
+  return new Promise<boolean>((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 // Simplified status display
 const getStatusInfo = (order: Order) => {
   const { status, progress } = order;
 
   if (status === 'cancelled') {
     return {
-      gif: '/gifs/cancel.gif',
+      gif: '/gifs/cancel.gif', // You'll replace this
       title: 'Order Cancelled',
       message: 'This order has been cancelled',
       color: 'text-red-500',
@@ -32,7 +57,7 @@ const getStatusInfo = (order: Order) => {
 
   if (status === 'completed') {
     return {
-      gif: '/gifs/completed.gif',
+      gif: '/gifs/completed.gif', // You'll replace this
       title: 'Order Complete! 🎉',
       message: 'Thanks for ordering with us!',
       color: 'text-green-500',
@@ -41,7 +66,7 @@ const getStatusInfo = (order: Order) => {
 
   if (status === 'ready' || progress === 100) {
     return {
-      gif: '/gifs/ready.gif',
+      gif: '/gifs/ready.gif', // You'll replace this
       title: 'Your Order is Ready! 🍽️',
       message: 'Please collect your order',
       color: 'text-green-500',
@@ -50,7 +75,7 @@ const getStatusInfo = (order: Order) => {
 
   if (status === 'in_progress' || progress >= 40) {
     return {
-      gif: '/gifs/cooking.gif',
+      gif: '/gifs/cooking.gif', // You'll replace this
       title: 'Cooking Your Food 👨‍🍳',
       message: 'Your order is being prepared',
       color: 'text-orange-500',
@@ -94,12 +119,15 @@ export default function CustomerOrderStatusPage() {
     skip: !slug,
   });
   const { toast } = useToast();
+  const [hasShownPaymentSuccess, setHasShownPaymentSuccess] = useState(false);
 
   const order = data;
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [deviceOrders, setDeviceOrders] = useState<DeviceOrder[]>([]);
   const [cancelOrder, { isLoading: isCancelling }] =
     useCancelPublicOrderMutation();
+  const [createPaymentLink, { isLoading: isProcessingPayment }] =
+    useCreatePaymentLinkMutation();
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [showItems, setShowItems] = useState(false);
 
@@ -114,6 +142,9 @@ export default function CustomerOrderStatusPage() {
 
   useOrdersSocket({ onEvent: handleSocketEvent, enabled: !!orderId });
 
+  const isCashDue =
+    order?.paymentMethod === 'cash' && order.paymentStatus !== 'paid';
+  const canPayOnline = order?.paymentStatus !== 'paid';
   const tableFromQuery = searchParams.get('table') ?? undefined;
   const cancellableStatuses: Array<Order['status']> = [
     'pending',
@@ -124,9 +155,10 @@ export default function CustomerOrderStatusPage() {
   const canStartNewOrder =
     !!order && (order.status === 'completed' || order.status === 'cancelled');
 
-  // Allow customers to go back to menu if order is ready/completed
+  // Allow customers to go back to menu if order is paid and ready/completed
   const canReturnToMenu =
     !!order &&
+    order.paymentStatus === 'paid' &&
     (order.status === 'ready' || order.status === 'completed');
 
   useEffect(() => {
@@ -150,6 +182,26 @@ export default function CustomerOrderStatusPage() {
       }
     }
   }, []);
+
+  // Show payment success notification
+  useEffect(() => {
+    if (
+      order?.paymentStatus === 'paid' &&
+      order?.paymentMethod === 'upi' &&
+      !hasShownPaymentSuccess
+    ) {
+      toast({
+        title: 'Payment successful! 🎉',
+        description: 'Your order is being prepared',
+      });
+      setHasShownPaymentSuccess(true);
+    }
+  }, [
+    order?.paymentStatus,
+    order?.paymentMethod,
+    hasShownPaymentSuccess,
+    toast,
+  ]);
 
   useEffect(() => {
     if (!order || typeof window === 'undefined') return;
@@ -185,6 +237,77 @@ export default function CustomerOrderStatusPage() {
       gstNumber: restaurantData.gstNumber,
     };
   }, [restaurantData]);
+
+  const handlePayNow = useCallback(async () => {
+    if (!order || order.paymentStatus === 'paid') return;
+
+    try {
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
+        toast({
+          title: 'Payment system unavailable',
+          description: 'Unable to load payment system. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!restaurantData?.id) {
+        toast({
+          title: 'Restaurant information not found',
+          description: 'Unable to process payment. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const paymentResponse = await createPaymentLink({
+        restaurantId: restaurantData.id,
+        orderId: order.id,
+      }).unwrap();
+
+      const options = {
+        key: paymentResponse.razorpayKey || process.env.VITE_RAZORPAY_KEY_ID,
+        amount: paymentResponse.amount,
+        currency: paymentResponse.currency || 'INR',
+        name: 'Restaurant Order',
+        description: `Order #${order.orderNumber}`,
+        order_id: paymentResponse.razorpayOrderId,
+        prefill: {
+          name: '',
+          contact: '',
+        },
+        theme: {
+          color: '#16a34a',
+        },
+        handler: () => {
+          toast({
+            title: 'Payment successful! 🎉',
+            description: 'Your payment has been confirmed.',
+          });
+          refetch();
+        },
+        modal: {
+          ondismiss: () => {
+            toast({
+              title: 'Payment cancelled',
+              description:
+                'You can complete payment later with staff if needed.',
+            });
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      toast({
+        title: 'Payment setup failed',
+        description: 'Could not initialize payment. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }, [order, createPaymentLink, toast, refetch, restaurantData?.id]);
 
   const handleCancelOrder = useCallback(async () => {
     if (!order || !canCancelOrder) {
@@ -323,19 +446,36 @@ export default function CustomerOrderStatusPage() {
                 </p>
               </div>
 
-              {/* Payment Status - Waiter Handled */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="rounded-xl bg-blue-50 text-blue-900 border-2 border-blue-200 p-4 dark:bg-blue-950/20 dark:text-blue-100 dark:border-blue-800"
-              >
-                <p className="font-medium text-base">
-                  💰 Payment handled by staff
-                </p>
-                <p className="text-sm mt-1 opacity-80">
-                  Our staff will assist you with payment when you're ready
-                </p>
-              </motion.div>
+              {/* Payment Badge */}
+              {order.paymentStatus !== 'paid' && (
+                <Badge variant="destructive" className="text-base px-4 py-2">
+                  Payment Pending
+                </Badge>
+              )}
+              {order.paymentStatus === 'paid' && (
+                <Badge
+                  variant="default"
+                  className="text-base px-4 py-2 bg-green-500"
+                >
+                  ✓ Paid
+                </Badge>
+              )}
+
+              {/* Cash Payment Notice */}
+              {/* {isCashDue && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="rounded-xl bg-amber-50 text-amber-900 border-2 border-amber-200 p-4"
+                >
+                  <p className="font-medium">
+                    💵 Pay with cash when your order arrives
+                  </p>
+                  <p className="text-sm mt-1">
+                    Show order #{order.orderNumber} to staff
+                  </p>
+                </motion.div>
+              )} */}
 
               {/* Total Amount */}
               <div className="pt-4 border-t-2 border-dashed">
@@ -357,6 +497,18 @@ export default function CustomerOrderStatusPage() {
           transition={{ delay: 0.3 }}
           className="grid grid-cols-2 gap-3"
         >
+          {canPayOnline && (
+            <Button
+              onClick={handlePayNow}
+              disabled={isProcessingPayment}
+              size="lg"
+              className="col-span-2 h-14 text-lg"
+            >
+              <CreditCard className="mr-2 h-5 w-5" />
+              {isProcessingPayment ? 'Processing...' : 'Pay Now'}
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="lg"
@@ -376,7 +528,9 @@ export default function CustomerOrderStatusPage() {
           </Button>
 
           {/* Add More Items button - show for active orders */}
-          {order.status !== 'cancelled' && order.status !== 'completed' && (
+          {order.status !== 'cancelled' &&
+           order.status !== 'completed' &&
+           order.paymentStatus === 'paid' && (
             <Button
               variant="outline"
               size="lg"
@@ -416,7 +570,7 @@ export default function CustomerOrderStatusPage() {
             </Button>
           )}
 
-          {/* Back to Menu button for completed orders */}
+          {/* Back to Menu button for paid orders that are ready/completed */}
           {!canStartNewOrder && canReturnToMenu && (
             <Button
               variant="default"
@@ -434,7 +588,7 @@ export default function CustomerOrderStatusPage() {
             </Button>
           )}
 
-          {/* General Back to Menu button for ongoing orders */}
+          {/* General Back to Menu button - always available unless order is completed/cancelled */}
           {!canStartNewOrder &&
            !canReturnToMenu &&
            order.status !== 'cancelled' &&
