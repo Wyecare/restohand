@@ -16,12 +16,22 @@ import { QueryOrdersDto } from './dtos/query-orders.dto';
 import { UpdateOrderPaymentDto } from './dtos/update-order-payment.dto';
 import { UpdateOrderStatusDto } from './dtos/update-order-status.dto';
 import { Order, OrderDocument } from './schemas/order.schema';
-import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../restaurants/schemas/restaurant.schema';
 import { OrderEvent, OrderEventDocument } from './schemas/order-event.schema';
 import { OrderEventResponseDto } from './dtos/order-event-response.dto';
 import { OrdersGateway } from './orders.gateway';
-import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
-import { GstService, OrderItemWithTax, TaxCalculation } from '../gst/gst.service';
+import {
+  MenuItem,
+  MenuItemDocument,
+} from '../menu-items/schemas/menu-item.schema';
+import {
+  GstService,
+  OrderItemWithTax,
+  TaxCalculation,
+} from '../gst/gst.service';
 import { RazorpayService } from '../payments/razorpay.service';
 
 @Injectable()
@@ -49,21 +59,18 @@ export class OrdersService {
     const orderNumber = await this.generateOrderNumber(restaurantId);
     const paymentMethod = dto.paymentMethod ?? 'upi';
 
-    const restaurant = await this.restaurantModel
-      .findById(restaurantId)
-      .lean();
+    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
 
     if (!restaurant) {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const customerState = dto.customerState?.trim() || restaurant.address?.state || 'Kerala';
+    const customerState =
+      dto.customerState?.trim() || restaurant.address?.state || 'Kerala';
 
     let defaultGstRateId: string | undefined;
     if (restaurant.applyDefaultGstToMenuItems) {
-      const defaultRate = await this.gstService.getDefaultGstRate(
-        restaurantId
-      );
+      const defaultRate = await this.gstService.getDefaultGstRate(restaurantId);
       if (!defaultRate) {
         throw new BadRequestException(
           'Default GST rate is required when automatic GST is enabled'
@@ -81,7 +88,9 @@ export class OrdersService {
     );
 
     const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
-    const finalTotalAmount = this.roundToTwo(summary.totalAmount + roundOffAmount);
+    const finalTotalAmount = this.roundToTwo(
+      summary.totalAmount + roundOffAmount
+    );
 
     const created = await this.orderModel.create({
       restaurantId,
@@ -113,16 +122,23 @@ export class OrdersService {
 
     const response = this.toDto(created);
 
-    await this.recordEvent(created._id.toString(), restaurantId, 'order.created', {
-      totalAmount: response.totalAmount,
-      paymentMethod: response.paymentMethod,
-      taxType: response.taxType,
-    });
+    await this.recordEvent(
+      created._id.toString(),
+      restaurantId,
+      'order.created',
+      {
+        totalAmount: response.totalAmount,
+        paymentMethod: response.paymentMethod,
+        taxType: response.taxType,
+      }
+    );
 
     if (paymentMethod === 'upi' && !this.razorpayService.isEnabled()) {
       const upiConfig = restaurant.upi;
       if (!upiConfig) {
-        throw new BadRequestException('UPI configuration is missing for this restaurant');
+        throw new BadRequestException(
+          'UPI configuration is missing for this restaurant'
+        );
       }
 
       const amount = finalTotalAmount.toFixed(2);
@@ -232,7 +248,8 @@ export class OrdersService {
     order.razorpayOrderId = gatewayOrderId;
 
     if (metadata) {
-      const existingMeta = (order.paymentMeta as Record<string, unknown> | undefined) ?? {};
+      const existingMeta =
+        (order.paymentMeta as Record<string, unknown> | undefined) ?? {};
       order.paymentMeta = {
         ...existingMeta,
         ...metadata,
@@ -308,7 +325,7 @@ export class OrdersService {
       updateDoc.paymentTransactionId = dto.transactionId;
     }
 
-    const updated = await this.orderModel.findOneAndUpdate(
+    let updated = await this.orderModel.findOneAndUpdate(
       { _id: orderId, restaurantId },
       { $set: updateDoc },
       { new: true }
@@ -362,7 +379,10 @@ export class OrdersService {
       return;
     }
 
-    if (eventName !== 'payment.captured' && eventName !== 'payment.authorized') {
+    if (
+      eventName !== 'payment.captured' &&
+      eventName !== 'payment.authorized'
+    ) {
       return;
     }
 
@@ -394,7 +414,8 @@ export class OrdersService {
       return;
     }
 
-    const existingMeta = (orderDoc.paymentMeta as Record<string, unknown> | undefined) ?? {};
+    const existingMeta =
+      (orderDoc.paymentMeta as Record<string, unknown> | undefined) ?? {};
     const paymentMeta = {
       ...existingMeta,
       razorpay: {
@@ -406,7 +427,9 @@ export class OrdersService {
         wallet: paymentEntity.wallet,
         bank: paymentEntity.bank,
         upiTransactionId:
-          paymentEntity.acquirer_data?.rrn ?? paymentEntity.upi_transaction_id ?? null,
+          paymentEntity.acquirer_data?.rrn ??
+          paymentEntity.upi_transaction_id ??
+          null,
         captured: paymentEntity.captured ?? false,
       },
     };
@@ -422,7 +445,9 @@ export class OrdersService {
     );
 
     if (orderDoc.paymentStatus !== PaymentStatus.Paid) {
-      this.logger.log(`Updating payment status to PAID for order ${orderDoc._id}`);
+      this.logger.log(
+        `Updating payment status to PAID for order ${orderDoc._id}`
+      );
       await this.updatePayment(
         orderDoc.restaurantId.toString(),
         orderDoc._id.toString(),
@@ -432,9 +457,13 @@ export class OrdersService {
           provider: 'razorpay',
         }
       );
-      this.logger.log(`Payment status updated and WebSocket event emitted for order ${orderDoc._id}`);
+      this.logger.log(
+        `Payment status updated and WebSocket event emitted for order ${orderDoc._id}`
+      );
     } else {
-      this.logger.log(`Order ${orderDoc._id} already marked as PAID, skipping update`);
+      this.logger.log(
+        `Order ${orderDoc._id} already marked as PAID, skipping update`
+      );
     }
   }
 
@@ -473,7 +502,7 @@ export class OrdersService {
       .find({ _id: { $in: menuItemIds }, restaurantId })
       .lean();
 
-    const menuMap = new Map<string, typeof menuItems[number]>(
+    const menuMap = new Map<string, (typeof menuItems)[number]>(
       menuItems.map((item) => [item._id.toString(), item])
     );
 
@@ -488,7 +517,9 @@ export class OrdersService {
       const menuItem = menuMap.get(item.menuItemId)!;
 
       if (!menuItem.pricing) {
-        throw new BadRequestException('Menu item pricing configuration is missing');
+        throw new BadRequestException(
+          'Menu item pricing configuration is missing'
+        );
       }
 
       const quantity = item.quantity;
@@ -496,7 +527,8 @@ export class OrdersService {
         throw new BadRequestException('Quantity must be at least 1');
       }
 
-      const requestedUnitAmount = item.pricing?.unitAmount ?? menuItem.pricing.amount;
+      const requestedUnitAmount =
+        item.pricing?.unitAmount ?? menuItem.pricing.amount;
       const unitPrice = this.roundToTwo(requestedUnitAmount);
       if (unitPrice < 0) {
         throw new BadRequestException('Unit amount cannot be negative');
@@ -508,7 +540,9 @@ export class OrdersService {
       }
 
       const maxDiscount = this.roundToTwo(unitPrice * quantity);
-      const discountAmount = this.roundToTwo(Math.min(rawDiscount, maxDiscount));
+      const discountAmount = this.roundToTwo(
+        Math.min(rawDiscount, maxDiscount)
+      );
 
       let gstRateId = menuItem.gstRateId;
       let gstRateOverride = menuItem.gstRate;
@@ -531,11 +565,12 @@ export class OrdersService {
       };
     });
 
-    const { items: computedItems, summary } = await this.gstService.calculateOrderTax(
-      restaurantId,
-      calculationInput,
-      customerState
-    );
+    const { items: computedItems, summary } =
+      await this.gstService.calculateOrderTax(
+        restaurantId,
+        calculationInput,
+        customerState
+      );
 
     const orderItems = computedItems.map((computed, index) => {
       const requestItem = dto.items[index];
@@ -602,17 +637,26 @@ export class OrdersService {
     const restaurantName = restaurant?.name ?? 'Restohand Restaurant';
     const restaurantGstin = restaurant?.gstin ?? 'NA';
     const restaurantAddress = restaurant
-      ? `${restaurant.address?.line1 ?? ''}${restaurant.address?.line2 ? ', ' + restaurant.address.line2 : ''}, ${restaurant.address?.city ?? ''}, ${restaurant.address?.state ?? ''} ${restaurant.address?.postalCode ?? ''}`
+      ? `${restaurant.address?.line1 ?? ''}${
+          restaurant.address?.line2 ? ', ' + restaurant.address.line2 : ''
+        }, ${restaurant.address?.city ?? ''}, ${
+          restaurant.address?.state ?? ''
+        } ${restaurant.address?.postalCode ?? ''}`
       : '';
 
     const formatAmount = (value: number) => this.roundToTwo(value).toFixed(2);
 
     const itemsRows = order.items
       .map((item) => {
-        const taxable = item.gst?.taxableAmount ?? this.roundToTwo(
-          item.pricing.unitAmount * item.quantity - (item.pricing.discountAmount ?? 0)
-        );
-        const tax = item.gst?.totalTaxAmount ?? this.roundToTwo(item.pricing.taxAmount ?? 0);
+        const taxable =
+          item.gst?.taxableAmount ??
+          this.roundToTwo(
+            item.pricing.unitAmount * item.quantity -
+              (item.pricing.discountAmount ?? 0)
+          );
+        const tax =
+          item.gst?.totalTaxAmount ??
+          this.roundToTwo(item.pricing.taxAmount ?? 0);
         const total = item.gst?.totalWithTax ?? this.roundToTwo(taxable + tax);
         return `<tr>
           <td>${item.name}</td>
@@ -647,9 +691,15 @@ export class OrdersService {
     <h1>${restaurantName}</h1>
     <p class="meta">GSTIN: ${restaurantGstin}</p>
     <p class="meta">${restaurantAddress}</p>
-    <p><strong>Invoice:</strong> ${order.taxInvoiceNumber ?? order.orderNumber}</p>
-    <p><strong>Date:</strong> ${new Date(order.createdAt).toLocaleString('en-IN')}</p>
-    <p><strong>Customer:</strong> ${order.customerName ?? 'Guest'}${order.customerGstin ? ` (GSTIN: ${order.customerGstin})` : ''}</p>
+    <p><strong>Invoice:</strong> ${
+      order.taxInvoiceNumber ?? order.orderNumber
+    }</p>
+    <p><strong>Date:</strong> ${new Date(order.createdAt).toLocaleString(
+      'en-IN'
+    )}</p>
+    <p><strong>Customer:</strong> ${order.customerName ?? 'Guest'}${
+      order.customerGstin ? ` (GSTIN: ${order.customerGstin})` : ''
+    }</p>
     <table>
       <thead>
         <tr>
@@ -665,14 +715,26 @@ export class OrdersService {
       </tbody>
     </table>
     <div class="totals">
-      <p><strong>Gross Amount:</strong> ₹${formatAmount(order.grossAmount ?? order.subTotalAmount)}</p>
-      <p><strong>Discount:</strong> ₹${formatAmount(order.discountAmount ?? 0)}</p>
-      <p><strong>Taxable Amount:</strong> ₹${formatAmount(order.subTotalAmount)}</p>
+      <p><strong>Gross Amount:</strong> ₹${formatAmount(
+        order.grossAmount ?? order.subTotalAmount
+      )}</p>
+      <p><strong>Discount:</strong> ₹${formatAmount(
+        order.discountAmount ?? 0
+      )}</p>
+      <p><strong>Taxable Amount:</strong> ₹${formatAmount(
+        order.subTotalAmount
+      )}</p>
       <p><strong>CGST:</strong> ₹${formatAmount(cgstAmount)}</p>
       <p><strong>SGST:</strong> ₹${formatAmount(sgstAmount)}</p>
-      ${igstAmount > 0 ? `<p><strong>IGST:</strong> ₹${formatAmount(igstAmount)}</p>` : ''}
+      ${
+        igstAmount > 0
+          ? `<p><strong>IGST:</strong> ₹${formatAmount(igstAmount)}</p>`
+          : ''
+      }
       <p><strong>Tax Type:</strong> ${order.taxType ?? 'intra-state'}</p>
-      <p><strong>Round Off:</strong> ₹${formatAmount(order.roundOffAmount ?? 0)}</p>
+      <p><strong>Round Off:</strong> ₹${formatAmount(
+        order.roundOffAmount ?? 0
+      )}</p>
       <p><strong>Total Payable:</strong> ₹${formatAmount(order.totalAmount)}</p>
       <p><strong>Payment method:</strong> ${order.paymentMethod}</p>
       <p><strong>Status:</strong> ${order.paymentStatus}</p>
@@ -718,12 +780,11 @@ export class OrdersService {
         this.roundToTwo(item.pricing.unitAmount * item.quantity);
       const taxableAmount =
         item.gst?.taxableAmount ??
-        this.roundToTwo(
-          grossAmount - (item.pricing.discountAmount ?? 0)
-        );
+        this.roundToTwo(grossAmount - (item.pricing.discountAmount ?? 0));
       const discountAmount = this.roundToTwo(item.pricing.discountAmount ?? 0);
       const totalTaxAmount =
-        item.gst?.totalTaxAmount ?? this.roundToTwo(item.pricing.taxAmount ?? 0);
+        item.gst?.totalTaxAmount ??
+        this.roundToTwo(item.pricing.taxAmount ?? 0);
       const totalWithTax =
         item.gst?.totalWithTax ??
         this.roundToTwo(taxableAmount + totalTaxAmount);
@@ -753,7 +814,9 @@ export class OrdersService {
     });
 
     const summary: TaxCalculation = {
-      grossAmount: order.grossAmount ?? this.roundToTwo(order.subTotalAmount + (order.discountAmount ?? 0)),
+      grossAmount:
+        order.grossAmount ??
+        this.roundToTwo(order.subTotalAmount + (order.discountAmount ?? 0)),
       discountAmount: order.discountAmount ?? 0,
       subtotal: order.subTotalAmount,
       cgstAmount: order.cgstAmount ?? 0,
@@ -761,7 +824,8 @@ export class OrdersService {
       igstAmount: order.igstAmount ?? 0,
       totalTaxAmount: order.taxAmount ?? 0,
       totalAmount: preRoundTotal,
-      taxType: (order.taxType as 'intra-state' | 'inter-state') ?? 'intra-state',
+      taxType:
+        (order.taxType as 'intra-state' | 'inter-state') ?? 'intra-state',
     };
 
     const invoiceNumber = await this.gstService.generateTaxInvoice(
@@ -791,9 +855,14 @@ export class OrdersService {
     );
 
     if (updated) {
-      await this.recordEvent(order._id.toString(), restaurantId, 'order.invoice.generated', {
-        taxInvoiceNumber: invoiceNumber,
-      });
+      await this.recordEvent(
+        order._id.toString(),
+        restaurantId,
+        'order.invoice.generated',
+        {
+          taxInvoiceNumber: invoiceNumber,
+        }
+      );
       return updated;
     }
 
@@ -808,7 +877,9 @@ export class OrdersService {
     }
 
     // Count orders for this specific restaurant to get next order number
-    const restaurantOrderCount = await this.orderModel.countDocuments({ restaurantId });
+    const restaurantOrderCount = await this.orderModel.countDocuments({
+      restaurantId,
+    });
     const orderNumber = (restaurantOrderCount + 1).toString().padStart(4, '0');
 
     // Format: {restaurant-slug}-{order-number}
@@ -818,25 +889,35 @@ export class OrdersService {
   private async transferToRestaurant(order: OrderDocument): Promise<void> {
     try {
       // Get restaurant payment configuration
-      const restaurant = await this.restaurantModel.findById(order.restaurantId);
+      const restaurant = await this.restaurantModel.findById(
+        order.restaurantId
+      );
 
       if (!restaurant?.paymentConfig?.razorpayFundAccountId) {
-        this.logger.warn(`Restaurant ${order.restaurantId} doesn't have fund account configured. Skipping transfer.`);
+        this.logger.warn(
+          `Restaurant ${order.restaurantId} doesn't have fund account configured. Skipping transfer.`
+        );
         return;
       }
 
       if (restaurant.paymentConfig.settlementType !== 'transfers') {
-        this.logger.warn(`Restaurant ${order.restaurantId} doesn't use transfers settlement. Skipping transfer.`);
+        this.logger.warn(
+          `Restaurant ${order.restaurantId} doesn't use transfers settlement. Skipping transfer.`
+        );
         return;
       }
 
       // Calculate transfer amount (total order amount minus platform fee)
       const platformFeePercent = 3; // 3% platform fee
-      const platformFee = Math.round((order.totalAmount * platformFeePercent) / 100);
+      const platformFee = Math.round(
+        (order.totalAmount * platformFeePercent) / 100
+      );
       const transferAmount = order.totalAmount - platformFee;
 
       if (transferAmount <= 0) {
-        this.logger.warn(`Transfer amount is ≤ 0 for order ${order._id}. Skipping transfer.`);
+        this.logger.warn(
+          `Transfer amount is ≤ 0 for order ${order._id}. Skipping transfer.`
+        );
         return;
       }
 
@@ -851,26 +932,43 @@ export class OrdersService {
           order_number: order.orderNumber,
           platform_fee: platformFee.toString(),
           transfer_amount: transferAmount.toString(),
-        }
+        },
       });
 
-      this.logger.log(`Transfer created: ₹${transferAmount/100} sent to restaurant ${restaurant.name} for order ${order.orderNumber} (Transfer ID: ${transfer.id})`);
+      this.logger.log(
+        `Transfer created: ₹${transferAmount / 100} sent to restaurant ${
+          restaurant.name
+        } for order ${order.orderNumber} (Transfer ID: ${transfer.id})`
+      );
 
       // Record the transfer in order events
-      await this.recordEvent(order._id.toString(), order.restaurantId, 'order.transfer.created', {
-        transferId: transfer.id,
-        transferAmount: transferAmount,
-        platformFee: platformFee,
-        fundAccountId: restaurant.paymentConfig.razorpayFundAccountId,
-      });
-
+      await this.recordEvent(
+        order._id.toString(),
+        order.restaurantId,
+        'order.transfer.created',
+        {
+          transferId: transfer.id,
+          transferAmount: transferAmount,
+          platformFee: platformFee,
+          fundAccountId: restaurant.paymentConfig.razorpayFundAccountId,
+        }
+      );
     } catch (error) {
-      this.logger.error(`Failed to transfer money for order ${order._id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to transfer money for order ${order._id}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
 
       // Record the failure but don't block the payment process
-      await this.recordEvent(order._id.toString(), order.restaurantId, 'order.transfer.failed', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      await this.recordEvent(
+        order._id.toString(),
+        order.restaurantId,
+        'order.transfer.failed',
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
     }
   }
 
@@ -927,7 +1025,8 @@ export class OrdersService {
       igstAmount: doc.igstAmount,
       discountAmount: doc.discountAmount,
       grossAmount:
-        doc.grossAmount ?? this.roundToTwo(doc.subTotalAmount + (doc.discountAmount ?? 0)),
+        doc.grossAmount ??
+        this.roundToTwo(doc.subTotalAmount + (doc.discountAmount ?? 0)),
       totalAmount: doc.totalAmount,
       roundOffAmount: doc.roundOffAmount,
       taxType: doc.taxType
