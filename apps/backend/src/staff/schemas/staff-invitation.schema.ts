@@ -11,34 +11,34 @@ export class StaffInvitation {
   @Prop({ type: Types.ObjectId, ref: 'Restaurant', required: true })
   restaurantId: Types.ObjectId;
 
-  @Prop({ required: true, lowercase: true, trim: true })
+  @Prop({ type: String, required: true, lowercase: true, trim: true })
   email: string;
 
-  @Prop({ required: true, enum: ['manager', 'chef', 'waiter', 'cashier'] })
+  @Prop({ type: String, required: true, enum: ['manager', 'chef', 'waiter', 'cashier'] })
   role: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ type: String, required: true, unique: true })
   token: string;
 
-  @Prop({ required: true })
+  @Prop({ type: Date, required: true })
   expiresAt: Date;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isUsed: boolean;
 
   @Prop({ type: Types.ObjectId, ref: 'User' })
   usedBy?: Types.ObjectId;
 
-  @Prop()
+  @Prop({ type: Date })
   usedAt?: Date;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   invitedBy: string;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   emailSentCount: number;
 
-  @Prop()
+  @Prop({ type: Date })
   lastEmailSentAt?: Date;
 }
 

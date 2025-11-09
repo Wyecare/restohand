@@ -9,9 +9,9 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
-import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { User } from '../users/schemas/user.schema';
+import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { ReportsService } from './reports.service';
 
 @ApiTags('reports')
@@ -37,7 +37,7 @@ export class ReportsController {
     description: 'End date for analytics (YYYY-MM-DD)',
   })
   async getAnalytics(
-    @CurrentUser() user: User,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
@@ -75,7 +75,7 @@ export class ReportsController {
     description: 'End date for report (YYYY-MM-DD)',
   })
   async downloadPdfReport(
-    @CurrentUser() user: User,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Res() res: Response,
