@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/use-toast';
-import { useGetSubscriptionStatusQuery, useUpgradeSubscriptionMutation, useCreateSubscriptionPaymentIntentMutation } from '@/store/api/subscriptionsApi';
+import { useGetSubscriptionStatusQuery, useUpgradeSubscriptionMutation, useCreateSubscriptionPaymentIntentMutation, useInitializeTestSubscriptionMutation } from '@/store/api/subscriptionsApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
@@ -26,7 +26,12 @@ const plans = [
   {
     id: 'starter',
     name: 'Starter',
-    price: 999,
+    prices: {
+      hourly: 1,    // ₹1 per hour for testing
+      daily: 10,    // ₹10 per day for testing
+      monthly: 999, // ₹999 per month
+      yearly: 11990, // ₹11,990 per year
+    },
     description: 'Perfect for small restaurants',
     features: [
       'Up to 50 orders/day',
@@ -42,7 +47,12 @@ const plans = [
   {
     id: 'pro',
     name: 'Pro',
-    price: 1999,
+    prices: {
+      hourly: 2,     // ₹2 per hour for testing
+      daily: 20,     // ₹20 per day for testing
+      monthly: 1999, // ₹1999 per month
+      yearly: 23990, // ₹23,990 per year
+    },
     description: 'Ideal for growing businesses',
     features: [
       'Unlimited orders',
@@ -60,7 +70,12 @@ const plans = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: 4999,
+    prices: {
+      hourly: 5,     // ₹5 per hour for testing
+      daily: 50,     // ₹50 per day for testing
+      monthly: 4999, // ₹4999 per month
+      yearly: 59990, // ₹59,990 per year
+    },
     description: 'For large restaurant chains',
     features: [
       'Everything in Pro',
@@ -74,6 +89,13 @@ const plans = [
     color: 'from-amber-500 to-amber-600',
   },
 ];
+
+const billingCycles = [
+  { id: 'hourly', name: 'Hourly', suffix: '/hour', badge: 'Testing' },
+  { id: 'daily', name: 'Daily', suffix: '/day', badge: 'Testing' },
+  { id: 'monthly', name: 'Monthly', suffix: '/month', badge: 'Popular' },
+  { id: 'yearly', name: 'Yearly', suffix: '/year', badge: 'Save 20%' },
+] as const;
 
 export default function SubscriptionPage() {
   const { toast } = useToast();
@@ -90,7 +112,9 @@ export default function SubscriptionPage() {
 
   const [upgradeSubscription, { isLoading: isUpgrading }] = useUpgradeSubscriptionMutation();
   const [createPaymentIntent] = useCreateSubscriptionPaymentIntentMutation();
+  const [initializeTestSubscription, { isLoading: isInitializing }] = useInitializeTestSubscriptionMutation();
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<'hourly' | 'daily' | 'monthly' | 'yearly'>('monthly');
 
   // Check if there's a payment parameter (from email/SMS link)
   useEffect(() => {
@@ -116,6 +140,32 @@ export default function SubscriptionPage() {
     });
   };
 
+  const handleInitializeTest = async (plan: 'starter' | 'pro' | 'enterprise', billingCycle: 'hourly' | 'daily' | 'monthly' | 'yearly' = 'hourly') => {
+    if (!restaurantId) return;
+
+    try {
+      const result = await initializeTestSubscription({
+        restaurantId,
+        plan,
+        billingCycle,
+      }).unwrap();
+
+      toast({
+        title: 'Test Subscription Initialized!',
+        description: `${billingCycle.charAt(0).toUpperCase() + billingCycle.slice(1)} ${plan} plan activated. Next billing: ${new Date(result.nextBillingDate).toLocaleString()}`,
+      });
+
+      // Refresh subscription status
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+      toast({
+        title: 'Initialization failed',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleUpgrade = async (newPlan: string) => {
     if (!restaurantId) return;
 
@@ -132,6 +182,7 @@ export default function SubscriptionPage() {
       const paymentIntent = await createPaymentIntent({
         restaurantId,
         plan: newPlan as 'starter' | 'pro' | 'enterprise',
+        billingCycle: selectedBillingCycle,
       }).unwrap();
 
       // Initialize Razorpay payment
@@ -287,7 +338,8 @@ export default function SubscriptionPage() {
                       {currentPlan?.name} Plan
                     </CardTitle>
                     <CardDescription className="text-lg">
-                      ₹{subscriptionStatus.monthlyPrice / 100}/month
+                      ₹{subscriptionStatus.monthlyPrice / 100}
+                      {subscriptionStatus.billingCycle ? `/${subscriptionStatus.billingCycle.slice(0, -2)}` : '/month'}
                     </CardDescription>
                   </div>
                 </div>
@@ -363,11 +415,60 @@ export default function SubscriptionPage() {
 
       {/* Available Plans */}
       <div className="space-y-6">
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold">Choose Your Plan</h2>
           <p className="text-muted-foreground">
             Upgrade or change your plan anytime
           </p>
+
+          {/* Billing Cycle Selector */}
+          <div className="flex items-center justify-center">
+            <div className="grid grid-cols-4 gap-2 p-2 bg-muted rounded-lg">
+              {billingCycles.map((cycle) => (
+                <Button
+                  key={cycle.id}
+                  variant={selectedBillingCycle === cycle.id ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setSelectedBillingCycle(cycle.id)}
+                  className="relative"
+                >
+                  {cycle.name}
+                  {cycle.badge && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      {cycle.badge}
+                    </Badge>
+                  )}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Test Subscription Section */}
+          {(selectedBillingCycle === 'hourly' || selectedBillingCycle === 'daily') && (
+            <Card className="border-orange-200 bg-orange-50 max-w-2xl mx-auto">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <Zap className="h-5 w-5 text-orange-600" />
+                    <h3 className="font-bold text-orange-800">Test Mode</h3>
+                  </div>
+                  <p className="text-sm text-orange-700">
+                    {selectedBillingCycle === 'hourly'
+                      ? 'Hourly billing for quick testing - perfect for development and demo purposes.'
+                      : 'Daily billing for short-term testing - ideal for evaluating features.'}
+                  </p>
+                  <Button
+                    onClick={() => handleInitializeTest('starter', selectedBillingCycle)}
+                    disabled={isInitializing}
+                    variant="outline"
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                  >
+                    {isInitializing ? 'Initializing...' : `Initialize ${selectedBillingCycle.charAt(0).toUpperCase() + selectedBillingCycle.slice(1)} Test Subscription`}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -397,8 +498,10 @@ export default function SubscriptionPage() {
                   </div>
                   <CardTitle className="text-xl">{plan.name}</CardTitle>
                   <div className="text-3xl font-bold">
-                    ₹{plan.price}
-                    <span className="text-sm font-normal text-muted-foreground">/month</span>
+                    ₹{plan.prices[selectedBillingCycle]}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {billingCycles.find(c => c.id === selectedBillingCycle)?.suffix}
+                    </span>
                   </div>
                   <CardDescription>{plan.description}</CardDescription>
                 </CardHeader>
@@ -413,9 +516,18 @@ export default function SubscriptionPage() {
                     ))}
                   </ul>
 
-                  {subscriptionStatus?.plan === plan.id ? (
+                  {subscriptionStatus?.plan === plan.id && subscriptionStatus?.billingCycle === selectedBillingCycle ? (
                     <Button disabled className="w-full">
                       Current Plan
+                    </Button>
+                  ) : (selectedBillingCycle === 'hourly' || selectedBillingCycle === 'daily') ? (
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => handleInitializeTest(plan.id as 'starter' | 'pro' | 'enterprise', selectedBillingCycle)}
+                      disabled={isInitializing}
+                    >
+                      {isInitializing ? 'Initializing...' : `Test ${plan.name}`}
                     </Button>
                   ) : (
                     <Button
@@ -424,7 +536,7 @@ export default function SubscriptionPage() {
                       onClick={() => handleUpgrade(plan.id)}
                       disabled={isUpgrading}
                     >
-                      {isUpgrading ? 'Upgrading...' :
+                      {isUpgrading ? 'Processing...' :
                        subscriptionStatus && plans.findIndex(p => p.id === subscriptionStatus.plan) < plans.findIndex(p => p.id === plan.id)
                          ? 'Upgrade' : 'Change Plan'}
                     </Button>

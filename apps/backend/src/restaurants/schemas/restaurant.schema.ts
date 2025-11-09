@@ -104,15 +104,15 @@ class SaasConfig {
 
   @Prop({
     type: String,
-    enum: ['monthly', 'yearly'],
+    enum: ['hourly', 'daily', 'monthly', 'yearly'],
     default: 'monthly'
   })
-  billingCycle!: 'monthly' | 'yearly';
+  billingCycle!: 'hourly' | 'daily' | 'monthly' | 'yearly';
 
   @Prop({
     type: String,
     enum: ['trial', 'active', 'suspended', 'cancelled'],
-    default: 'trial'
+    default: 'active'
   })
   subscriptionStatus!: 'trial' | 'active' | 'suspended' | 'cancelled';
 
@@ -122,7 +122,7 @@ class SaasConfig {
   @Prop({ type: Date, required: true })
   nextBillingDate!: Date;
 
-  @Prop({ type: Number, required: true, default: 99900 }) // ₹999 in paise
+  @Prop({ type: Number, required: true, default: 100 }) // ₹1 in paise for testing
   monthlyPrice!: number;
 
   @Prop({ type: Date, default: Date.now })

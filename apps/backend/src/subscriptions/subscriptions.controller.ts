@@ -59,10 +59,21 @@ export class SubscriptionsController {
   })
   async upgradePlan(
     @Param('restaurantId') restaurantId: string,
-    @Body() body: { plan: 'starter' | 'pro' | 'enterprise' },
+    @Body() body: {
+      plan: 'starter' | 'pro' | 'enterprise';
+      billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
+    },
   ) {
-    await this.subscriptionsService.upgradePlan(restaurantId, body.plan);
-    return { message: 'Plan upgraded successfully', plan: body.plan };
+    await this.subscriptionsService.upgradePlan(
+      restaurantId,
+      body.plan,
+      body.billingCycle || 'monthly'
+    );
+    return {
+      message: 'Plan upgraded successfully',
+      plan: body.plan,
+      billingCycle: body.billingCycle || 'monthly'
+    };
   }
 
   @Post('reactivate')
@@ -98,15 +109,37 @@ export class SubscriptionsController {
   })
   async createPaymentIntent(
     @Param('restaurantId') restaurantId: string,
-    @Body() body: { plan: 'starter' | 'pro' | 'enterprise' }
+    @Body() body: {
+      plan: 'starter' | 'pro' | 'enterprise';
+      billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
+    }
   ) {
     const planPricing = {
-      starter: 99900, // ₹999
-      pro: 199900,    // ₹1999
-      enterprise: 499900, // ₹4999
+      // Test pricing for different billing cycles
+      hourly: {
+        starter: 100,    // ₹1 per hour for testing
+        pro: 200,        // ₹2 per hour for testing
+        enterprise: 500, // ₹5 per hour for testing
+      },
+      daily: {
+        starter: 1000,   // ₹10 per day for testing
+        pro: 2000,       // ₹20 per day for testing
+        enterprise: 5000, // ₹50 per day for testing
+      },
+      monthly: {
+        starter: 99900,   // ₹999 per month (production)
+        pro: 199900,      // ₹1999 per month (production)
+        enterprise: 499900, // ₹4999 per month (production)
+      },
+      yearly: {
+        starter: 1199000,  // ₹11,990 per year (production)
+        pro: 2399000,      // ₹23,990 per year (production)
+        enterprise: 5999000, // ₹59,990 per year (production)
+      }
     };
 
-    const amount = planPricing[body.plan];
+    const billingCycle = body.billingCycle || 'monthly';
+    const amount = planPricing[billingCycle][body.plan];
 
     const razorpayOrder = await this.razorpayService.createOrder({
       amount,
@@ -116,6 +149,7 @@ export class SubscriptionsController {
         restaurantId,
         type: 'subscription',
         plan: body.plan,
+        billingCycle: billingCycle,
       },
     });
 
@@ -124,7 +158,33 @@ export class SubscriptionsController {
       razorpayKey: this.razorpayService.publicKey,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      description: `${body.plan.charAt(0).toUpperCase() + body.plan.slice(1)} Plan Subscription`,
+      description: `${body.plan.charAt(0).toUpperCase() + body.plan.slice(1)} Plan - ${billingCycle.charAt(0).toUpperCase() + billingCycle.slice(1)} Billing`,
+    };
+  }
+
+  @Post('initialize-test')
+  @Roles(UserRole.Manager)
+  @ApiOperation({ summary: 'Initialize test subscription (no trial, custom billing cycle)' })
+  @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Test subscription initialized successfully',
+  })
+  async initializeTestSubscription(
+    @Param('restaurantId') restaurantId: string,
+    @Body() body: {
+      plan?: 'starter' | 'pro' | 'enterprise';
+      billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
+    } = {},
+  ) {
+    const result = await this.subscriptionsService.initializeTestSubscription(
+      restaurantId,
+      body.plan || 'starter',
+      body.billingCycle || 'hourly'
+    );
+    return {
+      message: 'Test subscription initialized successfully',
+      ...result,
     };
   }
 }

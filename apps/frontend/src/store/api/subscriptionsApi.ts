@@ -9,10 +9,12 @@ export interface SubscriptionStatus {
   nextBillingDate: string;
   monthlyPrice: number;
   daysUntilBilling: number;
+  billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
 }
 
 export interface UpgradeSubscriptionRequest {
   plan: 'starter' | 'pro' | 'enterprise';
+  billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
 }
 
 export interface RestaurantOnboardingData {
@@ -44,7 +46,7 @@ export const subscriptionsApi = baseApi.injectEndpoints({
       providesTags: ['Subscription'],
     }),
 
-    upgradeSubscription: builder.mutation<SubscriptionStatus, { restaurantId: string; data: UpgradeSubscriptionRequest }>({
+    upgradeSubscription: builder.mutation<{ message: string; plan: string; billingCycle: string }, { restaurantId: string; data: UpgradeSubscriptionRequest }>({
       query: ({ restaurantId, data }) => ({
         url: `/restaurants/${restaurantId}/subscription/upgrade`,
         method: 'PATCH',
@@ -87,13 +89,32 @@ export const subscriptionsApi = baseApi.injectEndpoints({
         currency: string;
         description: string;
       },
-      { restaurantId: string; plan: 'starter' | 'pro' | 'enterprise' }
+      { restaurantId: string; plan: 'starter' | 'pro' | 'enterprise'; billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly' }
     >({
-      query: ({ restaurantId, plan }) => ({
+      query: ({ restaurantId, plan, billingCycle }) => ({
         url: `/restaurants/${restaurantId}/subscription/create-payment-intent`,
         method: 'POST',
-        body: { plan },
+        body: { plan, billingCycle },
       }),
+    }),
+
+    initializeTestSubscription: builder.mutation<
+      {
+        message: string;
+        plan: string;
+        billingCycle: string;
+        amount: number;
+        nextBillingDate: string;
+        status: string;
+      },
+      { restaurantId: string; plan?: 'starter' | 'pro' | 'enterprise'; billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly' }
+    >({
+      query: ({ restaurantId, plan, billingCycle }) => ({
+        url: `/restaurants/${restaurantId}/subscription/initialize-test`,
+        method: 'POST',
+        body: { plan, billingCycle },
+      }),
+      invalidatesTags: ['Subscription'],
     }),
   }),
   overrideExisting: false,
@@ -105,4 +126,5 @@ export const {
   useReactivateSubscriptionMutation,
   useOnboardRestaurantMutation,
   useCreateSubscriptionPaymentIntentMutation,
+  useInitializeTestSubscriptionMutation,
 } = subscriptionsApi;

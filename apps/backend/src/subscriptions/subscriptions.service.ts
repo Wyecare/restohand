@@ -53,16 +53,35 @@ export class SubscriptionsService {
     };
   }
 
-  async upgradePlan(restaurantId: string, newPlan: 'starter' | 'pro' | 'enterprise') {
+  async upgradePlan(restaurantId: string, newPlan: 'starter' | 'pro' | 'enterprise', billingCycle: 'hourly' | 'daily' | 'monthly' | 'yearly' = 'monthly') {
     const planPricing = {
-      starter: 99900, // ₹999
-      pro: 199900,    // ₹1999
-      enterprise: 499900, // ₹4999
+      // Test pricing for different billing cycles
+      hourly: {
+        starter: 100,    // ₹1 per hour for testing
+        pro: 200,        // ₹2 per hour for testing
+        enterprise: 500, // ₹5 per hour for testing
+      },
+      daily: {
+        starter: 1000,   // ₹10 per day for testing
+        pro: 2000,       // ₹20 per day for testing
+        enterprise: 5000, // ₹50 per day for testing
+      },
+      monthly: {
+        starter: 99900,   // ₹999 per month (production)
+        pro: 199900,      // ₹1999 per month (production)
+        enterprise: 499900, // ₹4999 per month (production)
+      },
+      yearly: {
+        starter: 1199000,  // ₹11,990 per year (production)
+        pro: 2399000,      // ₹23,990 per year (production)
+        enterprise: 5999000, // ₹59,990 per year (production)
+      }
     };
 
     await this.restaurantModel.findByIdAndUpdate(restaurantId, {
       'saasConfig.plan': newPlan,
-      'saasConfig.monthlyPrice': planPricing[newPlan],
+      'saasConfig.billingCycle': billingCycle,
+      'saasConfig.monthlyPrice': planPricing[billingCycle][newPlan],
       'saasConfig.lastUpdated': new Date(),
     });
 
@@ -91,37 +110,135 @@ export class SubscriptionsService {
     this.logger.log(`Restaurant ${restaurantId} subscription reactivated`);
   }
 
+  async initializeTestSubscription(restaurantId: string, plan: 'starter' | 'pro' | 'enterprise' = 'starter', billingCycle: 'hourly' | 'daily' | 'monthly' | 'yearly' = 'hourly') {
+    const planPricing = {
+      hourly: {
+        starter: 100,    // ₹1 per hour for testing
+        pro: 200,        // ₹2 per hour for testing
+        enterprise: 500, // ₹5 per hour for testing
+      },
+      daily: {
+        starter: 1000,   // ₹10 per day for testing
+        pro: 2000,       // ₹20 per day for testing
+        enterprise: 5000, // ₹50 per day for testing
+      },
+      monthly: {
+        starter: 99900,   // ₹999 per month (production)
+        pro: 199900,      // ₹1999 per month (production)
+        enterprise: 499900, // ₹4999 per month (production)
+      },
+      yearly: {
+        starter: 1199000,  // ₹11,990 per year (production)
+        pro: 2399000,      // ₹23,990 per year (production)
+        enterprise: 5999000, // ₹59,990 per year (production)
+      }
+    };
+
+    const now = new Date();
+    let nextBilling = new Date(now);
+
+    // Set next billing based on cycle
+    switch (billingCycle) {
+      case 'hourly':
+        nextBilling.setHours(now.getHours() + 1);
+        break;
+      case 'daily':
+        nextBilling.setDate(now.getDate() + 1);
+        break;
+      case 'monthly':
+        nextBilling.setMonth(now.getMonth() + 1);
+        break;
+      case 'yearly':
+        nextBilling.setFullYear(now.getFullYear() + 1);
+        break;
+    }
+
+    await this.restaurantModel.findByIdAndUpdate(restaurantId, {
+      saasConfig: {
+        plan,
+        billingCycle,
+        subscriptionStatus: 'active', // Skip trial
+        trialEndsAt: now, // Set trial as already ended
+        nextBillingDate: nextBilling,
+        monthlyPrice: planPricing[billingCycle][plan],
+        lastUpdated: now,
+      },
+    });
+
+    this.logger.log(`Restaurant ${restaurantId} initialized with ${billingCycle} ${plan} plan (no trial)`);
+
+    return {
+      plan,
+      billingCycle,
+      amount: planPricing[billingCycle][plan],
+      nextBillingDate: nextBilling,
+      status: 'active'
+    };
+  }
+
+  // Hourly cron job to check for billing (supports hourly and daily cycles)
+  @Cron(CronExpression.EVERY_HOUR)
+  async processHourlyBilling() {
+    this.logger.log('Starting hourly billing check...');
+    await this.processBillingByType('hourly');
+  }
+
   // Daily cron job to process subscriptions
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
   async processDailyBilling() {
     this.logger.log('Starting daily subscription billing process...');
+    await this.processBillingByType('daily');
+  }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  // Monthly billing (existing logic)
+  @Cron('0 6 1 * *') // First day of every month at 6 AM
+  async processMonthlyBilling() {
+    this.logger.log('Starting monthly subscription billing process...');
+    await this.processBillingByType('monthly');
+  }
 
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  private async processBillingByType(billingType: 'hourly' | 'daily' | 'monthly') {
+    const now = new Date();
+    let startTime: Date;
+    let endTime: Date;
 
-    // Find restaurants whose billing is due today
+    if (billingType === 'hourly') {
+      // Check for hourly billing
+      startTime = new Date(now);
+      startTime.setMinutes(0, 0, 0);
+      endTime = new Date(startTime);
+      endTime.setHours(endTime.getHours() + 1);
+    } else if (billingType === 'daily') {
+      // Check for daily billing
+      startTime = new Date(now);
+      startTime.setHours(0, 0, 0, 0);
+      endTime = new Date(startTime);
+      endTime.setDate(endTime.getDate() + 1);
+    } else {
+      // Monthly billing
+      startTime = new Date(now);
+      startTime.setHours(0, 0, 0, 0);
+      endTime = new Date(startTime);
+      endTime.setDate(endTime.getDate() + 1);
+    }
+
+    // Find restaurants whose billing is due
     const dueRestaurants = await this.restaurantModel.find({
+      'saasConfig.billingCycle': billingType,
       'saasConfig.nextBillingDate': {
-        $gte: today,
-        $lt: tomorrow,
+        $gte: startTime,
+        $lt: endTime,
       },
-      'saasConfig.subscriptionStatus': { $in: ['trial', 'active'] },
+      'saasConfig.subscriptionStatus': 'active', // No trial, direct to active
     });
 
-    this.logger.log(`Found ${dueRestaurants.length} restaurants with billing due today`);
+    this.logger.log(`Found ${dueRestaurants.length} restaurants with ${billingType} billing due`);
 
     for (const restaurant of dueRestaurants) {
       try {
-        if (restaurant.saasConfig.subscriptionStatus === 'trial') {
-          await this.processTrialEnd(restaurant);
-        } else {
-          await this.processSubscriptionBilling(restaurant);
-        }
+        await this.processSubscriptionBilling(restaurant);
       } catch (error) {
-        this.logger.error(`Failed to process billing for restaurant ${restaurant.id}:`, error);
+        this.logger.error(`Failed to process ${billingType} billing for restaurant ${restaurant.id}:`, error);
       }
     }
   }
@@ -179,9 +296,23 @@ export class SubscriptionsService {
       // Send billing notification
       await this.sendBillingNotification(restaurant, razorpayOrder.id);
 
-      // Update next billing date
+      // Update next billing date based on billing cycle
       const nextBilling = new Date(restaurant.saasConfig.nextBillingDate);
-      nextBilling.setMonth(nextBilling.getMonth() + 1);
+
+      switch (restaurant.saasConfig.billingCycle) {
+        case 'hourly':
+          nextBilling.setHours(nextBilling.getHours() + 1);
+          break;
+        case 'daily':
+          nextBilling.setDate(nextBilling.getDate() + 1);
+          break;
+        case 'monthly':
+          nextBilling.setMonth(nextBilling.getMonth() + 1);
+          break;
+        case 'yearly':
+          nextBilling.setFullYear(nextBilling.getFullYear() + 1);
+          break;
+      }
 
       await this.restaurantModel.findByIdAndUpdate(restaurant.id, {
         'saasConfig.nextBillingDate': nextBilling,

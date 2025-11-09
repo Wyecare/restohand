@@ -5,7 +5,8 @@
   "scripts": {
     "seed:menu": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/seed-menu.ts",
     "seed:hsn": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/seed-hsn-codes.ts",
-    "test:gst": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/test-gst-calculation.ts"
+    "test:gst": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/test-gst-calculation.ts",
+    "test:subscription": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/test-subscriptions.ts"
   },
   "private": true,
   "devDependencies": {
@@ -156,6 +157,7 @@
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.10",
+    "puppeteer": "^24.29.1",
     "qrcode": "^1.5.4",
     "razorpay": "^2.9.5",
     "react": "19.0.0",
