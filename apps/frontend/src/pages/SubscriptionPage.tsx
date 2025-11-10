@@ -23,9 +23,10 @@ import {
   Users
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { toast } from 'react-hot-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 const SubscriptionPage: React.FC = () => {
+  const { toast } = useToast();
   const user = useAppSelector((state) => state.auth.user);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -46,17 +47,28 @@ const SubscriptionPage: React.FC = () => {
 
   const handleCreateSubscription = async () => {
     if (!user?.restaurantId) {
-      toast.error('Restaurant ID not found');
+      toast({
+        title: 'Error',
+        description: 'Restaurant ID not found',
+        variant: 'destructive',
+      });
       return;
     }
 
     setIsCreating(true);
     try {
-      const result = await createSubscription(user.restaurantId).unwrap();
-      toast.success('Subscription created successfully!');
+      await createSubscription(user.restaurantId).unwrap();
+      toast({
+        title: 'Success',
+        description: 'Subscription created successfully!',
+      });
       refetchStatus();
     } catch (error: any) {
-      toast.error(error?.data?.message || 'Failed to create subscription');
+      toast({
+        title: 'Error',
+        description: error?.data?.message || 'Failed to create subscription',
+        variant: 'destructive',
+      });
     } finally {
       setIsCreating(false);
     }
@@ -67,10 +79,17 @@ const SubscriptionPage: React.FC = () => {
 
     try {
       await reactivateSubscription(user.restaurantId).unwrap();
-      toast.success('Subscription reactivated successfully!');
+      toast({
+        title: 'Success',
+        description: 'Subscription reactivated successfully!',
+      });
       refetchStatus();
     } catch (error: any) {
-      toast.error(error?.data?.message || 'Failed to reactivate subscription');
+      toast({
+        title: 'Error',
+        description: error?.data?.message || 'Failed to reactivate subscription',
+        variant: 'destructive',
+      });
     }
   };
 
