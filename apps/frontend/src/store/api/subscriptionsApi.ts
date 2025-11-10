@@ -2,19 +2,27 @@ import { baseApi } from './baseApi';
 
 export interface SubscriptionStatus {
   restaurantId: string;
-  plan: 'starter' | 'pro' | 'enterprise';
+  plan: 'standard';
   status: 'trial' | 'active' | 'suspended' | 'cancelled';
   isActive: boolean;
   trialEndsAt: string;
   nextBillingDate: string;
   monthlyPrice: number;
   daysUntilBilling: number;
-  billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
-}
-
-export interface UpgradeSubscriptionRequest {
-  plan: 'starter' | 'pro' | 'enterprise';
-  billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
+  billingCycle: 'monthly';
+  razorpaySubscription?: {
+    id: string;
+    status: string;
+    plan_id: string;
+    customer_id: string;
+    current_start: string;
+    current_end: string;
+    ended_at?: string;
+    charge_at: string;
+    total_count: number;
+    paid_count: number;
+    remaining_count: number;
+  };
 }
 
 export interface RestaurantOnboardingData {
@@ -46,21 +54,43 @@ export const subscriptionsApi = baseApi.injectEndpoints({
       providesTags: ['Subscription'],
     }),
 
-    upgradeSubscription: builder.mutation<{ message: string; plan: string; billingCycle: string }, { restaurantId: string; data: UpgradeSubscriptionRequest }>({
-      query: ({ restaurantId, data }) => ({
-        url: `/restaurants/${restaurantId}/subscription/upgrade`,
-        method: 'PATCH',
-        body: data,
+    createSubscription: builder.mutation<{
+      message: string;
+      subscriptionId: string;
+      customerId: string;
+      planId: string;
+      status: string;
+      amount: number;
+      nextBillingDate: string;
+    }, string>({
+      query: (restaurantId) => ({
+        url: `/restaurants/${restaurantId}/subscription/create`,
+        method: 'POST',
       }),
       invalidatesTags: ['Subscription'],
     }),
 
-    reactivateSubscription: builder.mutation<SubscriptionStatus, string>({
+    reactivateSubscription: builder.mutation<{ message: string }, string>({
       query: (restaurantId) => ({
         url: `/restaurants/${restaurantId}/subscription/reactivate`,
-        method: 'PATCH',
+        method: 'POST',
       }),
       invalidatesTags: ['Subscription'],
+    }),
+
+    getPaymentHistory: builder.query<{
+      subscription?: {
+        id: string;
+        status: string;
+        plan_id: string;
+        created_at: number;
+        current_start: number;
+        current_end: number;
+      };
+      payments: any[];
+    }, string>({
+      query: (restaurantId) => `/restaurants/${restaurantId}/subscription/payment-history`,
+      providesTags: ['Subscription'],
     }),
 
     onboardRestaurant: builder.mutation<{
@@ -80,51 +110,14 @@ export const subscriptionsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Restaurant', 'Subscription'],
     }),
-
-    createSubscriptionPaymentIntent: builder.mutation<
-      {
-        razorpayOrderId: string;
-        razorpayKey: string;
-        amount: number;
-        currency: string;
-        description: string;
-      },
-      { restaurantId: string; plan: 'starter' | 'pro' | 'enterprise'; billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly' }
-    >({
-      query: ({ restaurantId, plan, billingCycle }) => ({
-        url: `/restaurants/${restaurantId}/subscription/create-payment-intent`,
-        method: 'POST',
-        body: { plan, billingCycle },
-      }),
-    }),
-
-    initializeTestSubscription: builder.mutation<
-      {
-        message: string;
-        plan: string;
-        billingCycle: string;
-        amount: number;
-        nextBillingDate: string;
-        status: string;
-      },
-      { restaurantId: string; plan?: 'starter' | 'pro' | 'enterprise'; billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly' }
-    >({
-      query: ({ restaurantId, plan, billingCycle }) => ({
-        url: `/restaurants/${restaurantId}/subscription/initialize-test`,
-        method: 'POST',
-        body: { plan, billingCycle },
-      }),
-      invalidatesTags: ['Subscription'],
-    }),
   }),
   overrideExisting: false,
 });
 
 export const {
   useGetSubscriptionStatusQuery,
-  useUpgradeSubscriptionMutation,
+  useCreateSubscriptionMutation,
   useReactivateSubscriptionMutation,
+  useGetPaymentHistoryQuery,
   useOnboardRestaurantMutation,
-  useCreateSubscriptionPaymentIntentMutation,
-  useInitializeTestSubscriptionMutation,
 } = subscriptionsApi;

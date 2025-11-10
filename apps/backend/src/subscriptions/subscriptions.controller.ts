@@ -59,20 +59,11 @@ export class SubscriptionsController {
   })
   async upgradePlan(
     @Param('restaurantId') restaurantId: string,
-    @Body() body: {
-      plan: 'starter' | 'pro' | 'enterprise';
-      billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
-    },
   ) {
-    await this.subscriptionsService.upgradePlan(
-      restaurantId,
-      body.plan,
-      body.billingCycle || 'monthly'
-    );
+    // Since we only have one plan now, this just reactivates subscription
+    await this.subscriptionsService.reactivateSubscription(restaurantId);
     return {
-      message: 'Plan upgraded successfully',
-      plan: body.plan,
-      billingCycle: body.billingCycle || 'monthly'
+      message: 'Subscription reactivated successfully'
     };
   }
 
@@ -89,108 +80,45 @@ export class SubscriptionsController {
     return { message: 'Subscription reactivated successfully' };
   }
 
-  @Post('create-payment-intent')
+  @Post('create')
   @Roles(UserRole.Manager)
-  @ApiOperation({ summary: 'Create payment intent for subscription' })
+  @ApiOperation({ summary: 'Create Razorpay subscription' })
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiResponse({
     status: 200,
-    description: 'Payment intent created successfully',
+    description: 'Subscription created successfully',
     schema: {
       type: 'object',
       properties: {
-        razorpayOrderId: { type: 'string' },
-        razorpayKey: { type: 'string' },
+        subscriptionId: { type: 'string' },
+        customerId: { type: 'string' },
+        planId: { type: 'string' },
+        status: { type: 'string' },
         amount: { type: 'number' },
-        currency: { type: 'string' },
-        description: { type: 'string' },
+        nextBillingDate: { type: 'string', format: 'date-time' },
       },
     },
   })
-  async createPaymentIntent(
+  async createSubscription(
     @Param('restaurantId') restaurantId: string,
-    @Body() body: {
-      plan: 'starter' | 'pro' | 'enterprise';
-      billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
-    }
   ) {
-    const planPricing = {
-      // Test pricing for different billing cycles
-      hourly: {
-        starter: 100,    // ₹1 per hour for testing
-        pro: 200,        // ₹2 per hour for testing
-        enterprise: 500, // ₹5 per hour for testing
-      },
-      daily: {
-        starter: 1000,   // ₹10 per day for testing
-        pro: 2000,       // ₹20 per day for testing
-        enterprise: 5000, // ₹50 per day for testing
-      },
-      monthly: {
-        starter: 29900,   // ₹299 per month
-        pro: 59900,       // ₹599 per month
-        enterprise: 99900, // ₹999 per month
-      },
-      yearly: {
-        starter: 299000,  // ₹2,990 per year (10 months pricing)
-        pro: 599000,      // ₹5,990 per year (10 months pricing)
-        enterprise: 999000, // ₹9,990 per year (10 months pricing)
-      }
-    };
-
-    const billingCycle = body.billingCycle || 'monthly';
-    const amount = planPricing[billingCycle][body.plan];
-
-    // Generate short receipt (max 40 chars)
-    const shortId = restaurantId.slice(-8); // Last 8 chars of restaurant ID
-    const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
-    const receipt = `sub_${shortId}_${timestamp}`;
-
-    const razorpayOrder = await this.razorpayService.createOrder({
-      amount,
-      currency: 'INR',
-      receipt,
-      notes: {
-        restaurantId,
-        type: 'subscription',
-        plan: body.plan,
-        billingCycle: billingCycle,
-      },
-    });
-
+    const result = await this.subscriptionsService.createSubscription(restaurantId);
     return {
-      razorpayOrderId: razorpayOrder.id,
-      razorpayKey: this.razorpayService.publicKey,
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency,
-      description: `${body.plan.charAt(0).toUpperCase() + body.plan.slice(1)} Plan - ${billingCycle.charAt(0).toUpperCase() + billingCycle.slice(1)} Billing`,
+      message: 'Subscription created successfully',
+      ...result,
     };
   }
 
-  @Post('initialize-test')
+  @Get('payment-history')
   @Roles(UserRole.Manager)
-  @ApiOperation({ summary: 'Initialize test subscription (no trial, custom billing cycle)' })
+  @ApiOperation({ summary: 'Get payment history for subscription' })
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiResponse({
     status: 200,
-    description: 'Test subscription initialized successfully',
+    description: 'Payment history retrieved successfully',
   })
-  async initializeTestSubscription(
-    @Param('restaurantId') restaurantId: string,
-    @Body() body: {
-      plan?: 'starter' | 'pro' | 'enterprise';
-      billingCycle?: 'hourly' | 'daily' | 'monthly' | 'yearly';
-    } = {},
-  ) {
-    const result = await this.subscriptionsService.initializeTestSubscription(
-      restaurantId,
-      body.plan || 'starter',
-      body.billingCycle || 'hourly'
-    );
-    return {
-      message: 'Test subscription initialized successfully',
-      ...result,
-    };
+  async getPaymentHistory(@Param('restaurantId') restaurantId: string) {
+    return this.subscriptionsService.getPaymentHistory(restaurantId);
   }
 }
 

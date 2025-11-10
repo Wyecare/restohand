@@ -97,17 +97,17 @@ const RazorpayLinkedAccountSchema = SchemaFactory.createForClass(RazorpayLinkedA
 class SaasConfig {
   @Prop({
     type: String,
-    enum: ['starter', 'pro', 'enterprise'],
-    default: 'starter'
+    enum: ['standard'],
+    default: 'standard'
   })
-  plan!: 'starter' | 'pro' | 'enterprise';
+  plan!: 'standard';
 
   @Prop({
     type: String,
-    enum: ['hourly', 'daily', 'monthly', 'yearly'],
+    enum: ['monthly'],
     default: 'monthly'
   })
-  billingCycle!: 'hourly' | 'daily' | 'monthly' | 'yearly';
+  billingCycle!: 'monthly';
 
   @Prop({
     type: String,
@@ -122,7 +122,7 @@ class SaasConfig {
   @Prop({ type: Date, required: true })
   nextBillingDate!: Date;
 
-  @Prop({ type: Number, required: true, default: 29900 }) // ₹299 in paise (default starter monthly)
+  @Prop({ type: Number, required: true, default: 79900 }) // ₹799 in paise (standard monthly plan)
   monthlyPrice!: number;
 
   @Prop({ type: Date, default: Date.now })
