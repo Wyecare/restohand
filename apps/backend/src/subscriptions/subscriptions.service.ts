@@ -41,15 +41,41 @@ export class SubscriptionsService {
     const isTrialActive = restaurant.saasConfig.trialEndsAt > now;
     const isSubscriptionActive = restaurant.saasConfig.subscriptionStatus === 'active';
 
+    let razorpaySubscriptionData = null;
+
+    // Get Razorpay subscription details if available
+    if (restaurant.saasConfig.razorpaySubscriptionId) {
+      try {
+        const razorpaySubscription = await this.razorpayService.getSubscription(restaurant.saasConfig.razorpaySubscriptionId);
+        razorpaySubscriptionData = {
+          id: razorpaySubscription.id,
+          status: razorpaySubscription.status,
+          plan_id: razorpaySubscription.plan_id,
+          customer_id: razorpaySubscription.customer_id,
+          current_start: new Date(razorpaySubscription.current_start * 1000),
+          current_end: new Date(razorpaySubscription.current_end * 1000),
+          ended_at: razorpaySubscription.ended_at ? new Date(razorpaySubscription.ended_at * 1000) : null,
+          charge_at: new Date(razorpaySubscription.charge_at * 1000),
+          total_count: razorpaySubscription.total_count,
+          paid_count: razorpaySubscription.paid_count,
+          remaining_count: razorpaySubscription.remaining_count,
+        };
+      } catch (error) {
+        this.logger.error(`Failed to fetch Razorpay subscription ${restaurant.saasConfig.razorpaySubscriptionId}: ${error.message}`);
+      }
+    }
+
     return {
       restaurantId,
       plan: restaurant.saasConfig.plan,
+      billingCycle: restaurant.saasConfig.billingCycle,
       status: restaurant.saasConfig.subscriptionStatus,
       isActive: isTrialActive || isSubscriptionActive,
       trialEndsAt: restaurant.saasConfig.trialEndsAt,
       nextBillingDate: restaurant.saasConfig.nextBillingDate,
       monthlyPrice: restaurant.saasConfig.monthlyPrice,
       daysUntilBilling: Math.ceil((restaurant.saasConfig.nextBillingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+      razorpaySubscription: razorpaySubscriptionData,
     };
   }
 
@@ -110,6 +136,75 @@ export class SubscriptionsService {
     this.logger.log(`Restaurant ${restaurantId} subscription reactivated`);
   }
 
+  private async createOrGetRazorpayPlans() {
+    const planPricing = {
+      hourly: {
+        starter: 100,    // ₹1 per hour for testing
+        pro: 200,        // ₹2 per hour for testing
+        enterprise: 500, // ₹5 per hour for testing
+      },
+      daily: {
+        starter: 1000,   // ₹10 per day for testing
+        pro: 2000,       // ₹20 per day for testing
+        enterprise: 5000, // ₹50 per day for testing
+      },
+      monthly: {
+        starter: 99900,   // ₹999 per month (production)
+        pro: 199900,      // ₹1999 per month (production)
+        enterprise: 499900, // ₹4999 per month (production)
+      },
+      yearly: {
+        starter: 1199000,  // ₹11,990 per year (production)
+        pro: 2399000,      // ₹23,990 per year (production)
+        enterprise: 5999000, // ₹59,990 per year (production)
+      }
+    };
+
+    const plans: Record<string, string> = {};
+
+    try {
+      for (const [cycle, pricing] of Object.entries(planPricing)) {
+        for (const [planType, amount] of Object.entries(pricing)) {
+          const planKey = `${planType}_${cycle}`;
+
+          // Convert billing cycle to Razorpay format
+          const period = cycle === 'yearly' ? 'yearly' : cycle === 'monthly' ? 'monthly' : 'daily';
+          const interval = cycle === 'hourly' ? 1 : 1; // Razorpay doesn't support hourly, we'll handle hourly as daily with custom logic
+
+          if (cycle === 'hourly') {
+            // For hourly billing, we'll create daily plans but handle billing logic separately
+            this.logger.log(`Skipping Razorpay plan for hourly ${planType} - will handle via custom cron jobs`);
+            continue;
+          }
+
+          const razorpayPlan = await this.razorpayService.createPlan({
+            period: period as 'daily' | 'weekly' | 'monthly' | 'yearly',
+            interval,
+            item: {
+              name: `RestoHand ${planType.charAt(0).toUpperCase() + planType.slice(1)} Plan (${cycle})`,
+              amount,
+              currency: 'INR',
+              description: `RestoHand ${planType} subscription - ${cycle} billing`,
+            },
+            notes: {
+              planType,
+              billingCycle: cycle,
+              created_by: 'restohand_system',
+            },
+          });
+
+          plans[planKey] = razorpayPlan.id;
+          this.logger.log(`Created Razorpay plan ${planKey}: ${razorpayPlan.id}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to create Razorpay plans: ${error.message}`, error);
+      throw error;
+    }
+
+    return plans;
+  }
+
   async initializeTestSubscription(restaurantId: string, plan: 'starter' | 'pro' | 'enterprise' = 'starter', billingCycle: 'hourly' | 'daily' | 'monthly' | 'yearly' = 'hourly') {
     const planPricing = {
       hourly: {
@@ -134,6 +229,11 @@ export class SubscriptionsService {
       }
     };
 
+    const restaurant = await this.restaurantModel.findById(restaurantId);
+    if (!restaurant) {
+      throw new Error('Restaurant not found');
+    }
+
     const now = new Date();
     let nextBilling = new Date(now);
 
@@ -153,6 +253,66 @@ export class SubscriptionsService {
         break;
     }
 
+    let razorpayCustomerId: string | undefined;
+    let razorpayPlanId: string | undefined;
+    let razorpaySubscriptionId: string | undefined;
+    let razorpaySubscriptionStatus: string | undefined;
+
+    // Create Razorpay subscription for non-hourly billing
+    if (billingCycle !== 'hourly') {
+      try {
+        // Create or get existing customer
+        const customerData = {
+          name: restaurant.name,
+          email: restaurant.email,
+          contact: restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
+          fail_existing: 0, // Don't fail if customer exists
+          notes: {
+            restaurant_id: restaurantId,
+            plan,
+            billingCycle,
+          },
+        };
+
+        const customer = await this.razorpayService.createCustomer(customerData);
+        razorpayCustomerId = customer.id;
+
+        // Get or create plan
+        const plans = await this.createOrGetRazorpayPlans();
+        const planKey = `${plan}_${billingCycle}`;
+        razorpayPlanId = plans[planKey];
+
+        if (razorpayPlanId) {
+          // Create subscription
+          const subscription = await this.razorpayService.createSubscription({
+            plan_id: razorpayPlanId,
+            customer_id: razorpayCustomerId,
+            total_count: 12, // Limit to 12 billing cycles for testing
+            quantity: 1,
+            start_at: Math.floor(nextBilling.getTime() / 1000), // Start at next billing date
+            notes: {
+              restaurant_id: restaurantId,
+              plan,
+              billingCycle,
+              created_by: 'restohand_system',
+            },
+            notify: {
+              email: true,
+              sms: false,
+            },
+          });
+
+          razorpaySubscriptionId = subscription.id;
+          razorpaySubscriptionStatus = subscription.status;
+
+          this.logger.log(`Created Razorpay subscription for ${restaurantId}: ${subscription.id}`);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to create Razorpay subscription for ${restaurantId}: ${error.message}`, error);
+        // Continue with local subscription even if Razorpay fails
+      }
+    }
+
     await this.restaurantModel.findByIdAndUpdate(restaurantId, {
       saasConfig: {
         plan,
@@ -162,17 +322,23 @@ export class SubscriptionsService {
         nextBillingDate: nextBilling,
         monthlyPrice: planPricing[billingCycle][plan],
         lastUpdated: now,
+        razorpayCustomerId,
+        razorpayPlanId,
+        razorpaySubscriptionId,
+        razorpaySubscriptionStatus,
+        razorpaySubscriptionStartedAt: razorpaySubscriptionId ? now : undefined,
       },
     });
 
-    this.logger.log(`Restaurant ${restaurantId} initialized with ${billingCycle} ${plan} plan (no trial)`);
+    this.logger.log(`Restaurant ${restaurantId} initialized with ${billingCycle} ${plan} plan (no trial)${razorpaySubscriptionId ? ' with Razorpay subscription' : ' as local subscription'}`);
 
     return {
       plan,
       billingCycle,
       amount: planPricing[billingCycle][plan],
       nextBillingDate: nextBilling,
-      status: 'active'
+      status: 'active',
+      razorpaySubscriptionId: razorpaySubscriptionId || null,
     };
   }
 

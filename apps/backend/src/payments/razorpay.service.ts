@@ -439,6 +439,140 @@ export class RazorpayService {
     return this.client.transfers.fetch(transferId);
   }
 
+  // Subscription API Methods
+  async createPlan(params: {
+    period: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    interval: number;
+    item: {
+      name: string;
+      amount: number;
+      currency: string;
+      description: string;
+    };
+    notes?: Record<string, string>;
+  }): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    const planData = {
+      period: params.period,
+      interval: params.interval,
+      item: params.item,
+      notes: params.notes || {},
+    };
+
+    try {
+      return await this.client.plans.create(planData);
+    } catch (error) {
+      this.logger.error(`Failed to create plan: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async createSubscription(params: {
+    plan_id: string;
+    customer_id?: string;
+    total_count?: number;
+    quantity?: number;
+    start_at?: number;
+    expire_by?: number;
+    addons?: Array<{
+      item: {
+        name: string;
+        amount: number;
+        currency: string;
+      };
+    }>;
+    notes?: Record<string, string>;
+    notify?: {
+      email?: boolean;
+      sms?: boolean;
+    };
+  }): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      return await this.client.subscriptions.create(params);
+    } catch (error) {
+      this.logger.error(`Failed to create subscription: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async getSubscription(subscriptionId: string): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      return await this.client.subscriptions.fetch(subscriptionId);
+    } catch (error) {
+      this.logger.error(`Failed to fetch subscription: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async cancelSubscription(subscriptionId: string, cancelAtCycleEnd: boolean = false): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      return await this.client.subscriptions.cancel(subscriptionId, cancelAtCycleEnd);
+    } catch (error) {
+      this.logger.error(`Failed to cancel subscription: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async pauseSubscription(subscriptionId: string): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      return await this.client.subscriptions.pause(subscriptionId);
+    } catch (error) {
+      this.logger.error(`Failed to pause subscription: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async resumeSubscription(subscriptionId: string): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      return await this.client.subscriptions.resume(subscriptionId);
+    } catch (error) {
+      this.logger.error(`Failed to resume subscription: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async createCustomer(params: {
+    name: string;
+    email: string;
+    contact?: string;
+    fail_existing?: 0 | 1;
+    notes?: Record<string, string>;
+  }): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      return await this.client.customers.create(params);
+    } catch (error) {
+      this.logger.error(`Failed to create customer: ${error.message}`, error);
+      throw error;
+    }
+  }
+
   verifyWebhookSignature(payload: string, signature: string | undefined): boolean {
     if (!signature) {
       return false;

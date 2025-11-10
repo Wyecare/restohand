@@ -127,6 +127,28 @@ class SaasConfig {
 
   @Prop({ type: Date, default: Date.now })
   lastUpdated!: Date;
+
+  // Razorpay subscription data
+  @Prop({ type: String })
+  razorpayCustomerId?: string;
+
+  @Prop({ type: String })
+  razorpayPlanId?: string;
+
+  @Prop({ type: String })
+  razorpaySubscriptionId?: string;
+
+  @Prop({
+    type: String,
+    enum: ['created', 'authenticated', 'active', 'pending', 'halted', 'cancelled', 'completed', 'expired']
+  })
+  razorpaySubscriptionStatus?: string;
+
+  @Prop({ type: Date })
+  razorpaySubscriptionStartedAt?: Date;
+
+  @Prop({ type: Date })
+  razorpaySubscriptionEndedAt?: Date;
 }
 
 const SaasConfigSchema = SchemaFactory.createForClass(SaasConfig);
