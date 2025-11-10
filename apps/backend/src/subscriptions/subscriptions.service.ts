@@ -93,14 +93,14 @@ export class SubscriptionsService {
         enterprise: 5000, // ₹50 per day for testing
       },
       monthly: {
-        starter: 99900,   // ₹999 per month (production)
-        pro: 199900,      // ₹1999 per month (production)
-        enterprise: 499900, // ₹4999 per month (production)
+        starter: 29900,   // ₹299 per month
+        pro: 59900,       // ₹599 per month
+        enterprise: 99900, // ₹999 per month
       },
       yearly: {
-        starter: 1199000,  // ₹11,990 per year (production)
-        pro: 2399000,      // ₹23,990 per year (production)
-        enterprise: 5999000, // ₹59,990 per year (production)
+        starter: 299000,  // ₹2,990 per year (10 months pricing)
+        pro: 599000,      // ₹5,990 per year (10 months pricing)
+        enterprise: 999000, // ₹9,990 per year (10 months pricing)
       }
     };
 
@@ -149,14 +149,14 @@ export class SubscriptionsService {
         enterprise: 5000, // ₹50 per day for testing
       },
       monthly: {
-        starter: 99900,   // ₹999 per month (production)
-        pro: 199900,      // ₹1999 per month (production)
-        enterprise: 499900, // ₹4999 per month (production)
+        starter: 29900,   // ₹299 per month
+        pro: 59900,       // ₹599 per month
+        enterprise: 99900, // ₹999 per month
       },
       yearly: {
-        starter: 1199000,  // ₹11,990 per year (production)
-        pro: 2399000,      // ₹23,990 per year (production)
-        enterprise: 5999000, // ₹59,990 per year (production)
+        starter: 299000,  // ₹2,990 per year (10 months pricing)
+        pro: 599000,      // ₹5,990 per year (10 months pricing)
+        enterprise: 999000, // ₹9,990 per year (10 months pricing)
       }
     };
 
@@ -218,14 +218,14 @@ export class SubscriptionsService {
         enterprise: 5000, // ₹50 per day for testing
       },
       monthly: {
-        starter: 99900,   // ₹999 per month (production)
-        pro: 199900,      // ₹1999 per month (production)
-        enterprise: 499900, // ₹4999 per month (production)
+        starter: 29900,   // ₹299 per month
+        pro: 59900,       // ₹599 per month
+        enterprise: 99900, // ₹999 per month
       },
       yearly: {
-        starter: 1199000,  // ₹11,990 per year (production)
-        pro: 2399000,      // ₹23,990 per year (production)
-        enterprise: 5999000, // ₹59,990 per year (production)
+        starter: 299000,  // ₹2,990 per year (10 months pricing)
+        pro: 599000,      // ₹5,990 per year (10 months pricing)
+        enterprise: 999000, // ₹9,990 per year (10 months pricing)
       }
     };
 

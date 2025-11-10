@@ -122,7 +122,7 @@ class SaasConfig {
   @Prop({ type: Date, required: true })
   nextBillingDate!: Date;
 
-  @Prop({ type: Number, required: true, default: 100 }) // ₹1 in paise for testing
+  @Prop({ type: Number, required: true, default: 29900 }) // ₹299 in paise (default starter monthly)
   monthlyPrice!: number;
 
   @Prop({ type: Date, default: Date.now })
