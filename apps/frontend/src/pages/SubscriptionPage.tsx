@@ -85,7 +85,7 @@ const plans = [
       'White-label options',
       'Custom features',
     ],
-    icon: <Crown className="h-6 w-6" />,
+    icon: <Crown className="h-6 w-6" />,  
     color: 'from-amber-500 to-amber-600',
   },
 ];
