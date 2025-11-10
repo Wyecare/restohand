@@ -463,7 +463,13 @@ export class RazorpayService {
     };
 
     try {
-      return await this.client.plans.create(planData);
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.plans && typeof this.client.plans.create === 'function') {
+        return await this.client.plans.create(planData);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Plans API
+        return await this.makeHttpRequest('POST', '/v1/plans', planData);
+      }
     } catch (error) {
       this.logger.error(`Failed to create plan: ${error.message}`, error);
       throw error;
@@ -495,7 +501,13 @@ export class RazorpayService {
     }
 
     try {
-      return await this.client.subscriptions.create(params);
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.subscriptions && typeof this.client.subscriptions.create === 'function') {
+        return await this.client.subscriptions.create(params);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Subscriptions API
+        return await this.makeHttpRequest('POST', '/v1/subscriptions', params);
+      }
     } catch (error) {
       this.logger.error(`Failed to create subscription: ${error.message}`, error);
       throw error;
@@ -508,7 +520,13 @@ export class RazorpayService {
     }
 
     try {
-      return await this.client.subscriptions.fetch(subscriptionId);
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.subscriptions && typeof this.client.subscriptions.fetch === 'function') {
+        return await this.client.subscriptions.fetch(subscriptionId);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Subscriptions API
+        return await this.makeHttpRequest('GET', `/v1/subscriptions/${subscriptionId}`);
+      }
     } catch (error) {
       this.logger.error(`Failed to fetch subscription: ${error.message}`, error);
       throw error;
@@ -568,9 +586,66 @@ export class RazorpayService {
     try {
       return await this.client.customers.create(params);
     } catch (error) {
+      // Handle customer already exists case
+      if (error.statusCode === 400 && error.error && error.error.description === 'Customer already exists for the merchant') {
+        this.logger.log(`Customer already exists for ${params.email}, fetching existing customer`);
+
+        // Try to find existing customer by email
+        try {
+          const customers = await this.client.customers.all({ email: params.email });
+          if (customers.items && customers.items.length > 0) {
+            return customers.items[0];
+          }
+        } catch (fetchError) {
+          this.logger.error(`Failed to fetch existing customer: ${fetchError.message}`);
+        }
+
+        // If we can't find the existing customer, create with fail_existing: 1
+        const modifiedParams = { ...params, fail_existing: 1 as const };
+        return await this.client.customers.create(modifiedParams);
+      }
+
       this.logger.error(`Failed to create customer: ${error.message}`, error);
       throw error;
     }
+  }
+
+  private async makeHttpRequest(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, data?: any): Promise<any> {
+    const https = require('https');
+    const auth = Buffer.from(`${this.razorpayConfig.keyId}:${this.razorpayConfig.keySecret}`).toString('base64');
+
+    return new Promise((resolve, reject) => {
+      const postData = data ? JSON.stringify(data) : '';
+      const options = {
+        hostname: 'api.razorpay.com',
+        port: 443,
+        path,
+        method,
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/json',
+          ...(data && { 'Content-Length': Buffer.byteLength(postData) })
+        }
+      };
+
+      const req = https.request(options, (res: any) => {
+        let responseData = '';
+        res.on('data', (chunk: any) => responseData += chunk);
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(JSON.parse(responseData));
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${responseData}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      if (postData) {
+        req.write(postData);
+      }
+      req.end();
+    });
   }
 
   verifyWebhookSignature(payload: string, signature: string | undefined): boolean {

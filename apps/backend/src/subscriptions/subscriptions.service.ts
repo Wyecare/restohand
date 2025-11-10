@@ -414,10 +414,14 @@ export class SubscriptionsService {
 
     try {
       // Create Razorpay order for first subscription payment
+      const shortId = restaurant.id.toString().slice(-8);
+      const timestamp = Date.now().toString().slice(-6);
+      const receipt = `trial_${shortId}_${timestamp}`;
+
       const razorpayOrder = await this.razorpayService.createOrder({
         amount: restaurant.saasConfig.monthlyPrice,
         currency: 'INR',
-        receipt: `subscription_${restaurant.id}_${Date.now()}`,
+        receipt,
         notes: {
           restaurantId: restaurant.id,
           type: 'subscription',
@@ -448,10 +452,14 @@ export class SubscriptionsService {
 
     try {
       // For SaaS model, we charge the subscription fee to the platform account
+      const shortId = restaurant.id.toString().slice(-8);
+      const timestamp = Date.now().toString().slice(-6);
+      const receipt = `bill_${shortId}_${timestamp}`;
+
       const razorpayOrder = await this.razorpayService.createOrder({
         amount: restaurant.saasConfig.monthlyPrice,
         currency: 'INR',
-        receipt: `subscription_${restaurant.id}_${Date.now()}`,
+        receipt,
         notes: {
           restaurantId: restaurant.id,
           type: 'subscription',

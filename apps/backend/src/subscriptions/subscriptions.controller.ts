@@ -141,10 +141,15 @@ export class SubscriptionsController {
     const billingCycle = body.billingCycle || 'monthly';
     const amount = planPricing[billingCycle][body.plan];
 
+    // Generate short receipt (max 40 chars)
+    const shortId = restaurantId.slice(-8); // Last 8 chars of restaurant ID
+    const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
+    const receipt = `sub_${shortId}_${timestamp}`;
+
     const razorpayOrder = await this.razorpayService.createOrder({
       amount,
       currency: 'INR',
-      receipt: `subscription_${restaurantId}_${Date.now()}`,
+      receipt,
       notes: {
         restaurantId,
         type: 'subscription',
