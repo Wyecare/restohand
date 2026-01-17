@@ -6,21 +6,21 @@ WORKDIR /workspace
 
 RUN apk add --no-cache python3 make g++
 
+# Install dependencies (cached layer)
 COPY package.json package-lock.json ./
-COPY nx.json ./
-COPY tsconfig.json ./
-COPY tsconfig.base.json ./
-COPY jest.preset.js ./
-COPY eslint.config.mjs ./
-COPY apps ./apps
 # Skip config directory and service account files - using environment variables
 
 RUN npm install --legacy-peer-deps
 
 FROM deps AS build
+# Copy source code
+COPY nx.json tsconfig.json tsconfig.base.json jest.preset.js eslint.config.mjs ./
+COPY apps ./apps
+
+# Build
 ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
-RUN npx nx build backend --configuration=production --skip-nx-cache
+RUN npx nx sync && npx nx build backend
 
 FROM node:${NODE_VERSION}-alpine AS runtime
 WORKDIR /app
@@ -28,11 +28,9 @@ ENV NODE_ENV=production
 
 RUN apk add --no-cache dumb-init
 
+# Copy only production dependencies and built code
+COPY --from=deps /workspace/node_modules ./node_modules
 COPY --from=deps /workspace/package.json ./package.json
-COPY --from=deps /workspace/package-lock.json ./package-lock.json
-
-RUN npm ci --omit=dev 
-
 COPY --from=build /workspace/apps/backend/dist ./dist
 
 # Firebase credentials are now provided via environment variables in Cloud Run

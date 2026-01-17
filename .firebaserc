@@ -3,17 +3,17 @@
     "default": "wyecare-solutions"
   },
   "targets": {
-    "restohand-develop": {
+    "restohand-d": {
       "hosting": {
         "main": [
-          "restohand-develop"
+          "restohand-d"
         ]
       }
     },
-    "restohand": {
+    "restohand-p": {
       "hosting": {
         "main": [
-          "restohand"
+          "restohand-p"
         ]
       }
     },

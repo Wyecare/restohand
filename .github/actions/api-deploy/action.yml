@@ -37,7 +37,7 @@ runs:
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       with:
-        project_id: ${{ inputs.environment == 'prod' && 'restohand' || 'restohand-develop' }}
+        project_id: ${{ inputs.environment == 'prod' && 'restohand-p' || 'restohand-d' }}
 
     - name: Deploy to Cloud Run
       id: deploy
@@ -45,7 +45,7 @@ runs:
       env:
         FIREBASE_SERVICE_ACCOUNT_JSON: ${{ inputs.environment == 'prod' && secrets.FIREBASE_SERVICE_ACCOUNT_PROD || secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}
       run: |
-        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-develop' }}"
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-p' || 'restohand-d' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
 
         # Extract Firebase credentials from service account JSON
@@ -107,7 +107,7 @@ runs:
     - name: Update Traffic
       shell: bash
       run: |
-        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-develop' }}"
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-d' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
 
         # Update traffic to latest revision
