@@ -15,12 +15,7 @@ module.exports = {
       main: './src/main.ts',
       tsConfig: './tsconfig.app.json',
       assets: [
-        './src/assets',
-        {
-          input: '../../',
-          glob: 'firebase-service-account.json',
-          output: '.'
-        }
+        './src/assets'
       ],
       optimization: false,
       outputHashing: 'none',
