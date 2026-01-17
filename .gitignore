@@ -8,6 +8,7 @@ out-tsc
 # dependencies
 node_modules
 firebase-service-account.json
+firebase-service-account.json.backup
 gravito/
 
 # IDEs and editors

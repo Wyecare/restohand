@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
-import * as path from 'path';
 
 export const FIREBASE_APP = Symbol('FIREBASE_APP');
 export const FIREBASE_AUTH = Symbol('FIREBASE_AUTH');
@@ -19,37 +18,45 @@ export const firebaseProviders: Provider[] = [
         return existing;
       }
 
-      // Debug environment and path information
+      // Debug environment information
       console.log('NODE_ENV:', process.env.NODE_ENV);
       console.log('Current working directory:', process.cwd());
-      console.log('__dirname:', __dirname);
 
-      // Use service account file path (development vs production)
-      const serviceAccountPath = process.env.NODE_ENV === 'production'
-        ? path.join(__dirname, 'firebase-service-account.json')
-        : path.resolve(__dirname, '../../../firebase-service-account.json');
+      // Get Firebase configuration from environment variables
+      const projectId = configService.get<string>('FIREBASE_PROJECT_ID');
+      const privateKey = configService.get<string>('FIREBASE_PRIVATE_KEY');
+      const clientEmail = configService.get<string>('FIREBASE_CLIENT_EMAIL');
+      const privateKeyId = configService.get<string>('FIREBASE_PRIVATE_KEY_ID');
+      const clientId = configService.get<string>('FIREBASE_CLIENT_ID');
 
-      // Read project ID from service account file for consistency
-      let serviceAccount;
-      try {
-        serviceAccount = JSON.parse(require('fs').readFileSync(serviceAccountPath, 'utf8'));
-      } catch (error) {
-        console.error('Failed to read service account file:', error);
-        throw error;
+      // Validate required environment variables
+      if (!projectId || !privateKey || !clientEmail) {
+        throw new Error('Missing required Firebase environment variables: FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL');
       }
 
-      const projectId = serviceAccount.project_id;
+      // Create service account object from environment variables
+      const serviceAccount = {
+        type: "service_account",
+        project_id: projectId,
+        private_key_id: privateKeyId || "",
+        private_key: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines
+        client_email: clientEmail,
+        client_id: clientId || "",
+        auth_uri: "https://accounts.google.com/o/oauth2/auth",
+        token_uri: "https://oauth2.googleapis.com/token",
+        universe_domain: "googleapis.com"
+      };
+
       const storageBucket = configService.get<string>('FIREBASE_STORAGE_BUCKET') || `${projectId}.firebasestorage.app`;
 
       console.log('=== FIREBASE ADMIN INITIALIZATION DEBUG ===');
-      console.log('Resolved service account path:', serviceAccountPath);
-      console.log('File exists:', require('fs').existsSync(serviceAccountPath));
-      console.log('Project ID from service account:', projectId);
-      console.log('Using storage bucket:', storageBucket);
-      console.log('Service account client_email:', serviceAccount.client_email);
+      console.log('Project ID:', projectId);
+      console.log('Client email:', clientEmail);
+      console.log('Storage bucket:', storageBucket);
+      console.log('Using environment variables for Firebase credentials');
 
       return initializeApp({
-        credential: cert(serviceAccountPath),
+        credential: cert(serviceAccount as any),
         projectId,
         storageBucket,
       });

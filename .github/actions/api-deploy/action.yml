@@ -42,11 +42,20 @@ runs:
     - name: Deploy to Cloud Run
       id: deploy
       shell: bash
+      env:
+        FIREBASE_SERVICE_ACCOUNT_JSON: ${{ inputs.environment == 'prod' && secrets.FIREBASE_SERVICE_ACCOUNT_PROD || secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}
       run: |
         PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-develop' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
 
-        # Deploy to Cloud Run
+        # Extract Firebase credentials from service account JSON
+        FIREBASE_PROJECT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.project_id')
+        FIREBASE_PRIVATE_KEY=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key')
+        FIREBASE_CLIENT_EMAIL=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_email')
+        FIREBASE_PRIVATE_KEY_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key_id')
+        FIREBASE_CLIENT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_id')
+
+        # Deploy to Cloud Run with Firebase environment variables
         gcloud run deploy $SERVICE_NAME \
           --image="${{ inputs.image-url }}:${{ github.sha }}" \
           --region=${{ inputs.region }} \
@@ -59,6 +68,7 @@ runs:
           --max-instances=10 \
           --timeout=300 \
           --port=3000 \
+          --set-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
           --quiet
 
         # Get service URL

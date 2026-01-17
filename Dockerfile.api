@@ -13,7 +13,7 @@ COPY tsconfig.base.json ./
 COPY jest.preset.js ./
 COPY eslint.config.mjs ./
 COPY apps ./apps
-# Skip config directory - Google Cloud Storage uses Application Default Credentials
+# Skip config directory and service account files - using environment variables
 
 RUN npm install
 
@@ -35,7 +35,7 @@ RUN npm ci --omit=dev
 
 COPY --from=build /workspace/apps/backend/dist ./dist
 
-# Google Cloud Storage uses Application Default Credentials (ADC) from Cloud Run service account
+# Firebase credentials are now provided via environment variables in Cloud Run
 
 USER node
 EXPOSE 3000

@@ -206,6 +206,9 @@ jobs:
           image-url: ${{ needs.docker-build.outputs.backend-image-url }}
           gcp-service-account: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_SERVICE_ACCOUNT_PROD || secrets.GCP_SERVICE_ACCOUNT_DEV }}
           workload-identity-provider: ${{ needs.setup.outputs.environment == 'prod' && secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_PROD || secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT_DEV: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}
+          FIREBASE_SERVICE_ACCOUNT_PROD: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}
 
   deploy-frontend:
     name: 🌐 Deploy Frontend
