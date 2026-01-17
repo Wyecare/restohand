@@ -59,16 +59,12 @@ runs:
         FIREBASE_PRIVATE_KEY_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key_id')
         FIREBASE_CLIENT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_id')
 
-        # First, clear ALL environment variables (including secrets)
-        gcloud run services update $SERVICE_NAME \
-          --clear-env-vars \
-          --region=${{ inputs.region }} \
-          --project=$PROJECT_ID \
-          --quiet || true
-
-        # Deploy with new image and set environment variables in one command
+        # Deploy with new image, clear old config, and set new env vars in one command
+        echo "🚀 Deploying..."
         gcloud run services update $SERVICE_NAME \
           --image="${{ inputs.image-url }}:${{ github.sha }}" \
+          --clear-env-vars \
+          --clear-secrets \
           --set-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
@@ -110,7 +106,7 @@ runs:
     - name: Update Traffic
       shell: bash
       run: |
-        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-d' }}"
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-p' || 'restohand-d' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
 
         # Update traffic to latest revision
