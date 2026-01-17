@@ -7,11 +7,11 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RestaurantOnboardingService, RestaurantOnboardingData } from './restaurant-onboarding.service';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Restaurant Onboarding')
 @Controller('restaurants/onboard')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class RestaurantOnboardingController {
   constructor(
     private readonly restaurantOnboardingService: RestaurantOnboardingService,

@@ -40,7 +40,7 @@ runs:
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
       with:
-        project_id: ${{ inputs.environment == 'prod' && 'restohand' || 'restohand-development' }}
+        project_id: ${{ inputs.environment == 'prod' && 'restohand' || 'restohand-develop' }}
 
     - name: Configure Docker for Artifact Registry
       shell: bash
@@ -57,7 +57,7 @@ runs:
       id: meta
       shell: bash
       run: |
-        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-development' }}"
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-develop' }}"
 
         # Set repository name based on environment (matching local deploy script)
         if [[ "${{ inputs.environment }}" == "dev" ]]; then

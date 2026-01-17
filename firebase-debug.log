@@ -21,26 +21,26 @@ OpenJDK 64-Bit Server VM Zulu17.50+19-CA (build 17.0.11+9-LTS, mixed mode, shari
 [warn] ⚠  hosting: Hosting Emulator unable to start on port 5000, starting on 5002 instead. {"metadata":{"emulator":{"name":"hosting"},"message":"Hosting Emulator unable to start on port 5000, starting on 5002 instead."}}
 [debug] [2025-11-03T09:37:35.774Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
 [debug] [2025-11-03T09:37:35.774Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5002}]},"metadata":{"message":"assigned listening specs for emulators"}}
-[debug] [2025-11-03T09:37:35.777Z] Emulator locator file path: /var/folders/5c/9310ldls6yl0m0rqghcjbl0h0000gn/T/hub-restohand-development.json
-[warn] ⚠  emulators: It seems that you are running multiple instances of the emulator suite for project restohand-development. This may result in unexpected behavior. 
-[debug] [2025-11-03T09:37:35.778Z] [hub] writing locator at /var/folders/5c/9310ldls6yl0m0rqghcjbl0h0000gn/T/hub-restohand-development.json
+[debug] [2025-11-03T09:37:35.777Z] Emulator locator file path: /var/folders/5c/9310ldls6yl0m0rqghcjbl0h0000gn/T/hub-restohand-develop.json
+[warn] ⚠  emulators: It seems that you are running multiple instances of the emulator suite for project restohand-develop. This may result in unexpected behavior. 
+[debug] [2025-11-03T09:37:35.778Z] [hub] writing locator at /var/folders/5c/9310ldls6yl0m0rqghcjbl0h0000gn/T/hub-restohand-develop.json
 [debug] [2025-11-03T09:37:40.736Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
 [debug] [2025-11-03T09:37:41.474Z] Temp file directory for storage emulator: /var/folders/5c/9310ldls6yl0m0rqghcjbl0h0000gn/T/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: /var/folders/5c/9310ldls6yl0m0rqghcjbl0h0000gn/T/firebase/storage/blobs"}}
 [debug] [2025-11-03T09:37:41.483Z] Checked if tokens are valid: true, expires at: 1762165573419
 [debug] [2025-11-03T09:37:41.483Z] Checked if tokens are valid: true, expires at: 1762165573419
-[debug] [2025-11-03T09:37:41.484Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/restohand-development/sites 
-[debug] [2025-11-03T09:37:42.690Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/restohand-development/sites 200
-[debug] [2025-11-03T09:37:42.690Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/restohand-development/sites {"sites":[{"name":"projects/restohand-development/sites/restohand-development","defaultUrl":"https://restohand-development.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2025-11-03T09:37:41.484Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/restohand-develop/sites 
+[debug] [2025-11-03T09:37:42.690Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/restohand-develop/sites 200
+[debug] [2025-11-03T09:37:42.690Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/restohand-develop/sites {"sites":[{"name":"projects/restohand-develop/sites/restohand-develop","defaultUrl":"https://restohand-develop.web.app","type":"DEFAULT_SITE"}]}
 [debug] [2025-11-03T09:37:42.690Z] Checked if tokens are valid: true, expires at: 1762165573419
 [debug] [2025-11-03T09:37:42.691Z] Checked if tokens are valid: true, expires at: 1762165573419
-[debug] [2025-11-03T09:37:42.691Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/restohand-development/webApps/-/config [none]
-[debug] [2025-11-03T09:37:44.074Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/restohand-development/webApps/-/config 200
-[debug] [2025-11-03T09:37:44.074Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/restohand-development/webApps/-/config {"projectId":"restohand-development","appId":"1:801981365229:web:8234286f5c8ba1b62405e4","storageBucket":"restohand-development.firebasestorage.app","apiKey":"AIzaSyB847JPf8dHFYjx2aZ9o5rfn2qaJ7sIlDY","authDomain":"restohand-development.firebaseapp.com","messagingSenderId":"801981365229","projectNumber":"801981365229","version":"2"}
+[debug] [2025-11-03T09:37:42.691Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/restohand-develop/webApps/-/config [none]
+[debug] [2025-11-03T09:37:44.074Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/restohand-develop/webApps/-/config 200
+[debug] [2025-11-03T09:37:44.074Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/restohand-develop/webApps/-/config {"projectId":"restohand-develop","appId":"1:801981365229:web:8234286f5c8ba1b62405e4","storageBucket":"restohand-develop.firebasestorage.app","apiKey":"AIzaSyB847JPf8dHFYjx2aZ9o5rfn2qaJ7sIlDY","authDomain":"restohand-develop.firebaseapp.com","messagingSenderId":"801981365229","projectNumber":"801981365229","version":"2"}
 [debug] [2025-11-03T09:37:44.095Z] Checked if tokens are valid: true, expires at: 1762165573419
 [debug] [2025-11-03T09:37:44.096Z] Checked if tokens are valid: true, expires at: 1762165573419
-[debug] [2025-11-03T09:37:44.096Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/restohand-development [none]
-[debug] [2025-11-03T09:37:44.481Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/restohand-development 200
-[debug] [2025-11-03T09:37:44.482Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/restohand-development {"projectId":"restohand-development","projectNumber":"801981365229","displayName":"RestoHand Dev Environment","name":"projects/restohand-development","resources":{"hostingSite":"restohand-development"},"state":"ACTIVE","etag":"1_61aff2e9-465d-4070-8a24-1b16c8393b3c"}
+[debug] [2025-11-03T09:37:44.096Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/restohand-develop [none]
+[debug] [2025-11-03T09:37:44.481Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/restohand-develop 200
+[debug] [2025-11-03T09:37:44.482Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/restohand-develop {"projectId":"restohand-develop","projectNumber":"801981365229","displayName":"RestoHand Dev Environment","name":"projects/restohand-develop","resources":{"hostingSite":"restohand-develop"},"state":"ACTIVE","etag":"1_61aff2e9-465d-4070-8a24-1b16c8393b3c"}
 [info] i  hosting[main]: Serving hosting files from: apps/frontend/dist {"metadata":{"emulator":{"name":"hosting"},"message":"Serving hosting files from: \u001b[1mapps/frontend/dist\u001b[22m"}}
 [info] ✔  hosting[main]: Local server: http://127.0.0.1:5002 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://127.0.0.1:5002\u001b[22m\u001b[24m"}}
 [debug] [2025-11-03T09:37:44.541Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.

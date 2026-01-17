@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSidebar } from '@/components/ui/sidebar';
-import { useAuth } from '@/contexts/AuthProvider';
+import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession, selectUserRoles } from '@/store/slices/authSlice';
 import {
@@ -74,7 +74,7 @@ const serviceLinks: NavLink[] = [
 export default function Sidebar() {
   const location = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
-  const { user } = useAuth();
+  const { user } = useJwtAuth();
   const session = useAppSelector(selectAuthSession);
   const roles = useAppSelector(selectUserRoles);
   const { t } = useCommonTranslation();

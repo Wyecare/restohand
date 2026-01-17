@@ -114,7 +114,7 @@ runs:
       with:
         repoToken: ${{ github.token }}
         firebaseServiceAccount: ${{ inputs.firebase-service-account }}
-        projectId: ${{ inputs.environment == 'prod' && 'restohand' || 'restohand-development' }}
+        projectId: ${{ inputs.environment == 'prod' && 'restohand' || 'restohand-develop' }}
         channelId: live
         target: main
 

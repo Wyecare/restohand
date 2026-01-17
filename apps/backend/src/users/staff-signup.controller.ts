@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { StaffQrService } from './staff-qr.service';
@@ -34,7 +34,7 @@ export class StaffSignupController {
   }
 
   @Post('accept-qr')
-  @UseGuards(FirebaseAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Accept QR invitation and create staff account' })
   @ApiResponse({ status: 200, description: 'Staff account created successfully' })
   async acceptQr(

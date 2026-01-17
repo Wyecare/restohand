@@ -12,7 +12,7 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { RecipesService, CreateRecipeDto, UpdateRecipeDto } from './recipes.service';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -31,7 +31,7 @@ export interface RecalculateCostsResponse {
 }
 
 @Controller('restaurants/:restaurantId/recipes')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class RecipesController {
   constructor(private readonly recipesService: RecipesService) {}
 

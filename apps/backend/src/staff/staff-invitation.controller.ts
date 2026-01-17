@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -29,7 +29,7 @@ export class StaffInvitationController {
   constructor(private readonly staffInvitationService: StaffInvitationService) {}
 
   @Post()
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send staff invitation email' })
@@ -60,7 +60,7 @@ export class PublicStaffInvitationController {
 
   @Post('complete-signup')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Complete staff signup after Firebase authentication' })
+  @ApiOperation({ summary: 'Complete staff signup after JWT authentication' })
   @ApiResponse({ status: 200, description: 'Signup completed successfully' })
   @ApiResponse({ status: 400, description: 'Invalid token or signup failed' })
   async completeSignup(@Body() dto: CompleteSignupDto) {

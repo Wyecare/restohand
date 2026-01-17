@@ -15,7 +15,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -27,7 +27,7 @@ import { UpdateMenuCategoryDto } from './dtos/update-menu-category.dto';
 import { MenuCategoriesService } from './menu-categories.service';
 
 @ApiTags('menu-categories')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.Manager)
 @Controller('restaurants/:restaurantId/menu/categories')
 export class MenuCategoriesController {

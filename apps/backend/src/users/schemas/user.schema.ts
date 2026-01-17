@@ -18,6 +18,9 @@ export class User {
   @Prop({ type: String, trim: true, lowercase: true, index: true, sparse: true })
   email?: string;
 
+  @Prop({ type: String, select: false })
+  passwordHash?: string;
+
   @Prop({ type: String, trim: true, index: true, sparse: true })
   phoneNumber?: string;
 

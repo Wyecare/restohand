@@ -4,11 +4,13 @@ import Layout from '@/components/Layout';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import LoginPage from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
 import OrdersPage from '@/pages/OrdersPage';
 import MenuPage from '@/pages/MenuPage';
 import ImprovedMenuPage from '@/pages/ImprovedMenuPage';
 import SimpleMenuPage from '@/pages/SimpleMenuPage';
+import { MenuManagementPage } from '@/pages/menu-management/MenuManagementPage';
 import SettingsPageNew from '@/pages/SettingsPageNew';
 import OnboardingPage from '@/pages/OnboardingPage';
 import StaffPage from '@/pages/StaffPage';
@@ -54,6 +56,15 @@ const AppRouter = () => {
           element={
             <AuthGuard requireAuth={false} redirectAuthenticatedTo="/dashboard">
               <LoginPage />
+            </AuthGuard>
+          }
+        />
+
+        <Route
+          path="/register"
+          element={
+            <AuthGuard requireAuth={false} redirectAuthenticatedTo="/dashboard">
+              <RegisterPage />
             </AuthGuard>
           }
         />
@@ -106,8 +117,9 @@ const AppRouter = () => {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="orders" element={<OrdersPage />} />
-          <Route path="menu" element={<SimpleMenuPage />} />
+          <Route path="menu" element={<MenuManagementPage />} />
           <Route path="menu-advanced" element={<ImprovedMenuPage />} />
+          <Route path="menu-simple" element={<SimpleMenuPage />} />
           <Route path="menu-old" element={<MenuPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />

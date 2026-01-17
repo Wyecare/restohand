@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiOkResponse, ApiTags, ApiOperation } from '@nestjs/swagger';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -27,7 +27,7 @@ import { CreateStaffInvitationDto, StaffInvitationResponseDto } from './dtos/sta
 import { GenerateStaffQrDto, StaffQrResponseDto } from './dtos/staff-qr.dto';
 
 @ApiTags('users')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.Manager)
 @Controller('users')
 export class UsersController {

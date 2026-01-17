@@ -10,14 +10,14 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { RazorpayService } from '../payments/razorpay.service';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../common/enums/user-role.enum';
 
 @ApiTags('Subscriptions')
 @Controller('restaurants/:restaurantId/subscription')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class SubscriptionsController {
   constructor(
     private readonly subscriptionsService: SubscriptionsService,
@@ -124,7 +124,7 @@ export class SubscriptionsController {
 
 @ApiTags('Admin - Subscriptions')
 @Controller('admin/subscriptions')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class AdminSubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 

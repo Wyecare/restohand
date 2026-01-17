@@ -87,7 +87,46 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         setUser(firebaseUser);
 
         try {
+          console.log('=== FRONTEND TOKEN GENERATION START ===');
           const tokenResult = await firebaseUser.getIdTokenResult();
+
+          console.log('Firebase User Info:', {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+          });
+
+          console.log('Token Result Info:', {
+            tokenLength: tokenResult.token?.length,
+            tokenPrefix: tokenResult.token?.substring(0, 50) + '...',
+            expirationTime: tokenResult.expirationTime,
+            issuedAtTime: tokenResult.issuedAtTime,
+            signInProvider: tokenResult.signInProvider,
+            authTime: tokenResult.authTime
+          });
+
+          // Parse the token to see what's inside
+          try {
+            const parts = tokenResult.token.split('.');
+            if (parts.length >= 2) {
+              const header = JSON.parse(atob(parts[0]));
+              const payload = JSON.parse(atob(parts[1]));
+              console.log('Frontend Token Header:', header);
+              console.log('Frontend Token Payload:', {
+                iss: payload.iss,
+                aud: payload.aud,
+                exp: payload.exp,
+                iat: payload.iat,
+                sub: payload.sub,
+                auth_time: payload.auth_time,
+                exp_readable: new Date(payload.exp * 1000).toISOString(),
+                iat_readable: new Date(payload.iat * 1000).toISOString()
+              });
+            }
+          } catch (parseError) {
+            console.log('Failed to parse frontend token:', parseError);
+          }
+
           const session = mapClaimsToSession(firebaseUser, tokenResult.claims);
 
           dispatch(
@@ -102,6 +141,8 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
               session,
             })
           );
+
+          console.log('=== FRONTEND TOKEN GENERATION END ===');
         } catch (error) {
           dispatch(
             setAuthError(error instanceof Error ? error.message : 'Auth error')

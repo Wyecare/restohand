@@ -5,6 +5,7 @@ import {
   selectAuthState,
   selectIsAuthenticated,
   selectUserRoles,
+  selectActiveRestaurantId,
 } from '@/store/slices/authSlice';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
@@ -26,8 +27,9 @@ export function AuthGuard({
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const { status } = useAppSelector(selectAuthState);
   const roles = useAppSelector(selectUserRoles);
+  const restaurantId = useAppSelector(selectActiveRestaurantId);
   const hasRoles = roles.length > 0;
-  const needsOnboarding = isAuthenticated && !hasRoles;
+  const needsOnboarding = isAuthenticated && hasRoles && !restaurantId;
 
   // Debug logging
   console.log('🔐 AuthGuard Debug:', {
@@ -37,6 +39,7 @@ export function AuthGuard({
     isAuthenticated,
     status,
     roles,
+    restaurantId,
     hasRoles,
     needsOnboarding,
   });

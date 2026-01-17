@@ -3,10 +3,10 @@
     "default": "wyecare-solutions"
   },
   "targets": {
-    "restohand-development": {
+    "restohand-develop": {
       "hosting": {
         "main": [
-          "restohand-development"
+          "restohand-develop"
         ]
       }
     },

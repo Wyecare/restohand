@@ -33,7 +33,7 @@ import {
   FloorPlanResponseDto,
   FloorPlanListResponseDto,
 } from './dtos/floor-plan-response.dto';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -41,7 +41,7 @@ import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interfa
 
 @ApiTags('floor-plans')
 @ApiBearerAuth()
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('restaurants/:restaurantId/floor-plans')
 export class FloorPlansController {
   constructor(private readonly floorPlansService: FloorPlansService) {}

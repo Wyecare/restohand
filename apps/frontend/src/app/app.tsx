@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import { ThemeProvider, ActiveThemeProvider } from '@/contexts/ThemeContext';
 import { AuthProvider } from '@/contexts/AuthProvider';
+import { JwtAuthProvider } from '@/contexts/JwtAuthProvider';
 import { store } from '@/store';
 import AppRouter from '@/routes/AppRouter';
 import { env } from '@/config/env';
@@ -12,7 +13,7 @@ import i18n from '@/lib/i18n';
 import { AuthDebug } from '@/components/debug/AuthDebug';
 
 export function App() {
-  if (!env.apiBaseUrl || !env.firebaseConfig) {
+  if (!env.apiBaseUrl) {
     throw new Error('Missing required environment configuration.');
   }
 
@@ -21,12 +22,12 @@ export function App() {
       <I18nextProvider i18n={i18n}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <ActiveThemeProvider>
-            <AuthProvider>
+            <JwtAuthProvider>
               <BrowserRouter>
                 <AppRouter />
               </BrowserRouter>
               <Toaster />
-            </AuthProvider>
+            </JwtAuthProvider>
           </ActiveThemeProvider>
         </ThemeProvider>
       </I18nextProvider>

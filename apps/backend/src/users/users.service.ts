@@ -25,28 +25,21 @@ export class UsersService {
     restaurantId: string,
     roles: UserRole[] = [UserRole.Manager]
   ): Promise<void> {
-    await this.userModel.findOneAndUpdate(
-      { firebaseUid: actor.uid },
+    await this.userModel.findByIdAndUpdate(
+      actor.uid,
       {
         $set: {
-          firebaseUid: actor.uid,
           restaurantId,
-          name: actor.displayName ?? actor.email ?? actor.phoneNumber ?? 'Owner',
-          email: actor.email,
-          phoneNumber: actor.phoneNumber,
           roles,
-          isActive: true,
           isPrimaryOwner: true,
           lastLoginAt: new Date(),
         },
       },
-      { upsert: true, new: true }
+      { new: true }
     );
 
-    await this.authService.setCustomUserClaims(actor.uid, {
-      roles,
-      restaurantId,
-    });
+    // No need to set custom claims with JWT - user info is updated in MongoDB
+    // and will be included in the next token refresh
   }
 
   async listForRestaurant(

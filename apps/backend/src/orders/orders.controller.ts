@@ -17,7 +17,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -60,7 +60,7 @@ export class OrdersController {
   }
 
   @Get()
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'paymentStatus', required: false })
@@ -77,7 +77,7 @@ export class OrdersController {
   }
 
   @Get(':orderId')
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: OrderResponseDto })
@@ -343,7 +343,7 @@ export class OrdersController {
   }
 
   @Patch(':orderId/status')
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: OrderResponseDto })
@@ -357,7 +357,7 @@ export class OrdersController {
   }
 
   @Patch(':orderId/payment')
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: OrderResponseDto })
@@ -371,7 +371,7 @@ export class OrdersController {
   }
 
   @Get(':orderId/events')
-  @UseGuards(FirebaseAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'orderId' })
   @ApiOkResponse({ type: [OrderEventResponseDto] })

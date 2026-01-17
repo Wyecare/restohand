@@ -25,7 +25,7 @@ import {
   VerifyInviteResponseDto,
 } from './dtos/invite-staff.dto';
 import { UsersService } from '../users/users.service';
-import { AuthService } from '../auth/auth.service';
+import { JwtAuthService } from '../auth/jwt-auth.service';
 import { UserRole } from '../common/enums/user-role.enum';
 
 @Injectable()
@@ -42,7 +42,7 @@ export class StaffInvitationService {
     private readonly restaurantModel: Model<RestaurantDocument>,
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
-    private readonly authService: AuthService
+    private readonly jwtAuthService: JwtAuthService
   ) {
     this.initializeEmailTransporter();
   }
@@ -161,9 +161,13 @@ export class StaffInvitationService {
     };
   }
 
-  async completeSignup(
-    dto: CompleteSignupDto
-  ): Promise<{ message: string; user: { id: string; email: string; role: string; restaurantId: string } }> {
+  async completeSignup(dto: CompleteSignupDto): Promise<{
+    message: string;
+    access_token: string;
+    refresh_token: string;
+    user: { id: string; email: string; role: string; restaurantId: string };
+    expires_in: number;
+  }> {
     const invitation = await this.invitationModel.findOne({ token: dto.token });
 
     if (!invitation) {
@@ -178,43 +182,38 @@ export class StaffInvitationService {
       throw new BadRequestException('This invitation has expired');
     }
 
-    // Check if user already exists with this Firebase UID
-    const existingUser = await this.userModel.findOne({ firebaseUid: dto.firebaseUid });
-    if (existingUser) {
-      throw new BadRequestException('User with this Firebase UID already exists');
-    }
-
     // Check if user exists with this email
-    const existingEmailUser = await this.userModel.findOne({ email: invitation.email });
+    const existingEmailUser = await this.userModel.findOne({
+      email: invitation.email,
+    });
     if (existingEmailUser) {
       throw new BadRequestException('User with this email already exists');
     }
 
-    // Create new user
-    const user = await this.userModel.create({
-      firebaseUid: dto.firebaseUid,
-      name: dto.name,
+    // Register the user using JWT service
+    const authResult = await this.jwtAuthService.register({
       email: invitation.email,
-      roles: [invitation.role as UserRole],
-      restaurantId: invitation.restaurantId,
-      isActive: true,
-      isPrimaryOwner: false,
-      isEmailVerified: true, // Since they clicked the invitation link
-      createdAt: new Date(),
-    });
-
-    // Set Firebase custom claims
-    await this.authService.setCustomUserClaims(dto.firebaseUid, {
+      password: dto.password,
+      name: dto.name,
       roles: [invitation.role as UserRole],
       restaurantId: invitation.restaurantId.toString(),
     });
+
+    // Get the created user to mark as staff
+    const user = await this.userModel.findById(authResult.user.uid);
+    if (user) {
+      await this.userModel.findByIdAndUpdate(user._id, {
+        isPrimaryOwner: false,
+        isEmailVerified: true, // Since they clicked the invitation link
+      });
+    }
 
     // Mark invitation as used
     await this.invitationModel.updateOne(
       { _id: invitation._id },
       {
         isUsed: true,
-        usedBy: user._id,
+        usedBy: authResult.user.uid,
         usedAt: new Date(),
       }
     );
@@ -223,11 +222,14 @@ export class StaffInvitationService {
 
     return {
       message: 'Account created successfully',
+      access_token: authResult.access_token,
+      refresh_token: authResult.refresh_token,
+      expires_in: authResult.expires_in,
       user: {
-        id: (user._id as string).toString(),
-        email: user.email || invitation.email,
-        role: user.roles[0],
-        restaurantId: (user.restaurantId as string).toString(),
+        id: authResult.user.uid,
+        email: invitation.email,
+        role: invitation.role,
+        restaurantId: invitation.restaurantId.toString(),
       },
     };
   }
@@ -236,16 +238,18 @@ export class StaffInvitationService {
     invitation: StaffInvitationDocument,
     restaurant: RestaurantDocument
   ): Promise<void> {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
+
+    const invitationUrl = `${frontendUrl}/staff-invite-signup?token=${invitation.token}`;
+
+    console.log('Invitation URL:', invitationUrl);
     if (!this.transporter) {
       this.logger.warn(
         'Email transporter not configured - skipping email send'
       );
       return;
     }
-
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
-    const invitationUrl = `${frontendUrl}/staff-invite-signup?token=${invitation.token}`;
 
     const mailOptions = {
       from: this.configService.get<string>('SMTP_USER'),

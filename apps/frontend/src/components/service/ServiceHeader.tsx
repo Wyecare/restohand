@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import ThemeSwitch from '@/components/layout/header/theme-switch';
-import { useAuth } from '@/contexts/AuthProvider';
+import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession } from '@/store/slices/authSlice';
 import { useToast } from '@/components/ui/use-toast';
@@ -39,7 +39,7 @@ export function ServiceHeader({
   stats,
   restaurant,
 }: ServiceHeaderProps) {
-  const { user, logout } = useAuth();
+  const { user, logout } = useJwtAuth();
   const session = useAppSelector(selectAuthSession);
   const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(new Date());

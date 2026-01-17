@@ -20,9 +20,9 @@ export class CompleteSignupDto {
   @IsString()
   token: string;
 
-  @ApiProperty({ description: 'Firebase UID of the created user' })
+  @ApiProperty({ description: 'Password for the new account' })
   @IsString()
-  firebaseUid: string;
+  password: string;
 
   @ApiProperty({ description: 'Full name of the staff member' })
   @IsString()

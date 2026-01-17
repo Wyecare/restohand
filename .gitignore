@@ -8,6 +8,8 @@ out-tsc
 # dependencies
 node_modules
 
+gravito/
+
 # IDEs and editors
 /.idea
 .project

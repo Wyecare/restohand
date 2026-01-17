@@ -11,16 +11,18 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthProvider';
+import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { env } from '@/config/env';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
 
 const LoginPage = () => {
-  const { signInWithGoogle, signInWithEmail } = useAuth();
+  // Use JWT auth instead of Firebase
+  const { signInWithEmail: jwtSignInWithEmail } = useJwtAuth();
   const { toast } = useToast();
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [authMode, setAuthMode] = useState<'google' | 'email'>('google');
+  const [authMode, setAuthMode] = useState<'email'>('email'); // Remove Google for now
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -83,7 +85,11 @@ const LoginPage = () => {
 
     try {
       setIsSigningIn(true);
-      await signInWithEmail(email, password);
+      await jwtSignInWithEmail(email, password);
+      toast({
+        title: 'Sign-in successful',
+        description: 'Welcome back!',
+      });
     } catch (error) {
       toast({
         title: 'Sign-in failed',
@@ -104,100 +110,62 @@ const LoginPage = () => {
             Sign in to {env.appName}
           </CardTitle>
           <CardDescription>
-            Manage menu, orders, and staff from any device with your Google
-            account.
+            Manage menu, orders, and staff from any device.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex space-x-2 mb-4">
-            <Button
-              type="button"
-              variant={authMode === 'google' ? 'default' : 'outline'}
-              onClick={() => setAuthMode('google')}
-              className="flex-1"
-            >
-              Google
-            </Button>
-            <Button
-              type="button"
-              variant={authMode === 'email' ? 'default' : 'outline'}
-              onClick={() => setAuthMode('email')}
-              className="flex-1"
-            >
-              Email
-            </Button>
-          </div>
-
-          {authMode === 'google' ? (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogleSignIn}
-              disabled={isSigningIn}
-            >
+          <form onSubmit={handleEmailSignIn} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={isSigningIn} className="w-full">
               {isSigningIn ? (
                 <span className="flex items-center gap-2">
                   <LoadingSpinner size="sm" /> Signing in...
                 </span>
               ) : (
-                'Continue with Google'
+                'Sign in'
               )}
             </Button>
-          ) : (
-            <form onSubmit={handleEmailSignIn} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (for testing only)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="test@restohand.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={isSigningIn} className="w-full">
-                {isSigningIn ? (
-                  <span className="flex items-center gap-2">
-                    <LoadingSpinner size="sm" /> Signing in...
-                  </span>
-                ) : (
-                  'Sign in with Email'
-                )}
-              </Button>
-            </form>
-          )}
+          </form>
 
           <div className="text-xs text-muted-foreground text-center space-y-1">
-            {authMode === 'email' ? (
-              <p>Email login is for testing purposes only.</p>
-            ) : (
-              <>
-                <p>If the popup doesn't work, we'll redirect you to Google automatically.</p>
-                <p className="text-[10px]">
-                  Staff-facing OTP/PIN login flows are available via the kitchen app.
-                </p>
-              </>
-            )}
+            <p>Use your email and password to access your account.</p>
+            <p className="text-[10px]">
+              Staff-facing OTP/PIN login flows are available via the kitchen app.
+            </p>
           </div>
         </CardContent>
         <CardFooter>
           <div className="flex w-full flex-col gap-2 text-center text-xs text-muted-foreground">
             <p>By continuing, you agree to the Restohand Terms and Privacy Policy.</p>
-            <Link to="/staff-login" className="text-primary hover:underline">
-              Staff member? Use the PIN login here.
-            </Link>
+            <div className="flex justify-center gap-4">
+              <Link to="/register" className="text-primary hover:underline">
+                Create account
+              </Link>
+              <Link to="/staff-login" className="text-primary hover:underline">
+                Staff login
+              </Link>
+            </div>
           </div>
         </CardFooter>
       </Card>

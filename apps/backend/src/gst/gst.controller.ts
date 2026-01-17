@@ -20,7 +20,7 @@ import {
   ApiCreatedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -41,7 +41,7 @@ import {
 } from './dtos/hsn-code-response.dto';
 
 @ApiTags('gst')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('restaurants/:restaurantId/gst')
 export class GstController {
   constructor(private readonly gstService: GstService) {}
@@ -78,6 +78,14 @@ export class GstController {
     @Req() req: Request
   ): Promise<GstRateListResponseDto> {
     const user = req.user as AuthenticatedUser;
+
+    console.log('🔍 GST Rates Authorization Debug:', {
+      userRestaurantId: user.restaurantId,
+      requestedRestaurantId: restaurantId,
+      userRoles: user.roles,
+      userUid: user.uid,
+      match: user.restaurantId === restaurantId
+    });
 
     if (user.restaurantId !== restaurantId) {
       throw new ForbiddenException('Unauthorized access to restaurant GST rates');
@@ -159,7 +167,7 @@ export class GstController {
     const user = req.user as AuthenticatedUser;
 
     if (user.restaurantId !== restaurantId) {
-      throw new Error('Unauthorized access to restaurant GST rates');
+      throw new ForbiddenException('Unauthorized access to restaurant GST rates');
     }
 
     await this.gstService.deleteGstRate(id);
@@ -202,7 +210,7 @@ export class GstController {
 
 // Separate controller for HSN codes (not restaurant-specific)
 @ApiTags('hsn-codes')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.Manager)
 @Controller('hsn-codes')
 export class HsnCodeController {

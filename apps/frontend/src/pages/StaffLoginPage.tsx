@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { signInWithCustomToken, signInWithEmailAndPassword } from 'firebase/auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/use-toast';
 import { useStaffLoginMutation } from '@/store/api/authApi';
-import { getFirebaseAuth } from '@/lib/firebase';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAppSelector } from '@/store/hooks';
 import { selectUserRoles } from '@/store/slices/authSlice';
 import { useStaffTranslation, useCommonTranslation } from '@/hooks/use-translation';
+import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 
 const StaffLoginPage = () => {
   // PIN-based login state
@@ -21,11 +20,11 @@ const StaffLoginPage = () => {
   // Email/password login state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [emailLoading, setEmailLoading] = useState(false);
 
   const { toast } = useToast();
   const navigate = useNavigate();
   const [staffLogin, { isLoading }] = useStaffLoginMutation();
+  const { signInWithEmail, isLoading: jwtLoading } = useJwtAuth();
   const roles = useAppSelector(selectUserRoles);
   const { t: tStaff } = useStaffTranslation();
   const { t: tCommon } = useCommonTranslation();
@@ -51,7 +50,8 @@ const StaffLoginPage = () => {
 
     try {
       const { token, staff } = await staffLogin({ identifier, pin }).unwrap();
-      await signInWithCustomToken(getFirebaseAuth(), token);
+      // Store the JWT token for authenticated requests
+      localStorage.setItem('accessToken', token);
       toast({ title: tStaff('login.welcomeBack') });
       const destination = staff.roles.includes('chef')
         ? '/kitchen'
@@ -81,17 +81,7 @@ const StaffLoginPage = () => {
     }
 
     try {
-      setEmailLoading(true);
-      const auth = getFirebaseAuth();
-      await signInWithEmailAndPassword(auth, email, password);
-
-      // Force Firebase token refresh to get updated custom claims
-      if (auth.currentUser) {
-        await auth.currentUser.getIdToken(true);
-        // Wait for claims to propagate
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
+      await signInWithEmail(email, password);
       toast({ title: 'Welcome back!' });
 
       // Navigation will be handled by the Navigate components at the top
@@ -99,22 +89,8 @@ const StaffLoginPage = () => {
     } catch (error: any) {
       let errorMessage = 'Failed to sign in';
 
-      if (error?.code) {
-        switch (error.code) {
-          case 'auth/user-not-found':
-          case 'auth/wrong-password':
-          case 'auth/invalid-credential':
-            errorMessage = 'Invalid email or password';
-            break;
-          case 'auth/user-disabled':
-            errorMessage = 'This account has been disabled';
-            break;
-          case 'auth/too-many-requests':
-            errorMessage = 'Too many failed attempts. Please try again later';
-            break;
-          default:
-            errorMessage = error.message || 'Failed to sign in';
-        }
+      if (error?.message) {
+        errorMessage = error.message;
       }
 
       toast({
@@ -122,8 +98,6 @@ const StaffLoginPage = () => {
         description: errorMessage,
         variant: 'destructive',
       });
-    } finally {
-      setEmailLoading(false);
     }
   };
 
@@ -171,8 +145,8 @@ const StaffLoginPage = () => {
                     required
                   />
                 </div>
-                <Button type="submit" disabled={emailLoading}>
-                  {emailLoading ? (
+                <Button type="submit" disabled={jwtLoading}>
+                  {jwtLoading ? (
                     <span className="flex items-center gap-2">
                       <LoadingSpinner size="sm" /> Signing in...
                     </span>

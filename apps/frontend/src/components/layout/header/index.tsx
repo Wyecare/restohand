@@ -6,7 +6,7 @@ import UserMenu from '@/components/layout/header/user-menu';
 import ThemeSwitch from '@/components/layout/header/theme-switch';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
-import { useAuth } from '@/contexts/AuthProvider';
+import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession } from '@/store/slices/authSlice';
 import { useToast } from '@/components/ui/use-toast';
@@ -14,12 +14,13 @@ import { ThemeCustomizerPanel } from '@/components/theme-customizer';
 
 export default function Header() {
   const { toggleSidebar } = useSidebar();
-  const { user, logout } = useAuth();
+  const { user, logout } = useJwtAuth();
   const session = useAppSelector(selectAuthSession);
   const { toast } = useToast();
 
   const derivedUser = React.useMemo(() => {
-    const nameParts = (session?.displayName ?? '').split(' ');
+    const displayName = session?.displayName ?? user?.displayName ?? '';
+    const nameParts = displayName.split(' ');
     return {
       firstName: nameParts[0],
       lastName: nameParts[1],

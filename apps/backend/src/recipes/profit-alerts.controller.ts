@@ -5,13 +5,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ProfitAlertsService } from './profit-alerts.service';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../common/enums/user-role.enum';
 
 @Controller('restaurants/:restaurantId/profit-analysis')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class ProfitAlertsController {
   constructor(private readonly profitAlertsService: ProfitAlertsService) {}
 

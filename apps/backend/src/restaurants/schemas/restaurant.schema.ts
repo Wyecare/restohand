@@ -97,10 +97,10 @@ const RazorpayLinkedAccountSchema = SchemaFactory.createForClass(RazorpayLinkedA
 class SaasConfig {
   @Prop({
     type: String,
-    enum: ['standard'],
-    default: 'standard'
+    enum: ['starter', 'pro', 'enterprise'],
+    default: 'starter'
   })
-  plan!: 'standard';
+  plan!: 'starter' | 'pro' | 'enterprise';
 
   @Prop({
     type: String,

@@ -15,7 +15,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -27,7 +27,7 @@ import { BulkCreateTablesDto } from './dtos/bulk-create-tables.dto';
 import { ServiceTablesResponseDto } from './dtos/service-table-response.dto';
 
 @ApiTags('restaurant-tables')
-@UseGuards(FirebaseAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('restaurants/:restaurantId/tables')
 export class RestaurantTablesController {
   constructor(private readonly tablesService: RestaurantTablesService) {}
