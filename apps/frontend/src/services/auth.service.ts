@@ -1,5 +1,9 @@
 import axios from 'axios';
 
+import { env } from '@/config/env';
+
+export const API_BASE_URL = env.apiBaseUrl.replace(/\/$/, '');
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -37,8 +41,7 @@ class AuthService {
   private baseURL: string;
 
   constructor() {
-    this.baseURL =
-      import.meta.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+    this.baseURL = API_BASE_URL;
   }
 
   async login(credentials: LoginRequest): Promise<AuthResponse> {
