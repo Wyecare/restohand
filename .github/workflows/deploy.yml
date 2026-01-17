@@ -2,7 +2,7 @@ name: 🚀 Deploy to Environment
 
 on:
   push:
-    branches: [dev, prod_]
+    branches: [dev, prod__]
   workflow_dispatch:
     inputs:
       environment:
