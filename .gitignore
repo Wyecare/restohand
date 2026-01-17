@@ -7,7 +7,7 @@ out-tsc
 
 # dependencies
 node_modules
-
+firebase-service-account.json
 gravito/
 
 # IDEs and editors
