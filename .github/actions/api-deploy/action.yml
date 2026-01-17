@@ -17,6 +17,10 @@ inputs:
     description: 'GCP region'
     required: false
     default: 'asia-south1'
+  firebase-service-account:
+    description: 'Firebase Service Account JSON'
+    required: true
+
 outputs:
   service-url:
     description: 'Cloud Run service URL'
@@ -43,7 +47,7 @@ runs:
       id: deploy
       shell: bash
       env:
-        FIREBASE_SERVICE_ACCOUNT_JSON: ${{ inputs.environment == 'prod' && secrets.FIREBASE_SERVICE_ACCOUNT_PROD || secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}
+        FIREBASE_SERVICE_ACCOUNT_JSON: ${{ inputs.firebase-service-account }}
       run: |
         PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-p' || 'restohand-d' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
@@ -55,23 +59,17 @@ runs:
         FIREBASE_PRIVATE_KEY_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key_id')
         FIREBASE_CLIENT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_id')
 
-        # Remove specific problematic environment variables
+        # First, clear ALL environment variables (including secrets)
         gcloud run services update $SERVICE_NAME \
-          --remove-env-vars="FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID" \
+          --clear-env-vars \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
           --quiet || true
 
-        # Update image only
+        # Deploy with new image and set environment variables in one command
         gcloud run services update $SERVICE_NAME \
           --image="${{ inputs.image-url }}:${{ github.sha }}" \
-          --region=${{ inputs.region }} \
-          --project=$PROJECT_ID \
-          --quiet
-
-        # Set Firebase environment variables as new
-        gcloud run services update $SERVICE_NAME \
-          --update-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
+          --set-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
           --quiet
