@@ -1,160 +1,117 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { useToast } from '@/components/ui/use-toast';
-import { CheckCircle, AlertCircle, Mail, Loader2 } from 'lucide-react';
-import {
-  useVerifyInviteQuery,
-  useCompleteSignupMutation,
-} from '@/store/api/staffApi';
-import { skipToken } from '@reduxjs/toolkit/query';
-import { useJwtAuth } from '@/contexts/JwtAuthProvider';
-
-const signupSchema = z
-  .object({
-    name: z.string().min(2, 'Name must be at least 2 characters'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  });
-
-type SignupForm = z.infer<typeof signupSchema>;
+import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { authService } from '@/services/auth.service';
 
 const StaffInviteSignupPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { signInWithEmail } = useJwtAuth();
-  const token = searchParams.get('token');
+  const [token] = useState(searchParams.get('token') || '');
 
-  console.log('Invitation token from URL:', token);
+  const [invitation, setInvitation] = useState<{
+    valid: boolean;
+    email?: string;
+    role?: string;
+    restaurantName?: string;
+    message?: string;
+  } | null>(null);
 
-  const {
-    data: inviteData,
-    isLoading: isVerifying,
-    error: verifyError,
-  } = useVerifyInviteQuery(token ? token : skipToken);
-
-  const [completeSignup, { isLoading: isSigningUp }] =
-    useCompleteSignupMutation();
-
-  const form = useForm<SignupForm>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: {
-      name: '',
-      password: '',
-      confirmPassword: '',
-    },
+  const [formData, setFormData] = useState({
+    name: '',
+    password: '',
+    confirmPassword: '',
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!token) {
-      toast({
-        title: 'Invalid Link',
-        description: 'No invitation token found in the URL.',
-        variant: 'destructive',
-      });
-      navigate('/staff-login');
+      setError('Invalid invitation link');
+      setLoading(false);
+      return;
     }
-  }, [token, toast, navigate]);
 
-  const onSubmit = async (data: SignupForm) => {
-    if (!token) return;
+    verifyInvitation();
+  }, [token]);
 
+  const verifyInvitation = async () => {
     try {
-      const result = await completeSignup({
-        token,
-        name: data.name,
-        password: data.password,
-      }).unwrap();
-
-      toast({
-        title: 'Account Created!',
-        description: 'Welcome to the team! You can now access your dashboard.',
-      });
-
-      // Auto-login the user with their new account
-      await signInWithEmail(inviteData?.email || '', data.password);
-
-      // Redirect based on role
-      const userRole = result.user.role;
-      if (userRole === 'chef') {
-        navigate('/kitchen');
-      } else if (userRole === 'waiter' || userRole === 'cashier') {
-        navigate('/service');
-      } else {
-        navigate('/dashboard');
-      }
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      toast({
-        title: 'Signup Failed',
-        description: error?.data?.message || 'Failed to create account',
-        variant: 'destructive',
-      });
+      const response = await authService.verifyStaffInvitation(token);
+      setInvitation(response);
+    } catch (err) {
+      setError('Failed to verify invitation');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (isVerifying) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      await authService.completeStaffSignup({
+        token,
+        name: formData.name,
+        password: formData.password,
+      });
+
+      // Redirect to appropriate interface based on role
+      if (invitation?.role === 'chef') {
+        navigate('/kitchen');
+      } else {
+        navigate('/service');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to complete signup');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center space-x-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Verifying invitation...</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
 
-  if (!inviteData?.valid) {
+  if (!invitation?.valid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <CardTitle className="text-destructive">
-              Invalid Invitation
-            </CardTitle>
+            <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+            <CardTitle className="text-red-600">Invalid Invitation</CardTitle>
             <CardDescription>
-              {inviteData?.message ||
-                'This invitation link is invalid or has expired.'}
+              {invitation?.message || 'This invitation link is invalid or has expired.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button
-              onClick={() => navigate('/staff-login')}
-              className="w-full"
-              variant="outline"
-            >
-              Go to Staff Login
+            <Button onClick={() => navigate('/login')} className="w-full">
+              Go to Login
             </Button>
           </CardContent>
         </Card>
@@ -163,108 +120,88 @@ const StaffInviteSignupPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/20 p-4">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="text-center space-y-3">
-          <div className="flex items-center justify-center">
-            <CheckCircle className="h-8 w-8 text-green-600 mr-2" />
-            <Mail className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <CardTitle className="text-2xl">
-            Join {inviteData?.restaurantName}
-          </CardTitle>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CheckCircle className="mx-auto h-12 w-12 text-green-500 mb-4" />
+          <CardTitle>Complete Your Staff Account</CardTitle>
           <CardDescription>
-            You've been invited to join as a <strong>{inviteData?.role}</strong>
-            .
-            <br />
-            Create your account to get started.
+            You've been invited to join <strong>{invitation.restaurantName}</strong> as a <strong>{invitation.role}</strong>
           </CardDescription>
         </CardHeader>
-
         <CardContent>
-          <Alert className="mb-6 border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              <strong>Email:</strong> {inviteData?.email}
-            </AlertDescription>
-          </Alert>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter your full name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={invitation.email}
+                disabled
+                className="bg-gray-100"
               />
+            </div>
 
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="Create a password (min 6 characters)"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            <div>
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                placeholder="Enter your full name"
               />
+            </div>
 
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="Confirm your password"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                  placeholder="Choose a secure password"
+                  minLength={6}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                required
+                placeholder="Confirm your password"
+                minLength={6}
               />
+            </div>
 
-              <Button type="submit" disabled={isSigningUp} className="w-full">
-                {isSigningUp ? (
-                  <span className="flex items-center gap-2">
-                    <LoadingSpinner size="sm" />
-                    Creating Account...
-                  </span>
-                ) : (
-                  'Create Account & Join Team'
-                )}
-              </Button>
-            </form>
-          </Form>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Already have an account?{' '}
-              <button
-                onClick={() => navigate('/staff-login')}
-                className="text-primary hover:underline"
-              >
-                Sign in here
-              </button>
-            </p>
-          </div>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? <LoadingSpinner size="sm" /> : 'Complete Account Setup'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

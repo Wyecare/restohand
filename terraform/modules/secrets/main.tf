@@ -58,7 +58,45 @@ resource "google_secret_manager_secret_version" "mail_from" {
   secret_data = var.mail_from
 }
 
-# Frontend URL (optional)
+# Admin Frontend URL (optional)
+resource "google_secret_manager_secret" "admin_frontend_url" {
+  count     = var.admin_frontend_url != null ? 1 : 0
+  project   = var.project_id
+  secret_id = "admin-frontend-url"
+
+  replication {
+    auto {}
+  }
+
+  labels = var.labels
+}
+
+resource "google_secret_manager_secret_version" "admin_frontend_url" {
+  count       = var.admin_frontend_url != null ? 1 : 0
+  secret      = google_secret_manager_secret.admin_frontend_url[0].id
+  secret_data = var.admin_frontend_url
+}
+
+# Staff Frontend URL (optional)
+resource "google_secret_manager_secret" "staff_frontend_url" {
+  count     = var.staff_frontend_url != null ? 1 : 0
+  project   = var.project_id
+  secret_id = "staff-frontend-url"
+
+  replication {
+    auto {}
+  }
+
+  labels = var.labels
+}
+
+resource "google_secret_manager_secret_version" "staff_frontend_url" {
+  count       = var.staff_frontend_url != null ? 1 : 0
+  secret      = google_secret_manager_secret.staff_frontend_url[0].id
+  secret_data = var.staff_frontend_url
+}
+
+# Legacy Frontend URL (optional)
 resource "google_secret_manager_secret" "frontend_url" {
   count     = var.frontend_url != null ? 1 : 0
   project   = var.project_id

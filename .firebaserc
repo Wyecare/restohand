@@ -5,8 +5,27 @@
   "targets": {
     "restohand-d": {
       "hosting": {
+        "admin": [
+          "restohand-d-admin"
+        ],
+        "staff": [
+          "restohand-d-staff"
+        ],
         "main": [
           "restohand-d"
+        ]
+      }
+    },
+    "restohand": {
+      "hosting": {
+        "admin": [
+          "restohand-admin"
+        ],
+        "staff": [
+          "restohand-staff"
+        ],
+        "main": [
+          "restohand"
         ]
       }
     },

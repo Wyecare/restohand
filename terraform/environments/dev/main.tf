@@ -84,12 +84,14 @@ module "storage" {
 module "secrets" {
   source = "../../modules/secrets"
 
-  project_id   = var.project_id
-  environment  = "dev"
-  database_url = var.database_url
-  mail_from    = "Restohand Development"
-  frontend_url = var.frontend_url
-  labels       = local.common_labels
+  project_id         = var.project_id
+  environment        = "dev"
+  database_url       = var.database_url
+  mail_from          = "Restohand Development"
+  admin_frontend_url = var.admin_frontend_url
+  staff_frontend_url = var.staff_frontend_url
+  frontend_url       = var.frontend_url
+  labels             = local.common_labels
 
   additional_secrets = {
     "smtp-host"             = var.smtp_host
@@ -187,6 +189,14 @@ module "run_api" {
         secret_name = module.secrets.secret_names["firebase-client-id"]
         version     = "latest"
       }
+      ADMIN_FRONTEND_URL = {
+        secret_name = module.secrets.secret_names["admin_frontend_url"]
+        version     = "latest"
+      }
+      STAFF_FRONTEND_URL = {
+        secret_name = module.secrets.secret_names["staff_frontend_url"]
+        version     = "latest"
+      }
       FRONTEND_URL = {
         secret_name = module.secrets.secret_names["frontend_url"]
         version     = "latest"
@@ -218,7 +228,9 @@ module "firebase" {
 
   project_id              = var.project_id
   web_app_display_name    = "Restohand Web (Dev)"
-  hosting_site_id         = var.firebase_site_id
+  admin_hosting_site_id   = var.admin_firebase_site_id
+  staff_hosting_site_id   = var.staff_firebase_site_id
+  hosting_site_id         = var.firebase_site_id  # Legacy support
   enable_preview_channel  = true
   enable_firebase_storage = true  # Disable until domain verification completed
   enable_firebase_auth    = false # Disable until quota project is configured

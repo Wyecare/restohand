@@ -19,8 +19,22 @@ variable "mail_from" {
   type        = string
 }
 
+# Frontend URLs - Dual Sites
+variable "admin_frontend_url" {
+  description = "Admin frontend application URL"
+  type        = string
+  default     = null
+}
+
+variable "staff_frontend_url" {
+  description = "Staff frontend application URL"
+  type        = string
+  default     = null
+}
+
+# Legacy frontend URL
 variable "frontend_url" {
-  description = "Frontend application URL"
+  description = "Legacy frontend application URL"
   type        = string
   default     = null
 }

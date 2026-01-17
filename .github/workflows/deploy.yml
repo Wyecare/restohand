@@ -216,6 +216,8 @@ jobs:
       (needs.infrastructure.result == 'success' || needs.infrastructure.result == 'skipped') &&
       needs.setup.outputs.should-deploy-frontend == 'true'
     outputs:
+      frontend-admin-url: ${{ steps.deploy.outputs.admin-url }}
+      frontend-staff-url: ${{ steps.deploy.outputs.staff-url }}
       frontend-url: ${{ steps.deploy.outputs.hosting-url }}
     environment: ${{ needs.setup.outputs.environment }}
     steps:
@@ -276,7 +278,8 @@ jobs:
           # Frontend
           if [[ "${{ needs.deploy-frontend.result }}" == "success" ]]; then
             echo "✅ **Frontend**: Deployed successfully" >> $GITHUB_STEP_SUMMARY
-            echo "   - URL: ${{ needs.deploy-frontend.outputs.frontend-url }}" >> $GITHUB_STEP_SUMMARY
+            echo "   - Admin URL: ${{ needs.deploy-frontend.outputs.frontend-admin-url }}" >> $GITHUB_STEP_SUMMARY
+            echo "   - Staff URL: ${{ needs.deploy-frontend.outputs.frontend-staff-url }}" >> $GITHUB_STEP_SUMMARY
           elif [[ "${{ needs.deploy-frontend.result }}" == "skipped" ]]; then
             echo "⏭️ **Frontend**: Skipped (no changes)" >> $GITHUB_STEP_SUMMARY
           else

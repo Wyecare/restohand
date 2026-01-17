@@ -48,10 +48,22 @@ variable "api_image" {
 }
 
 
-# Firebase Configuration
-variable "firebase_site_id" {
-  description = "Firebase Hosting site ID"
+# Firebase Configuration - Dual Sites
+variable "admin_firebase_site_id" {
+  description = "Admin Firebase Hosting site ID"
   type        = string
+}
+
+variable "staff_firebase_site_id" {
+  description = "Staff Firebase Hosting site ID"
+  type        = string
+}
+
+# Legacy variable for backwards compatibility
+variable "firebase_site_id" {
+  description = "Legacy Firebase Hosting site ID - use admin_firebase_site_id instead"
+  type        = string
+  default     = null
 }
 
 # GitHub Configuration
@@ -60,9 +72,22 @@ variable "github_repository" {
   type        = string
 }
 
-# Frontend URL
+# Frontend URLs - Dual Sites
+variable "admin_frontend_url" {
+  description = "Admin frontend application URL"
+  type        = string
+  default     = null
+}
+
+variable "staff_frontend_url" {
+  description = "Staff frontend application URL"
+  type        = string
+  default     = null
+}
+
+# Legacy frontend URL
 variable "frontend_url" {
-  description = "Frontend application URL"
+  description = "Legacy frontend application URL"
   type        = string
   default     = null
 }

@@ -8,9 +8,22 @@ variable "web_app_display_name" {
   type        = string
 }
 
-variable "hosting_site_id" {
-  description = "Site ID for Firebase Hosting"
+# Dual hosting sites configuration
+variable "admin_hosting_site_id" {
+  description = "Site ID for Admin Firebase Hosting"
   type        = string
+}
+
+variable "staff_hosting_site_id" {
+  description = "Site ID for Staff Firebase Hosting"
+  type        = string
+}
+
+# Legacy variable for backwards compatibility
+variable "hosting_site_id" {
+  description = "Legacy site ID - use admin_hosting_site_id instead"
+  type        = string
+  default     = null
 }
 
 variable "enable_preview_channel" {

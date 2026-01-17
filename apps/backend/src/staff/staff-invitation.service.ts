@@ -238,9 +238,11 @@ export class StaffInvitationService {
     invitation: StaffInvitationDocument,
     restaurant: RestaurantDocument
   ): Promise<void> {
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
+    // Use staff-specific frontend URL for staff invitations
+    const staffFrontendUrl = this.configService.get<string>('STAFF_FRONTEND_URL');
+    const fallbackFrontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
 
+    const frontendUrl = staffFrontendUrl || fallbackFrontendUrl;
     const invitationUrl = `${frontendUrl}/staff-invite-signup?token=${invitation.token}`;
 
     console.log('Invitation URL:', invitationUrl);

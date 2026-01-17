@@ -135,23 +135,7 @@ const AppRouter = () => {
           <Route path="settings/gst" element={<SettingsPageNew />} />
         </Route>
 
-        <Route
-          path="/kitchen"
-          element={
-            <AuthGuard allowedRoles={['chef']}>
-              <EnhancedKitchenPage />
-            </AuthGuard>
-          }
-        />
-
-        <Route
-          path="/service"
-          element={
-            <AuthGuard allowedRoles={['waiter', 'cashier']}>
-              <ServicePage />
-            </AuthGuard>
-          }
-        />
+        {/* Staff routes removed from admin - handled by StaffRouter */}
 
         {/* Error / Fallback */}
         <Route

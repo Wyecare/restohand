@@ -51,8 +51,30 @@ output "firebase_config" {
   value       = module.firebase.web_app_config
 }
 
+# Dual hosting sites outputs
+output "firebase_admin_hosting_site_id" {
+  description = "Admin Firebase Hosting site ID"
+  value       = module.firebase.admin_hosting_site_id
+}
+
+output "firebase_staff_hosting_site_id" {
+  description = "Staff Firebase Hosting site ID"
+  value       = module.firebase.staff_hosting_site_id
+}
+
+output "firebase_admin_hosting_url" {
+  description = "Admin Firebase Hosting URL"
+  value       = "https://${module.firebase.admin_hosting_site_id}.web.app"
+}
+
+output "firebase_staff_hosting_url" {
+  description = "Staff Firebase Hosting URL"
+  value       = "https://${module.firebase.staff_hosting_site_id}.web.app"
+}
+
+# Legacy outputs
 output "firebase_hosting_site_id" {
-  description = "Firebase Hosting site ID"
+  description = "Legacy Firebase Hosting site ID"
   value       = module.firebase.hosting_site_id
 }
 
@@ -92,6 +114,9 @@ output "deployment_summary" {
     project_id    = module.project.project_id
     region        = var.region
     api_url       = module.run_api.api_service_url
-    firebase_site = module.firebase.hosting_site_id
+    firebase_admin_site = module.firebase.admin_hosting_site_id
+    firebase_staff_site = module.firebase.staff_hosting_site_id
+    firebase_admin_url  = "https://${module.firebase.admin_hosting_site_id}.web.app"
+    firebase_staff_url  = "https://${module.firebase.staff_hosting_site_id}.web.app"
   }
 }

@@ -33,8 +33,27 @@ data "google_firebase_web_app_config" "default" {
   depends_on = [google_firebase_web_app.default]
 }
 
-# Firebase Hosting Site
+# Admin Firebase Hosting Site
+resource "google_firebase_hosting_site" "admin" {
+  provider = google-beta
+  project  = var.project_id
+  site_id  = var.admin_hosting_site_id
+
+  depends_on = [google_firebase_project.default]
+}
+
+# Staff Firebase Hosting Site
+resource "google_firebase_hosting_site" "staff" {
+  provider = google-beta
+  project  = var.project_id
+  site_id  = var.staff_hosting_site_id
+
+  depends_on = [google_firebase_project.default]
+}
+
+# Legacy site for backwards compatibility
 resource "google_firebase_hosting_site" "default" {
+  count    = var.hosting_site_id != null ? 1 : 0
   provider = google-beta
   project  = var.project_id
   site_id  = var.hosting_site_id
@@ -42,11 +61,33 @@ resource "google_firebase_hosting_site" "default" {
   depends_on = [google_firebase_project.default]
 }
 
-# Firebase Hosting Channel for preview deployments
-resource "google_firebase_hosting_channel" "preview" {
+# Firebase Hosting Channel for preview deployments (Admin)
+resource "google_firebase_hosting_channel" "admin_preview" {
   count      = var.enable_preview_channel ? 1 : 0
   provider   = google-beta
-  site_id    = google_firebase_hosting_site.default.site_id
+  site_id    = google_firebase_hosting_site.admin.site_id
+  channel_id = "admin-preview"
+  ttl        = var.preview_channel_ttl
+
+  depends_on = [google_firebase_hosting_site.admin]
+}
+
+# Firebase Hosting Channel for preview deployments (Staff)
+resource "google_firebase_hosting_channel" "staff_preview" {
+  count      = var.enable_preview_channel ? 1 : 0
+  provider   = google-beta
+  site_id    = google_firebase_hosting_site.staff.site_id
+  channel_id = "staff-preview"
+  ttl        = var.preview_channel_ttl
+
+  depends_on = [google_firebase_hosting_site.staff]
+}
+
+# Legacy preview channel for backwards compatibility
+resource "google_firebase_hosting_channel" "preview" {
+  count      = var.enable_preview_channel && var.hosting_site_id != null ? 1 : 0
+  provider   = google-beta
+  site_id    = google_firebase_hosting_site.default[0].site_id
   channel_id = "preview"
   ttl        = var.preview_channel_ttl
 

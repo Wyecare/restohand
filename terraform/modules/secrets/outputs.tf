@@ -14,8 +14,20 @@ output "mail_from_secret_id" {
   value       = google_secret_manager_secret.mail_from.secret_id
 }
 
+# Dual frontend URL outputs
+output "admin_frontend_url_secret_id" {
+  description = "Admin frontend URL secret ID (if created)"
+  value       = var.admin_frontend_url != null ? google_secret_manager_secret.admin_frontend_url[0].secret_id : null
+}
+
+output "staff_frontend_url_secret_id" {
+  description = "Staff frontend URL secret ID (if created)"
+  value       = var.staff_frontend_url != null ? google_secret_manager_secret.staff_frontend_url[0].secret_id : null
+}
+
+# Legacy output
 output "frontend_url_secret_id" {
-  description = "Frontend URL secret ID (if created)"
+  description = "Legacy frontend URL secret ID (if created)"
   value       = var.frontend_url != null ? google_secret_manager_secret.frontend_url[0].secret_id : null
 }
 
@@ -33,6 +45,12 @@ output "secret_names" {
       database_url  = google_secret_manager_secret.database_url.secret_id
       mail_from     = google_secret_manager_secret.mail_from.secret_id
     },
+    var.admin_frontend_url != null ? {
+      admin_frontend_url = google_secret_manager_secret.admin_frontend_url[0].secret_id
+    } : {},
+    var.staff_frontend_url != null ? {
+      staff_frontend_url = google_secret_manager_secret.staff_frontend_url[0].secret_id
+    } : {},
     var.frontend_url != null ? {
       frontend_url = google_secret_manager_secret.frontend_url[0].secret_id
     } : {},

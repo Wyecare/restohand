@@ -6,16 +6,21 @@ import { AuthProvider } from '@/contexts/AuthProvider';
 import { JwtAuthProvider } from '@/contexts/JwtAuthProvider';
 import { store } from '@/store';
 import AppRouter from '@/routes/AppRouter';
+import StaffRouter from '@/routes/StaffRouter';
 import { env } from '@/config/env';
 import { Toaster } from '@/components/ui/toaster';
 import { useEffect } from 'react';
 import i18n from '@/lib/i18n';
 import { AuthDebug } from '@/components/debug/AuthDebug';
+import { getDomainType } from '@/utils/domain';
 
 export function App() {
   if (!env.apiBaseUrl) {
     throw new Error('Missing required environment configuration.');
   }
+
+  const domainType = getDomainType();
+  const RouterComponent = domainType === 'staff' ? StaffRouter : AppRouter;
 
   return (
     <Provider store={store}>
@@ -24,7 +29,7 @@ export function App() {
           <ActiveThemeProvider>
             <JwtAuthProvider>
               <BrowserRouter>
-                <AppRouter />
+                <RouterComponent />
               </BrowserRouter>
               <Toaster />
             </JwtAuthProvider>
