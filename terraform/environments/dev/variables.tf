@@ -117,6 +117,18 @@ variable "firebase_web_api_key" {
   default     = ""
 }
 
+variable "firebase_private_key_id" {
+  description = "Firebase private key ID"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_client_id" {
+  description = "Firebase client ID"
+  type        = string
+  default     = ""
+}
+
 
 # ========================================
 # FIREBASE AUTHENTICATION CONFIGURATION

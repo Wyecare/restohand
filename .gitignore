@@ -9,6 +9,8 @@ out-tsc
 node_modules
 firebase-service-account.json
 firebase-service-account.json.backup
+scripts/restohand-*.json
+scripts/*-firebase.json
 gravito/
 
 # IDEs and editors

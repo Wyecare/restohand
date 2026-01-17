@@ -95,10 +95,12 @@ module "secrets" {
     "smtp-host"             = var.smtp_host
     "smtp-user"             = var.smtp_user
     "smtp-pass"             = var.smtp_pass
-    "firebase-project-id"   = var.firebase_project_id
-    "firebase-client-email" = var.firebase_client_email
-    "firebase-private-key"  = var.firebase_private_key
-    "firebase-web-api-key"  = var.firebase_web_api_key
+    "firebase-project-id"     = var.firebase_project_id
+    "firebase-client-email"   = var.firebase_client_email
+    "firebase-private-key"    = var.firebase_private_key
+    "firebase-web-api-key"    = var.firebase_web_api_key
+    "firebase-private-key-id" = var.firebase_private_key_id
+    "firebase-client-id"      = var.firebase_client_id
     "razorpay-key-id"       = var.razorpay_key_id
     "razorpay-key-secret"   = var.razorpay_key_secret
     "razorpay-webhook-secret" = var.razorpay_webhook_secret
@@ -175,6 +177,14 @@ module "run_api" {
       }
       FIREBASE_WEB_API_KEY = {
         secret_name = module.secrets.secret_names["firebase-web-api-key"]
+        version     = "latest"
+      }
+      FIREBASE_PRIVATE_KEY_ID = {
+        secret_name = module.secrets.secret_names["firebase-private-key-id"]
+        version     = "latest"
+      }
+      FIREBASE_CLIENT_ID = {
+        secret_name = module.secrets.secret_names["firebase-client-id"]
         version     = "latest"
       }
       FRONTEND_URL = {

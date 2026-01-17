@@ -17,9 +17,6 @@ inputs:
     description: 'GCP region'
     required: false
     default: 'asia-south1'
-  firebase-service-account:
-    description: 'Firebase Service Account JSON'
-    required: true
 
 outputs:
   service-url:
@@ -46,32 +43,13 @@ runs:
     - name: Deploy to Cloud Run
       id: deploy
       shell: bash
-      env:
-        FIREBASE_SERVICE_ACCOUNT_JSON: ${{ inputs.firebase-service-account }}
       run: |
         PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-p' || 'restohand-d' }}"
         SERVICE_NAME="${{ inputs.environment }}-api"
 
-        # Extract Firebase credentials from service account JSON
-        FIREBASE_PROJECT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.project_id')
-        FIREBASE_PRIVATE_KEY=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key')
-        FIREBASE_CLIENT_EMAIL=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_email')
-        FIREBASE_PRIVATE_KEY_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key_id')
-        FIREBASE_CLIENT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_id')
-
-        # Clear existing secrets first
-        echo "🧹 Clearing secrets..."
-        gcloud run services update $SERVICE_NAME \
-          --clear-secrets \
-          --region=${{ inputs.region }} \
-          --project=$PROJECT_ID \
-          --quiet
-
-        # Deploy with new image and env vars
-        echo "🚀 Deploying..."
+        echo "🚀 Deploying new image to $SERVICE_NAME..."
         gcloud run services update $SERVICE_NAME \
           --image="${{ inputs.image-url }}:${{ github.sha }}" \
-          --set-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
           --quiet
