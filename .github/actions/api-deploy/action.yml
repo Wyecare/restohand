@@ -55,6 +55,13 @@ runs:
         FIREBASE_PRIVATE_KEY_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key_id')
         FIREBASE_CLIENT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_id')
 
+        # Clear existing environment variables to avoid type conflicts
+        gcloud run services update $SERVICE_NAME \
+          --clear-env-vars \
+          --region=${{ inputs.region }} \
+          --project=$PROJECT_ID \
+          --quiet
+
         # Deploy to Cloud Run with Firebase environment variables
         gcloud run deploy $SERVICE_NAME \
           --image="${{ inputs.image-url }}:${{ github.sha }}" \
@@ -68,7 +75,7 @@ runs:
           --max-instances=10 \
           --timeout=300 \
           --port=3000 \
-          --update-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
+          --set-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
           --quiet
 
         # Get service URL
