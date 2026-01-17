@@ -55,23 +55,23 @@ runs:
         FIREBASE_PRIVATE_KEY_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key_id')
         FIREBASE_CLIENT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_id')
 
-        # Clear existing environment variables to avoid type conflicts
+        # Remove specific problematic environment variables
         gcloud run services update $SERVICE_NAME \
-          --clear-env-vars \
+          --remove-env-vars="FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID" \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
-          --quiet
+          --quiet || true
 
-        # Update image and environment variables separately
+        # Update image only
         gcloud run services update $SERVICE_NAME \
           --image="${{ inputs.image-url }}:${{ github.sha }}" \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
           --quiet
 
-        # Set Firebase environment variables
+        # Set Firebase environment variables as new
         gcloud run services update $SERVICE_NAME \
-          --set-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
+          --update-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
           --quiet
