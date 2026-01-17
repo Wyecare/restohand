@@ -59,12 +59,18 @@ runs:
         FIREBASE_PRIVATE_KEY_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.private_key_id')
         FIREBASE_CLIENT_ID=$(echo "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -r '.client_id')
 
-        # Deploy with new image, clear old config, and set new env vars in one command
+        # Clear existing secrets first
+        echo "🧹 Clearing secrets..."
+        gcloud run services update $SERVICE_NAME \
+          --clear-secrets \
+          --region=${{ inputs.region }} \
+          --project=$PROJECT_ID \
+          --quiet
+
+        # Deploy with new image and env vars
         echo "🚀 Deploying..."
         gcloud run services update $SERVICE_NAME \
           --image="${{ inputs.image-url }}:${{ github.sha }}" \
-          --clear-env-vars \
-          --clear-secrets \
           --set-env-vars="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID,FIREBASE_PRIVATE_KEY=$FIREBASE_PRIVATE_KEY,FIREBASE_CLIENT_EMAIL=$FIREBASE_CLIENT_EMAIL,FIREBASE_PRIVATE_KEY_ID=$FIREBASE_PRIVATE_KEY_ID,FIREBASE_CLIENT_ID=$FIREBASE_CLIENT_ID" \
           --region=${{ inputs.region }} \
           --project=$PROJECT_ID \
