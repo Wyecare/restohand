@@ -20,14 +20,23 @@ export function App() {
   }
 
   const domainType = getDomainType();
-  const RouterComponent =
-    domainType === 'staff'
-      ? StaffRouter
-      : domainType === 'customer'
-      ? CustomerRouter
-      : AppRouter;
+  // const RouterComponent =
+  //   domainType === 'staff'
+  //     ? StaffRouter
+  //     : domainType === 'customer'
+  //     ? CustomerRouter
+  //     : AppRouter;
 
-  console.log('🌐 Domain Detection:', {
+  let RouterComponent;
+  if (domainType === 'staff') {
+    RouterComponent = StaffRouter;
+  } else if (domainType === 'customer') {
+    RouterComponent = CustomerRouter;
+  } else {
+    RouterComponent = AppRouter;
+  }
+
+  console.log('🌐 Domain Detection [FIXED]:', {
     hostname: window.location.hostname,
     pathname: window.location.pathname,
     domainType,
@@ -37,6 +46,7 @@ export function App() {
         : domainType === 'customer'
         ? 'CustomerRouter'
         : 'AppRouter',
+    timestamp: new Date().toISOString(),
   });
 
   return (
