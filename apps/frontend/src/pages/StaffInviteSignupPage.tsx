@@ -7,20 +7,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { useVerifyInviteQuery, useJwtStaffSignupMutation } from '@/store/api/staffApi';
+import { useAppDispatch } from '@/store/hooks';
+import { setCredentials } from '@/store/slices/authSlice';
 import { authService } from '@/services/auth.service';
 
 const StaffInviteSignupPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [token] = useState(searchParams.get('token') || '');
+  const dispatch = useAppDispatch();
 
-  const [invitation, setInvitation] = useState<{
-    valid: boolean;
-    email?: string;
-    role?: string;
-    restaurantName?: string;
-    message?: string;
-  } | null>(null);
+  // RTK Query hooks
+  const {
+    data: invitation,
+    error: verificationError,
+    isLoading: verifyingInvitation
+  } = useVerifyInviteQuery(token, {
+    skip: !token
+  });
+
+  const [jwtStaffSignup, { isLoading: isCompletingSignup }] = useJwtStaffSignupMutation();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -29,30 +36,19 @@ const StaffInviteSignupPage = () => {
   });
 
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Handle verification error
   useEffect(() => {
     if (!token) {
       setError('Invalid invitation link');
-      setLoading(false);
       return;
     }
 
-    verifyInvitation();
-  }, [token]);
-
-  const verifyInvitation = async () => {
-    try {
-      const response = await authService.verifyStaffInvitation(token);
-      setInvitation(response);
-    } catch (err) {
+    if (verificationError) {
       setError('Failed to verify invitation');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [token, verificationError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,30 +63,52 @@ const StaffInviteSignupPage = () => {
       return;
     }
 
-    setSubmitting(true);
     setError('');
 
     try {
-      await authService.completeStaffSignup({
+      // Complete staff signup with JWT
+      const authResponse = await jwtStaffSignup({
         token,
         name: formData.name,
         password: formData.password,
-      });
+      }).unwrap();
+
+      console.log('🔄 Staff Signup Response:', authResponse);
+
+      // Store tokens
+      authService.setTokens(authResponse.access_token, authResponse.refresh_token);
+
+      // Update Redux state
+      dispatch(setCredentials({
+        idToken: authResponse.access_token,
+        refreshToken: authResponse.refresh_token,
+        expiresIn: authResponse.expires_in,
+        session: {
+          userId: authResponse.user.uid,
+          displayName: authResponse.user.displayName,
+          email: authResponse.user.email,
+          restaurantId: authResponse.user.restaurantId,
+          roles: authResponse.user.roles,
+        },
+      }));
+
+      console.log('✅ Staff signup completed successfully');
 
       // Redirect to appropriate interface based on role
-      if (invitation?.role === 'chef') {
+      if (authResponse.user.roles.includes('chef')) {
         navigate('/kitchen');
-      } else {
+      } else if (authResponse.user.roles.includes('waiter') || authResponse.user.roles.includes('cashier')) {
         navigate('/service');
+      } else {
+        navigate('/forbidden');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to complete signup');
-    } finally {
-      setSubmitting(false);
+      console.error('❌ Staff signup error:', err);
+      setError(err.data?.message || err.message || 'Failed to complete signup');
     }
   };
 
-  if (loading) {
+  if (verifyingInvitation) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
@@ -198,8 +216,8 @@ const StaffInviteSignupPage = () => {
               </Alert>
             )}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? <LoadingSpinner size="sm" /> : 'Complete Account Setup'}
+            <Button type="submit" className="w-full" disabled={isCompletingSignup}>
+              {isCompletingSignup ? <LoadingSpinner size="sm" /> : 'Complete Account Setup'}
             </Button>
           </form>
         </CardContent>

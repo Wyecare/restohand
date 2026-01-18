@@ -66,4 +66,13 @@ export class PublicStaffInvitationController {
   async completeSignup(@Body() dto: CompleteSignupDto) {
     return this.staffInvitationService.completeSignup(dto);
   }
+
+  @Post('jwt-signup')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'JWT-based staff signup with invitation token' })
+  @ApiResponse({ status: 200, description: 'Signup completed successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid token or signup failed' })
+  async jwtStaffSignup(@Body() dto: CompleteSignupDto) {
+    return this.staffInvitationService.jwtStaffSignup(dto);
+  }
 }

@@ -64,6 +64,26 @@ export interface CompleteSignupResponse {
   };
 }
 
+// JWT-based staff signup interfaces
+export interface JwtStaffSignupPayload {
+  token: string;
+  name: string;
+  password: string;
+}
+
+export interface JwtStaffSignupResponse {
+  access_token: string;
+  refresh_token: string;
+  user: {
+    uid: string;
+    email: string;
+    displayName: string;
+    roles: string[];
+    restaurantId: string;
+  };
+  expires_in: number;
+}
+
 export const staffApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listStaff: builder.query<StaffMember[], void>({
@@ -141,6 +161,15 @@ export const staffApi = baseApi.injectEndpoints({
         body,
       }),
     }),
+
+    // JWT-based staff signup
+    jwtStaffSignup: builder.mutation<JwtStaffSignupResponse, JwtStaffSignupPayload>({
+      query: (body) => ({
+        url: `/staff/invitations/jwt-signup`,
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -154,4 +183,5 @@ export const {
   useInviteStaffByEmailMutation,
   useVerifyInviteQuery,
   useCompleteSignupMutation,
+  useJwtStaffSignupMutation,
 } = staffApi;

@@ -234,6 +234,84 @@ export class StaffInvitationService {
     };
   }
 
+  async jwtStaffSignup(dto: CompleteSignupDto): Promise<{
+    access_token: string;
+    refresh_token: string;
+    user: {
+      uid: string;
+      email: string;
+      displayName: string;
+      roles: string[];
+      restaurantId: string;
+    };
+    expires_in: number;
+  }> {
+    const invitation = await this.invitationModel.findOne({ token: dto.token });
+
+    if (!invitation) {
+      throw new BadRequestException('Invalid invitation token');
+    }
+
+    if (invitation.isUsed) {
+      throw new BadRequestException('This invitation has already been used');
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      throw new BadRequestException('This invitation has expired');
+    }
+
+    // Check if user exists with this email
+    const existingEmailUser = await this.userModel.findOne({
+      email: invitation.email,
+    });
+    if (existingEmailUser) {
+      throw new BadRequestException('User with this email already exists');
+    }
+
+    // Register the user using JWT service
+    const authResult = await this.jwtAuthService.register({
+      email: invitation.email,
+      password: dto.password,
+      name: dto.name,
+      roles: [invitation.role as UserRole],
+      restaurantId: invitation.restaurantId.toString(),
+    });
+
+    // Get the created user to mark as staff
+    const user = await this.userModel.findById(authResult.user.uid);
+    if (user) {
+      await this.userModel.findByIdAndUpdate(user._id, {
+        isPrimaryOwner: false,
+        isEmailVerified: true, // Since they clicked the invitation link
+      });
+    }
+
+    // Mark invitation as used
+    await this.invitationModel.updateOne(
+      { _id: invitation._id },
+      {
+        isUsed: true,
+        usedBy: authResult.user.uid,
+        usedAt: new Date(),
+      }
+    );
+
+    this.logger.log(`Staff JWT signup completed for ${invitation.email}`);
+
+    return {
+      access_token: authResult.access_token,
+      refresh_token: authResult.refresh_token,
+      expires_in: authResult.expires_in,
+      user: {
+        uid: authResult.user.uid,
+        email: invitation.email,
+        displayName: dto.name,
+        roles: [invitation.role],
+        restaurantId: invitation.restaurantId.toString(),
+      },
+    };
+  }
+
   private async sendInvitationEmail(
     invitation: StaffInvitationDocument,
     restaurant: RestaurantDocument
