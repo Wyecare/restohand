@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useAuth } from '@/contexts/AuthProvider';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { env } from '@/config/env';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';

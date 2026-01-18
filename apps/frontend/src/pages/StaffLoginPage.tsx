@@ -29,12 +29,15 @@ const StaffLoginPage = () => {
   const { t: tStaff } = useStaffTranslation();
   const { t: tCommon } = useCommonTranslation();
 
-  if (roles.includes('chef')) {
-    return <Navigate to="/kitchen" replace />;
-  }
-
-  if (roles.some((role) => role === 'waiter' || role === 'cashier')) {
-    return <Navigate to="/service" replace />;
+  // If user is already authenticated with roles, redirect to appropriate page
+  if (roles.length > 0) {
+    if (roles.includes('chef')) {
+      return <Navigate to="/kitchen" replace />;
+    } else if (roles.includes('waiter') || roles.includes('cashier')) {
+      return <Navigate to="/service" replace />;
+    } else {
+      return <Navigate to="/forbidden" replace />;
+    }
   }
 
   const handlePinSubmit = async (event: React.FormEvent) => {
@@ -57,7 +60,7 @@ const StaffLoginPage = () => {
         ? '/kitchen'
         : staff.roles.some((role) => role === 'waiter' || role === 'cashier')
           ? '/service'
-          : '/dashboard';
+          : '/forbidden';
       navigate(destination, { replace: true });
     } catch (error) {
       toast({
@@ -84,8 +87,8 @@ const StaffLoginPage = () => {
       await signInWithEmail(email, password);
       toast({ title: 'Welcome back!' });
 
-      // Navigation will be handled by the Navigate components at the top
-      // based on the updated role state, so no need to explicitly navigate
+      // Navigate to role-based redirect route
+      navigate('/redirect', { replace: true });
     } catch (error: any) {
       let errorMessage = 'Failed to sign in';
 

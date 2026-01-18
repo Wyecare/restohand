@@ -2,7 +2,6 @@ import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import { ThemeProvider, ActiveThemeProvider } from '@/contexts/ThemeContext';
-import { AuthProvider } from '@/contexts/AuthProvider';
 import { JwtAuthProvider } from '@/contexts/JwtAuthProvider';
 import { store } from '@/store';
 import AppRouter from '@/routes/AppRouter';
@@ -21,6 +20,13 @@ export function App() {
 
   const domainType = getDomainType();
   const RouterComponent = domainType === 'staff' ? StaffRouter : AppRouter;
+
+  console.log('🌐 Domain Detection:', {
+    hostname: window.location.hostname,
+    pathname: window.location.pathname,
+    domainType,
+    router: domainType === 'staff' ? 'StaffRouter' : 'AppRouter'
+  });
 
   return (
     <Provider store={store}>

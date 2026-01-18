@@ -2,11 +2,31 @@ import { Suspense } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useAppSelector } from '@/store/hooks';
+import { selectUserRoles, selectIsAuthenticated } from '@/store/slices/authSlice';
 import StaffLoginPage from '@/pages/StaffLoginPage';
 import StaffInviteSignupPage from '@/pages/StaffInviteSignupPage';
 import EnhancedKitchenPage from '@/pages/EnhancedKitchenPage';
 import ServicePage from '@/pages/ServicePage';
 import ForbiddenPage from '@/pages/ForbiddenPage';
+
+// Component to handle role-based redirects
+const RoleBasedRedirect = () => {
+  const isAuthenticated = useAppSelector(selectIsAuthenticated);
+  const roles = useAppSelector(selectUserRoles);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (roles.includes('chef')) {
+    return <Navigate to="/kitchen" replace />;
+  } else if (roles.includes('waiter') || roles.includes('cashier')) {
+    return <Navigate to="/service" replace />;
+  } else {
+    return <Navigate to="/forbidden" replace />;
+  }
+};
 
 const StaffRouter = () => {
   return (
@@ -22,8 +42,18 @@ const StaffRouter = () => {
         <Route
           path="/login"
           element={
-            <AuthGuard requireAuth={false} redirectAuthenticatedTo="/kitchen">
+            <AuthGuard requireAuth={false}>
               <StaffLoginPage />
+            </AuthGuard>
+          }
+        />
+
+        {/* Role-based redirect after login */}
+        <Route
+          path="/redirect"
+          element={
+            <AuthGuard>
+              <RoleBasedRedirect />
             </AuthGuard>
           }
         />
@@ -73,7 +103,7 @@ const StaffRouter = () => {
           path="*"
           element={
             <AuthGuard>
-              <Navigate to="/kitchen" replace />
+              <RoleBasedRedirect />
             </AuthGuard>
           }
         />

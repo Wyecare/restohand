@@ -7,12 +7,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useAuth } from '@/contexts/AuthProvider';
+import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useEffect } from 'react';
 
 const ForbiddenPage = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout } = useJwtAuth();
 
   const handleExit = async () => {
     await logout();

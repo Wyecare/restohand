@@ -127,6 +127,12 @@ export const JwtAuthProvider = ({ children }: PropsWithChildren) => {
       const sessionInfo = mapAuthResponseToSession(authResponse);
       const userData = mapAuthResponseToUser(authResponse);
 
+      console.log('🔄 JWT Auth Response Debug:', {
+        originalResponse: authResponse,
+        sessionInfo,
+        userData,
+      });
+
       setUser(userData);
       dispatch(setCredentials({
         idToken: authResponse.access_token,
