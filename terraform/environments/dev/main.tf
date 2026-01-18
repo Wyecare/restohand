@@ -91,6 +91,7 @@ module "secrets" {
   admin_frontend_url = var.admin_frontend_url
   staff_frontend_url = var.staff_frontend_url
   frontend_url       = var.frontend_url
+  customer_frontend_url = var.customer_frontend_url
   labels             = local.common_labels
 
   additional_secrets = {
@@ -211,6 +212,10 @@ module "run_api" {
       }
       RAZORPAY_WEBHOOK_SECRET = {
         secret_name = module.secrets.secret_names["razorpay-webhook-secret"]
+        version     = "latest"
+      }
+      USER_FRONTENT_URL = {
+        secret_name = module.secrets.secret_names["customer_frontend_url"]
         version     = "latest"
       }
     }

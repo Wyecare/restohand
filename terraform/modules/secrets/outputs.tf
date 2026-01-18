@@ -25,6 +25,11 @@ output "staff_frontend_url_secret_id" {
   value       = var.staff_frontend_url != null ? google_secret_manager_secret.staff_frontend_url[0].secret_id : null
 }
 
+output "customer_frontend_url_secret_id" {
+  description = "Customer frontend URL secret ID (if created)"
+  value       = var.customer_frontend_url != null ? google_secret_manager_secret.customer_frontend_url[0].secret_id : null
+}
+
 # Legacy output
 output "frontend_url_secret_id" {
   description = "Legacy frontend URL secret ID (if created)"
@@ -50,6 +55,9 @@ output "secret_names" {
     } : {},
     var.staff_frontend_url != null ? {
       staff_frontend_url = google_secret_manager_secret.staff_frontend_url[0].secret_id
+    } : {},
+    var.customer_frontend_url != null ? {
+      customer_frontend_url = google_secret_manager_secret.customer_frontend_url[0].secret_id
     } : {},
     var.frontend_url != null ? {
       frontend_url = google_secret_manager_secret.frontend_url[0].secret_id

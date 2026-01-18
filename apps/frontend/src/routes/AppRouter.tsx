@@ -21,8 +21,6 @@ import StaffLoginPage from '@/pages/StaffLoginPage';
 import StaffSignupPage from '@/pages/StaffSignupPage';
 import StaffInviteSignupPage from '@/pages/StaffInviteSignupPage';
 import ForbiddenPage from '@/pages/ForbiddenPage';
-import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
-import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
 import ReportsPage from '@/pages/ReportsPage';
 import ReceiptPage from '@/pages/ReceiptPage';
 import ReceiptLookupPage from '@/pages/ReceiptLookupPage';
@@ -33,12 +31,6 @@ import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
 import InventoryPage from '@/pages/InventoryPage';
 import RecipesPage from '@/pages/RecipesPage';
 import SubscriptionPage from '@/pages/SubscriptionPage';
-import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
-import TermsConditionsPage from '@/pages/TermsConditionsPage';
-import RefundPolicyPage from '@/pages/RefundPolicyPage';
-import ContactUsPage from '@/pages/ContactUsPage';
-import AboutUsPage from '@/pages/AboutUsPage';
-import CustomerLayout from '@/components/customer/CustomerLayout';
 
 const AppRouter = () => {
   return (
@@ -85,12 +77,7 @@ const AppRouter = () => {
           element={<StaffInviteSignupPage />}
         />
 
-        {/* Policy pages */}
-        <Route path="/about-us" element={<AboutUsPage />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-        <Route path="/terms-conditions" element={<TermsConditionsPage />} />
-        <Route path="/refund-policy" element={<RefundPolicyPage />} />
-        <Route path="/contact-us" element={<ContactUsPage />} />
+        {/* Policy pages - moved to CustomerRouter for QR domain access */}
 
         {/* Public receipt routes */}
         <Route path="/receipts" element={<ReceiptLookupPage />} />
@@ -146,13 +133,6 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
-        <Route element={<CustomerLayout />}>
-          <Route path="/c/:slug" element={<CustomerMenuPage />} />
-          <Route
-            path="/c/:slug/order/:orderId"
-            element={<CustomerOrderStatusPage />}
-          />
-        </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Suspense>

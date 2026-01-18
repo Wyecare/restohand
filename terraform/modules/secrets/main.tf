@@ -96,6 +96,25 @@ resource "google_secret_manager_secret_version" "staff_frontend_url" {
   secret_data = var.staff_frontend_url
 }
 
+# Customer Frontend URL (optional)
+resource "google_secret_manager_secret" "customer_frontend_url" {
+  count     = var.customer_frontend_url != null ? 1 : 0
+  project   = var.project_id
+  secret_id = "customer-frontend-url"
+
+  replication {
+    auto {}
+  }
+
+  labels = var.labels
+}
+
+resource "google_secret_manager_secret_version" "customer_frontend_url" {
+  count       = var.customer_frontend_url != null ? 1 : 0
+  secret      = google_secret_manager_secret.customer_frontend_url[0].id
+  secret_data = var.customer_frontend_url
+}
+
 # Legacy Frontend URL (optional)
 resource "google_secret_manager_secret" "frontend_url" {
   count     = var.frontend_url != null ? 1 : 0

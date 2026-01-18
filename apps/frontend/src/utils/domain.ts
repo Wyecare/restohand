@@ -18,6 +18,11 @@ export const getDomainType = (): InterfaceType => {
     return 'staff';
   }
 
+  // Check for customer QR domains
+  if (hostname.includes('qr') || hostname.includes('-d-qr') || hostname === 'restohand-qr.web.app' || hostname === 'restohand-d-qr.web.app') {
+    return 'customer';
+  }
+
   // For localhost development, check path to determine interface type
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('local')) {
     if (pathname.startsWith('/staff-') || pathname.startsWith('/login') || pathname.startsWith('/kitchen') || pathname.startsWith('/service') || pathname.startsWith('/forbidden') || pathname.startsWith('/redirect')) {
@@ -26,10 +31,16 @@ export const getDomainType = (): InterfaceType => {
     if (pathname.startsWith('/admin')) {
       return 'admin';
     }
+    // Customer QR paths for localhost
+    if (pathname.startsWith('/c/')) {
+      return 'customer';
+    }
   }
 
-  // Default to customer for public domains
-  return 'customer';
+  // Default to admin for main domains (backward compatibility)
+  // This means admin.restohand.com and restohand.com both go to admin
+  // while qr.restohand.com goes to customer
+  return 'admin';
 };
 
 export const isAdminInterface = () => getDomainType() === 'admin';

@@ -6,6 +6,7 @@ import { JwtAuthProvider } from '@/contexts/JwtAuthProvider';
 import { store } from '@/store';
 import AppRouter from '@/routes/AppRouter';
 import StaffRouter from '@/routes/StaffRouter';
+import CustomerRouter from '@/routes/CustomerRouter';
 import { env } from '@/config/env';
 import { Toaster } from '@/components/ui/toaster';
 import { useEffect } from 'react';
@@ -19,13 +20,23 @@ export function App() {
   }
 
   const domainType = getDomainType();
-  const RouterComponent = domainType === 'staff' ? StaffRouter : AppRouter;
+  const RouterComponent =
+    domainType === 'staff'
+      ? StaffRouter
+      : domainType === 'qr'
+      ? CustomerRouter
+      : AppRouter;
 
   console.log('🌐 Domain Detection:', {
     hostname: window.location.hostname,
     pathname: window.location.pathname,
     domainType,
-    router: domainType === 'staff' ? 'StaffRouter' : 'AppRouter'
+    router:
+      domainType === 'staff'
+        ? 'StaffRouter'
+        : domainType === 'qr'
+        ? 'CustomerRouter'
+        : 'AppRouter',
   });
 
   return (

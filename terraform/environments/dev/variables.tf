@@ -85,6 +85,12 @@ variable "staff_frontend_url" {
   default     = null
 }
 
+variable "customer_frontend_url" {
+  description = "Customer frontend application URL"
+  type        = string
+  default     = null
+}
+
 # Legacy frontend URL
 variable "frontend_url" {
   description = "Legacy frontend application URL"
