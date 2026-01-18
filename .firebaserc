@@ -11,6 +11,9 @@
         "staff": [
           "restohand-d-staff"
         ],
+        "customer": [
+          "restohand-d-customer"
+        ],
         "main": [
           "restohand-d"
         ]
@@ -23,6 +26,9 @@
         ],
         "staff": [
           "restohand-staff"
+        ],
+        "customer": [
+          "restohand-customer"
         ],
         "main": [
           "restohand"

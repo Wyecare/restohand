@@ -135,11 +135,12 @@ runs:
         firebase use $PROJECT_ID
 
         # Deploy to both admin and staff targets
-        firebase deploy --only hosting:admin,hosting:staff --force
+        firebase deploy --only hosting:admin,hosting:staff,hosting:customer --force
 
         # Get deployment URLs
         ADMIN_URL="https://${{ inputs.environment == 'prod' && 'restohand-admin' || 'restohand-d-admin' }}.web.app"
         STAFF_URL="https://${{ inputs.environment == 'prod' && 'restohand-staff' || 'restohand-d-staff' }}.web.app"
+        CUSTOMER_URL="https://${{ inputs.environment == 'prod' && 'restohand-customer' || 'restohand-d-customer' }}.web.app"
 
         echo "admin-url=$ADMIN_URL" >> $GITHUB_OUTPUT
         echo "staff-url=$STAFF_URL" >> $GITHUB_OUTPUT
