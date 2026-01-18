@@ -157,7 +157,7 @@ export class StaffInvitationService {
       valid: true,
       email: invitation.email,
       role: invitation.role,
-      restaurantName: (invitation.restaurantId as { name: string }).name,
+      restaurantName: (invitation.restaurantId as any).name,
     };
   }
 

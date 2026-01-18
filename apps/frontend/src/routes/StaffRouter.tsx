@@ -5,6 +5,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAppSelector } from '@/store/hooks';
 import { selectUserRoles, selectIsAuthenticated } from '@/store/slices/authSlice';
 import StaffLoginPage from '@/pages/StaffLoginPage';
+import StaffSignupPage from '@/pages/StaffSignupPage';
 import StaffInviteSignupPage from '@/pages/StaffInviteSignupPage';
 import EnhancedKitchenPage from '@/pages/EnhancedKitchenPage';
 import ServicePage from '@/pages/ServicePage';
@@ -58,7 +59,16 @@ const StaffRouter = () => {
           }
         />
 
-        {/* Staff invitation signup */}
+        {/* Staff signup routes */}
+        <Route
+          path="/staff-signup"
+          element={
+            <AuthGuard requireAuth={false}>
+              <StaffSignupPage />
+            </AuthGuard>
+          }
+        />
+
         <Route
           path="/staff-invite-signup"
           element={

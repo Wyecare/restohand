@@ -104,7 +104,8 @@ export class RestaurantsService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const baseUrl = process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
+    // Use customer QR domain for QR code URLs
+    const baseUrl = process.env.CUSTOMER_FRONTEND_URL ?? process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
     const slug = restaurant.slug;
     const url = new URL(`${baseUrl.replace(/\/$/, '')}/c/${slug}`);
     if (table) {

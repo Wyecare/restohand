@@ -23,7 +23,7 @@ export function App() {
   const RouterComponent =
     domainType === 'staff'
       ? StaffRouter
-      : domainType === 'qr'
+      : domainType === 'customer'
       ? CustomerRouter
       : AppRouter;
 
@@ -34,7 +34,7 @@ export function App() {
     router:
       domainType === 'staff'
         ? 'StaffRouter'
-        : domainType === 'qr'
+        : domainType === 'customer'
         ? 'CustomerRouter'
         : 'AppRouter',
   });

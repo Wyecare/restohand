@@ -17,9 +17,7 @@ import StaffPage from '@/pages/StaffPage';
 import TablesPage from '@/pages/TablesPage';
 import EnhancedKitchenPage from '@/pages/EnhancedKitchenPage';
 import ServicePage from '@/pages/ServicePage';
-import StaffLoginPage from '@/pages/StaffLoginPage';
-import StaffSignupPage from '@/pages/StaffSignupPage';
-import StaffInviteSignupPage from '@/pages/StaffInviteSignupPage';
+// Staff components moved to StaffRouter for domain separation
 import ForbiddenPage from '@/pages/ForbiddenPage';
 import ReportsPage from '@/pages/ReportsPage';
 import ReceiptPage from '@/pages/ReceiptPage';
@@ -61,21 +59,7 @@ const AppRouter = () => {
           }
         />
 
-        <Route
-          path="/staff-login"
-          element={
-            <AuthGuard requireAuth={false}>
-              <StaffLoginPage />
-            </AuthGuard>
-          }
-        />
-
-        <Route path="/staff-signup" element={<StaffSignupPage />} />
-
-        <Route
-          path="/staff-invite-signup"
-          element={<StaffInviteSignupPage />}
-        />
+        {/* Staff routes moved to StaffRouter for domain separation */}
 
         {/* Policy pages - moved to CustomerRouter for QR domain access */}
 
