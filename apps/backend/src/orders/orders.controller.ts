@@ -22,6 +22,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateOrderDto } from './dtos/create-order.dto';
+import { CreateOrderWithPaymentDto } from './dtos/create-order-with-payment.dto';
+import { CalculateCartTotalDto } from './dtos/calculate-cart-total.dto';
+import { VerifyPaymentDto } from './dtos/verify-payment.dto';
 import { OrderListResponseDto } from './dtos/order-list-response.dto';
 import { OrderResponseDto } from './dtos/order-response.dto';
 import { OrderEventResponseDto } from './dtos/order-event-response.dto';
@@ -381,5 +384,241 @@ export class OrdersController {
     @Param('orderId') orderId: string
   ) {
     return this.ordersService.listEvents(restaurantId, orderId);
+  }
+
+  // ============= CUSTOMER CART & PAYMENT ENDPOINTS =============
+
+  @Post('calculate-cart-total')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiCreatedResponse({
+    description: 'Calculate cart total with exact backend pricing',
+    schema: {
+      properties: {
+        subtotal: { type: 'number' },
+        taxAmount: { type: 'number' },
+        cgstAmount: { type: 'number' },
+        sgstAmount: { type: 'number' },
+        igstAmount: { type: 'number' },
+        roundOffAmount: { type: 'number' },
+        totalAmount: { type: 'number' },
+        itemDetails: { type: 'array' }
+      }
+    }
+  })
+  async calculateCartTotal(
+    @Param('restaurantId') restaurantId: string,
+    @Body() dto: CalculateCartTotalDto
+  ) {
+    this.logger.log(`Calculating cart total for restaurant ${restaurantId}. Items: ${dto.items.length}`);
+
+    // Reuse the same logic as order creation for exact calculation
+    const createOrderDto: CreateOrderDto = {
+      tableNumber: dto.tableNumber,
+      items: dto.items,
+      notes: dto.notes,
+      customerName: dto.customerInfo?.name,
+      customerPhone: dto.customerInfo?.phone,
+      customerEmail: dto.customerInfo?.email,
+      paymentMethod: 'upi' // Doesn't affect pricing calculation
+    };
+
+    // Get the exact calculation without creating order
+    const calculation = await this.ordersService.calculateOrderTotal(restaurantId, createOrderDto);
+
+    return {
+      subtotal: calculation.subtotal,
+      taxAmount: calculation.taxAmount,
+      cgstAmount: calculation.cgstAmount,
+      sgstAmount: calculation.sgstAmount,
+      igstAmount: calculation.igstAmount,
+      roundOffAmount: calculation.roundOffAmount,
+      totalAmount: calculation.totalAmount,
+      itemDetails: calculation.items?.map(item => ({
+        menuItemId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.pricing.unitAmount,
+        lineTotal: item.lineTotal,
+        taxAmount: item.taxAmount
+      })) || []
+    };
+  }
+
+  @Post('create-with-payment')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiCreatedResponse({
+    description: 'Order created with payment intent',
+    schema: {
+      properties: {
+        orderId: { type: 'string' },
+        orderNumber: { type: 'string' },
+        razorpayOrderId: { type: 'string' },
+        razorpayKey: { type: 'string' },
+        amount: { type: 'number' },
+        currency: { type: 'string' }
+      }
+    }
+  })
+  async createOrderWithPayment(
+    @Param('restaurantId') restaurantId: string,
+    @Body() dto: CreateOrderWithPaymentDto
+  ) {
+    if (!this.razorpayService.isEnabled()) {
+      throw new BadRequestException('Online payments are not configured');
+    }
+
+    this.logger.log(`Creating order with payment for restaurant ${restaurantId}. Items: ${dto.items.length}, Amount: ₹${dto.totalAmount/100}`);
+
+    // Create order first
+    const createOrderDto: CreateOrderDto = {
+      tableNumber: dto.tableNumber,
+      items: dto.items,
+      notes: dto.notes,
+      customerName: dto.customerInfo?.name,
+      customerPhone: dto.customerInfo?.phone,
+      customerEmail: dto.customerInfo?.email,
+      paymentMethod: 'upi'
+    };
+
+    const order = await this.ordersService.create(restaurantId, createOrderDto);
+
+    // Verify amount matches calculated total
+    const calculatedAmount = Math.round(order.totalAmount * 100);
+    if (Math.abs(calculatedAmount - dto.totalAmount) > 100) { // Allow ₹1 difference for rounding
+      throw new BadRequestException(`Amount mismatch. Expected: ₹${calculatedAmount/100}, Received: ₹${dto.totalAmount/100}`);
+    }
+
+    // Check if restaurant has direct settlement enabled
+    const canReceivePayments = await this.restaurantOnboardingService.canReceivePayments(restaurantId);
+    const linkedAccountId = await this.restaurantOnboardingService.getLinkedAccountId(restaurantId);
+
+    let razorpayOrder: any;
+    const amountInPaise = calculatedAmount;
+
+    if (canReceivePayments && linkedAccountId) {
+      // Direct settlement to restaurant
+      razorpayOrder = await this.razorpayService.createOrder({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `order_${order.orderNumber}`,
+        notes: {
+          restaurantId,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          tableNumber: dto.tableNumber || '',
+          customerName: dto.customerInfo?.name || 'Guest',
+          settlementType: 'direct',
+        },
+        transfers: [{
+          account: linkedAccountId,
+          amount: amountInPaise,
+          currency: 'INR',
+          notes: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+          }
+        }]
+      });
+
+      this.logger.log(`Created payment with direct settlement for order ${order.id}. Restaurant gets ₹${amountInPaise/100} (100%)`);
+    } else {
+      // Traditional payment (money comes to platform first)
+      razorpayOrder = await this.razorpayService.createOrder({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `order_${order.orderNumber}`,
+        notes: {
+          restaurantId,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          tableNumber: dto.tableNumber || '',
+          customerName: dto.customerInfo?.name || 'Guest',
+          settlementType: 'traditional',
+        },
+      });
+
+      this.logger.warn(`Restaurant ${restaurantId} doesn't have direct settlement enabled. Using traditional payment flow.`);
+    }
+
+    // Register payment intent
+    await this.ordersService.registerPaymentIntent(restaurantId, order.id, 'razorpay', razorpayOrder.id, {
+      orderNumber: order.orderNumber,
+      amount: amountInPaise,
+      currency: 'INR',
+      settlementType: canReceivePayments ? 'direct' : 'traditional',
+      linkedAccountId,
+      customerInfo: dto.customerInfo,
+    });
+
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      razorpayOrderId: razorpayOrder.id,
+      razorpayKey: this.razorpayService.publicKey,
+      amount: amountInPaise,
+      currency: 'INR',
+    };
+  }
+
+  @Post(':orderId/verify-payment')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiOkResponse({
+    description: 'Payment verified successfully',
+    schema: {
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        order: { $ref: '#/components/schemas/OrderResponseDto' }
+      }
+    }
+  })
+  async verifyPayment(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string,
+    @Body() dto: VerifyPaymentDto
+  ) {
+    this.logger.log(`Verifying payment for order ${orderId}. Payment ID: ${dto.razorpay_payment_id}`);
+
+    // Get order to verify
+    const order = await this.ordersService.findOne(restaurantId, orderId);
+
+    if (!order.razorpayOrderId) {
+      throw new BadRequestException('No payment intent found for this order');
+    }
+
+    if (order.paymentStatus === PaymentStatus.Paid) {
+      throw new BadRequestException('Payment already verified for this order');
+    }
+
+    // Verify payment signature using crypto
+    const crypto = require('crypto');
+    const expectedSignature = crypto
+      .createHmac('sha256', this.razorpayService['razorpayConfig'].keySecret)
+      .update(`${order.razorpayOrderId}|${dto.razorpay_payment_id}`)
+      .digest('hex');
+
+    if (expectedSignature !== dto.razorpay_signature) {
+      this.logger.error(`Payment verification failed for order ${orderId}. Invalid signature.`);
+      throw new BadRequestException('Payment verification failed. Invalid signature.');
+    }
+
+    // Payment signature is valid - update order status
+    await this.ordersService.updatePayment(restaurantId, orderId, {
+      paymentStatus: PaymentStatus.Paid,
+      paymentMethod: 'upi',
+      razorpayPaymentId: dto.razorpay_payment_id,
+    });
+
+    // Get updated order
+    const updatedOrder = await this.ordersService.findOne(restaurantId, orderId);
+
+    this.logger.log(`Payment verified successfully for order ${orderId}. Payment ID: ${dto.razorpay_payment_id}`);
+
+    return {
+      success: true,
+      message: 'Payment verified successfully',
+      order: updatedOrder,
+    };
   }
 }

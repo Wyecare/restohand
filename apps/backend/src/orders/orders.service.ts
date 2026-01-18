@@ -156,6 +156,62 @@ export class OrdersService {
     return response;
   }
 
+  /**
+   * Calculate order total without creating the order - used for cart total calculation
+   */
+  async calculateOrderTotal(
+    restaurantId: string,
+    dto: CreateOrderDto
+  ): Promise<{
+    subtotal: number;
+    taxAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    roundOffAmount: number;
+    totalAmount: number;
+    items?: any[];
+  }> {
+    // Get restaurant and validate
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId)
+      .select('defaultGstRateId applyDefaultGstToMenuItems')
+      .lean();
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    const defaultGstRateId = restaurant.defaultGstRateId;
+
+    // For customer state, we'll use the restaurant's state or default to same-state
+    // This can be enhanced later to accept customer state in the request
+    const customerState = 'SAME_STATE'; // Default assumption for simplicity
+
+    // Reuse the existing pricing logic
+    const { items, summary } = await this.prepareOrderPricing(
+      restaurantId,
+      dto,
+      customerState,
+      restaurant.applyDefaultGstToMenuItems ?? false,
+      defaultGstRateId
+    );
+
+    const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
+    const finalTotalAmount = this.roundToTwo(summary.totalAmount + roundOffAmount);
+
+    return {
+      subtotal: summary.subtotal,
+      taxAmount: summary.totalTaxAmount,
+      cgstAmount: summary.cgstAmount,
+      sgstAmount: summary.sgstAmount,
+      igstAmount: summary.igstAmount,
+      roundOffAmount,
+      totalAmount: finalTotalAmount,
+      items
+    };
+  }
+
   async findAll(
     restaurantId: string,
     query: QueryOrdersDto

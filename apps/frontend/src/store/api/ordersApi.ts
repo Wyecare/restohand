@@ -91,6 +91,89 @@ export interface CreatePaymentLinkResponse {
   currency: string;
 }
 
+// New customer cart interfaces
+export interface CreateOrderWithPaymentPayload {
+  restaurantId: string;
+  tableNumber?: string;
+  items: Array<{
+    menuItemId: string;
+    quantity: number;
+    customizations?: {
+      addons?: Array<{ id: string; name: string; price: number }>;
+      variants?: Array<{ id: string; name: string; price: number }>;
+      notes?: string;
+    };
+  }>;
+  notes?: string;
+  customerInfo?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+  totalAmount: number; // in paise for verification
+}
+
+export interface CreateOrderWithPaymentResponse {
+  orderId: string;
+  orderNumber: string;
+  razorpayOrderId: string;
+  razorpayKey: string;
+  amount: number;
+  currency: string;
+}
+
+export interface VerifyPaymentPayload {
+  restaurantId: string;
+  orderId: string;
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+export interface VerifyPaymentResponse {
+  success: boolean;
+  message: string;
+  order: Order;
+}
+
+export interface CalculateCartTotalPayload {
+  restaurantId: string;
+  tableNumber?: string;
+  items: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    pricing: {
+      unitAmount: number;
+      currency: string;
+    };
+  }>;
+  notes?: string;
+  customerInfo?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+}
+
+export interface CalculateCartTotalResponse {
+  subtotal: number;
+  taxAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  roundOffAmount: number;
+  totalAmount: number;
+  itemDetails: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    taxAmount: number;
+  }>;
+}
+
 export const ordersApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listOrders: builder.query<PaginatedResponse<Order>, ListOrdersParams>({
@@ -184,6 +267,45 @@ export const ordersApi = baseApi.injectEndpoints({
         method: 'POST',
       }),
     }),
+
+    // New customer cart endpoints
+    calculateCartTotal: builder.mutation<
+      CalculateCartTotalResponse,
+      CalculateCartTotalPayload
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/calculate-cart-total`,
+        method: 'POST',
+        body,
+      }),
+      // No cache invalidation needed for calculation
+    }),
+
+    createOrderWithPayment: builder.mutation<
+      CreateOrderWithPaymentResponse,
+      CreateOrderWithPaymentPayload
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/create-with-payment`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Order', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
+    verifyPayment: builder.mutation<VerifyPaymentResponse, VerifyPaymentPayload>({
+      query: ({ restaurantId, orderId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/verify-payment`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: `LIST-${restaurantId}` },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -197,4 +319,7 @@ export const {
   useCreatePaymentIntentMutation,
   useCreateUpiIntentMutation,
   useCreatePaymentLinkMutation,
+  useCalculateCartTotalMutation,
+  useCreateOrderWithPaymentMutation,
+  useVerifyPaymentMutation,
 } = ordersApi;

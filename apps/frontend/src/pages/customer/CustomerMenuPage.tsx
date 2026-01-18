@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,10 +6,9 @@ import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
-import { useCreateOrderMutation } from '@/store/api/ordersApi';
+import { useCreateOrderWithPaymentMutation, useVerifyPaymentMutation } from '@/store/api/ordersApi';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
-  ShoppingCart,
   Plus,
   Minus,
   Search,
@@ -17,11 +16,18 @@ import {
   Sparkles,
   Clock,
   Receipt,
+  RefreshCcw,
 } from 'lucide-react';
-import TableDialog from './TableDialog';
+import CartDialog, { type OrderFormData } from '@/components/cart/CartDialog';
+import FloatingCartButton from '@/components/cart/FloatingCartButton';
+import { CartErrorBoundary } from '@/components/cart/ErrorBoundary';
+import { NetworkStatus } from '@/components/cart/NetworkErrorHandler';
+import { useCartCalculation } from '@/hooks/useCartCalculation';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { addItem, removeItem, updateItemQuantity, updateCustomerInfo, clearCart, initializeCart } from '@/store/slices/cartSlice';
 import { Input } from '@/components/ui/input';
-import type { CreateOrderPayload } from '@/store/api/ordersApi';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
+import { formatCurrency } from '@/lib/billing';
 
 declare global {
   interface Window {
@@ -29,12 +35,6 @@ declare global {
   }
 }
 
-interface CartEntry {
-  id: string;
-  name: string;
-  pricing: MenuItemPricing;
-  quantity: number;
-}
 
 type DisplayCategory = {
   id: string;
@@ -94,18 +94,13 @@ const formatOrderStatus = (status: string) =>
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
 
 export default function CustomerMenuPage() {
   const params = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const dispatch = useAppDispatch();
 
   const slug = params.slug ?? '';
   const initialTableParam = searchParams.get('table');
@@ -118,18 +113,62 @@ export default function CustomerMenuPage() {
     { slug, table: tableFromUrl },
     { skip: !slug }
   );
-  const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
+  const [createOrderWithPayment, { isLoading: isPlacingOrder }] = useCreateOrderWithPaymentMutation();
+  const [verifyPayment, { isLoading: isVerifyingPayment }] = useVerifyPaymentMutation();
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [cart, setCart] = useState<Record<string, CartEntry>>({});
+  const { items: cartItems, totalQuantity, totalAmount } = useAppSelector((state) => ({
+    items: state.cart.items,
+    totalQuantity: state.cart.items.reduce((sum: number, item: any) => sum + item.quantity, 0),
+    totalAmount: state.cart.backendCalculated?.totalAmount ?? state.cart.subtotal,
+  }));
 
-  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  // Initialize cart calculation hook
+  const { isCalculating, backendTotal, hasBackendCalculation } = useCartCalculation();
+
+
+  const [cartDialogOpen, setCartDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+
+  // Load Razorpay script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+
+    script.onerror = () => {
+      console.error('Failed to load Razorpay script');
+      toast({
+        title: 'Payment system unavailable',
+        description: 'Online payments may not work. Please try cash payment or refresh the page.',
+        variant: 'destructive',
+      });
+    };
+
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, [toast]);
 
   // Extract data from the API response
   const restaurant = data?.restaurant;
   const menu = data?.menu;
+
+  // Initialize cart when restaurant data is available
+  useEffect(() => {
+    if (restaurant && slug) {
+      dispatch(initializeCart({
+        restaurantId: restaurant.id,
+        restaurantSlug: slug,
+        tableNumber: tableFromUrl,
+      }));
+    }
+  }, [dispatch, restaurant, slug, tableFromUrl]);
   const activeOrder = data?.activeOrder;
   const categories = useMemo(() => menu?.categories ?? [], [menu]);
   const uncategorised = useMemo(() => menu?.uncategorised ?? [], [menu]);
@@ -223,87 +262,179 @@ export default function CustomerMenuPage() {
     return displayCategories;
   }, [categories, filteredProducts]);
 
-  const totalItems = Object.values(cart).reduce(
-    (sum, e) => sum + e.quantity,
-    0
-  );
-  const totalAmount = Object.values(cart).reduce(
-    (sum, e) => sum + e.quantity * e.pricing.amount,
-    0
-  );
 
   const handleAdd = (id: string, name: string, pricing: MenuItemPricing) => {
-    setCart((prev) => ({
-      ...prev,
-      [id]: { id, name, pricing, quantity: (prev[id]?.quantity ?? 0) + 1 },
-    }));
+    try {
+      dispatch(addItem({
+        id: `${id}-${Date.now()}`, // Generate unique cart item ID
+        menuItemId: id,
+        name,
+        price: pricing.amount,
+        categoryId: '', // Will be set properly later
+        categoryName: '',
+        customizations: {},
+      }));
+    } catch (error) {
+      console.error('Error adding item to cart:', error);
+      toast({
+        title: 'Failed to add item',
+        description: 'Unable to add item to cart. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleRemove = (id: string) => {
-    setCart((prev) => {
-      const current = prev[id];
-      if (!current) return prev;
-      if (current.quantity === 1) {
-        const { [id]: _, ...rest } = prev;
-        return rest;
+    try {
+      const existingItem = cartItems.find((item: any) => item.menuItemId === id);
+      if (existingItem) {
+        if (existingItem.quantity === 1) {
+          dispatch(removeItem(existingItem.id));
+        } else {
+          dispatch(updateItemQuantity({ id: existingItem.id, quantity: existingItem.quantity - 1 }));
+        }
       }
-      return { ...prev, [id]: { ...current, quantity: current.quantity - 1 } };
-    });
+    } catch (error) {
+      console.error('Error removing item from cart:', error);
+      toast({
+        title: 'Failed to update cart',
+        description: 'Unable to update cart. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleConfirmOrder = async (tableNumber: string) => {
-    if (!restaurant) return;
-    const trimmedTable = tableNumber.trim();
+  const getItemQuantity = (menuItemId: string): number => {
+    const item = cartItems.find((item: any) => item.menuItemId === menuItemId);
+    return item ? item.quantity : 0;
+  };
 
-    if (!trimmedTable) {
-      toast({
-        title: 'Add a table or name',
-        description: 'Please enter a table number or name.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handlePlaceOrder = async (orderData: OrderFormData) => {
+    if (!restaurant || cartItems.length === 0) return;
 
-    if (Object.keys(cart).length === 0) {
-      toast({
-        title: 'Cart is empty',
-        description: 'Add items to your cart first.',
-        variant: 'destructive',
-      });
-      setTableDialogOpen(false);
-      return;
-    }
+    // Store customer info in cart state
+    dispatch(updateCustomerInfo(orderData.customerInfo));
 
-    const payload: CreateOrderPayload = {
-      restaurantId: restaurant.id,
-      tableNumber: trimmedTable,
-      paymentMethod: 'cash',
-      items: Object.values(cart).map((entry) => ({
-        menuItemId: entry.id,
-        name: entry.name,
-        quantity: entry.quantity,
+    const payload = {
+      tableNumber: orderData.tableNumber,
+      items: cartItems.map((item: any) => ({
+        menuItemId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
         pricing: {
-          unitAmount: entry.pricing.amount,
-          currency: entry.pricing.currency ?? 'INR',
+          unitAmount: item.price,
+          currency: 'INR',
         },
       })),
+      notes: orderData.notes,
+      customerInfo: orderData.customerInfo,
+      totalAmount: (hasBackendCalculation ? backendTotal : totalAmount) * 100, // Convert to paise
     };
 
     try {
-      const order = await createOrder(payload).unwrap();
-      setCart({});
-      setTableDialogOpen(false);
-      toast({
-        title: 'Order placed! 🎉',
-        description: `Order #${order.orderNumber} created`,
-      });
+      const result = await createOrderWithPayment({
+        restaurantId: restaurant.id,
+        ...payload,
+      }).unwrap();
 
-      const encodedTable = encodeURIComponent(trimmedTable);
-      navigate(`/c/${slug}/order/${order.id}?table=${encodedTable}`);
+      if (orderData.paymentMethod === 'razorpay') {
+        // Check if Razorpay is loaded
+        if (!window.Razorpay) {
+          toast({
+            title: 'Payment system not ready',
+            description: 'Please wait a moment and try again, or use cash payment.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Handle Razorpay payment
+        const options = {
+          key: result.razorpayKey,
+          amount: result.amount,
+          currency: result.currency,
+          order_id: result.razorpayOrderId,
+          name: restaurant.name,
+          description: `Order #${result.orderNumber}`,
+          handler: async (response: any) => {
+            try {
+              // Verify payment with backend
+              await verifyPayment({
+                restaurantId: restaurant.id,
+                orderId: result.orderId,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+              }).unwrap();
+
+              toast({
+                title: 'Payment Successful! 🎉',
+                description: `Order #${result.orderNumber} confirmed`,
+              });
+              dispatch(clearCart());
+              setCartDialogOpen(false);
+              navigate(`/c/${slug}/order/${result.orderId}`);
+            } catch (error) {
+              console.error('Payment verification error:', error);
+              toast({
+                title: 'Payment verification failed',
+                description: 'Please contact support if amount was deducted.',
+                variant: 'destructive',
+              });
+            }
+          },
+          prefill: {
+            name: orderData.customerInfo.name,
+            contact: orderData.customerInfo.phone,
+            email: orderData.customerInfo.email,
+          },
+          modal: {
+            ondismiss: () => {
+              toast({
+                title: 'Payment cancelled',
+                description: 'You can complete the payment later from your order.',
+                variant: 'destructive',
+              });
+            },
+          },
+          theme: {
+            color: '#000000',
+          },
+        };
+
+        const razorpay = new window.Razorpay(options);
+        razorpay.open();
+      } else {
+        // Cash payment - order placed directly
+        toast({
+          title: 'Order placed! 🎉',
+          description: `Order #${result.orderNumber} created`,
+        });
+        dispatch(clearCart());
+        setCartDialogOpen(false);
+        navigate(`/c/${slug}/order/${result.orderId}`);
+      }
     } catch (err) {
+      console.error('Order placement error:', err);
+
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'object' && err !== null && 'data' in err) {
+        const apiError = err as any;
+        if (apiError.data?.message) {
+          errorMessage = apiError.data.message;
+        } else if (apiError.status === 400) {
+          errorMessage = 'Please check your order details and try again.';
+        } else if (apiError.status === 500) {
+          errorMessage = 'Server error. Please try again in a moment.';
+        }
+      }
+
       toast({
         title: 'Unable to place order',
-        description: err instanceof Error ? err.message : 'Unexpected error',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -337,9 +468,31 @@ export default function CustomerMenuPage() {
             className="text-6xl mb-4"
           />
           <h2 className="text-xl font-bold mb-2">Menu Unavailable</h2>
-          <p className="text-muted-foreground">
-            Unable to load the menu. Please try again later.
+          <p className="text-muted-foreground mb-4">
+            Unable to load the menu. This could be due to:
           </p>
+          <ul className="text-sm text-muted-foreground text-left space-y-1 mb-4">
+            <li>• Network connectivity issues</li>
+            <li>• Restaurant may be temporarily offline</li>
+            <li>• Invalid restaurant link</li>
+          </ul>
+          <div className="space-y-2">
+            <Button
+              onClick={() => window.location.reload()}
+              className="w-full"
+              variant="outline"
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Try Again
+            </Button>
+            <Button
+              onClick={() => navigate('/') }
+              className="w-full"
+              variant="ghost"
+            >
+              Go Home
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -349,7 +502,9 @@ export default function CustomerMenuPage() {
     restaurant?.settings?.selfOrderingEnabled ?? true;
 
   return (
-    <div className="relative min-h-screen bg-linear-to-b from-background via-muted/5 to-background pb-32">
+    <CartErrorBoundary>
+      <NetworkStatus />
+      <div className="relative min-h-screen bg-linear-to-b from-background via-muted/5 to-background pb-32">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -519,7 +674,7 @@ export default function CustomerMenuPage() {
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {displayItems.map((item, index) => {
-              const entry = cart[item.id];
+              const quantity = getItemQuantity(item.id);
               return (
                 <motion.div
                   key={item.id}
@@ -591,7 +746,7 @@ export default function CustomerMenuPage() {
                         {/* Add Button - only show if self-ordering is enabled */}
                         {isSelfOrderingEnabled && (
                           <>
-                            {entry ? (
+                            {quantity > 0 ? (
                               <div className="flex items-center justify-center gap-1.5 bg-primary rounded-full px-1.5 py-1">
                                 <Button
                                   variant="ghost"
@@ -602,7 +757,7 @@ export default function CustomerMenuPage() {
                                   <Minus className="h-3.5 w-3.5" />
                                 </Button>
                                 <span className="w-5 text-center font-bold text-sm text-primary-foreground">
-                                  {entry.quantity}
+                                  {quantity}
                                 </span>
                                 <Button
                                   variant="ghost"
@@ -639,54 +794,19 @@ export default function CustomerMenuPage() {
       </motion.div>
 
       {/* Floating Cart Button - only show if self-ordering is enabled */}
-      <AnimatePresence>
-        {isSelfOrderingEnabled && totalItems > 0 && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-0 right-0 z-40 px-4"
-          >
-            <div className="max-w-2xl mx-auto">
-              <Button
-                size="lg"
-                className="w-full h-16 rounded-2xl shadow-2xl text-lg font-bold relative overflow-hidden"
-                onClick={() => setTableDialogOpen(true)}
-              >
-                <div className="absolute inset-0 bg-linear-to-r from-primary to-primary/80" />
-                <div className="relative flex items-center justify-between w-full px-2">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white/20 rounded-full p-2">
-                      <ShoppingCart className="h-6 w-6" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm opacity-90">{totalItems} items</p>
-                      <p className="text-base font-black">
-                        {formatCurrency(totalAmount)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">
-                    <span className="font-bold">Place Order</span>
-                    <Plus className="h-5 w-5" />
-                  </div>
-                </div>
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isSelfOrderingEnabled && (
+        <FloatingCartButton onClick={() => setCartDialogOpen(true)} />
+      )}
 
-      {/* Table Dialog */}
-      <TableDialog
-        open={tableDialogOpen}
-        onOpenChange={setTableDialogOpen}
-        totalAmount={totalAmount}
-        itemCount={totalItems}
-        isPlacingOrder={isPlacingOrder}
-        onConfirm={handleConfirmOrder}
-        defaultTable={tableFromUrl}
+      {/* Cart Dialog */}
+      <CartDialog
+        open={cartDialogOpen}
+        onOpenChange={setCartDialogOpen}
+        onPlaceOrder={handlePlaceOrder}
+        isLoading={isPlacingOrder || isVerifyingPayment}
+        defaultTableNumber={tableFromUrl}
       />
-    </div>
+      </div>
+    </CartErrorBoundary>
   );
 }

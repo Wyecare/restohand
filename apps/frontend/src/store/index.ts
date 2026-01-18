@@ -5,6 +5,8 @@ import { baseApi } from './api/baseApi';
 import authReducer from './slices/authSlice';
 import themeReducer from './slices/themeSlice';
 import uiReducer from './slices/uiSlice';
+import cartReducer from './slices/cartSlice';
+import { cartPersistenceMiddleware } from './middleware/cartPersistence';
 
 export const store = configureStore({
   reducer: {
@@ -15,6 +17,7 @@ export const store = configureStore({
     auth: authReducer,
     theme: themeReducer,
     ui: uiReducer,
+    cart: cartReducer,
   },
 
   // Adding the api middleware enables caching, invalidation, polling,
@@ -24,7 +27,7 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [baseApi.util.prefetch.type],
       },
-    }).concat(baseApi.middleware),
+    }).concat(baseApi.middleware, cartPersistenceMiddleware),
 });
 
 // Optional, but required for refetchOnFocus/refetchOnReconnect behaviors
