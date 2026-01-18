@@ -8,6 +8,7 @@ import {
   selectActiveRestaurantId,
 } from '@/store/slices/authSlice';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { isCustomerInterface } from '@/utils/domain';
 
 interface AuthGuardProps {
   requireAuth?: boolean;
@@ -59,7 +60,8 @@ export function AuthGuard({
     );
   }
 
-  if (requireAuth && !isAuthenticated) {
+  // Skip auth requirement for customer interface - customers don't need to login to view menus
+  if (requireAuth && !isAuthenticated && !isCustomerInterface()) {
     return (
       <Navigate
         to={redirectTo}

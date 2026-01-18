@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, Navigate } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
 import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
