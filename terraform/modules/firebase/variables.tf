@@ -19,6 +19,12 @@ variable "staff_hosting_site_id" {
   type        = string
 }
 
+variable "customer_hosting_site_id" {
+  description = "Site ID for Customer Firebase Hosting"
+  type        = string
+  default     = null
+}
+
 # Legacy variable for backwards compatibility
 variable "hosting_site_id" {
   description = "Legacy site ID - use admin_hosting_site_id instead"

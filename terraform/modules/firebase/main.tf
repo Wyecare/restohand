@@ -51,6 +51,14 @@ resource "google_firebase_hosting_site" "staff" {
   depends_on = [google_firebase_project.default]
 }
 
+# Customer Firebase Hosting Site
+resource "google_firebase_hosting_site" "customer" {
+  provider = google-beta
+  project  = var.project_id
+  site_id  = var.customer_hosting_site_id
+  depends_on = [google_firebase_project.default]
+}
+
 # Legacy site for backwards compatibility
 resource "google_firebase_hosting_site" "default" {
   count    = var.hosting_site_id != null ? 1 : 0

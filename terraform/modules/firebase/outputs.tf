@@ -38,6 +38,15 @@ output "staff_hosting_site_name" {
   value       = google_firebase_hosting_site.staff.name
 }
 
+output "customer_hosting_site_id" {
+  description = "Customer Firebase Hosting site ID"
+  value       = google_firebase_hosting_site.customer.site_id
+}
+output "customer_hosting_site_name" {
+  description = "Customer Firebase Hosting site name"
+  value       = google_firebase_hosting_site.customer.name
+}
+
 output "admin_preview_channel_name" {
   description = "Admin Firebase Hosting preview channel name"
   value       = var.enable_preview_channel ? google_firebase_hosting_channel.admin_preview[0].name : null

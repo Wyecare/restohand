@@ -235,6 +235,7 @@ module "firebase" {
   web_app_display_name    = "Restohand Web (Dev)"
   admin_hosting_site_id   = var.admin_firebase_site_id
   staff_hosting_site_id   = var.staff_firebase_site_id
+  customer_hosting_site_id = var.customer_firebase_site_id
   hosting_site_id         = var.firebase_site_id  # Legacy support
   enable_preview_channel  = true
   enable_firebase_storage = true  # Disable until domain verification completed
