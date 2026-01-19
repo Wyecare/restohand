@@ -15,7 +15,7 @@ import { Type } from 'class-transformer';
 import { CreateOrderItemDto } from './create-order-item.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-const PAYMENT_METHODS = ['upi', 'cash'] as const;
+const PAYMENT_METHODS = ['upi', 'cash', 'pending'] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export class CreateOrderDto {
@@ -87,7 +87,7 @@ export class CreateOrderDto {
   @MaxLength(300)
   notes?: string;
 
-  @ApiPropertyOptional({ enum: ['upi', 'cash'], default: 'upi' })
+  @ApiPropertyOptional({ enum: ['upi', 'cash', 'pending'], default: 'pending' })
   @IsOptional()
   @IsIn(PAYMENT_METHODS)
   paymentMethod?: PaymentMethod;

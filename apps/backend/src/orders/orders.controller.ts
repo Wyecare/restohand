@@ -23,6 +23,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateOrderDto } from './dtos/create-order.dto';
 import { CreateOrderWithPaymentDto } from './dtos/create-order-with-payment.dto';
+import { AddItemsToOrderDto } from './dtos/add-items-to-order.dto';
 import { CalculateCartTotalDto } from './dtos/calculate-cart-total.dto';
 import { VerifyPaymentDto } from './dtos/verify-payment.dto';
 import { OrderListResponseDto } from './dtos/order-list-response.dto';
@@ -59,7 +60,24 @@ export class OrdersController {
     @Param('restaurantId') restaurantId: string,
     @Body() dto: CreateOrderDto
   ) {
-    return this.ordersService.create(restaurantId, dto);
+    // Default to pending payment for new order-first flow
+    const orderDto = {
+      ...dto,
+      paymentMethod: dto.paymentMethod || 'pending'
+    };
+    return this.ordersService.create(restaurantId, orderDto);
+  }
+
+  @Post(':orderId/add-items')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiCreatedResponse({ type: OrderResponseDto })
+  async addItemsToOrder(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string,
+    @Body() dto: AddItemsToOrderDto
+  ) {
+    return this.ordersService.addItemsToOrder(restaurantId, orderId, dto);
   }
 
   @Get()
@@ -384,6 +402,34 @@ export class OrdersController {
     @Param('orderId') orderId: string
   ) {
     return this.ordersService.listEvents(restaurantId, orderId);
+  }
+
+  @Get(':orderId/bill')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiOkResponse({
+    description: 'Generate final bill for the order',
+    schema: {
+      properties: {
+        orderId: { type: 'string' },
+        orderNumber: { type: 'string' },
+        items: { type: 'array' },
+        subtotal: { type: 'number' },
+        taxAmount: { type: 'number' },
+        cgstAmount: { type: 'number' },
+        sgstAmount: { type: 'number' },
+        igstAmount: { type: 'number' },
+        totalAmount: { type: 'number' },
+        billGeneratedAt: { type: 'string' },
+        paymentStatus: { type: 'string' }
+      }
+    }
+  })
+  async generateBill(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string
+  ) {
+    return this.ordersService.generateBill(restaurantId, orderId);
   }
 
   // ============= CUSTOMER CART & PAYMENT ENDPOINTS =============

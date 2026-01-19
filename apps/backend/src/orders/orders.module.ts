@@ -9,6 +9,7 @@ import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.
 import { OrderEvent, OrderEventSchema } from './schemas/order-event.schema';
 import { OrdersGateway } from './orders.gateway';
 import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema';
+import { OrderCounter, OrderCounterSchema } from './schemas/order-counter.schema';
 import { GstModule } from '../gst/gst.module';
 import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
@@ -24,6 +25,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: OrderEvent.name, schema: OrderEventSchema },
       { name: MenuItem.name, schema: MenuItemSchema },
+      { name: OrderCounter.name, schema: OrderCounterSchema },
     ]),
   ],
   controllers: [OrdersController, WebhooksController],

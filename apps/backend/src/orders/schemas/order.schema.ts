@@ -112,7 +112,12 @@ export class Order {
   @Prop({ type: String, trim: true, lowercase: true })
   customerEmail?: string;
 
-  @Prop({ type: String, trim: true, uppercase: true, match: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/ })
+  @Prop({
+    type: String,
+    trim: true,
+    uppercase: true,
+    match: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+  })
   customerGstin?: string;
 
   @Prop({ type: String, trim: true })
@@ -178,10 +183,10 @@ export class Order {
 
   @Prop({
     type: String,
-    enum: ['upi', 'cash'],
-    default: 'upi',
+    enum: ['upi', 'cash', 'pending'],
+    default: 'pending',
   })
-  paymentMethod!: 'upi' | 'cash';
+  paymentMethod!: 'upi' | 'cash' | 'pending';
 
   @Prop({ type: String, trim: true })
   notes?: string;
@@ -212,6 +217,9 @@ export class Order {
 
   @Prop({ type: Date })
   taxInvoiceGeneratedAt?: Date;
+
+  @Prop({ type: Date })
+  billGeneratedAt?: Date;
 
   @Prop({ type: Boolean, default: false })
   isArchived!: boolean;

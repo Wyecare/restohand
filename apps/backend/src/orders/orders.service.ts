@@ -10,6 +10,7 @@ import { OrderProgressStage } from '../common/enums/order-progress.enum';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { CreateOrderDto } from './dtos/create-order.dto';
+import { AddItemsToOrderDto } from './dtos/add-items-to-order.dto';
 import { OrderListResponseDto } from './dtos/order-list-response.dto';
 import { OrderResponseDto } from './dtos/order-response.dto';
 import { QueryOrdersDto } from './dtos/query-orders.dto';
@@ -27,6 +28,10 @@ import {
   MenuItem,
   MenuItemDocument,
 } from '../menu-items/schemas/menu-item.schema';
+import {
+  OrderCounter,
+  OrderCounterDocument,
+} from './schemas/order-counter.schema';
 import {
   GstService,
   OrderItemWithTax,
@@ -47,6 +52,8 @@ export class OrdersService {
     private readonly eventModel: Model<OrderEventDocument>,
     @InjectModel(MenuItem.name)
     private readonly menuItemModel: Model<MenuItemDocument>,
+    @InjectModel(OrderCounter.name)
+    private readonly orderCounterModel: Model<OrderCounterDocument>,
     private readonly ordersGateway: OrdersGateway,
     private readonly gstService: GstService,
     private readonly razorpayService: RazorpayService
@@ -546,6 +553,185 @@ export class OrdersService {
     }));
   }
 
+  async addItemsToOrder(
+    restaurantId: string,
+    orderId: string,
+    dto: { items: any[]; notes?: string }
+  ): Promise<OrderResponseDto> {
+    const order = await this.findOne(restaurantId, orderId);
+
+    if (order.status === OrderStatus.Completed || order.status === OrderStatus.Cancelled) {
+      throw new BadRequestException('Cannot add items to completed or cancelled orders');
+    }
+
+    // Get restaurant info for GST calculation
+    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${restaurantId} not found`);
+    }
+
+    const customerState = order.customerState || restaurant.address?.state || 'Kerala';
+
+    let defaultGstRateId: string | undefined;
+    if (restaurant.applyDefaultGstToMenuItems) {
+      const defaultRate = await this.gstService.getDefaultGstRate(restaurantId);
+      if (!defaultRate) {
+        throw new BadRequestException(
+          'Default GST rate is required when automatic GST is enabled'
+        );
+      }
+      defaultGstRateId = defaultRate.id;
+    }
+
+    // Process new items
+    const { items: newItems, summary: newItemsSummary } = await this.prepareOrderPricing(
+      restaurantId,
+      { items: dto.items } as any,
+      customerState,
+      restaurant.applyDefaultGstToMenuItems ?? false,
+      defaultGstRateId
+    );
+
+    // Get existing order document
+    const orderDoc = await this.orderModel.findById(orderId);
+    if (!orderDoc) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Combine existing and new items
+    const allItems = [...orderDoc.items, ...newItems];
+
+    // Recalculate totals (handle both existing and new item structures)
+    const subtotal = allItems.reduce((sum, item) => {
+      // For new items, use lineTotal; for existing items, calculate from pricing
+      const lineTotal = 'lineTotal' in item
+        ? item.lineTotal
+        : (item.pricing.unitAmount * item.quantity);
+      return sum + lineTotal;
+    }, 0);
+
+    const taxAmount = allItems.reduce((sum, item) => {
+      // For new items, use taxAmount; for existing items, use gst.totalTaxAmount
+      const tax = 'taxAmount' in item
+        ? item.taxAmount
+        : (item.gst?.totalTaxAmount || 0);
+      return sum + tax;
+    }, 0);
+
+    const cgstAmount = allItems.reduce((sum, item) => {
+      const cgst = 'cgstAmount' in item
+        ? item.cgstAmount
+        : (item.gst?.cgstAmount || 0);
+      return sum + cgst;
+    }, 0);
+
+    const sgstAmount = allItems.reduce((sum, item) => {
+      const sgst = 'sgstAmount' in item
+        ? item.sgstAmount
+        : (item.gst?.sgstAmount || 0);
+      return sum + sgst;
+    }, 0);
+
+    const igstAmount = allItems.reduce((sum, item) => {
+      const igst = 'igstAmount' in item
+        ? item.igstAmount
+        : (item.gst?.igstAmount || 0);
+      return sum + igst;
+    }, 0);
+
+    const totalBeforeRoundOff = subtotal + taxAmount;
+    const roundOffAmount = this.calculateRoundOff(totalBeforeRoundOff);
+    const totalAmount = this.roundToTwo(totalBeforeRoundOff + roundOffAmount);
+
+    // Update order
+    await this.orderModel.findByIdAndUpdate(orderId, {
+      items: allItems,
+      subTotalAmount: subtotal,
+      taxAmount,
+      cgstAmount,
+      sgstAmount,
+      igstAmount,
+      roundOffAmount,
+      totalAmount,
+      notes: dto.notes ? [orderDoc.notes, dto.notes].filter(Boolean).join(' | ') : orderDoc.notes,
+    });
+
+    // Create event
+    await this.recordEvent(orderId, restaurantId, 'items_added', {
+      newItems: newItems.map(item => ({ name: item.name, quantity: item.quantity })),
+      addedAmount: newItemsSummary.totalAmount,
+    });
+
+    // Emit real-time update
+    const updatedOrder = await this.findOne(restaurantId, orderId);
+    this.ordersGateway.emitOrderUpdated(updatedOrder);
+
+    this.logger.log(`Added ${newItems.length} items to order ${orderId}. New total: ₹${totalAmount}`);
+
+    return updatedOrder;
+  }
+
+  async generateBill(restaurantId: string, orderId: string) {
+    const order = await this.findOne(restaurantId, orderId);
+    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurant not found');
+    }
+
+    // Mark bill as generated if not already
+    if (!order.billGeneratedAt) {
+      await this.orderModel.findByIdAndUpdate(orderId, {
+        billGeneratedAt: new Date(),
+      });
+
+      await this.recordEvent(orderId, restaurantId, 'bill_generated', {
+        totalAmount: order.totalAmount,
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      restaurant: {
+        name: restaurant.name,
+        address: restaurant.address,
+        gstin: restaurant.gstNumber,
+        phone: restaurant.contactInfo?.phone,
+        email: restaurant.contactInfo?.email,
+      },
+      customer: {
+        name: order.customerName,
+        phone: order.customerPhone,
+        email: order.customerEmail,
+        gstin: order.customerGstin,
+        state: order.customerState,
+      },
+      tableNumber: order.tableNumber,
+      items: order.items.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.pricing.unitAmount,
+        lineTotal: item.lineTotal,
+        taxAmount: item.taxAmount,
+        cgstAmount: item.cgstAmount || 0,
+        sgstAmount: item.sgstAmount || 0,
+        igstAmount: item.igstAmount || 0,
+      })),
+      subtotal: order.subtotal,
+      taxAmount: order.taxAmount,
+      cgstAmount: order.cgstAmount,
+      sgstAmount: order.sgstAmount,
+      igstAmount: order.igstAmount,
+      roundOffAmount: order.roundOffAmount,
+      totalAmount: order.totalAmount,
+      paymentStatus: order.paymentStatus,
+      billGeneratedAt: order.billGeneratedAt?.toISOString() || new Date().toISOString(),
+      notes: order.notes,
+    };
+  }
+
   private async prepareOrderPricing(
     restaurantId: string,
     dto: CreateOrderDto,
@@ -936,11 +1122,18 @@ export class OrdersService {
       throw new Error('Restaurant not found');
     }
 
-    // Count orders for this specific restaurant to get next order number
-    const restaurantOrderCount = await this.orderModel.countDocuments({
-      restaurantId,
-    });
-    const orderNumber = (restaurantOrderCount + 1).toString().padStart(4, '0');
+    // Atomically increment the counter for this restaurant
+    const counter = await this.orderCounterModel.findOneAndUpdate(
+      { restaurantId },
+      { $inc: { lastOrderNumber: 1 } },
+      {
+        upsert: true, // Create if doesn't exist
+        new: true,    // Return the updated document
+        setDefaultsOnInsert: true
+      }
+    );
+
+    const orderNumber = counter.lastOrderNumber.toString().padStart(4, '0');
 
     // Format: {restaurant-slug}-{order-number}
     return `${restaurant.slug}-${orderNumber}`;

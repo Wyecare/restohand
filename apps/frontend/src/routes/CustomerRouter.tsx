@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import CustomerMenuPage from '@/pages/customer/CustomerMenuPage';
-import CustomerOrderStatusPage from '@/pages/customer/CustomerOrderStatusPage';
+import CustomerMenuPageNew from '@/pages/customer/CustomerMenuPageNew';
+import CustomerOrderStatusPageNew from '@/pages/customer/CustomerOrderStatusPageNew';
 import CustomerLayout from '@/components/customer/CustomerLayout';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import TermsConditionsPage from '@/pages/TermsConditionsPage';
@@ -29,10 +29,10 @@ const CustomerRouter = () => {
 
         {/* Customer QR ordering interface */}
         <Route element={<CustomerLayout />}>
-          <Route path="/c/:slug" element={<CustomerMenuPage />} />
+          <Route path="/c/:slug" element={<CustomerMenuPageNew />} />
           <Route
             path="/c/:slug/order/:orderId"
-            element={<CustomerOrderStatusPage />}
+            element={<CustomerOrderStatusPageNew />}
           />
         </Route>
 

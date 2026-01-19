@@ -174,6 +174,61 @@ export interface CalculateCartTotalResponse {
   }>;
 }
 
+export interface AddItemsToOrderPayload {
+  restaurantId: string;
+  orderId: string;
+  items: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    pricing: {
+      unitAmount: number;
+      currency: string;
+    };
+  }>;
+  notes?: string;
+}
+
+export interface BillResponse {
+  orderId: string;
+  orderNumber: string;
+  restaurant: {
+    name: string;
+    address?: any;
+    gstin?: string;
+    phone?: string;
+    email?: string;
+  };
+  customer: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    gstin?: string;
+    state?: string;
+  };
+  tableNumber?: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    taxAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+  }>;
+  subtotal: number;
+  taxAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  roundOffAmount: number;
+  totalAmount: number;
+  paymentStatus: string;
+  billGeneratedAt: string;
+  notes?: string;
+}
+
 export const ordersApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listOrders: builder.query<PaginatedResponse<Order>, ListOrdersParams>({
@@ -306,6 +361,28 @@ export const ordersApi = baseApi.injectEndpoints({
         { type: 'Order', id: `LIST-${restaurantId}` },
       ],
     }),
+
+    // New order-first flow endpoints
+    addItemsToOrder: builder.mutation<Order, AddItemsToOrderPayload>({
+      query: ({ restaurantId, orderId, items, notes }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/add-items`,
+        method: 'POST',
+        body: { items, notes },
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
+    generateBill: builder.query<BillResponse, { restaurantId: string; orderId: string }>({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/bill`,
+      }),
+      providesTags: (_result, _error, { orderId }) => [
+        { type: 'Order', id: `BILL-${orderId}` },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -322,4 +399,6 @@ export const {
   useCalculateCartTotalMutation,
   useCreateOrderWithPaymentMutation,
   useVerifyPaymentMutation,
+  useAddItemsToOrderMutation,
+  useGenerateBillQuery,
 } = ordersApi;

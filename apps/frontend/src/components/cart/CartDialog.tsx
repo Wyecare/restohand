@@ -65,7 +65,7 @@ export default function CartDialog({
     backendTotal,
     backendSubtotal,
     taxBreakdown,
-    hasBackendCalculation
+    hasBackendCalculation,
   } = useCartCalculation();
 
   // Use backend total if available, otherwise fall back to frontend calculation
@@ -190,18 +190,6 @@ export default function CartDialog({
       totalQuantity > 0 &&
       Object.keys(formErrors).length === 0;
 
-    // Debug logging
-    console.log('Form validation:', {
-      nameValid: formData.customerInfo.name.trim() !== '',
-      phoneValid: formData.customerInfo.phone.trim() !== '',
-      hasItems: totalQuantity > 0,
-      noErrors: Object.keys(formErrors).length === 0,
-      formErrors,
-      formData: formData.customerInfo,
-      totalQuantity,
-      isValid: valid,
-    });
-
     return valid;
   };
 
@@ -211,9 +199,9 @@ export default function CartDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-scroll flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="max-w-2xl max-h-[90vh] p-2 gap-0 flex flex-col">
+        <DialogHeader className=" pt-6 pb-4 border-b">
+          <DialogTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="h-5 w-5" />
             Your Order
           </DialogTitle>
@@ -222,26 +210,37 @@ export default function CartDialog({
         <Tabs
           value={activeTab}
           onValueChange={handleTabChange}
-          className="flex-1 flex flex-col overflow-hidden"
+          className="flex-1 flex flex-col min-h-0"
         >
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="cart" className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4" />
-              Cart ({totalQuantity})
-            </TabsTrigger>
-            <TabsTrigger value="details" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Details
-            </TabsTrigger>
-            <TabsTrigger value="payment" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Payment
-            </TabsTrigger>
-          </TabsList>
+          <div className="pt-4 pb-2">
+            <TabsList className="grid w-full grid-cols-3 h-11">
+              <TabsTrigger
+                value="cart"
+                className="flex items-center gap-2 text-sm"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span className="hidden sm:inline">Cart</span> ({totalQuantity})
+              </TabsTrigger>
+              <TabsTrigger
+                value="details"
+                className="flex items-center gap-2 text-sm"
+              >
+                <User className="h-4 w-4" />
+                Details
+              </TabsTrigger>
+              <TabsTrigger
+                value="payment"
+                className="flex items-center gap-2 text-sm"
+              >
+                <CreditCard className="h-4 w-4" />
+                Payment
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <div className="flex-1 overflow-y-scroll">
-            <TabsContent value="cart" className="h-full overflow-y-auto">
-              <div className="pr-2">
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <TabsContent value="cart" className="mt-0 h-full">
+              <div className="px-6 pb-6">
                 <CartSummary
                   onCheckout={() => handleTabChange('details')}
                   isLoading={isLoading}
@@ -249,19 +248,21 @@ export default function CartDialog({
               </div>
             </TabsContent>
 
-            <TabsContent value="details" className="h-full overflow-y-auto">
-              <div className="space-y-6 pr-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <User className="h-5 w-5" />
+            <TabsContent value="details" className="mt-0 h-full">
+              <div className=" pb-6 space-y-5">
+                <Card className="border-0 shadow-none">
+                  <CardHeader className="px-2 pt-0 pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <User className="h-4 w-4" />
                       Customer Information
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                  <CardContent className="px-0 pb-0 space-y-4 px-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name">Name *</Label>
+                        <Label htmlFor="name" className="text-sm font-medium">
+                          Name *
+                        </Label>
                         <Input
                           id="name"
                           placeholder="Your name"
@@ -279,14 +280,16 @@ export default function CartDialog({
                           }
                         />
                         {formErrors['customerInfo.name'] && (
-                          <div className="flex items-center gap-1 text-sm text-destructive">
-                            <AlertCircle className="h-3 w-3" />
+                          <div className="flex items-center gap-1.5 text-xs text-destructive">
+                            <AlertCircle className="h-3.5 w-3.5" />
                             {formErrors['customerInfo.name']}
                           </div>
                         )}
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="phone">Phone *</Label>
+                        <Label htmlFor="phone" className="text-sm font-medium">
+                          Phone *
+                        </Label>
                         <Input
                           id="phone"
                           placeholder="Your phone number"
@@ -304,15 +307,20 @@ export default function CartDialog({
                           }
                         />
                         {formErrors['customerInfo.phone'] && (
-                          <div className="flex items-center gap-1 text-sm text-destructive">
-                            <AlertCircle className="h-3 w-3" />
+                          <div className="flex items-center gap-1.5 text-xs text-destructive">
+                            <AlertCircle className="h-3.5 w-3.5" />
                             {formErrors['customerInfo.phone']}
                           </div>
                         )}
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email (Optional)</Label>
+                      <Label htmlFor="email" className="text-sm font-medium">
+                        Email{' '}
+                        <span className="text-muted-foreground">
+                          (Optional)
+                        </span>
+                      </Label>
                       <Input
                         id="email"
                         type="email"
@@ -331,8 +339,8 @@ export default function CartDialog({
                         }
                       />
                       {formErrors['customerInfo.email'] && (
-                        <div className="flex items-center gap-1 text-sm text-destructive">
-                          <AlertCircle className="h-3 w-3" />
+                        <div className="flex items-center gap-1.5 text-xs text-destructive">
+                          <AlertCircle className="h-3.5 w-3.5" />
                           {formErrors['customerInfo.email']}
                         </div>
                       )}
@@ -340,18 +348,18 @@ export default function CartDialog({
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
+                <Card className="border-0 shadow-none">
+                  <CardHeader className="px-2 pt-0 pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
                       {defaultTableNumber
                         ? 'Table Information'
                         : 'Table / Delivery Information'}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="px-2 pb-0">
                     <div className="space-y-2">
-                      <Label htmlFor="table">
+                      <Label htmlFor="table" className="text-sm font-medium">
                         {defaultTableNumber
                           ? 'Table Number'
                           : 'Table Number / Takeaway Name'}
@@ -371,7 +379,7 @@ export default function CartDialog({
                         className={defaultTableNumber ? 'bg-muted' : ''}
                       />
                       {defaultTableNumber && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           Table number detected from QR code
                         </p>
                       )}
@@ -379,16 +387,21 @@ export default function CartDialog({
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5" />
+                <Card className="border-0 shadow-none">
+                  <CardHeader className="px-2 pt-0 pb-4">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
                       Special Instructions
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="px-2 pb-0">
                     <div className="space-y-2">
-                      <Label htmlFor="notes">Notes (Optional)</Label>
+                      <Label htmlFor="notes" className="text-sm font-medium">
+                        Notes{' '}
+                        <span className="text-muted-foreground">
+                          (Optional)
+                        </span>
+                      </Label>
                       <Textarea
                         id="notes"
                         placeholder="Any special requests or dietary requirements..."
@@ -397,16 +410,18 @@ export default function CartDialog({
                           handleInputChange('notes', e.target.value)
                         }
                         rows={3}
+                        className="resize-none"
                       />
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="flex justify-end">
+                <div className="pt-2">
                   <Button
                     onClick={() => handleTabChange('payment')}
                     disabled={!isFormValid()}
-                    className="px-8"
+                    className="w-full h-11 font-medium"
+                    size="lg"
                   >
                     Continue to Payment
                   </Button>
@@ -414,17 +429,25 @@ export default function CartDialog({
               </div>
             </TabsContent>
 
-            <TabsContent value="payment" className="h-full overflow-y-auto">
-              <div className="space-y-6 pr-2">
+            <TabsContent value="payment" className="mt-0 h-full">
+              <div className="px-0 pb-6 space-y-5">
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Order Summary</CardTitle>
+                  <CardHeader className="pb-3 px-2">
+                    <CardTitle className="text-base font-semibold">
+                      Order Summary
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-3 px-2">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <span>Items ({totalQuantity})</span>
-                        <span>{formatCurrency(hasBackendCalculation ? backendSubtotal : displayTotal)}</span>
+                        <span className="text-sm">Items ({totalQuantity})</span>
+                        <span className="text-sm font-medium">
+                          {formatCurrency(
+                            hasBackendCalculation
+                              ? backendSubtotal
+                              : displayTotal
+                          )}
+                        </span>
                       </div>
 
                       {hasBackendCalculation && (
@@ -432,48 +455,58 @@ export default function CartDialog({
                           {taxBreakdown.cgstAmount > 0 && (
                             <div className="flex justify-between items-center text-sm text-muted-foreground">
                               <span>CGST</span>
-                              <span>{formatCurrency(taxBreakdown.cgstAmount)}</span>
+                              <span>
+                                {formatCurrency(taxBreakdown.cgstAmount)}
+                              </span>
                             </div>
                           )}
                           {taxBreakdown.sgstAmount > 0 && (
                             <div className="flex justify-between items-center text-sm text-muted-foreground">
                               <span>SGST</span>
-                              <span>{formatCurrency(taxBreakdown.sgstAmount)}</span>
+                              <span>
+                                {formatCurrency(taxBreakdown.sgstAmount)}
+                              </span>
                             </div>
                           )}
                           {taxBreakdown.igstAmount > 0 && (
                             <div className="flex justify-between items-center text-sm text-muted-foreground">
                               <span>IGST</span>
-                              <span>{formatCurrency(taxBreakdown.igstAmount)}</span>
+                              <span>
+                                {formatCurrency(taxBreakdown.igstAmount)}
+                              </span>
                             </div>
                           )}
                           {taxBreakdown.roundOffAmount !== 0 && (
                             <div className="flex justify-between items-center text-sm text-muted-foreground">
                               <span>Round Off</span>
-                              <span>{formatCurrency(taxBreakdown.roundOffAmount)}</span>
+                              <span>
+                                {formatCurrency(taxBreakdown.roundOffAmount)}
+                              </span>
                             </div>
                           )}
                         </>
                       )}
                     </div>
 
-                    <div className="border-t pt-4">
-                      <div className="flex justify-between items-center font-bold text-lg">
-                        <span>Total</span>
-                        <span>{formatCurrency(displayTotal)}</span>
+                    <div className="border-t pt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-base">Total</span>
+                        <span className="font-bold text-lg">
+                          {formatCurrency(displayTotal)}
+                        </span>
                       </div>
                       {hasBackendCalculation ? (
-                        <p className="text-sm text-muted-foreground mt-2">
+                        <p className="text-xs text-muted-foreground mt-2">
                           Final amount calculated with accurate GST rates.
                         </p>
                       ) : (
-                        <p className="text-sm text-muted-foreground mt-2">
+                        <p className="text-xs text-muted-foreground mt-2">
                           Final amount includes GST and any applicable charges.
                           Exact total will be confirmed before payment.
                         </p>
                       )}
                       {isCalculating && (
-                        <p className="text-sm text-orange-600 mt-1">
+                        <p className="text-xs text-orange-600 mt-1.5 font-medium">
                           Calculating accurate total...
                         </p>
                       )}
@@ -482,25 +515,29 @@ export default function CartDialog({
                 </Card>
 
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Payment Method</CardTitle>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base font-semibold">
+                      Payment Method
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-3">
                       <Button
                         variant={
                           formData.paymentMethod === 'razorpay'
                             ? 'default'
                             : 'outline'
                         }
-                        className="h-20 flex flex-col gap-2"
+                        className="h-24 flex flex-col gap-1.5 p-4"
                         onClick={() =>
                           handleInputChange('paymentMethod', 'razorpay')
                         }
                       >
                         <CreditCard className="h-5 w-5" />
-                        <span>Online Payment</span>
-                        <span className="text-xs">UPI, Cards, Wallets</span>
+                        <span className="font-medium">Online Payment</span>
+                        <span className="text-xs opacity-80">
+                          UPI, Cards, Wallets
+                        </span>
                       </Button>
                       <Button
                         variant={
@@ -508,31 +545,33 @@ export default function CartDialog({
                             ? 'default'
                             : 'outline'
                         }
-                        className="h-20 flex flex-col gap-2"
+                        className="h-24 flex flex-col gap-1.5 p-4"
                         onClick={() =>
                           handleInputChange('paymentMethod', 'cash')
                         }
                       >
-                        <span className="text-lg">💵</span>
-                        <span>Pay Later</span>
-                        <span className="text-xs">Cash at restaurant</span>
+                        <span className="text-xl">💵</span>
+                        <span className="font-medium">Pay Later</span>
+                        <span className="text-xs opacity-80">
+                          Cash at restaurant
+                        </span>
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-2">
                   <Button
                     variant="outline"
                     onClick={() => handleTabChange('details')}
-                    className="flex-1"
+                    className="flex-1 h-11"
                   >
                     Back
                   </Button>
                   <Button
                     onClick={handlePlaceOrder}
                     disabled={!isFormValid() || isLoading}
-                    className="flex-1 h-12 font-semibold"
+                    className="flex-1 h-11 font-semibold"
                   >
                     {isLoading
                       ? 'Processing...'

@@ -6,7 +6,8 @@
     "seed:menu": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/seed-menu.ts",
     "seed:hsn": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/seed-hsn-codes.ts",
     "test:gst": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/test-gst-calculation.ts",
-    "test:subscription": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/test-subscriptions.ts"
+    "test:subscription": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/test-subscriptions.ts",
+    "migrate:order-counters": "npx tsx --tsconfig apps/backend/tsconfig.app.json apps/backend/src/scripts/migrate-order-counters.ts"
   },
   "private": true,
   "devDependencies": {
