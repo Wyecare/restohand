@@ -262,3 +262,10 @@ variable "razorpay_key_id" {
     description = "Razorpay Webhook Secret"
     type        = string
   }
+
+
+variable "anthropic_api_key" {
+  description = "Anthropic API Key for AI integrations"
+  type        = string
+  default     = ""
+}

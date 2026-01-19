@@ -15,6 +15,7 @@ import SettingsPageNew from '@/pages/SettingsPageNew';
 import OnboardingPage from '@/pages/OnboardingPage';
 import StaffPage from '@/pages/StaffPage';
 import TablesPage from '@/pages/TablesPage';
+import CommandCenterPage from '@/pages/CommandCenterPage';
 import EnhancedKitchenPage from '@/pages/EnhancedKitchenPage';
 import ServicePage from '@/pages/ServicePage';
 // Staff components moved to StaffRouter for domain separation
@@ -94,6 +95,7 @@ const AppRouter = () => {
           <Route path="menu-old" element={<MenuPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />
+          <Route path="command-center" element={<CommandCenterPage />} />
           <Route path="customer-qr" element={<CustomerQrPage />} />
           {/* <Route path="inventory" element={<InventoryPage />} /> */}
           {/* <Route path="recipes" element={<RecipesPage />} /> */}

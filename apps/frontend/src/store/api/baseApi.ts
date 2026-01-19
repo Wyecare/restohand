@@ -47,6 +47,7 @@ export const baseApi = createApi({
     'Staff',
     'StaffInvitation',
     'RestaurantTable',
+    'Zone',
     'GstRate',
     'HsnCode',
     'TaxInvoice',

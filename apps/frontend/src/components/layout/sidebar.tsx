@@ -33,6 +33,7 @@ import {
   Package,
   BookOpen,
   CreditCard,
+  Monitor,
 } from 'lucide-react';
 
 interface NavLink {
@@ -52,6 +53,7 @@ const managerLinks: NavLink[] = [
   // { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
   // { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
   { titleKey: 'navigation.tables', href: '/tables', icon: Table },
+  { titleKey: 'navigation.commandCenter', href: '/command-center', icon: Monitor },
   { titleKey: 'navigation.staff', href: '/staff', icon: Users },
   { titleKey: 'navigation.customerQR', href: '/customer-qr', icon: QrCode },
   { titleKey: 'navigation.reports', href: '/reports', icon: BarChart3 },

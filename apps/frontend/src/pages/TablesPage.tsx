@@ -1,7 +1,6 @@
-import { useCallback, useState, useMemo } from 'react';
-import { skipToken } from '@reduxjs/toolkit/query';
+import React, { useState, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useTheme } from '@/contexts/ThemeContext';
+import { skipToken } from '@reduxjs/toolkit/query';
 import {
   Card,
   CardContent,
@@ -11,123 +10,210 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
-import { useToast } from '@/components/ui/use-toast';
-import { Stage, Layer, Text } from 'react-konva';
-import { TableShape } from '@/components/floor-plan/TableShape';
-import { Plus, Trash2, Grid3X3, Copy } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Plus,
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  QrCode,
+  Search,
+  MapPin,
+  Users,
+  Settings,
+  Archive,
+  RotateCcw,
+  UserPlus,
+} from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
-  useArchiveRestaurantTableMutation,
-  useCreateRestaurantTableMutation,
-  useBulkCreateRestaurantTablesMutation,
-  useGenerateRestaurantTableQrMutation,
   useListRestaurantTablesQuery,
+  useCreateRestaurantTableMutation,
   useUpdateRestaurantTableMutation,
+  useArchiveRestaurantTableMutation,
+  useReactivateRestaurantTableMutation,
+  useGenerateRestaurantTableQrMutation,
+  useBulkCreateRestaurantTablesMutation,
+  useGetZonesQuery,
+  useCreateZoneMutation,
+  useUpdateZoneMutation,
+  useDeleteZoneMutation,
+  useUpdateTableStatusMutation,
 } from '@/store/api/restaurantsApi';
-import type {
-  RestaurantQrCodeResponse,
-  RestaurantTable,
-} from '@/store/api/types';
-
-interface TableFormState {
-  tableNumber: string;
-  displayName: string;
-  capacity: string;
-  zone: string;
-  displayOrder: string;
-}
-
-const emptyForm: TableFormState = {
-  tableNumber: '',
-  displayName: '',
-  capacity: '',
-  zone: '',
-  displayOrder: '',
-};
+import type { RestaurantTable, ZoneResponse } from '@/store/api/types';
+import { TableStatusType } from '@/store/api/types';
 
 const TablesPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
-  const { resolvedTheme } = useTheme();
-  const [form, setForm] = useState<TableFormState>(emptyForm);
+
+  // API hooks
+  const {
+    data: tables,
+    isLoading,
+    refetch,
+  } = useListRestaurantTablesQuery(restaurantId ? { restaurantId } : skipToken);
+
+  const { data: zonesData, refetch: refetchZones } = useGetZonesQuery(
+    restaurantId || skipToken
+  );
+
+  const [createTable] = useCreateRestaurantTableMutation();
+  const [updateTable] = useUpdateRestaurantTableMutation();
+  const [archiveTable] = useArchiveRestaurantTableMutation();
+  const [reactivateTable] = useReactivateRestaurantTableMutation();
+  const [generateQrCode] = useGenerateRestaurantTableQrMutation();
+  const [bulkCreateTables] = useBulkCreateRestaurantTablesMutation();
+  const [createZone] = useCreateZoneMutation();
+  const [updateZone] = useUpdateZoneMutation();
+  const [deleteZone] = useDeleteZoneMutation();
+  const [updateTableStatus] = useUpdateTableStatusMutation();
+
+  // Local state
+  const [activeTab, setActiveTab] = useState<'tables' | 'zones' | 'servers'>(
+    'tables'
+  );
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedZone, setSelectedZone] = useState<string>('');
+  const [showArchived, setShowArchived] = useState(false);
+
+  // Dialog states
+  const [isCreateTableOpen, setIsCreateTableOpen] = useState(false);
+  const [isBulkCreateOpen, setIsBulkCreateOpen] = useState(false);
+  const [isEditTableOpen, setIsEditTableOpen] = useState(false);
+  const [isCreateZoneOpen, setIsCreateZoneOpen] = useState(false);
+  const [isEditZoneOpen, setIsEditZoneOpen] = useState(false);
+  const [isServerAssignOpen, setIsServerAssignOpen] = useState(false);
+
+  // Form states
   const [editingTable, setEditingTable] = useState<RestaurantTable | null>(
     null
   );
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [qrPreview, setQrPreview] = useState<{
-    table: RestaurantTable;
-    payload: RestaurantQrCodeResponse;
-  } | null>(null);
-  const [selectedTableForConfig, setSelectedTableForConfig] =
+  const [editingZone, setEditingZone] = useState<ZoneResponse | null>(null);
+  const [selectedTableForServer, setSelectedTableForServer] =
     useState<RestaurantTable | null>(null);
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const [isNewTableDialogOpen, setIsNewTableDialogOpen] = useState(false);
-  const [isBulkCreateDialogOpen, setIsBulkCreateDialogOpen] = useState(false);
-  const [newTableForm, setNewTableForm] = useState({
+
+  const [tableForm, setTableForm] = useState({
     tableNumber: '',
     displayName: '',
-    capacity: '4',
+    capacity: '',
     zone: '',
+    displayOrder: '',
   });
-  const [bulkCreateForm, setBulkCreateForm] = useState({
+
+  const [bulkForm, setBulkForm] = useState({
+    tablePrefix: '',
+    capacity: '',
+    zone: '',
     layout: '4' as '4' | '6' | '8' | '16',
-    tablePrefix: 'T',
-    capacity: '4',
-    zone: '',
   });
 
-  const queryArgs = restaurantId
-    ? { restaurantId, includeInactive: false }
-    : skipToken;
+  const [zoneForm, setZoneForm] = useState({
+    name: '',
+  });
 
-  const { data: tables = [], refetch } = useListRestaurantTablesQuery(
-    queryArgs,
-    {
-      skip: !restaurantId,
-    }
-  );
+  // Derived data
+  const zones = zonesData?.zones || [];
+  const filteredTables = useMemo(() => {
+    if (!tables) return [];
 
-  const [createTable, { isLoading: isCreating }] =
-    useCreateRestaurantTableMutation();
-  const [bulkCreateTables, { isLoading: isBulkCreating }] =
-    useBulkCreateRestaurantTablesMutation();
-  const [updateTable, { isLoading: isUpdating }] =
-    useUpdateRestaurantTableMutation();
-  const [archiveTable, { isLoading: isArchiving }] =
-    useArchiveRestaurantTableMutation();
-  const [generateQr, { isLoading: isGeneratingQr }] =
-    useGenerateRestaurantTableQrMutation();
+    return tables.filter((table) => {
+      const matchesSearch =
+        table.tableNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (table.displayName || '')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+      const matchesZone = !selectedZone || table.zone === selectedZone;
+      const matchesArchived = showArchived ? !table.isActive : table.isActive;
 
-  const resetForm = useCallback(() => {
-    setForm(emptyForm);
-    setEditingTable(null);
-    setIsEditOpen(false);
-  }, []);
-
-  const entranceTextColor = useMemo(() => {
-    return resolvedTheme === 'dark'
-      ? '#FFFFFF' // Pure white for dark mode
-      : '#000000'; // Pure black for light mode
-  }, [resolvedTheme]);
+      return matchesSearch && matchesZone && matchesArchived;
+    });
+  }, [tables, searchTerm, selectedZone, showArchived]);
 
   if (!restaurantId) {
-    return <Navigate to="/onboarding" replace />;
+    return <Navigate to="/auth" replace />;
   }
 
-  const handleFormChange = (field: keyof TableFormState) => (value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  // Event handlers
+  const handleCreateTable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restaurantId) return;
+
+    try {
+      await createTable({
+        restaurantId,
+        body: {
+          tableNumber: tableForm.tableNumber,
+          displayName: tableForm.displayName || undefined,
+          capacity: parseInt(tableForm.capacity) || undefined,
+          zone: tableForm.zone || undefined,
+          displayOrder: parseInt(tableForm.displayOrder) || 0,
+        },
+      }).unwrap();
+
+      toast({
+        title: 'Table created',
+        description: `Table ${tableForm.tableNumber} has been created successfully.`,
+      });
+
+      setIsCreateTableOpen(false);
+      setTableForm({
+        tableNumber: '',
+        displayName: '',
+        capacity: '',
+        zone: '',
+        displayOrder: '',
+      });
+      refetch();
+    } catch (error) {
+      toast({
+        title: 'Failed to create table',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleUpdate = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleEditTable = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!restaurantId || !editingTable) return;
 
     try {
@@ -135,766 +221,1122 @@ const TablesPage = () => {
         restaurantId,
         tableId: editingTable.id,
         body: {
-          tableNumber: form.tableNumber.trim(),
-          displayName: form.displayName.trim() || undefined,
-          capacity: form.capacity ? Number(form.capacity) : undefined,
-          zone: form.zone.trim() || undefined,
-          displayOrder: form.displayOrder
-            ? Number(form.displayOrder)
-            : undefined,
+          tableNumber: tableForm.tableNumber,
+          displayName: tableForm.displayName || undefined,
+          capacity: parseInt(tableForm.capacity) || undefined,
+          zone: tableForm.zone || undefined,
+          displayOrder: parseInt(tableForm.displayOrder) || 0,
         },
       }).unwrap();
-      toast({ title: 'Table updated' });
-      resetForm();
-      refetch();
-    } catch (error) {
+
       toast({
-        title: 'Unable to update table',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
+        title: 'Table updated',
+        description: `Table ${tableForm.tableNumber} has been updated successfully.`,
       });
-    }
-  };
 
-  const handleGenerateQr = async (table: RestaurantTable) => {
-    if (!restaurantId) return;
-    try {
-      const payload = await generateQr({
-        restaurantId,
-        tableId: table.id,
-      }).unwrap();
-      setQrPreview({ table, payload });
-      toast({ title: `QR ready for Table ${table.tableNumber}` });
-    } catch (error) {
-      toast({
-        title: 'Unable to generate QR code',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleCopyQrLink = async (url: string) => {
-    if (typeof navigator === 'undefined' || !navigator.clipboard) {
-      toast({
-        title: 'Clipboard unavailable',
-        description: 'Your browser does not allow copying links automatically.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    await navigator.clipboard.writeText(url);
-    toast({ title: 'Link copied to clipboard' });
-  };
-
-  const handleTableDrag = async (
-    table: RestaurantTable,
-    x: number,
-    y: number
-  ) => {
-    if (!restaurantId) return;
-    try {
-      await updateTable({
-        restaurantId,
-        tableId: table.id,
-        body: {
-          layoutX: Math.round(x),
-          layoutY: Math.round(y),
-        },
-      }).unwrap();
-      refetch();
-    } catch (error) {
-      toast({
-        title: 'Unable to update table position',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleCreateNewTable = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!restaurantId || !newTableForm.tableNumber.trim()) {
-      toast({
-        title: 'Table code required',
-        description: 'Enter a table number before saving.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const x = 200 + (tables.length % 5) * 150;
-    const y = 150 + Math.floor(tables.length / 5) * 100;
-
-    try {
-      await createTable({
-        restaurantId,
-        body: {
-          tableNumber: newTableForm.tableNumber.trim(),
-          displayName: newTableForm.displayName.trim() || undefined,
-          capacity: newTableForm.capacity
-            ? Number(newTableForm.capacity)
-            : undefined,
-          zone: newTableForm.zone.trim() || undefined,
-          layoutX: x,
-          layoutY: y,
-          layoutWidth: 80,
-          layoutHeight: 80,
-          layoutRotation: 0,
-        },
-      }).unwrap();
-      toast({ title: `Table ${newTableForm.tableNumber} added to layout` });
-      setNewTableForm({
+      setIsEditTableOpen(false);
+      setEditingTable(null);
+      setTableForm({
         tableNumber: '',
         displayName: '',
-        capacity: '4',
+        capacity: '',
         zone: '',
+        displayOrder: '',
       });
-      setIsNewTableDialogOpen(false);
       refetch();
     } catch (error) {
       toast({
-        title: 'Unable to add table',
+        title: 'Failed to update table',
         description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
         variant: 'destructive',
       });
     }
   };
 
-  const handleBulkCreateTables = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleBulkCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!restaurantId) return;
 
     try {
-      const result = await bulkCreateTables({
+      await bulkCreateTables({
         restaurantId,
         body: {
-          layout: bulkCreateForm.layout,
-          tablePrefix: bulkCreateForm.tablePrefix || undefined,
-          capacity: bulkCreateForm.capacity ? Number(bulkCreateForm.capacity) : undefined,
-          zone: bulkCreateForm.zone.trim() || undefined,
+          tablePrefix: bulkForm.tablePrefix || undefined,
+          capacity: parseInt(bulkForm.capacity) || undefined,
+          zone: bulkForm.zone || undefined,
+          layout: bulkForm.layout,
         },
       }).unwrap();
 
       toast({
-        title: `${result.length} tables created successfully`,
-        description: `Layout ${bulkCreateForm.layout} applied with prefix ${bulkCreateForm.tablePrefix}`
+        title: 'Tables created',
+        description: `Successfully created ${bulkForm.layout} tables.`,
       });
 
-      setBulkCreateForm({
-        layout: '4',
-        tablePrefix: 'T',
-        capacity: '4',
+      setIsBulkCreateOpen(false);
+      setBulkForm({
+        tablePrefix: '',
+        capacity: '',
         zone: '',
+        layout: '4',
       });
-      setIsBulkCreateDialogOpen(false);
       refetch();
     } catch (error) {
       toast({
-        title: 'Unable to create tables',
+        title: 'Failed to create tables',
         description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
         variant: 'destructive',
       });
     }
   };
 
-  const handleTableClick = (table: RestaurantTable) => {
-    setSelectedTableForConfig(table);
-    setIsConfigOpen(true);
-  };
-
-  const handleSaveTableConfig = async (
-    updatedTable: Partial<RestaurantTable>
-  ) => {
-    if (!restaurantId || !selectedTableForConfig) return;
-
-    try {
-      await updateTable({
-        restaurantId,
-        tableId: selectedTableForConfig.id,
-        body: updatedTable,
-      }).unwrap();
-      toast({ title: 'Table updated successfully' });
-      setIsConfigOpen(false);
-      setSelectedTableForConfig(null);
-      refetch();
-    } catch (error) {
-      toast({
-        title: 'Unable to update table',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleDeleteTable = async (table: RestaurantTable) => {
+  const handleCreateZone = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!restaurantId) return;
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete table ${table.tableNumber}? This action cannot be undone.`
-    );
-    if (!confirmed) return;
-
     try {
-      await archiveTable({ restaurantId, tableId: table.id }).unwrap();
-      toast({ title: `Table ${table.tableNumber} deleted successfully` });
-      setIsConfigOpen(false);
-      setSelectedTableForConfig(null);
-      refetch();
+      await createZone({
+        restaurantId,
+        body: { name: zoneForm.name.trim() },
+      }).unwrap();
+
+      toast({
+        title: 'Zone created',
+        description: `Zone "${zoneForm.name}" has been created successfully.`,
+      });
+
+      setIsCreateZoneOpen(false);
+      setZoneForm({ name: '' });
+      refetchZones();
     } catch (error) {
       toast({
-        title: 'Unable to delete table',
+        title: 'Failed to create zone',
         description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
         variant: 'destructive',
       });
     }
   };
 
-  const isBusy = isCreating || isBulkCreating || isUpdating || isArchiving;
+  const handleEditZone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!restaurantId || !editingZone) return;
+
+    try {
+      await updateZone({
+        restaurantId,
+        zoneId: editingZone.id,
+        body: { name: zoneForm.name.trim() },
+      }).unwrap();
+
+      toast({
+        title: 'Zone updated',
+        description: `Zone has been renamed to "${zoneForm.name}".`,
+      });
+
+      setIsEditZoneOpen(false);
+      setEditingZone(null);
+      setZoneForm({ name: '' });
+      refetchZones();
+      refetch(); // Refresh tables too as zone names might have changed
+    } catch (error) {
+      toast({
+        title: 'Failed to update zone',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteZone = async (zone: ZoneResponse) => {
+    if (!restaurantId) return;
+
+    if (zone.tableCount > 0) {
+      toast({
+        title: 'Cannot delete zone',
+        description: `Zone "${zone.name}" has ${zone.tableCount} table(s). Please reassign tables before deleting.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await deleteZone({
+        restaurantId,
+        zoneId: zone.id,
+      }).unwrap();
+
+      toast({
+        title: 'Zone deleted',
+        description: `Zone "${zone.name}" has been deleted successfully.`,
+      });
+
+      refetchZones();
+    } catch (error) {
+      toast({
+        title: 'Failed to delete zone',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleArchiveTable = async (table: RestaurantTable) => {
+    if (!restaurantId) return;
+
+    try {
+      await archiveTable({
+        restaurantId,
+        tableId: table.id,
+      }).unwrap();
+
+      toast({
+        title: 'Table archived',
+        description: `Table ${table.tableNumber} has been archived.`,
+      });
+
+      refetch();
+    } catch (error) {
+      toast({
+        title: 'Failed to archive table',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleReactivateTable = async (table: RestaurantTable) => {
+    if (!restaurantId) return;
+
+    try {
+      await reactivateTable({
+        restaurantId,
+        tableId: table.id,
+      }).unwrap();
+
+      toast({
+        title: 'Table reactivated',
+        description: `Table ${table.tableNumber} has been reactivated.`,
+      });
+
+      refetch();
+    } catch (error) {
+      toast({
+        title: 'Failed to reactivate table',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleGenerateQR = async (table: RestaurantTable) => {
+    if (!restaurantId) return;
+
+    try {
+      const result = await generateQrCode({
+        restaurantId,
+        tableId: table.id,
+      }).unwrap();
+
+      // Create a download link for the QR code
+      const link = document.createElement('a');
+      link.href = result.dataUrl;
+      link.download = `table-${table.tableNumber}-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: 'QR Code downloaded',
+        description: `QR code for table ${table.tableNumber} has been downloaded.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to generate QR code',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAssignServer = async (serverId: string | null) => {
+    if (!restaurantId || !selectedTableForServer) return;
+
+    try {
+      await updateTableStatus({
+        restaurantId,
+        tableId: selectedTableForServer.id,
+        body: {
+          status: TableStatusType.Available,
+          assignedServerId: serverId || undefined,
+        },
+      }).unwrap();
+
+      toast({
+        title: 'Server assigned',
+        description: serverId
+          ? `Server has been assigned to table ${selectedTableForServer.tableNumber}`
+          : `Server assignment removed from table ${selectedTableForServer.tableNumber}`,
+      });
+
+      setIsServerAssignOpen(false);
+      setSelectedTableForServer(null);
+      refetch();
+    } catch (error) {
+      toast({
+        title: 'Failed to assign server',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openEditTable = (table: RestaurantTable) => {
+    setEditingTable(table);
+    setTableForm({
+      tableNumber: table.tableNumber,
+      displayName: table.displayName || '',
+      capacity: table.capacity?.toString() || '',
+      zone: table.zone || '',
+      displayOrder: table.displayOrder?.toString() || '0',
+    });
+    setIsEditTableOpen(true);
+  };
+
+  const openEditZone = (zone: ZoneResponse) => {
+    setEditingZone(zone);
+    setZoneForm({ name: zone.name });
+    setIsEditZoneOpen(true);
+  };
+
+  const openServerAssign = (table: RestaurantTable) => {
+    setSelectedTableForServer(table);
+    setIsServerAssignOpen(true);
+  };
+
+  const resetTableForm = () => {
+    setTableForm({
+      tableNumber: '',
+      displayName: '',
+      capacity: '',
+      zone: '',
+      displayOrder: '',
+    });
+  };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-xl">Restaurant Floor Plan</CardTitle>
-            <CardDescription className="text-sm">
-              Design your restaurant layout by adding individual tables or creating bulk layouts.
-              Drag tables to reposition them.
-            </CardDescription>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
-              <span>📊 {tables.length} tables total</span>
-              <span>🎯 Click table to configure</span>
-              <span>🖱️ Drag to reposition</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsBulkCreateDialogOpen(true)}
-              disabled={isBusy}
-              className="flex-1 md:flex-none"
-            >
-              <Grid3X3 className="w-4 h-4 mr-2" />
-              Bulk Create
-            </Button>
-            <Button
-              onClick={() => setIsNewTableDialogOpen(true)}
-              disabled={isBusy}
-              className="flex-1 md:flex-none"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Table
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div
-            className="border rounded-lg bg-muted/20 overflow-auto"
-            style={{ height: '600px' }}
-          >
-            <Stage width={1000} height={600}>
-              <Layer>
-                {/* Entrance text */}
-                <Text
-                  text="ENTRANCE"
-                  x={450}
-                  y={570}
-                  fontSize={16}
-                  fontFamily="Inter, system-ui, sans-serif"
-                  fill={entranceTextColor}
-                  align="center"
-                  width={100}
-                />
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Tables Management
+          </h1>
+          <p className="text-muted-foreground">
+            Manage your restaurant tables, zones, and server assignments
+          </p>
+        </div>
+      </div>
 
-                {/* Tables */}
-                {tables.map((table, index) => {
-                  // Provide different default positions for tables without saved layouts
-                  const defaultX = table.layoutX ?? 200 + (index % 4) * 120;
-                  const defaultY =
-                    table.layoutY ?? 150 + Math.floor(index / 4) * 100;
-
-                  return (
-                    <TableShape
-                      key={table.id}
-                      table={{
-                        id: table.id,
-                        x: defaultX,
-                        y: defaultY,
-                        width: table.layoutWidth || 80,
-                        height: table.layoutHeight || 80,
-                        rotation: table.layoutRotation || 0,
-                        shape: 'rectangle',
-                        label: table.tableNumber,
-                        capacity: table.capacity || 4,
-                        zone: table.zone,
-                        color: table.isActive
-                          ? 'hsl(var(--primary) / 0.2)'
-                          : 'hsl(var(--muted) / 0.5)',
-                      }}
-                      isSelected={false}
-                      color={
-                        table.isActive
-                          ? 'hsl(var(--primary) / 0.2)'
-                          : 'hsl(var(--muted) / 0.5)'
-                      }
-                      onSelect={() => handleTableClick(table)}
-                      onDragEnd={(e) =>
-                        handleTableDrag(table, e.target.x(), e.target.y())
-                      }
-                      scale={1}
-                      isDraggable={true}
-                    />
-                  );
-                })}
-              </Layer>
-            </Stage>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* New Table Dialog */}
-      <Dialog
-        open={isNewTableDialogOpen}
-        onOpenChange={setIsNewTableDialogOpen}
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as any)}
+        className="space-y-6"
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Table</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="table-number">Table Number</Label>
-              <Input
-                id="table-number"
-                placeholder="e.g. T1, A5"
-                value={newTableForm.tableNumber}
-                onChange={(e) =>
-                  setNewTableForm({
-                    ...newTableForm,
-                    tableNumber: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="display-name">Display Name (Optional)</Label>
-              <Input
-                id="display-name"
-                placeholder="e.g. Window Corner"
-                value={newTableForm.displayName}
-                onChange={(e) =>
-                  setNewTableForm({
-                    ...newTableForm,
-                    displayName: e.target.value,
-                  })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="capacity">Capacity</Label>
-              <Input
-                id="capacity"
-                type="number"
-                placeholder="4"
-                value={newTableForm.capacity}
-                onChange={(e) =>
-                  setNewTableForm({ ...newTableForm, capacity: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="zone">Zone (Optional)</Label>
-              <Input
-                id="zone"
-                placeholder="e.g. Patio, Main Hall"
-                value={newTableForm.zone}
-                onChange={(e) =>
-                  setNewTableForm({ ...newTableForm, zone: e.target.value })
-                }
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsNewTableDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateNewTable}
-                disabled={isBusy || !newTableForm.tableNumber}
-              >
-                Create Table
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        <TabsList className="grid w-fit grid-cols-3">
+          <TabsTrigger value="tables">Tables</TabsTrigger>
+          <TabsTrigger value="zones">Zones</TabsTrigger>
+          <TabsTrigger value="servers">Server Assignment</TabsTrigger>
+        </TabsList>
 
-      {/* Bulk Create Tables Dialog */}
-      <Dialog
-        open={isBulkCreateDialogOpen}
-        onOpenChange={setIsBulkCreateDialogOpen}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Bulk Create Tables</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleBulkCreateTables} className="space-y-4">
-            <div>
-              <Label htmlFor="layout">Layout Pattern</Label>
-              <select
-                id="layout"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                value={bulkCreateForm.layout}
-                onChange={(e) =>
-                  setBulkCreateForm({
-                    ...bulkCreateForm,
-                    layout: e.target.value as '4' | '6' | '8' | '16',
-                  })
-                }
-              >
-                <option value="4">4 Tables (2 left, 2 right)</option>
-                <option value="6">6 Tables (3 left, 3 right)</option>
-                <option value="8">8 Tables (4 left, 4 right)</option>
-                <option value="16">16 Tables (2 groups of 4 on each side)</option>
-              </select>
-            </div>
+        <TabsContent value="tables" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Restaurant Tables</CardTitle>
+                  <CardDescription>
+                    View and manage all tables in your restaurant
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Dialog
+                    open={isBulkCreateOpen}
+                    onOpenChange={setIsBulkCreateOpen}
+                  >
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Bulk Create
+                      </Button>
+                    </DialogTrigger>
+                  </Dialog>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="table-prefix">Table Prefix</Label>
-                <Input
-                  id="table-prefix"
-                  placeholder="T"
-                  value={bulkCreateForm.tablePrefix}
-                  onChange={(e) =>
-                    setBulkCreateForm({
-                      ...bulkCreateForm,
-                      tablePrefix: e.target.value,
-                    })
-                  }
-                  maxLength={5}
-                />
+                  <Dialog
+                    open={isCreateTableOpen}
+                    onOpenChange={setIsCreateTableOpen}
+                  >
+                    <DialogTrigger asChild>
+                      <Button size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Table
+                      </Button>
+                    </DialogTrigger>
+                  </Dialog>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="bulk-capacity">Capacity</Label>
-                <Input
-                  id="bulk-capacity"
-                  type="number"
-                  min="1"
-                  max="20"
-                  placeholder="4"
-                  value={bulkCreateForm.capacity}
-                  onChange={(e) =>
-                    setBulkCreateForm({
-                      ...bulkCreateForm,
-                      capacity: e.target.value,
-                    })
-                  }
-                />
+            </CardHeader>
+            <CardContent>
+              {/* Filters */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search tables..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                <Select value={selectedZone} onValueChange={setSelectedZone}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="All zones" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All zones</SelectItem>
+                    {zones.map((zone) => (
+                      <SelectItem key={zone.id} value={zone.name}>
+                        {zone.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant={showArchived ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setShowArchived(!showArchived)}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  {showArchived ? 'Show Active' : 'Show Archived'}
+                </Button>
               </div>
-            </div>
 
-            <div>
-              <Label htmlFor="bulk-zone">Zone (Optional)</Label>
-              <Input
-                id="bulk-zone"
-                placeholder="e.g. Main Hall, Patio"
-                value={bulkCreateForm.zone}
-                onChange={(e) =>
-                  setBulkCreateForm({
-                    ...bulkCreateForm,
-                    zone: e.target.value,
-                  })
-                }
-                maxLength={40}
-              />
-            </div>
+              {/* Tables Table */}
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Table #</TableHead>
+                      <TableHead>Display Name</TableHead>
+                      <TableHead>Capacity</TableHead>
+                      <TableHead>Zone</TableHead>
+                      <TableHead>Order</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8">
+                          Loading tables...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredTables.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8">
+                          No tables found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredTables.map((table) => (
+                        <TableRow key={table.id}>
+                          <TableCell className="font-medium">
+                            {table.tableNumber}
+                          </TableCell>
+                          <TableCell>{table.displayName || '-'}</TableCell>
+                          <TableCell>
+                            {table.capacity ? (
+                              <div className="flex items-center">
+                                <Users className="h-4 w-4 mr-1" />
+                                {table.capacity}
+                              </div>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {table.zone ? (
+                              <Badge variant="outline">
+                                <MapPin className="h-3 w-3 mr-1" />
+                                {table.zone}
+                              </Badge>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell>{table.displayOrder}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={table.isActive ? 'default' : 'secondary'}
+                            >
+                              {table.isActive ? 'Active' : 'Archived'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => openEditTable(table)}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => openServerAssign(table)}
+                                >
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Assign Server
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleGenerateQR(table)}
+                                >
+                                  <QrCode className="h-4 w-4 mr-2" />
+                                  Download QR
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {table.isActive ? (
+                                  <DropdownMenuItem
+                                    onClick={() => handleArchiveTable(table)}
+                                    className="text-destructive"
+                                  >
+                                    <Archive className="h-4 w-4 mr-2" />
+                                    Archive
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() => handleReactivateTable(table)}
+                                  >
+                                    <RotateCcw className="h-4 w-4 mr-2" />
+                                    Reactivate
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            <div className="border rounded-lg p-4 bg-muted/50">
-              <p className="text-sm font-medium mb-2">Layout Preview</p>
-              <div className="text-xs text-muted-foreground space-y-1">
-                {bulkCreateForm.layout === '4' && (
-                  <p>Creates 4 tables: 2 positioned on the left side, 2 on the right side</p>
-                )}
-                {bulkCreateForm.layout === '6' && (
-                  <p>Creates 6 tables: 3 positioned vertically on the left, 3 on the right</p>
-                )}
-                {bulkCreateForm.layout === '8' && (
-                  <p>Creates 8 tables: 4 positioned vertically on the left, 4 on the right</p>
-                )}
-                {bulkCreateForm.layout === '16' && (
-                  <p>Creates 16 tables: 2 groups of 4 tables in 2x2 formation on each side</p>
-                )}
-                <p className="pt-1 text-muted-foreground">
-                  Tables will be auto-numbered starting from the next available number.
+        <TabsContent value="zones" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Zone Management</CardTitle>
+                  <CardDescription>
+                    Organize your restaurant tables into zones
+                  </CardDescription>
+                </div>
+                <Dialog
+                  open={isCreateZoneOpen}
+                  onOpenChange={setIsCreateZoneOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Zone
+                    </Button>
+                  </DialogTrigger>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Zone Name</TableHead>
+                      <TableHead>Tables Count</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {zones.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8">
+                          No zones created yet
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      zones.map((zone) => (
+                        <TableRow key={zone.id}>
+                          <TableCell className="font-medium">
+                            {zone.name}
+                          </TableCell>
+                          <TableCell>{zone.tableCount} tables</TableCell>
+                          <TableCell>
+                            {new Date(zone.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => openEditZone(zone)}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteZone(zone)}
+                                  className="text-destructive"
+                                  disabled={zone.tableCount > 0}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="servers" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Server Assignments</CardTitle>
+              <CardDescription>
+                Manage server assignments for tables
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">
+                  Server Assignment
+                </h3>
+                <p>Assign waiters to specific tables from the Tables tab</p>
+                <p className="text-sm mt-2">
+                  Use the "Assign Server" option in the table actions menu
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* CREATE TABLE DIALOG */}
+      <Dialog open={isCreateTableOpen} onOpenChange={setIsCreateTableOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleCreateTable}>
+            <DialogHeader>
+              <DialogTitle>Create New Table</DialogTitle>
+              <DialogDescription>
+                Add a new table to your restaurant
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="tableNumber" className="text-right">
+                  Table Number
+                </Label>
+                <Input
+                  id="tableNumber"
+                  value={tableForm.tableNumber}
+                  onChange={(e) =>
+                    setTableForm({ ...tableForm, tableNumber: e.target.value })
+                  }
+                  placeholder="T1"
+                  className="col-span-3"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="displayName" className="text-right">
+                  Display Name
+                </Label>
+                <Input
+                  id="displayName"
+                  value={tableForm.displayName}
+                  onChange={(e) =>
+                    setTableForm({ ...tableForm, displayName: e.target.value })
+                  }
+                  placeholder="Optional"
+                  className="col-span-3"
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="capacity" className="text-right">
+                  Capacity
+                </Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  value={tableForm.capacity}
+                  onChange={(e) =>
+                    setTableForm({ ...tableForm, capacity: e.target.value })
+                  }
+                  placeholder="4"
+                  className="col-span-3"
+                  min="1"
+                  max="20"
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="zone" className="text-right">
+                  Zone
+                </Label>
+                <Select
+                  value={tableForm.zone}
+                  onValueChange={(value) =>
+                    setTableForm({ ...tableForm, zone: value })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select zone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No zone</SelectItem>
+                    {zones.map((zone) => (
+                      <SelectItem key={zone.id} value={zone.name}>
+                        {zone.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="displayOrder" className="text-right">
+                  Display Order
+                </Label>
+                <Input
+                  id="displayOrder"
+                  type="number"
+                  value={tableForm.displayOrder}
+                  onChange={(e) =>
+                    setTableForm({ ...tableForm, displayOrder: e.target.value })
+                  }
+                  placeholder="0"
+                  className="col-span-3"
+                  min="0"
+                />
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsBulkCreateDialogOpen(false)}
+                onClick={() => {
+                  setIsCreateTableOpen(false);
+                  resetTableForm();
+                }}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isBulkCreating}>
-                {isBulkCreating ? 'Creating...' : `Create ${bulkCreateForm.layout} Tables`}
-              </Button>
-            </div>
+              <Button type="submit">Create Table</Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* QR Code Dialog */}
-      <Dialog
-        open={!!qrPreview}
-        onOpenChange={(open) => !open && setQrPreview(null)}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              QR Code for Table {qrPreview?.table.tableNumber}
-            </DialogTitle>
-          </DialogHeader>
-          {qrPreview && (
-            <div className="flex flex-col items-center gap-4">
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-3">
-                  {qrPreview.payload.restaurant.name} •{' '}
-                  {qrPreview.payload.table
-                    ? `Table ${qrPreview.payload.table}`
-                    : 'Generic QR'}
-                </p>
-                <img
-                  src={qrPreview.payload.dataUrl}
-                  alt={`QR for table ${qrPreview.table.tableNumber}`}
-                  className="h-48 w-48 rounded-xl border bg-white p-3 shadow mx-auto"
-                />
-              </div>
-              <p className="text-sm text-muted-foreground text-center">
-                Share or print this QR code so guests at the table can scan and
-                order.
-              </p>
-              <div className="flex flex-col gap-2 w-full">
-                <Button
-                  variant="outline"
-                  onClick={() => handleCopyQrLink(qrPreview.payload.url)}
-                  className="w-full"
-                >
-                  Copy Link
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = qrPreview.payload.dataUrl;
-                    link.download = `restohand-${qrPreview.payload.restaurant.slug}-${qrPreview.table.tableNumber}.png`;
-                    link.click();
-                  }}
-                  className="w-full"
-                >
-                  Download PNG
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* BULK CREATE DIALOG */}
+      <Dialog open={isBulkCreateOpen} onOpenChange={setIsBulkCreateOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleBulkCreate}>
+            <DialogHeader>
+              <DialogTitle>Bulk Create Tables</DialogTitle>
+              <DialogDescription>
+                Create multiple tables at once
+              </DialogDescription>
+            </DialogHeader>
 
-      <Dialog
-        open={isEditOpen}
-        onOpenChange={(open) => (open ? setIsEditOpen(true) : resetForm())}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit table</DialogTitle>
-          </DialogHeader>
-          <form className="grid gap-4" onSubmit={handleUpdate}>
-            <div className="space-y-2">
-              <Label htmlFor="edit-tableNumber">Table code</Label>
-              <Input
-                id="edit-tableNumber"
-                value={form.tableNumber}
-                onChange={(event) =>
-                  handleFormChange('tableNumber')(event.target.value)
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-displayName">Display name</Label>
-              <Input
-                id="edit-displayName"
-                value={form.displayName}
-                onChange={(event) =>
-                  handleFormChange('displayName')(event.target.value)
-                }
-              />
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="edit-capacity">Capacity</Label>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="tablePrefix" className="text-right">
+                  Table Prefix
+                </Label>
                 <Input
-                  id="edit-capacity"
+                  id="tablePrefix"
+                  value={bulkForm.tablePrefix}
+                  onChange={(e) =>
+                    setBulkForm({ ...bulkForm, tablePrefix: e.target.value })
+                  }
+                  placeholder="T"
+                  className="col-span-3"
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="layout" className="text-right">
+                  Layout
+                </Label>
+                <Select
+                  value={bulkForm.layout}
+                  onValueChange={(value: '4' | '6' | '8' | '16') =>
+                    setBulkForm({ ...bulkForm, layout: value })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select layout" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4">4 Tables</SelectItem>
+                    <SelectItem value="6">6 Tables</SelectItem>
+                    <SelectItem value="8">8 Tables</SelectItem>
+                    <SelectItem value="16">16 Tables</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="bulkCapacity" className="text-right">
+                  Capacity
+                </Label>
+                <Input
+                  id="bulkCapacity"
                   type="number"
-                  min={1}
-                  max={20}
-                  value={form.capacity}
-                  onChange={(event) =>
-                    handleFormChange('capacity')(event.target.value)
+                  value={bulkForm.capacity}
+                  onChange={(e) =>
+                    setBulkForm({ ...bulkForm, capacity: e.target.value })
                   }
+                  placeholder="4"
+                  className="col-span-3"
+                  min="1"
+                  max="20"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-zone">Zone</Label>
-                <Input
-                  id="edit-zone"
-                  value={form.zone}
-                  onChange={(event) =>
-                    handleFormChange('zone')(event.target.value)
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="bulkZone" className="text-right">
+                  Zone
+                </Label>
+                <Select
+                  value={bulkForm.zone}
+                  onValueChange={(value) =>
+                    setBulkForm({ ...bulkForm, zone: value })
                   }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-displayOrder">Display order</Label>
-                <Input
-                  id="edit-displayOrder"
-                  type="number"
-                  min={0}
-                  max={999}
-                  value={form.displayOrder}
-                  onChange={(event) =>
-                    handleFormChange('displayOrder')(event.target.value)
-                  }
-                />
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select zone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No zone</SelectItem>
+                    {zones.map((zone) => (
+                      <SelectItem key={zone.id} value={zone.name}>
+                        {zone.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={resetForm}>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsBulkCreateOpen(false)}
+              >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isUpdating}>
-                {isUpdating ? 'Saving…' : 'Save changes'}
-              </Button>
-            </div>
+              <Button type="submit">Create Tables</Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Table Configuration Dialog */}
-      <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Configure Table {selectedTableForConfig?.tableNumber}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedTableForConfig && (
-            <div className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Table Number</Label>
-                  <Input
-                    value={selectedTableForConfig.tableNumber}
-                    onChange={(e) =>
-                      setSelectedTableForConfig({
-                        ...selectedTableForConfig,
-                        tableNumber: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Capacity</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={selectedTableForConfig.capacity || ''}
-                    onChange={(e) =>
-                      setSelectedTableForConfig({
-                        ...selectedTableForConfig,
-                        capacity: parseInt(e.target.value) || undefined,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Display Name</Label>
+      {/* EDIT TABLE DIALOG */}
+      <Dialog open={isEditTableOpen} onOpenChange={setIsEditTableOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleEditTable}>
+            <DialogHeader>
+              <DialogTitle>Edit Table</DialogTitle>
+              <DialogDescription>Update table information</DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editTableNumber" className="text-right">
+                  Table Number
+                </Label>
                 <Input
-                  value={selectedTableForConfig.displayName || ''}
+                  id="editTableNumber"
+                  value={tableForm.tableNumber}
                   onChange={(e) =>
-                    setSelectedTableForConfig({
-                      ...selectedTableForConfig,
-                      displayName: e.target.value || undefined,
-                    })
+                    setTableForm({ ...tableForm, tableNumber: e.target.value })
                   }
-                  placeholder="Window corner"
+                  placeholder="T1"
+                  className="col-span-3"
+                  required
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Zone</Label>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editDisplayName" className="text-right">
+                  Display Name
+                </Label>
                 <Input
-                  value={selectedTableForConfig.zone || ''}
+                  id="editDisplayName"
+                  value={tableForm.displayName}
                   onChange={(e) =>
-                    setSelectedTableForConfig({
-                      ...selectedTableForConfig,
-                      zone: e.target.value || undefined,
-                    })
+                    setTableForm({ ...tableForm, displayName: e.target.value })
                   }
-                  placeholder="Main dining"
+                  placeholder="Optional"
+                  className="col-span-3"
                 />
               </div>
-              <div className="flex justify-between">
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleGenerateQr(selectedTableForConfig)}
-                    disabled={isGeneratingQr}
-                  >
-                    {isGeneratingQr ? 'Generating…' : 'Generate QR Code'}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleDeleteTable(selectedTableForConfig)}
-                    disabled={isArchiving}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {isArchiving ? 'Deleting…' : 'Delete Table'}
-                  </Button>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setIsConfigOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      handleSaveTableConfig(selectedTableForConfig)
-                    }
-                    disabled={isUpdating}
-                  >
-                    {isUpdating ? 'Saving…' : 'Save'}
-                  </Button>
-                </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editCapacity" className="text-right">
+                  Capacity
+                </Label>
+                <Input
+                  id="editCapacity"
+                  type="number"
+                  value={tableForm.capacity}
+                  onChange={(e) =>
+                    setTableForm({ ...tableForm, capacity: e.target.value })
+                  }
+                  placeholder="4"
+                  className="col-span-3"
+                  min="1"
+                  max="20"
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editZone" className="text-right">
+                  Zone
+                </Label>
+                <Select
+                  value={tableForm.zone}
+                  onValueChange={(value) =>
+                    setTableForm({ ...tableForm, zone: value })
+                  }
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select zone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No zone</SelectItem>
+                    {zones.map((zone) => (
+                      <SelectItem key={zone.id} value={zone.name}>
+                        {zone.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editDisplayOrder" className="text-right">
+                  Display Order
+                </Label>
+                <Input
+                  id="editDisplayOrder"
+                  type="number"
+                  value={tableForm.displayOrder}
+                  onChange={(e) =>
+                    setTableForm({ ...tableForm, displayOrder: e.target.value })
+                  }
+                  placeholder="0"
+                  className="col-span-3"
+                  min="0"
+                />
               </div>
             </div>
-          )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditTableOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Update Table</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* CREATE ZONE DIALOG */}
+      <Dialog open={isCreateZoneOpen} onOpenChange={setIsCreateZoneOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleCreateZone}>
+            <DialogHeader>
+              <DialogTitle>Create New Zone</DialogTitle>
+              <DialogDescription>
+                Add a new zone to organize your tables
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="zoneName" className="text-right">
+                  Zone Name
+                </Label>
+                <Input
+                  id="zoneName"
+                  value={zoneForm.name}
+                  onChange={(e) =>
+                    setZoneForm({ ...zoneForm, name: e.target.value })
+                  }
+                  placeholder="e.g., Main Hall, Terrace, VIP"
+                  className="col-span-3"
+                  required
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateZoneOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Create Zone</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT ZONE DIALOG */}
+      <Dialog open={isEditZoneOpen} onOpenChange={setIsEditZoneOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleEditZone}>
+            <DialogHeader>
+              <DialogTitle>Edit Zone</DialogTitle>
+              <DialogDescription>Update zone name</DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="editZoneName" className="text-right">
+                  Zone Name
+                </Label>
+                <Input
+                  id="editZoneName"
+                  value={zoneForm.name}
+                  onChange={(e) =>
+                    setZoneForm({ ...zoneForm, name: e.target.value })
+                  }
+                  placeholder="e.g., Main Hall, Terrace, VIP"
+                  className="col-span-3"
+                  required
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditZoneOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Update Zone</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* SERVER ASSIGNMENT DIALOG */}
+      <Dialog open={isServerAssignOpen} onOpenChange={setIsServerAssignOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Assign Server</DialogTitle>
+            <DialogDescription>
+              Assign a waiter to table {selectedTableForServer?.tableNumber}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="text-center py-8 text-muted-foreground">
+              <UserPlus className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">Server Assignment</h3>
+              <p>
+                Server assignment feature will be integrated with staff
+                management.
+              </p>
+              <p className="text-sm mt-2">
+                Coming soon with waiter/staff selection.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsServerAssignOpen(false)}
+            >
+              Close
+            </Button>
+            <Button onClick={() => handleAssignServer(null)}>
+              Remove Assignment
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

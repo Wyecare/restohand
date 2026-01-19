@@ -107,6 +107,7 @@ module "secrets" {
     "razorpay-key-id"       = var.razorpay_key_id
     "razorpay-key-secret"   = var.razorpay_key_secret
     "razorpay-webhook-secret" = var.razorpay_webhook_secret
+    "athropic_api_key"       = var.anthropic_api_key
   }
 
   secret_accessors = [] # Will be configured after deployment
@@ -218,6 +219,13 @@ module "run_api" {
         secret_name = module.secrets.secret_names["customer_frontend_url"]
         version     = "latest"
       }
+
+
+      ANTHROPIC_API_KEY = {
+        secret_name = module.secrets.secret_names["athropic_api_key"]
+        version     = "latest"
+      }
+      
     }
   )
 

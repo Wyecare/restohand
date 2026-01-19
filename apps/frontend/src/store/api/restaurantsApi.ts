@@ -11,6 +11,15 @@ import type {
   RestaurantTable,
   Order,
   ServiceTablesResponse,
+  EnhancedRestaurantTable,
+  TableStatus,
+  TableStatusStats,
+  UpdateTableStatusPayload,
+  ZoneResponse,
+  ZonesListResponse,
+  CreateZonePayload,
+  UpdateZonePayload,
+  BulkUpdateZonesPayload,
 } from './types';
 
 export interface ListRestaurantsParams {
@@ -381,6 +390,82 @@ export const restaurantsApi = baseApi.injectEndpoints({
         method: 'GET',
       }),
     }),
+    // Enhanced table status endpoints for Command Center
+    listEnhancedRestaurantTables: builder.query<
+      EnhancedRestaurantTable[],
+      { restaurantId: string }
+    >({
+      query: ({ restaurantId }) => ({
+        url: `/restaurants/${restaurantId}/tables/enhanced`,
+      }),
+      providesTags: (result, _error, { restaurantId }) =>
+        result
+          ? [
+              ...result.map((table) => ({
+                type: 'RestaurantTable' as const,
+                id: table.id,
+              })),
+              ...result.map((table) => ({
+                type: 'TableStatus' as const,
+                id: table.id,
+              })),
+              { type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` },
+            ]
+          : [{ type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` }],
+    }),
+    getTableStatusStats: builder.query<
+      TableStatusStats,
+      { restaurantId: string }
+    >({
+      query: ({ restaurantId }) => ({
+        url: `/restaurants/${restaurantId}/tables/stats`,
+      }),
+      providesTags: (_result, _error, { restaurantId }) => [
+        { type: 'TableStatus' as const, id: `STATS-${restaurantId}` },
+      ],
+    }),
+    getTableStatus: builder.query<
+      TableStatus,
+      { restaurantId: string; tableId: string }
+    >({
+      query: ({ restaurantId, tableId }) => ({
+        url: `/restaurants/${restaurantId}/tables/${tableId}/status`,
+      }),
+      providesTags: (_result, _error, { tableId }) => [
+        { type: 'TableStatus' as const, id: tableId },
+      ],
+    }),
+    updateTableStatus: builder.mutation<
+      TableStatus,
+      { restaurantId: string; tableId: string; body: UpdateTableStatusPayload }
+    >({
+      query: ({ restaurantId, tableId, body }) => ({
+        url: `/restaurants/${restaurantId}/tables/${tableId}/status`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, tableId }) => [
+        { type: 'TableStatus' as const, id: tableId },
+        { type: 'TableStatus' as const, id: `STATS-${restaurantId}` },
+        { type: 'RestaurantTable' as const, id: tableId },
+        { type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` },
+        { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}` },
+      ],
+    }),
+    initializeTableStatus: builder.mutation<
+      TableStatus,
+      { restaurantId: string; tableId: string }
+    >({
+      query: ({ restaurantId, tableId }) => ({
+        url: `/restaurants/${restaurantId}/tables/${tableId}/status/initialize`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, tableId }) => [
+        { type: 'TableStatus' as const, id: tableId },
+        { type: 'TableStatus' as const, id: `STATS-${restaurantId}` },
+        { type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` },
+      ],
+    }),
 
     updateMenuItem: builder.mutation<
       MenuItem,
@@ -530,6 +615,80 @@ export const restaurantsApi = baseApi.injectEndpoints({
         { type: 'Restaurant', id: restaurantId },
       ],
     }),
+
+    // Zone Management endpoints
+    getZones: builder.query<ZonesListResponse, string>({
+      query: (restaurantId) => `/restaurants/${restaurantId}/tables/zones`,
+      providesTags: (_result, _error, restaurantId) => [
+        { type: 'Zone' as const, id: 'LIST' },
+        { type: 'Zone' as const, id: restaurantId },
+      ],
+    }),
+
+    createZone: builder.mutation<
+      ZoneResponse,
+      { restaurantId: string; body: CreateZonePayload }
+    >({
+      query: ({ restaurantId, body }) => ({
+        url: `/restaurants/${restaurantId}/tables/zones`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Zone' as const, id: 'LIST' },
+        { type: 'Zone' as const, id: restaurantId },
+        { type: 'RestaurantTable' as const, id: 'LIST' },
+      ],
+    }),
+
+    updateZone: builder.mutation<
+      ZoneResponse,
+      { restaurantId: string; zoneId: string; body: UpdateZonePayload }
+    >({
+      query: ({ restaurantId, zoneId, body }) => ({
+        url: `/restaurants/${restaurantId}/tables/zones/${zoneId}`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, zoneId }) => [
+        { type: 'Zone' as const, id: 'LIST' },
+        { type: 'Zone' as const, id: restaurantId },
+        { type: 'Zone' as const, id: zoneId },
+        { type: 'RestaurantTable' as const, id: 'LIST' },
+      ],
+    }),
+
+    deleteZone: builder.mutation<
+      { success: boolean },
+      { restaurantId: string; zoneId: string }
+    >({
+      query: ({ restaurantId, zoneId }) => ({
+        url: `/restaurants/${restaurantId}/tables/zones/${zoneId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, zoneId }) => [
+        { type: 'Zone' as const, id: 'LIST' },
+        { type: 'Zone' as const, id: restaurantId },
+        { type: 'Zone' as const, id: zoneId },
+        { type: 'RestaurantTable' as const, id: 'LIST' },
+      ],
+    }),
+
+    bulkUpdateZones: builder.mutation<
+      ZonesListResponse,
+      { restaurantId: string; body: BulkUpdateZonesPayload }
+    >({
+      query: ({ restaurantId, body }) => ({
+        url: `/restaurants/${restaurantId}/tables/zones`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Zone' as const, id: 'LIST' },
+        { type: 'Zone' as const, id: restaurantId },
+        { type: 'RestaurantTable' as const, id: 'LIST' },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -559,6 +718,12 @@ export const {
   useArchiveRestaurantTableMutation,
   useReactivateRestaurantTableMutation,
   useGenerateRestaurantTableQrMutation,
+  // Enhanced table status hooks for Command Center
+  useListEnhancedRestaurantTablesQuery,
+  useGetTableStatusStatsQuery,
+  useGetTableStatusQuery,
+  useUpdateTableStatusMutation,
+  useInitializeTableStatusMutation,
   useGetPublicRestaurantQuery,
   useGetPublicMenuQuery,
   useGetPublicOrderQuery,
@@ -566,4 +731,10 @@ export const {
   useGetRestaurantQrCodeQuery,
   useSetupLinkedAccountMutation,
   useGetPaymentStatusQuery,
+  // Zone Management hooks
+  useGetZonesQuery,
+  useCreateZoneMutation,
+  useUpdateZoneMutation,
+  useDeleteZoneMutation,
+  useBulkUpdateZonesMutation,
 } = restaurantsApi;

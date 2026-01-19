@@ -88,6 +88,114 @@ export interface RestaurantTable {
   activeOrder?: Order;
 }
 
+// Enhanced table status system for Command Center
+export enum TableStatusType {
+  Available = 'available',
+  Occupied = 'occupied',
+  Reserved = 'reserved',
+  Cleaning = 'cleaning',
+}
+
+export interface TableStatus {
+  id: string;
+  restaurantId: string;
+  tableId: string;
+  status: TableStatusType;
+  occupiedSince?: string;
+  availableSince?: string;
+  cleaningSince?: string;
+  reservedFrom?: string;
+  reservedUntil?: string;
+  assignedServerId?: string;
+  assignedServerName?: string;
+  currentPartySize?: number;
+  currentBillAmount?: number;
+  notes?: string;
+  reservationCustomerName?: string;
+  reservationCustomerPhone?: string;
+  reservationEstimatedDuration?: number;
+  reservationSpecialRequests?: string;
+  reservationNotes?: string;
+  lastStatusChange?: string;
+  lastUpdatedBy?: string;
+  lastUpdatedByName?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Computed fields for UI
+  timeSinceLastChange?: number;
+  occupiedDuration?: number;
+  statusColor?: 'green' | 'yellow' | 'orange' | 'red' | 'blue' | 'grey';
+}
+
+export interface UpdateTableStatusPayload {
+  status: TableStatusType;
+  assignedServerId?: string;
+  currentPartySize?: number;
+  notes?: string;
+  reservationCustomerName?: string;
+  reservationCustomerPhone?: string;
+  reservedFrom?: string;
+  reservedUntil?: string;
+  reservationEstimatedDuration?: number;
+  reservationSpecialRequests?: string;
+  reservationNotes?: string;
+}
+
+export interface TableStatusStats {
+  totalTables: number;
+  availableTables: number;
+  occupiedTables: number;
+  reservedTables: number;
+  cleaningTables: number;
+  averageOccupancyTime: number;
+  totalRevenue: number;
+}
+
+// Zone Management Types
+export interface ZoneResponse {
+  id: string;
+  name: string;
+  tableCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ZonesListResponse {
+  zones: ZoneResponse[];
+}
+
+export interface CreateZonePayload {
+  name: string;
+}
+
+export interface UpdateZonePayload {
+  name: string;
+}
+
+export interface BulkUpdateZonesPayload {
+  zones: string[];
+}
+
+export interface EnhancedRestaurantTable {
+  id: string;
+  restaurantId: string;
+  tableNumber: string;
+  displayName?: string;
+  capacity?: number;
+  zone?: string;
+  displayOrder: number;
+  isActive: boolean;
+  layoutX?: number;
+  layoutY?: number;
+  layoutWidth?: number;
+  layoutHeight?: number;
+  layoutRotation?: number;
+  createdAt: string;
+  updatedAt: string;
+  // Enhanced with current status
+  currentStatus?: TableStatus;
+}
+
 export interface MenuCategory {
   id: string;
   restaurantId: string;
