@@ -102,6 +102,7 @@ module "secrets" {
     "firebase-client-email"   = var.firebase_client_email
     "firebase-private-key"    = var.firebase_private_key
     "firebase-private-key-id" = var.firebase_private_key_id
+    "firebase-web-api-key"    = var.firebase_web_api_key
     "firebase-client-id"      = var.firebase_client_id
     "razorpay-key-id"       = var.razorpay_key_id
     "razorpay-key-secret"   = var.razorpay_key_secret
@@ -180,6 +181,10 @@ module "run_api" {
       }
       FIREBASE_PRIVATE_KEY_ID = {
         secret_name = module.secrets.secret_names["firebase-private-key-id"]
+        version     = "latest"
+      }
+      FIREBASE_WEB_API_KEY = {
+        secret_name = module.secrets.secret_names["firebase-web-api-key"]
         version     = "latest"
       }
       FIREBASE_CLIENT_ID = {

@@ -150,6 +150,7 @@ variable "firebase_private_key" {
   default     = ""
 }
 
+
 variable "firebase_web_api_key" {
   description = "Firebase web API key"
   type        = string
