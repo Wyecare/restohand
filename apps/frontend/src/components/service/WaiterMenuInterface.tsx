@@ -258,12 +258,13 @@ export default function WaiterMenuInterface({
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-background via-muted/5 to-background pb-32">
+    <div className="relative min-h-screen bg-gradient-to-b from-background via-muted/5 to-background">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b"
+        style={{ height: 'auto' }}
       >
         <div className="max-w-2xl mx-auto p-4">
           <div className="flex items-center gap-3 mb-4">
@@ -366,7 +367,7 @@ export default function WaiterMenuInterface({
       </motion.div>
 
       {/* Category Pills */}
-      <div className="sticky top-[140px] z-20 bg-background/95 backdrop-blur-lg border-b">
+      <div className="bg-background/95 backdrop-blur-lg border-b">
         <ScrollArea className="w-full">
           <div className="flex gap-2 p-3 max-w-2xl mx-auto">
             {availableCategories.map((category) => (

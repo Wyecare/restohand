@@ -25,7 +25,7 @@ interface MetricsCardProps {
 }
 
 const iconColorClasses = {
-  blue: 'bg-blue-500/10 text-blue-600',
+  blue: 'bg-blue-500/10 ',
   green: 'bg-green-500/10 text-green-600',
   orange: 'bg-orange-500/10 text-orange-600',
   red: 'bg-red-500/10 text-red-600',

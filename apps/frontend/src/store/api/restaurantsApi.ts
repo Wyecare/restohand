@@ -306,6 +306,25 @@ export const restaurantsApi = baseApi.injectEndpoints({
           : [{ type: 'RestaurantTable' as const, id: `SERVICE-${restaurantId}` }],
     }),
 
+    listEnhancedTables: builder.query<
+      EnhancedRestaurantTable[],
+      { restaurantId: string }
+    >({
+      query: ({ restaurantId }) => ({
+        url: `/restaurants/${restaurantId}/tables/enhanced`,
+      }),
+      providesTags: (result, _error, { restaurantId }) =>
+        result
+          ? [
+              ...result.map((table) => ({
+                type: 'RestaurantTable' as const,
+                id: table.id,
+              })),
+              { type: 'RestaurantTable' as const, id: `ENHANCED-${restaurantId}` },
+            ]
+          : [{ type: 'RestaurantTable' as const, id: `ENHANCED-${restaurantId}` }],
+    }),
+
     createRestaurantTable: builder.mutation<
       RestaurantTable,
       { restaurantId: string; body: CreateRestaurantTablePayload }
@@ -712,6 +731,7 @@ export const {
   useRemoveMenuItemImageMutation,
   useListRestaurantTablesQuery,
   useListServiceTablesQuery,
+  useListEnhancedTablesQuery,
   useCreateRestaurantTableMutation,
   useBulkCreateRestaurantTablesMutation,
   useUpdateRestaurantTableMutation,

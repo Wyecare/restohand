@@ -333,8 +333,10 @@ export interface SessionInfo {
 export interface StaffMember {
   id: string;
   name: string;
+  displayName?: string; // For backward compatibility
   email?: string;
   phoneNumber?: string;
+  photoURL?: string; // For avatar display
   roles: string[];
   isActive: boolean;
   restaurantId: string;

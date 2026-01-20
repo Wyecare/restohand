@@ -36,10 +36,13 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
   onTableSelect,
 }) => {
   const occupancyRate = (overview.occupiedSeats / overview.totalSeats) * 100;
-  const tableUtilization = (overview.occupiedTables / overview.totalTables) * 100;
+  const tableUtilization =
+    (overview.occupiedTables / overview.totalTables) * 100;
 
   const urgentTables = tableStatuses.filter(
-    (table) => table.priority === TablePriority.Urgent || table.status === TableStatusType.NeedsAttention
+    (table) =>
+      table.priority === TablePriority.Urgent ||
+      table.status === TableStatusType.NeedsAttention
   );
 
   const longWaitingTables = tableStatuses.filter(
@@ -59,7 +62,7 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
       case TableStatusType.NeedsAttention:
         return <AlertTriangle className="w-4 h-4 text-orange-600" />;
       case TableStatusType.Cleaning:
-        return <ChefHat className="w-4 h-4 text-blue-600" />;
+        return <ChefHat className="w-4 h-4 " />;
       case TableStatusType.OutOfOrder:
         return <XCircle className="w-4 h-4 text-gray-600" />;
       default:
@@ -74,7 +77,7 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
       case TablePriority.High:
         return 'bg-orange-100 text-orange-800 border-orange-200';
       case TablePriority.Normal:
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-blue-100  border-blue-200';
       case TablePriority.Low:
         return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
@@ -90,10 +93,12 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-md bg-blue-100">
-                <Users className="w-5 h-5 text-blue-600" />
+                <Users className="w-5 h-5 " />
               </div>
               <div>
-                <p className="text-2xl font-bold">{overview.occupiedTables}/{overview.totalTables}</p>
+                <p className="text-2xl font-bold">
+                  {overview.occupiedTables}/{overview.totalTables}
+                </p>
                 <p className="text-sm text-muted-foreground">Tables Occupied</p>
               </div>
             </div>
@@ -108,7 +113,9 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
                 <DollarSign className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">${overview.todayRevenue.toFixed(0)}</p>
+                <p className="text-2xl font-bold">
+                  ${overview.todayRevenue.toFixed(0)}
+                </p>
                 <p className="text-sm text-muted-foreground">Today's Revenue</p>
               </div>
             </div>
@@ -125,7 +132,9 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
                 <TrendingUp className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{overview.averageTurnover.toFixed(1)}</p>
+                <p className="text-2xl font-bold">
+                  {overview.averageTurnover.toFixed(1)}
+                </p>
                 <p className="text-sm text-muted-foreground">Avg Turnover</p>
               </div>
             </div>
@@ -164,22 +173,36 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
               <span className="text-sm font-medium">
                 {overview.occupiedSeats} of {overview.totalSeats} seats occupied
               </span>
-              <Badge variant={occupancyRate > 80 ? 'destructive' : occupancyRate > 60 ? 'default' : 'secondary'}>
+              <Badge
+                variant={
+                  occupancyRate > 80
+                    ? 'destructive'
+                    : occupancyRate > 60
+                    ? 'default'
+                    : 'secondary'
+                }
+              >
                 {occupancyRate.toFixed(0)}%
               </Badge>
             </div>
             <Progress value={occupancyRate} className="h-2" />
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="text-center">
-                <div className="font-semibold text-green-600">{overview.availableTables}</div>
+                <div className="font-semibold text-green-600">
+                  {overview.availableTables}
+                </div>
                 <div className="text-muted-foreground">Available</div>
               </div>
               <div className="text-center">
-                <div className="font-semibold text-yellow-600">{overview.reservedTables}</div>
+                <div className="font-semibold text-yellow-600">
+                  {overview.reservedTables}
+                </div>
                 <div className="text-muted-foreground">Reserved</div>
               </div>
               <div className="text-center">
-                <div className="font-semibold text-red-600">{overview.occupiedTables}</div>
+                <div className="font-semibold text-red-600">
+                  {overview.occupiedTables}
+                </div>
                 <div className="text-muted-foreground">Occupied</div>
               </div>
             </div>
@@ -209,18 +232,29 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(table.status)}
-                          <span className="font-medium">Table {table.tableLabel}</span>
+                          <span className="font-medium">
+                            Table {table.tableLabel}
+                          </span>
                         </div>
-                        <Badge className={cn('text-xs', getPriorityColor(table.priority))}>
+                        <Badge
+                          className={cn(
+                            'text-xs',
+                            getPriorityColor(table.priority)
+                          )}
+                        >
                           {table.priority}
                         </Badge>
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground">
-                        {table.statusNote || `Status: ${table.status.replace('_', ' ')}`}
+                        {table.statusNote ||
+                          `Status: ${table.status.replace('_', ' ')}`}
                       </div>
                       {table.occupiedSince && (
                         <div className="mt-1 text-xs text-muted-foreground">
-                          Occupied {formatDistanceToNow(new Date(table.occupiedSince), { addSuffix: true })}
+                          Occupied{' '}
+                          {formatDistanceToNow(new Date(table.occupiedSince), {
+                            addSuffix: true,
+                          })}
                         </div>
                       )}
                     </div>
@@ -236,7 +270,7 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600" />
+                <Clock className="w-5 h-5 " />
                 Long Wait Times
               </CardTitle>
             </CardHeader>
@@ -251,8 +285,10 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-blue-600" />
-                          <span className="font-medium">Table {table.tableLabel}</span>
+                          <Users className="w-4 h-4 " />
+                          <span className="font-medium">
+                            Table {table.tableLabel}
+                          </span>
                         </div>
                         {table.currentPartySize && (
                           <Badge variant="outline">
@@ -261,7 +297,10 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
                         )}
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground">
-                        Occupied {formatDistanceToNow(new Date(table.occupiedSince!), { addSuffix: true })}
+                        Occupied{' '}
+                        {formatDistanceToNow(new Date(table.occupiedSince!), {
+                          addSuffix: true,
+                        })}
                       </div>
                       {table.currentOrders.length > 0 && (
                         <div className="mt-1 text-xs text-muted-foreground">
@@ -293,7 +332,9 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {getStatusIcon(table.status)}
-                        <span className="text-sm font-medium">Table {table.tableLabel}</span>
+                        <span className="text-sm font-medium">
+                          Table {table.tableLabel}
+                        </span>
                       </div>
                       {table.currentPartySize && (
                         <Badge variant="outline" className="text-xs">
@@ -302,7 +343,8 @@ export const FloorPlanOverview: React.FC<FloorPlanOverviewProps> = ({
                       )}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {table.status.replace('_', ' ')} • ${table.dailyMetrics.totalRevenue.toFixed(0)} today
+                      {table.status.replace('_', ' ')} • $
+                      {table.dailyMetrics.totalRevenue.toFixed(0)} today
                     </div>
                   </div>
                 ))}

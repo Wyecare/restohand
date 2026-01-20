@@ -91,6 +91,14 @@ export const staffApi = baseApi.injectEndpoints({
       providesTags: ['Staff'],
     }),
 
+    listWaiters: builder.query<StaffMember[], { restaurantId: string }>({
+      query: () => ({
+        url: `/users?role=waiter`
+      }),
+      providesTags: ['Staff'],
+      transformResponse: (response: { data: StaffMember[] }) => response.data,
+    }),
+
     inviteStaff: builder.mutation<StaffInviteResponse, InviteStaffPayload>({
       query: (body) => ({
         url: '/users',
@@ -175,6 +183,7 @@ export const staffApi = baseApi.injectEndpoints({
 
 export const {
   useListStaffQuery,
+  useListWaitersQuery,
   useInviteStaffMutation,
   useUpdateStaffMutation,
   useResetStaffPinMutation,

@@ -19,7 +19,11 @@ import { formatDistanceToNow } from 'date-fns';
 interface TableAlert {
   tableId: string;
   tableLabel: string;
-  type: 'needs-attention' | 'order-ready' | 'payment-pending' | 'cleaning-required';
+  type:
+    | 'needs-attention'
+    | 'order-ready'
+    | 'payment-pending'
+    | 'cleaning-required';
   message: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
   timestamp: Date;
@@ -56,7 +60,7 @@ export const TableAlerts: React.FC<TableAlertsProps> = ({
       case 'high':
         return 'border-orange-200 bg-orange-50 text-orange-800';
       case 'normal':
-        return 'border-blue-200 bg-blue-50 text-blue-800';
+        return 'border-blue-200 bg-blue-50 ';
       case 'low':
         return 'border-gray-200 bg-gray-50 text-gray-800';
       default:
@@ -71,7 +75,7 @@ export const TableAlerts: React.FC<TableAlertsProps> = ({
       case 'high':
         return 'bg-orange-100 text-orange-800';
       case 'normal':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 ';
       case 'low':
         return 'bg-gray-100 text-gray-800';
       default:
@@ -137,17 +141,23 @@ export const TableAlerts: React.FC<TableAlertsProps> = ({
                 <div className="flex items-center gap-3 flex-1">
                   <div className="flex items-center gap-2">
                     {getAlertIcon(alert.type)}
-                    <span className="font-medium">Table {alert.tableLabel}</span>
+                    <span className="font-medium">
+                      Table {alert.tableLabel}
+                    </span>
                   </div>
 
                   <div className="flex-1">
                     <p className="text-sm">{alert.message}</p>
                     <p className="text-xs opacity-70">
-                      {formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(alert.timestamp), {
+                        addSuffix: true,
+                      })}
                     </p>
                   </div>
 
-                  <Badge className={cn('text-xs', getPriorityColor(alert.priority))}>
+                  <Badge
+                    className={cn('text-xs', getPriorityColor(alert.priority))}
+                  >
                     {alert.priority}
                   </Badge>
                 </div>

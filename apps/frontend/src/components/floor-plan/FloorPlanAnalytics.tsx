@@ -2,7 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { FloorPlan, TableStatus } from '@/store/api/floorPlansApi';
 import { FloorPlanHeatMap } from './FloorPlanHeatMap';
@@ -50,21 +56,41 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
   tableStatuses,
   className,
 }) => {
-  const [selectedView, setSelectedView] = useState<'overview' | 'heatmap' | 'trends' | 'zones'>('overview');
-  const [selectedMetric, setSelectedMetric] = useState<'revenue' | 'orders' | 'occupancy' | 'turnover' | 'wait-time'>('revenue');
-  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
+  const [selectedView, setSelectedView] = useState<
+    'overview' | 'heatmap' | 'trends' | 'zones'
+  >('overview');
+  const [selectedMetric, setSelectedMetric] = useState<
+    'revenue' | 'orders' | 'occupancy' | 'turnover' | 'wait-time'
+  >('revenue');
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>(
+    'today'
+  );
 
   // Calculate analytics data
   const analyticsData = useMemo(() => {
-    const totalRevenue = tableStatuses.reduce((sum, table) => sum + table.dailyMetrics.totalRevenue, 0);
-    const totalOrders = tableStatuses.reduce((sum, table) => sum + table.dailyMetrics.totalOrders, 0);
-    const totalOccupancyMinutes = tableStatuses.reduce((sum, table) => sum + table.dailyMetrics.occupancyMinutes, 0);
-    const totalTurnovers = tableStatuses.reduce((sum, table) => sum + table.dailyMetrics.turnoverCount, 0);
+    const totalRevenue = tableStatuses.reduce(
+      (sum, table) => sum + table.dailyMetrics.totalRevenue,
+      0
+    );
+    const totalOrders = tableStatuses.reduce(
+      (sum, table) => sum + table.dailyMetrics.totalOrders,
+      0
+    );
+    const totalOccupancyMinutes = tableStatuses.reduce(
+      (sum, table) => sum + table.dailyMetrics.occupancyMinutes,
+      0
+    );
+    const totalTurnovers = tableStatuses.reduce(
+      (sum, table) => sum + table.dailyMetrics.turnoverCount,
+      0
+    );
 
     const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const averageOccupancyHours = totalOccupancyMinutes / 60;
-    const occupancyRate = (totalOccupancyMinutes / (floorPlan.tables.length * 24 * 60)) * 100; // 24 hours max
-    const revenuePerTable = floorPlan.tables.length > 0 ? totalRevenue / floorPlan.tables.length : 0;
+    const occupancyRate =
+      (totalOccupancyMinutes / (floorPlan.tables.length * 24 * 60)) * 100; // 24 hours max
+    const revenuePerTable =
+      floorPlan.tables.length > 0 ? totalRevenue / floorPlan.tables.length : 0;
 
     return {
       totalRevenue,
@@ -80,36 +106,47 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
 
   // Generate table performance data
   const tablePerformanceData = useMemo(() => {
-    return floorPlan.tables.map(table => {
-      const status = tableStatuses.find(s => s.tableId === table.id);
-      return {
-        tableLabel: table.label,
-        revenue: status?.dailyMetrics.totalRevenue || 0,
-        orders: status?.dailyMetrics.totalOrders || 0,
-        occupancy: (status?.dailyMetrics.occupancyMinutes || 0) / 60,
-        turnover: status?.dailyMetrics.turnoverCount || 0,
-        capacity: table.capacity,
-        zone: table.zone || 'Main',
-      };
-    }).sort((a, b) => b.revenue - a.revenue);
+    return floorPlan.tables
+      .map((table) => {
+        const status = tableStatuses.find((s) => s.tableId === table.id);
+        return {
+          tableLabel: table.label,
+          revenue: status?.dailyMetrics.totalRevenue || 0,
+          orders: status?.dailyMetrics.totalOrders || 0,
+          occupancy: (status?.dailyMetrics.occupancyMinutes || 0) / 60,
+          turnover: status?.dailyMetrics.turnoverCount || 0,
+          capacity: table.capacity,
+          zone: table.zone || 'Main',
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue);
   }, [floorPlan.tables, tableStatuses]);
 
   // Generate zone analytics
   const zoneAnalytics = useMemo(() => {
-    const zones = new Map<string, {
-      revenue: number;
-      orders: number;
-      occupancy: number;
-      turnover: number;
-      tableCount: number;
-    }>();
+    const zones = new Map<
+      string,
+      {
+        revenue: number;
+        orders: number;
+        occupancy: number;
+        turnover: number;
+        tableCount: number;
+      }
+    >();
 
-    floorPlan.tables.forEach(table => {
+    floorPlan.tables.forEach((table) => {
       const zone = table.zone || 'Main';
-      const status = tableStatuses.find(s => s.tableId === table.id);
+      const status = tableStatuses.find((s) => s.tableId === table.id);
 
       if (!zones.has(zone)) {
-        zones.set(zone, { revenue: 0, orders: 0, occupancy: 0, turnover: 0, tableCount: 0 });
+        zones.set(zone, {
+          revenue: 0,
+          orders: 0,
+          occupancy: 0,
+          turnover: 0,
+          tableCount: 0,
+        });
       }
 
       const zoneData = zones.get(zone)!;
@@ -123,22 +160,24 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
     return Array.from(zones.entries()).map(([zone, data]) => ({
       zone,
       ...data,
-      avgRevenuePerTable: data.tableCount > 0 ? data.revenue / data.tableCount : 0,
-      avgOccupancyPerTable: data.tableCount > 0 ? data.occupancy / data.tableCount : 0,
+      avgRevenuePerTable:
+        data.tableCount > 0 ? data.revenue / data.tableCount : 0,
+      avgOccupancyPerTable:
+        data.tableCount > 0 ? data.occupancy / data.tableCount : 0,
     }));
   }, [floorPlan.tables, tableStatuses]);
 
   // Generate hourly trend data (simulated for demo)
   const hourlyTrendData = useMemo(() => {
     const hours = Array.from({ length: 24 }, (_, i) => i);
-    return hours.map(hour => {
+    return hours.map((hour) => {
       // Simulate realistic restaurant patterns
       let occupancyMultiplier = 0.1;
       if (hour >= 11 && hour <= 14) occupancyMultiplier = 0.8; // Lunch rush
       if (hour >= 18 && hour <= 21) occupancyMultiplier = 1.0; // Dinner rush
       if (hour >= 7 && hour <= 10) occupancyMultiplier = 0.4; // Breakfast
 
-      const revenue = analyticsData.totalRevenue * occupancyMultiplier / 10;
+      const revenue = (analyticsData.totalRevenue * occupancyMultiplier) / 10;
       const occupancy = occupancyMultiplier * 100;
 
       return {
@@ -161,7 +200,12 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
 
   const RADIAN = Math.PI / 180;
   const renderCustomizedLabel = ({
-    cx, cy, midAngle, innerRadius, outerRadius, percent
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent,
   }: any) => {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -226,7 +270,10 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
           </div>
         </div>
 
-        <Select value={timeRange} onValueChange={(value: any) => setTimeRange(value)}>
+        <Select
+          value={timeRange}
+          onValueChange={(value: any) => setTimeRange(value)}
+        >
           <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>
@@ -250,8 +297,12 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
                     <DollarSign className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">${analyticsData.totalRevenue.toFixed(0)}</p>
-                    <p className="text-sm text-muted-foreground">Total Revenue</p>
+                    <p className="text-2xl font-bold">
+                      ${analyticsData.totalRevenue.toFixed(0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Revenue
+                    </p>
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
@@ -264,11 +315,15 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-md bg-blue-100">
-                    <Users className="w-5 h-5 text-blue-600" />
+                    <Users className="w-5 h-5 " />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{analyticsData.totalOrders}</p>
-                    <p className="text-sm text-muted-foreground">Total Orders</p>
+                    <p className="text-2xl font-bold">
+                      {analyticsData.totalOrders}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Orders
+                    </p>
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
@@ -284,8 +339,12 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
                     <Clock className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{analyticsData.occupancyRate.toFixed(0)}%</p>
-                    <p className="text-sm text-muted-foreground">Occupancy Rate</p>
+                    <p className="text-2xl font-bold">
+                      {analyticsData.occupancyRate.toFixed(0)}%
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Occupancy Rate
+                    </p>
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
@@ -301,8 +360,12 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
                     <Target className="w-5 h-5 text-orange-600" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">${analyticsData.revenuePerTable.toFixed(0)}</p>
-                    <p className="text-sm text-muted-foreground">Revenue/Table</p>
+                    <p className="text-2xl font-bold">
+                      ${analyticsData.revenuePerTable.toFixed(0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Revenue/Table
+                    </p>
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">
@@ -354,11 +417,20 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
                       {zoneAnalytics.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={Object.values(chartColors)[index % Object.values(chartColors).length]}
+                          fill={
+                            Object.values(chartColors)[
+                              index % Object.values(chartColors).length
+                            ]
+                          }
                         />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => [`$${value.toFixed(0)}`, 'Revenue']} />
+                    <Tooltip
+                      formatter={(value: number) => [
+                        `$${value.toFixed(0)}`,
+                        'Revenue',
+                      ]}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -373,19 +445,33 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
             <CardContent>
               <div className="space-y-3">
                 {tablePerformanceData.slice(0, 5).map((table, index) => (
-                  <div key={table.tableLabel} className="flex items-center justify-between">
+                  <div
+                    key={table.tableLabel}
+                    className="flex items-center justify-between"
+                  >
                     <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="w-8 h-8 rounded-full p-0 flex items-center justify-center">
+                      <Badge
+                        variant="secondary"
+                        className="w-8 h-8 rounded-full p-0 flex items-center justify-center"
+                      >
                         {index + 1}
                       </Badge>
                       <div>
-                        <span className="font-medium">Table {table.tableLabel}</span>
-                        <span className="text-sm text-muted-foreground ml-2">({table.zone})</span>
+                        <span className="font-medium">
+                          Table {table.tableLabel}
+                        </span>
+                        <span className="text-sm text-muted-foreground ml-2">
+                          ({table.zone})
+                        </span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-semibold">${table.revenue.toFixed(0)}</div>
-                      <div className="text-sm text-muted-foreground">{table.orders} orders</div>
+                      <div className="font-semibold">
+                        ${table.revenue.toFixed(0)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {table.orders} orders
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -490,7 +576,9 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <div className="font-semibold">${zone.revenue.toFixed(0)}</div>
+                      <div className="font-semibold">
+                        ${zone.revenue.toFixed(0)}
+                      </div>
                       <div className="text-muted-foreground">Revenue</div>
                     </div>
                     <div>
@@ -509,10 +597,19 @@ export const FloorPlanAnalytics: React.FC<FloorPlanAnalyticsProps> = ({
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Avg Revenue/Table</span>
-                      <span className="font-medium">${zone.avgRevenuePerTable.toFixed(0)}</span>
+                      <span className="font-medium">
+                        ${zone.avgRevenuePerTable.toFixed(0)}
+                      </span>
                     </div>
                     <Progress
-                      value={(zone.avgRevenuePerTable / Math.max(...zoneAnalytics.map(z => z.avgRevenuePerTable), 1)) * 100}
+                      value={
+                        (zone.avgRevenuePerTable /
+                          Math.max(
+                            ...zoneAnalytics.map((z) => z.avgRevenuePerTable),
+                            1
+                          )) *
+                        100
+                      }
                       className="h-2"
                     />
                   </div>

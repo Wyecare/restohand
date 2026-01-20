@@ -112,11 +112,17 @@ export class TableStatusService {
     }
 
     // Handle server assignment
-    if (dto.assignedServerId) {
-      const server = await this.userModel.findById(dto.assignedServerId);
-      if (server) {
-        statusChanges.assignedServerId = dto.assignedServerId;
-        statusChanges.assignedServerName = server.displayName || server.email;
+    if (dto.assignedServerId !== undefined) {
+      if (dto.assignedServerId) {
+        const server = await this.userModel.findById(dto.assignedServerId);
+        if (server) {
+          statusChanges.assignedServerId = dto.assignedServerId;
+          statusChanges.assignedServerName = server.displayName || server.email;
+        }
+      } else {
+        // Remove server assignment
+        statusChanges.assignedServerId = undefined;
+        statusChanges.assignedServerName = undefined;
       }
     }
 

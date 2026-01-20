@@ -6,8 +6,20 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   FloorPlanTable,
@@ -38,7 +50,11 @@ import { cn } from '@/lib/utils';
 interface TableStatusPanelProps {
   tableStatus: TableStatus;
   floorPlanTable?: FloorPlanTable;
-  onStatusUpdate: (tableId: string, status: TableStatusType, additionalData?: any) => Promise<void>;
+  onStatusUpdate: (
+    tableId: string,
+    status: TableStatusType,
+    additionalData?: any
+  ) => Promise<void>;
   onClose: () => void;
 }
 
@@ -50,14 +66,17 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showReservationDialog, setShowReservationDialog] = useState(false);
-  const [reservationForm, setReservationForm] = useState<CreateReservationRequest>({
-    guestName: '',
-    guestPhone: '',
-    partySize: 2,
-    reservedFrom: new Date().toISOString().slice(0, 16),
-    reservedTo: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16),
-    notes: '',
-  });
+  const [reservationForm, setReservationForm] =
+    useState<CreateReservationRequest>({
+      guestName: '',
+      guestPhone: '',
+      partySize: 2,
+      reservedFrom: new Date().toISOString().slice(0, 16),
+      reservedTo: new Date(Date.now() + 2 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 16),
+      notes: '',
+    });
 
   const [createReservation] = useCreateReservationMutation();
 
@@ -73,7 +92,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
   const handlePriorityChange = async (priority: TablePriority) => {
     setIsUpdating(true);
     try {
-      await onStatusUpdate(tableStatus.tableId, tableStatus.status, { priority });
+      await onStatusUpdate(tableStatus.tableId, tableStatus.status, {
+        priority,
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -82,7 +103,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
   const handlePartySize = async (partySize: number) => {
     setIsUpdating(true);
     try {
-      await onStatusUpdate(tableStatus.tableId, tableStatus.status, { currentPartySize: partySize });
+      await onStatusUpdate(tableStatus.tableId, tableStatus.status, {
+        currentPartySize: partySize,
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -101,7 +124,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
         guestPhone: '',
         partySize: 2,
         reservedFrom: new Date().toISOString().slice(0, 16),
-        reservedTo: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().slice(0, 16),
+        reservedTo: new Date(Date.now() + 2 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 16),
         notes: '',
       });
     } catch (error) {
@@ -120,7 +145,7 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
       case TableStatusType.NeedsAttention:
         return 'bg-orange-100 text-orange-800 border-orange-200';
       case TableStatusType.Cleaning:
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-blue-100  border-blue-200';
       case TableStatusType.OutOfOrder:
         return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
@@ -135,7 +160,7 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
       case TablePriority.High:
         return 'bg-orange-100 text-orange-800';
       case TablePriority.Normal:
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 ';
       case TablePriority.Low:
         return 'bg-gray-100 text-gray-800';
       default:
@@ -159,7 +184,10 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
             <Badge className={cn('border', getStatusColor(tableStatus.status))}>
               {tableStatus.status.replace('_', ' ')}
             </Badge>
-            <Badge variant="outline" className={getPriorityColor(tableStatus.priority)}>
+            <Badge
+              variant="outline"
+              className={getPriorityColor(tableStatus.priority)}
+            >
               {tableStatus.priority}
             </Badge>
           </div>
@@ -181,7 +209,10 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                     <Users className="w-3 h-3 mr-1" />
                     Seat Guests
                   </Button>
-                  <Dialog open={showReservationDialog} onOpenChange={setShowReservationDialog}>
+                  <Dialog
+                    open={showReservationDialog}
+                    onOpenChange={setShowReservationDialog}
+                  >
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" className="text-xs">
                         <Calendar className="w-3 h-3 mr-1" />
@@ -197,7 +228,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleStatusChange(TableStatusType.NeedsAttention)}
+                    onClick={() =>
+                      handleStatusChange(TableStatusType.NeedsAttention)
+                    }
                     disabled={isUpdating}
                     className="text-xs"
                   >
@@ -206,7 +239,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => handleStatusChange(TableStatusType.Available)}
+                    onClick={() =>
+                      handleStatusChange(TableStatusType.Available)
+                    }
                     disabled={isUpdating}
                     className="text-xs"
                   >
@@ -261,8 +296,12 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <Label className="text-xs text-muted-foreground">Capacity</Label>
-                <p className="font-medium">{floorPlanTable?.capacity || 'N/A'} guests</p>
+                <Label className="text-xs text-muted-foreground">
+                  Capacity
+                </Label>
+                <p className="font-medium">
+                  {floorPlanTable?.capacity || 'N/A'} guests
+                </p>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Zone</Label>
@@ -272,23 +311,31 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
 
             {tableStatus.occupiedSince && (
               <div>
-                <Label className="text-xs text-muted-foreground">Occupied Since</Label>
+                <Label className="text-xs text-muted-foreground">
+                  Occupied Since
+                </Label>
                 <p className="font-medium">
-                  {formatDistanceToNow(new Date(tableStatus.occupiedSince), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(tableStatus.occupiedSince), {
+                    addSuffix: true,
+                  })}
                 </p>
               </div>
             )}
 
             {tableStatus.currentPartySize && (
               <div>
-                <Label className="text-xs text-muted-foreground">Current Party Size</Label>
+                <Label className="text-xs text-muted-foreground">
+                  Current Party Size
+                </Label>
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
                     min="1"
                     max={floorPlanTable?.capacity || 10}
                     value={tableStatus.currentPartySize}
-                    onChange={(e) => handlePartySize(parseInt(e.target.value) || 1)}
+                    onChange={(e) =>
+                      handlePartySize(parseInt(e.target.value) || 1)
+                    }
                     className="w-20 h-8"
                   />
                   <span className="text-sm text-muted-foreground">guests</span>
@@ -302,7 +349,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
             <>
               <Separator />
               <div className="space-y-3">
-                <Label className="text-sm font-medium">Current Reservation</Label>
+                <Label className="text-sm font-medium">
+                  Current Reservation
+                </Label>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-muted-foreground" />
@@ -316,13 +365,22 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                   )}
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-muted-foreground" />
-                    <span>{tableStatus.currentReservation.partySize} guests</span>
+                    <span>
+                      {tableStatus.currentReservation.partySize} guests
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <span>
-                      {format(new Date(tableStatus.currentReservation.reservedFrom), 'MMM d, HH:mm')} -
-                      {format(new Date(tableStatus.currentReservation.reservedTo), 'HH:mm')}
+                      {format(
+                        new Date(tableStatus.currentReservation.reservedFrom),
+                        'MMM d, HH:mm'
+                      )}{' '}
+                      -
+                      {format(
+                        new Date(tableStatus.currentReservation.reservedTo),
+                        'HH:mm'
+                      )}
                     </span>
                   </div>
                   {tableStatus.currentReservation.notes && (
@@ -352,14 +410,20 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                         className="p-2 rounded-md border bg-muted/50 text-sm"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">#{order.orderNumber}</span>
+                          <span className="font-medium">
+                            #{order.orderNumber}
+                          </span>
                           <Badge variant="outline" className="text-xs">
                             {order.status.replace('_', ' ')}
                           </Badge>
                         </div>
                         <div className="flex items-center justify-between text-muted-foreground">
                           <span>${order.totalAmount.toFixed(2)}</span>
-                          <span>{formatDistanceToNow(new Date(order.orderedAt), { addSuffix: true })}</span>
+                          <span>
+                            {formatDistanceToNow(new Date(order.orderedAt), {
+                              addSuffix: true,
+                            })}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -375,19 +439,27 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
             <Label className="text-sm font-medium">Today's Metrics</Label>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="text-center p-2 rounded-md bg-muted/50">
-                <div className="font-semibold">{tableStatus.dailyMetrics.totalOrders}</div>
+                <div className="font-semibold">
+                  {tableStatus.dailyMetrics.totalOrders}
+                </div>
                 <div className="text-xs text-muted-foreground">Orders</div>
               </div>
               <div className="text-center p-2 rounded-md bg-muted/50">
-                <div className="font-semibold">${tableStatus.dailyMetrics.totalRevenue.toFixed(0)}</div>
+                <div className="font-semibold">
+                  ${tableStatus.dailyMetrics.totalRevenue.toFixed(0)}
+                </div>
                 <div className="text-xs text-muted-foreground">Revenue</div>
               </div>
               <div className="text-center p-2 rounded-md bg-muted/50">
-                <div className="font-semibold">{tableStatus.dailyMetrics.turnoverCount}</div>
+                <div className="font-semibold">
+                  {tableStatus.dailyMetrics.turnoverCount}
+                </div>
                 <div className="text-xs text-muted-foreground">Turnovers</div>
               </div>
               <div className="text-center p-2 rounded-md bg-muted/50">
-                <div className="font-semibold">{Math.round(tableStatus.dailyMetrics.occupancyMinutes / 60)}h</div>
+                <div className="font-semibold">
+                  {Math.round(tableStatus.dailyMetrics.occupancyMinutes / 60)}h
+                </div>
                 <div className="text-xs text-muted-foreground">Occupied</div>
               </div>
             </div>
@@ -399,7 +471,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
             <Label className="text-sm font-medium">Priority Level</Label>
             <Select
               value={tableStatus.priority}
-              onValueChange={(value: TablePriority) => handlePriorityChange(value)}
+              onValueChange={(value: TablePriority) =>
+                handlePriorityChange(value)
+              }
             >
               <SelectTrigger className="h-8">
                 <SelectValue />
@@ -418,7 +492,9 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
       {/* Reservation Dialog */}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Reservation - Table {tableStatus.tableLabel}</DialogTitle>
+          <DialogTitle>
+            Create Reservation - Table {tableStatus.tableLabel}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -427,7 +503,12 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
               <Input
                 id="guestName"
                 value={reservationForm.guestName}
-                onChange={(e) => setReservationForm(prev => ({ ...prev, guestName: e.target.value }))}
+                onChange={(e) =>
+                  setReservationForm((prev) => ({
+                    ...prev,
+                    guestName: e.target.value,
+                  }))
+                }
                 placeholder="Enter guest name"
               />
             </div>
@@ -436,7 +517,12 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
               <Input
                 id="guestPhone"
                 value={reservationForm.guestPhone}
-                onChange={(e) => setReservationForm(prev => ({ ...prev, guestPhone: e.target.value }))}
+                onChange={(e) =>
+                  setReservationForm((prev) => ({
+                    ...prev,
+                    guestPhone: e.target.value,
+                  }))
+                }
                 placeholder="Enter phone number"
               />
             </div>
@@ -451,7 +537,12 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                 min="1"
                 max={floorPlanTable?.capacity || 10}
                 value={reservationForm.partySize}
-                onChange={(e) => setReservationForm(prev => ({ ...prev, partySize: parseInt(e.target.value) || 1 }))}
+                onChange={(e) =>
+                  setReservationForm((prev) => ({
+                    ...prev,
+                    partySize: parseInt(e.target.value) || 1,
+                  }))
+                }
               />
             </div>
           </div>
@@ -463,7 +554,12 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                 id="reservedFrom"
                 type="datetime-local"
                 value={reservationForm.reservedFrom}
-                onChange={(e) => setReservationForm(prev => ({ ...prev, reservedFrom: e.target.value }))}
+                onChange={(e) =>
+                  setReservationForm((prev) => ({
+                    ...prev,
+                    reservedFrom: e.target.value,
+                  }))
+                }
               />
             </div>
             <div>
@@ -472,7 +568,12 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
                 id="reservedTo"
                 type="datetime-local"
                 value={reservationForm.reservedTo}
-                onChange={(e) => setReservationForm(prev => ({ ...prev, reservedTo: e.target.value }))}
+                onChange={(e) =>
+                  setReservationForm((prev) => ({
+                    ...prev,
+                    reservedTo: e.target.value,
+                  }))
+                }
               />
             </div>
           </div>
@@ -482,14 +583,22 @@ export const TableStatusPanel: React.FC<TableStatusPanelProps> = ({
             <Textarea
               id="notes"
               value={reservationForm.notes}
-              onChange={(e) => setReservationForm(prev => ({ ...prev, notes: e.target.value }))}
+              onChange={(e) =>
+                setReservationForm((prev) => ({
+                  ...prev,
+                  notes: e.target.value,
+                }))
+              }
               placeholder="Any special requests or notes..."
               rows={3}
             />
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowReservationDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowReservationDialog(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleCreateReservation}>

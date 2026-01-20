@@ -7,7 +7,7 @@ import {
   MessageCircle,
   ThumbsUp,
   X,
-  Send
+  Send,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -21,14 +21,14 @@ export enum CallWaiterType {
   Emergency = 'emergency',
   BillRequest = 'bill_request',
   Complaint = 'complaint',
-  Feedback = 'feedback'
+  Feedback = 'feedback',
 }
 
 export enum CallWaiterUrgency {
   Low = 'low',
   Normal = 'normal',
   High = 'high',
-  Urgent = 'urgent'
+  Urgent = 'urgent',
 }
 
 interface CallWaiterButtonProps {
@@ -55,8 +55,8 @@ const callOptions: CallOption[] = [
     title: 'Need Assistance',
     description: 'General help or questions',
     icon: <PhoneCall className="w-6 h-6" />,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50 hover:bg-blue-100'
+    color: '',
+    bgColor: 'bg-blue-50 hover:bg-blue-100',
   },
   {
     type: CallWaiterType.BillRequest,
@@ -65,7 +65,7 @@ const callOptions: CallOption[] = [
     description: 'Ready to pay the bill',
     icon: <CreditCard className="w-6 h-6" />,
     color: 'text-green-600',
-    bgColor: 'bg-green-50 hover:bg-green-100'
+    bgColor: 'bg-green-50 hover:bg-green-100',
   },
   {
     type: CallWaiterType.Emergency,
@@ -74,7 +74,7 @@ const callOptions: CallOption[] = [
     description: 'Urgent assistance needed',
     icon: <AlertTriangle className="w-6 h-6" />,
     color: 'text-red-600',
-    bgColor: 'bg-red-50 hover:bg-red-100'
+    bgColor: 'bg-red-50 hover:bg-red-100',
   },
   {
     type: CallWaiterType.Complaint,
@@ -83,7 +83,7 @@ const callOptions: CallOption[] = [
     description: 'Report an issue or concern',
     icon: <MessageCircle className="w-6 h-6" />,
     color: 'text-orange-600',
-    bgColor: 'bg-orange-50 hover:bg-orange-100'
+    bgColor: 'bg-orange-50 hover:bg-orange-100',
   },
   {
     type: CallWaiterType.Feedback,
@@ -92,15 +92,15 @@ const callOptions: CallOption[] = [
     description: 'Share your experience',
     icon: <ThumbsUp className="w-6 h-6" />,
     color: 'text-purple-600',
-    bgColor: 'bg-purple-50 hover:bg-purple-100'
-  }
+    bgColor: 'bg-purple-50 hover:bg-purple-100',
+  },
 ];
 
 export const CallWaiterButton: React.FC<CallWaiterButtonProps> = ({
   tableId,
   restaurantId,
   orderId,
-  onCallSuccess
+  onCallSuccess,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<CallOption | null>(null);
@@ -108,7 +108,10 @@ export const CallWaiterButton: React.FC<CallWaiterButtonProps> = ({
   const [createCallWaiter, { isLoading }] = useCreateCallWaiterMutation();
 
   const handleCallWaiter = async (option: CallOption) => {
-    if (option.type === CallWaiterType.Emergency || option.type === CallWaiterType.BillRequest) {
+    if (
+      option.type === CallWaiterType.Emergency ||
+      option.type === CallWaiterType.BillRequest
+    ) {
       // For emergency and bill request, send immediately without additional details
       await sendCallRequest(option);
     } else {
@@ -117,7 +120,10 @@ export const CallWaiterButton: React.FC<CallWaiterButtonProps> = ({
     }
   };
 
-  const sendCallRequest = async (option: CallOption, additionalMessage?: string) => {
+  const sendCallRequest = async (
+    option: CallOption,
+    additionalMessage?: string
+  ) => {
     try {
       const requestBody = {
         restaurantId,
@@ -125,13 +131,13 @@ export const CallWaiterButton: React.FC<CallWaiterButtonProps> = ({
         type: option.type,
         urgency: option.urgency,
         message: additionalMessage || message || undefined,
-        orderId: orderId || undefined
+        orderId: orderId || undefined,
       };
 
       const result = await createCallWaiter(requestBody).unwrap();
 
       toast.success('Waiter called successfully! 📞', {
-        description: 'Our staff will be with you shortly.'
+        description: 'Our staff will be with you shortly.',
       });
 
       setIsOpen(false);
@@ -144,7 +150,7 @@ export const CallWaiterButton: React.FC<CallWaiterButtonProps> = ({
     } catch (error) {
       console.error('Failed to call waiter:', error);
       toast.error('Failed to call waiter', {
-        description: 'Please try again or ask a nearby staff member.'
+        description: 'Please try again or ask a nearby staff member.',
       });
     }
   };
@@ -162,10 +168,7 @@ export const CallWaiterButton: React.FC<CallWaiterButtonProps> = ({
 
   return (
     <>
-      <motion.div
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-      >
+      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
         <Button
           onClick={() => setIsOpen(true)}
           className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg"
@@ -205,12 +208,16 @@ export const CallWaiterButton: React.FC<CallWaiterButtonProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className={`p-4 rounded-lg ${selectedOption.bgColor} ${selectedOption.color}`}>
+              <div
+                className={`p-4 rounded-lg ${selectedOption.bgColor} ${selectedOption.color}`}
+              >
                 <div className="flex items-center space-x-3">
                   {selectedOption.icon}
                   <div>
                     <h3 className="font-semibold">{selectedOption.title}</h3>
-                    <p className="text-sm opacity-75">{selectedOption.description}</p>
+                    <p className="text-sm opacity-75">
+                      {selectedOption.description}
+                    </p>
                   </div>
                 </div>
               </div>

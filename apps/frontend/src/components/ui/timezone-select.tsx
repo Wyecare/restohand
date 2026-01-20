@@ -92,9 +92,10 @@ export const TimezoneSelect = ({
       </Select>
 
       {value && value !== detectedTimezone && !isDetectedTimezone && (
-        <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm text-blue-800">
-          <strong>Note:</strong> You selected {value} instead of your detected timezone ({detectedTimezone}).
-          This will be used for your organization's scheduling.
+        <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm ">
+          <strong>Note:</strong> You selected {value} instead of your detected
+          timezone ({detectedTimezone}). This will be used for your
+          organization's scheduling.
         </div>
       )}
     </div>
