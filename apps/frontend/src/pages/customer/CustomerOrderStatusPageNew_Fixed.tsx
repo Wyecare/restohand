@@ -10,20 +10,13 @@ import {
   useGetPublicRestaurantQuery,
   useCancelPublicOrderMutation,
 } from '@/store/api/restaurantsApi';
-import { useCreatePaymentIntentMutation, useVerifyPaymentMutation } from '@/store/api/ordersApi';
+import { useCreateUpiIntentMutation } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import type { Order } from '@/store/api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ReceiptDialog } from '@/components/customer/ReceiptDialog';
-
-// Razorpay type declaration
-declare global {
-  interface Window {
-    Razorpay?: any;
-  }
-}
 
 // Simplified status display
 const getStatusInfo = (order: Order) => {
@@ -108,8 +101,8 @@ export default function CustomerOrderStatusPage() {
   const [deviceOrders, setDeviceOrders] = useState<DeviceOrder[]>([]);
   const [cancelOrder, { isLoading: isCancelling }] =
     useCancelPublicOrderMutation();
-  const [createPaymentIntent, { isLoading: isCreatingPayment }] = useCreatePaymentIntentMutation();
-  const [verifyPayment] = useVerifyPaymentMutation();
+  const [createUpiIntent, { isLoading: isCreatingUpiIntent }] =
+    useCreateUpiIntentMutation();
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [showItems, setShowItems] = useState(false);
 
@@ -196,96 +189,38 @@ export default function CustomerOrderStatusPage() {
     };
   }, [restaurantData]);
 
-  // Load Razorpay script
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => console.log('Razorpay script loaded');
-    script.onerror = () => {
-      console.error('Failed to load Razorpay script');
-    };
-    document.body.appendChild(script);
-  }, []);
-
-  // Handle Razorpay payment
-  const handleRazorpayPayment = useCallback(async () => {
+  // Handle UPI payment intent
+  const handlePayWithUPI = useCallback(async () => {
     if (!order || !restaurantData?.id || order.paymentStatus === 'paid') return;
 
     try {
-      // Create payment intent
-      const response = await createPaymentIntent({
+      // Create UPI intent via API
+      const response = await createUpiIntent({
         restaurantId: restaurantData.id,
         orderId: order.id,
       }).unwrap();
 
-      // Check if Razorpay is loaded
-      if (!window.Razorpay) {
+      // Check if we have a valid UPI intent
+      if (response.upiIntent) {
+        // Try to open UPI intent directly
+        window.location.href = response.upiIntent;
+
         toast({
-          title: 'Payment Error',
-          description: 'Payment system not ready. Please refresh the page.',
-          variant: 'destructive',
+          title: 'Opening UPI app... 📱',
+          description: 'Complete payment in your UPI app, then show confirmation to staff',
         });
-        return;
+      } else {
+        throw new Error('UPI intent not generated');
       }
-
-      const options = {
-        key: response.razorpayKey,
-        amount: response.amount,
-        currency: response.currency,
-        order_id: response.razorpayOrderId,
-        name: restaurantData.name,
-        description: `Order #${order.orderNumber}`,
-        theme: {
-          color: '#000000',
-        },
-        handler: async function (razorpayResponse: any) {
-          try {
-            await verifyPayment({
-              restaurantId: restaurantData.id,
-              orderId: order.id,
-              razorpay_payment_id: razorpayResponse.razorpay_payment_id,
-              razorpay_order_id: razorpayResponse.razorpay_order_id,
-              razorpay_signature: razorpayResponse.razorpay_signature,
-            }).unwrap();
-
-            toast({
-              title: 'Payment Successful!',
-              description: 'Your payment has been processed successfully.',
-            });
-
-            // Refresh order data
-            refetch();
-          } catch (verifyError: any) {
-            toast({
-              title: 'Payment Verification Failed',
-              description: verifyError?.data?.message || 'Please contact support.',
-              variant: 'destructive',
-            });
-          }
-        },
-        modal: {
-          ondismiss: function () {
-            toast({
-              title: 'Payment Cancelled',
-              description: 'Payment was cancelled.',
-              variant: 'destructive',
-            });
-          },
-        },
-      };
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-    } catch (error: any) {
-      console.error('Payment error:', error);
+    } catch (error) {
+      console.error('UPI payment error:', error);
       toast({
-        title: 'Payment Error',
-        description: error?.data?.message || 'Failed to initiate payment.',
+        title: 'Payment setup failed',
+        description: 'Could not open UPI app. Please try again or pay with staff.',
         variant: 'destructive',
       });
     }
-  }, [order, createPaymentIntent, verifyPayment, toast, restaurantData, refetch]);
+  }, [order, createUpiIntent, toast, restaurantData?.id]);
 
   const handleCancelOrder = useCallback(async () => {
     if (!order || !canCancelOrder) {
@@ -470,13 +405,13 @@ export default function CustomerOrderStatusPage() {
           {/* Pay Now Button - Show when payment is pending */}
           {order.paymentStatus !== 'paid' && (
             <Button
-              onClick={handleRazorpayPayment}
-              disabled={isCreatingPayment}
+              onClick={handlePayWithUPI}
+              disabled={isCreatingUpiIntent}
               size="lg"
               className="col-span-2 h-14 text-lg font-bold bg-green-600 hover:bg-green-700"
             >
-              <CreditCard className="mr-2 h-5 w-5" />
-              {isCreatingPayment ? 'Processing...' : `Pay ${formatCurrency(order.totalAmount)}`}
+              <Smartphone className="mr-2 h-5 w-5" />
+              {isCreatingUpiIntent ? 'Opening UPI...' : 'Pay Now with UPI'}
             </Button>
           )}
           <Button
