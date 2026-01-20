@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { ReceiptDialog } from '@/components/customer/ReceiptDialog';
+import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
 
 // Razorpay type declaration
 declare global {
@@ -577,6 +578,21 @@ export default function CustomerOrderStatusPage() {
             </Button>
           )}
         </motion.div>
+
+        {/* Call Waiter Button - Show when customer is at a table */}
+        {restaurantData && tableFromQuery && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <CallWaiterButton
+              tableId={tableFromQuery}
+              restaurantId={restaurantData.id}
+              orderId={order.id}
+            />
+          </motion.div>
+        )}
 
         {/* Items List (Collapsible) */}
         <AnimatePresence>

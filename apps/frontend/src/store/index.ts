@@ -8,6 +8,9 @@ import uiReducer from './slices/uiSlice';
 import cartReducer from './slices/cartSlice';
 import { cartPersistenceMiddleware } from './middleware/cartPersistence';
 
+// Import API endpoints to ensure they're loaded
+import './api/fcmApi';
+
 export const store = configureStore({
   reducer: {
     // RTK Query API slice

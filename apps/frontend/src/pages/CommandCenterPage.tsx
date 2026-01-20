@@ -24,6 +24,7 @@ import { ZoneOutline } from '@/components/command-center/ZoneOutline';
 import { TableDetailsPanel } from '@/components/command-center/TableDetailsPanel';
 import { TimelineView } from '@/components/command-center/TimelineView';
 import { ReservationDialog } from '@/components/command-center/ReservationDialog';
+import { CallWaiterAlerts } from '@/components/staff/CallWaiterAlerts';
 import {
   Users,
   DollarSign,
@@ -33,9 +34,10 @@ import {
   Table2,
   MapPin,
   Filter,
+  PhoneCall,
 } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
-import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { selectActiveRestaurantId, selectAuthSession, selectUserRoles } from '@/store/slices/authSlice';
 import {
   useListEnhancedRestaurantTablesQuery,
   useGetTableStatusStatsQuery,
@@ -48,12 +50,14 @@ import { TableStatusType } from '@/store/api/types';
 
 const CommandCenterPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const session = useAppSelector(selectAuthSession);
+  const userRoles = useAppSelector(selectUserRoles);
   const { toast } = useToast();
   const { resolvedTheme } = useTheme();
   const [selectedTable, setSelectedTable] =
     useState<EnhancedRestaurantTable | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'floor' | 'timeline'>('floor');
+  const [activeView, setActiveView] = useState<'floor' | 'timeline' | 'alerts'>('floor');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<Date | undefined>();
@@ -334,16 +338,20 @@ const CommandCenterPage = () => {
       {/* Main Command Center Views */}
       <Tabs
         value={activeView}
-        onValueChange={(value) => setActiveView(value as 'floor' | 'timeline')}
+        onValueChange={(value) => setActiveView(value as 'floor' | 'timeline' | 'alerts')}
       >
         <div className="flex items-center justify-between">
-          <TabsList className="grid w-fit grid-cols-2">
+          <TabsList className="grid w-fit grid-cols-3">
             <TabsTrigger value="floor" className="flex items-center gap-2">
               Floor View
             </TabsTrigger>
             <TabsTrigger value="timeline" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Timeline View
+            </TabsTrigger>
+            <TabsTrigger value="alerts" className="flex items-center gap-2">
+              <PhoneCall className="h-4 w-4" />
+              Call Alerts
             </TabsTrigger>
           </TabsList>
         </div>
@@ -721,6 +729,30 @@ const CommandCenterPage = () => {
               setReservationDialogOpen(true);
             }}
           />
+        </TabsContent>
+
+        {/* Call Waiter Alerts Tab */}
+        <TabsContent value="alerts">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <PhoneCall className="h-5 w-5" />
+                Customer Call Alerts
+              </CardTitle>
+              <CardDescription>
+                Manage customer assistance requests and notifications
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {session?.userId && restaurantId && (
+                <CallWaiterAlerts
+                  restaurantId={restaurantId}
+                  userId={session.userId}
+                  userRole={userRoles[0] || 'staff'}
+                />
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

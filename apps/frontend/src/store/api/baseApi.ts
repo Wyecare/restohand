@@ -61,6 +61,7 @@ export const baseApi = createApi({
     'RecipeCostSummary',
     'Subscription',
     'Reports',
+    'CallWaiter',
   ],
   endpoints: () => ({}),
 });

@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
 import { formatCurrency } from '@/lib/billing';
+import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
 
 type DisplayCategory = {
   id: string;
@@ -501,6 +502,21 @@ export default function CustomerMenuPageNew() {
                     View
                   </Button>
                 </div>
+              </motion.div>
+            )}
+
+            {/* Call Waiter Button - Show when customer is at a table */}
+            {restaurant && tableFromUrl && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4"
+              >
+                <CallWaiterButton
+                  tableId={tableFromUrl}
+                  restaurantId={restaurant.id}
+                  orderId={currentOrder?.id || activeOrderFromAPI?.id}
+                />
               </motion.div>
             )}
           </AnimatePresence>

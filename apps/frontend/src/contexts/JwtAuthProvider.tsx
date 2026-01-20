@@ -16,6 +16,7 @@ import {
   updateSession,
 } from '@/store/slices/authSlice';
 import { authService, AuthResponse } from '@/services/auth.service';
+import { useFCMInitialization } from '@/hooks/useFCMInitialization';
 import type { SessionInfo } from '@/store/api/types';
 
 interface User {
@@ -61,6 +62,24 @@ export const JwtAuthProvider = ({ children }: PropsWithChildren) => {
   const dispatch = useAppDispatch();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize FCM for all authenticated users
+  const fcmState = useFCMInitialization();
+
+  // Log FCM initialization status
+  useEffect(() => {
+    if (user && fcmState.isInitialized) {
+      console.log('📱 FCM Status for user:', {
+        userId: user.uid,
+        roles: user.roles,
+        fcmSupported: fcmState.isSupported,
+        fcmInitialized: fcmState.isInitialized,
+        hasPermission: fcmState.hasPermission,
+        hasToken: !!fcmState.token,
+        error: fcmState.error,
+      });
+    }
+  }, [user, fcmState]);
 
   // Check for existing authentication on mount
   useEffect(() => {

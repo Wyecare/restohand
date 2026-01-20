@@ -5,6 +5,7 @@ export interface FirebaseConfig {
   clientEmail: string;
   privateKey: string;
   webApiKey: string;
+  vapidKey?: string;
   authEmulatorHost?: string;
 }
 
@@ -15,6 +16,7 @@ export const firebaseConfig = registerAs<FirebaseConfig>('firebase', () => {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
   const webApiKey = process.env.FIREBASE_WEB_API_KEY;
+  const vapidKey = process.env.FIREBASE_VAPID_KEY;
 
   if (!projectId || !clientEmail || !privateKey || !webApiKey) {
     throw new Error('Missing Firebase configuration environment variables');
@@ -25,6 +27,7 @@ export const firebaseConfig = registerAs<FirebaseConfig>('firebase', () => {
     clientEmail,
     privateKey: privateKey.replace(/\\n/g, '\n'),
     webApiKey,
+    vapidKey,
     // authEmulatorHost: process.env.FIREBASE_AUTH_EMULATOR_HOST,
   };
 });
