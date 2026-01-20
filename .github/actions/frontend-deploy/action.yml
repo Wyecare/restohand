@@ -131,16 +131,16 @@ runs:
         export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-service-account.json
 
         # Set correct project
-        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand' || 'restohand-d' }}"
+        PROJECT_ID="${{ inputs.environment == 'prod' && 'restohand-p' || 'restohand-d' }}"
         firebase use $PROJECT_ID
 
         # Deploy to both admin and staff targets
         firebase deploy --only hosting:admin,hosting:staff,hosting:customer --force
 
         # Get deployment URLs
-        ADMIN_URL="https://${{ inputs.environment == 'prod' && 'restohand-admin' || 'restohand-d-admin' }}.web.app"
-        STAFF_URL="https://${{ inputs.environment == 'prod' && 'restohand-staff' || 'restohand-d-staff' }}.web.app"
-        CUSTOMER_URL="https://${{ inputs.environment == 'prod' && 'restohand-customer' || 'restohand-d-customer' }}.web.app"
+        ADMIN_URL="https://${{ inputs.environment == 'prod' && 'restohand-p-admin' || 'restohand-d-admin' }}.web.app"
+        STAFF_URL="https://${{ inputs.environment == 'prod' && 'restohand-p-staff' || 'restohand-d-staff' }}.web.app"
+        CUSTOMER_URL="https://${{ inputs.environment == 'prod' && 'restohand-p-customer' || 'restohand-d-customer' }}.web.app"
 
         echo "admin-url=$ADMIN_URL" >> $GITHUB_OUTPUT
         echo "staff-url=$STAFF_URL" >> $GITHUB_OUTPUT

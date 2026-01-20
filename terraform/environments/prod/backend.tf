@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "terraform-state-restohand-prod"
+    bucket = "terraform-state-restohand"
     prefix = "restohand/production"
   }
 }

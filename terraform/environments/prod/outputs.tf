@@ -61,6 +61,10 @@ output "firebase_staff_hosting_site_id" {
   description = "Staff Firebase Hosting site ID"
   value       = module.firebase.staff_hosting_site_id
 }
+output "firebase_customer_hosting_site_id" {
+  description = "Customer Firebase Hosting site ID"
+  value       = module.firebase.customer_hosting_site_id
+}
 
 output "firebase_admin_hosting_url" {
   description = "Admin Firebase Hosting URL"
@@ -71,6 +75,14 @@ output "firebase_staff_hosting_url" {
   description = "Staff Firebase Hosting URL"
   value       = "https://${module.firebase.staff_hosting_site_id}.web.app"
 }
+
+output "firebase_customer_hosting_url" {
+  description = "Customer Firebase Hosting URL"
+  value       = "https://${module.firebase.customer_hosting_site_id}.web.app"
+}
+
+
+
 
 # Legacy outputs
 output "firebase_hosting_site_id" {

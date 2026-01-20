@@ -19,7 +19,7 @@
         ]
       }
     },
-    "restohand": {
+    "restohand-p": {
       "hosting": {
         "admin": [
           "restohand-admin"
@@ -30,13 +30,6 @@
         "customer": [
           "restohand-customer"
         ],
-        "main": [
-          "restohand"
-        ]
-      }
-    },
-    "restohand-p": {
-      "hosting": {
         "main": [
           "restohand-p"
         ]

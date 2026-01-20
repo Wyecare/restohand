@@ -2,7 +2,7 @@ name: 🚀 Deploy to Environment
 
 on:
   push:
-    branches: [dev, prod__]
+    branches: [dev, prod]
   workflow_dispatch:
     inputs:
       environment:
@@ -239,7 +239,7 @@ jobs:
           firebase-messaging-sender-id: ${{ needs.infrastructure.outputs.firebase-messaging-sender-id }}
           firebase-app-id: ${{ needs.infrastructure.outputs.firebase-app-id }}
           firebase-measurement-id: ${{ needs.infrastructure.outputs.firebase-measurement-id }}
-          project-id: ${{ needs.setup.outputs.environment == 'prod' && 'restohand' || 'restohand-d' }}
+          project-id: ${{ needs.setup.outputs.environment == 'prod' && 'restohand-p' || 'restohand-d' }}
 
   summary:
     name: 📊 Deployment Summary

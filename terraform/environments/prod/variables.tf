@@ -59,6 +59,12 @@ variable "staff_firebase_site_id" {
   type        = string
 }
 
+variable "customer_firebase_site_id" {
+  description = "Customer Firebase Hosting site ID"
+  type        = string
+  default     = null
+}
+
 # Legacy variable for backwards compatibility
 variable "firebase_site_id" {
   description = "Legacy Firebase Hosting site ID - use admin_firebase_site_id instead"
@@ -85,6 +91,13 @@ variable "staff_frontend_url" {
   default     = null
 }
 
+variable "customer_frontend_url" {
+  description = "Customer frontend application URL"
+  type        = string
+  default     = null
+}
+
+
 # Legacy frontend URL
 variable "frontend_url" {
   description = "Legacy frontend application URL"
@@ -110,6 +123,7 @@ variable "smtp_pass" {
   type        = string
   default     = ""
 }
+
 
 # Database / Firebase configuration
 variable "database_url" {
@@ -138,6 +152,18 @@ variable "firebase_private_key" {
 
 variable "firebase_web_api_key" {
   description = "Firebase web API key"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_private_key_id" {
+  description = "Firebase private key ID"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_client_id" {
+  description = "Firebase client ID"
   type        = string
   default     = ""
 }
@@ -239,8 +265,9 @@ variable "razorpay_key_id" {
     type        = string
   }
 
-  variable "firebase_storage_bucket" {
-    description = "Firebase Storage Bucket name"
-    type        = string
-    default     = ""
-  }
+
+variable "anthropic_api_key" {
+  description = "Anthropic API Key for AI integrations"
+  type        = string
+  default     = ""
+}

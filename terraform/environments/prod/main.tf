@@ -20,7 +20,7 @@ provider "google-beta" {
 locals {
   common_labels = {
     environment = "prod"
-    project     = "restohand"
+    project     = "restohand-p"
     managed_by  = "terraform"
     team        = "engineering"
   }
@@ -91,20 +91,22 @@ module "secrets" {
   admin_frontend_url = var.admin_frontend_url
   staff_frontend_url = var.staff_frontend_url
   frontend_url       = var.frontend_url
+  customer_frontend_url = var.customer_frontend_url
   labels             = local.common_labels
 
   additional_secrets = {
     "smtp-host"             = var.smtp_host
     "smtp-user"             = var.smtp_user
     "smtp-pass"             = var.smtp_pass
-    "firebase-project-id"   = var.firebase_project_id
-    "firebase-client-email" = var.firebase_client_email
-    "firebase-private-key"  = var.firebase_private_key
-    "firebase-web-api-key"  = var.firebase_web_api_key
+    "firebase-project-id"     = var.firebase_project_id
+    "firebase-client-email"   = var.firebase_client_email
+    "firebase-private-key"    = var.firebase_private_key
+    "firebase-private-key-id" = var.firebase_private_key_id
+    "firebase-client-id"      = var.firebase_client_id
     "razorpay-key-id"       = var.razorpay_key_id
     "razorpay-key-secret"   = var.razorpay_key_secret
     "razorpay-webhook-secret" = var.razorpay_webhook_secret
-    "firebase-storage-bucket" = var.firebase_storage_bucket
+    "athropic_api_key"       = var.anthropic_api_key
   }
 
   secret_accessors = [] # Will be configured after deployment
@@ -120,11 +122,11 @@ module "run_api" {
   timezone    = "Asia/Kolkata"
 
   api_image                 = local.api_image_url
-  api_min_instances         = 1 # Always keep at least 1 instance running in production
-  api_max_instances         = 10 # Higher capacity for production
-  api_cpu_limit             = "2" # More CPU for production
-  api_memory_limit          = "4Gi" # More memory for production
-  api_concurrency           = 100 # Higher concurrency for production
+  api_min_instances         = 0 # Always keep at least 1 instance running in production
+  api_max_instances         = 3 # Higher capacity for production
+  api_cpu_limit             = "1" # More CPU for production
+  api_memory_limit          = "1Gi" # More memory for production
+  api_concurrency           = 20 # Higher concurrency for production
   api_ingress_setting       = "INGRESS_TRAFFIC_ALL"
   allow_unauthenticated_api = true
   labels                    = local.common_labels
@@ -176,13 +178,12 @@ module "run_api" {
         secret_name = module.secrets.secret_names["firebase-private-key"]
         version     = "latest"
       }
-      FIREBASE_WEB_API_KEY = {
-        secret_name = module.secrets.secret_names["firebase-web-api-key"]
+      FIREBASE_PRIVATE_KEY_ID = {
+        secret_name = module.secrets.secret_names["firebase-private-key-id"]
         version     = "latest"
       }
-
-      FIREBASE_STORAGE_BUCKET = {
-        secret_name = module.secrets.secret_names["firebase-storage-bucket"]
+      FIREBASE_CLIENT_ID = {
+        secret_name = module.secrets.secret_names["firebase-client-id"]
         version     = "latest"
       }
 
@@ -210,6 +211,11 @@ module "run_api" {
         secret_name = module.secrets.secret_names["razorpay-webhook-secret"]
         version     = "latest"
       }
+
+      ANTHROPIC_API_KEY = {
+        secret_name = module.secrets.secret_names["athropic_api_key"]
+        version     = "latest"
+      }
     }
   )
 
@@ -227,6 +233,7 @@ module "firebase" {
   web_app_display_name    = "Restohand Web (Prod)"
   admin_hosting_site_id   = var.admin_firebase_site_id
   staff_hosting_site_id   = var.staff_firebase_site_id
+  customer_hosting_site_id = var.customer_firebase_site_id
   hosting_site_id         = var.firebase_site_id  # Legacy support
   enable_preview_channel  = false # Disable preview channels in production
   enable_firebase_storage = true

@@ -14,7 +14,7 @@ export const getDomainType = (): InterfaceType => {
   if (
     hostname.includes('admin') ||
     hostname.includes('-d-admin') ||
-    hostname === 'restohand-admin.web.app' ||
+    hostname === 'restohand-p-admin.web.app' ||
     hostname === 'restohand-d-admin.web.app' ||
     hostname.startsWith('admin.') ||
     hostname.startsWith('dev.admin.')
@@ -27,7 +27,7 @@ export const getDomainType = (): InterfaceType => {
   if (
     hostname.includes('staff') ||
     hostname.includes('-d-staff') ||
-    hostname === 'restohand-staff.web.app' ||
+    hostname === 'restohand-p-staff.web.app' ||
     hostname === 'restohand-d-staff.web.app' ||
     hostname.startsWith('staff.') ||
     hostname.startsWith('dev.staff.')
@@ -40,7 +40,7 @@ export const getDomainType = (): InterfaceType => {
   if (
     hostname.includes('qr') ||
     hostname.includes('-d-qr') ||
-    hostname === 'restohand-qr.web.app' ||
+    hostname === 'restohand-p-qr.web.app' ||
     hostname === 'restohand-d-qr.web.app' ||
     hostname.startsWith('qr.') ||
     hostname.startsWith('dev.qr.')
@@ -50,8 +50,19 @@ export const getDomainType = (): InterfaceType => {
   }
 
   // For localhost development, check path to determine interface type
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('local')) {
-    if (pathname.startsWith('/staff-') || pathname.startsWith('/login') || pathname.startsWith('/kitchen') || pathname.startsWith('/service') || pathname.startsWith('/forbidden') || pathname.startsWith('/redirect')) {
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.includes('local')
+  ) {
+    if (
+      pathname.startsWith('/staff-') ||
+      pathname.startsWith('/login') ||
+      pathname.startsWith('/kitchen') ||
+      pathname.startsWith('/service') ||
+      pathname.startsWith('/forbidden') ||
+      pathname.startsWith('/redirect')
+    ) {
       console.log('🌐 Localhost detected: staff');
       return 'staff';
     }
