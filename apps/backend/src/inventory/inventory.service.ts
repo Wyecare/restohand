@@ -12,6 +12,7 @@ import { StockAlert, StockAlertDocument } from './schemas/stock-alert.schema';
 
 export interface CreateInventoryItemDto {
   restaurantId: string;
+  branchId?: string;
   name: string;
   description?: string;
   category: string;
@@ -74,6 +75,7 @@ export class InventoryService {
   async createInventoryItem(dto: CreateInventoryItemDto): Promise<InventoryItem> {
     const item = new this.inventoryItemModel({
       restaurantId: dto.restaurantId,
+      branchId: dto.branchId,
       name: dto.name,
       description: dto.description,
       category: dto.category,
@@ -180,7 +182,7 @@ export class InventoryService {
     const direction = dto.quantity > 0 ? 'in' : 'out';
     const totalCost = Math.abs(dto.quantity) * (dto.unitCost || item.pricing.costPerUnit);
 
-    const movement = new this.stockMovementModel({
+    const movementData: any = {
       restaurantId: item.restaurantId,
       inventoryItemId: itemId,
       type: dto.type,
@@ -197,10 +199,16 @@ export class InventoryService {
       stockBefore: stockBefore ?? item.stockLevels.currentStock,
       stockAfter: stockAfter ?? item.stockLevels.currentStock,
       reason: dto.reason,
-      createdBy: dto.createdBy,
       orderId: dto.orderId,
       isAutomated: dto.createdBy === 'system',
-    });
+    };
+
+    // Only set createdBy if it's not a system operation
+    if (dto.createdBy !== 'system') {
+      movementData.createdBy = dto.createdBy;
+    }
+
+    const movement = new this.stockMovementModel(movementData);
 
     return movement.save();
   }
@@ -332,11 +340,16 @@ export class InventoryService {
     lowStock?: boolean;
     outOfStock?: boolean;
     search?: string;
+    branchId?: string;
   }): Promise<InventoryItem[]> {
     const query: FilterQuery<InventoryItemDocument> = {
       restaurantId,
       isActive: true,
     };
+
+    if (filters?.branchId) {
+      query.branchId = filters.branchId;
+    }
 
     if (filters?.category) {
       query.category = filters.category;

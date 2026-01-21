@@ -27,26 +27,38 @@ export class RestaurantTablesService {
     private readonly restaurantsService: RestaurantsService
   ) {}
 
-  async list(restaurantId: string): Promise<RestaurantTableResponseDto[]> {
+  async list(restaurantId: string, branchId?: string): Promise<RestaurantTableResponseDto[]> {
+    const query: FilterQuery<RestaurantTableDocument> = {
+      restaurantId,
+      isActive: true,
+    };
+
+    if (branchId) {
+      query.branchId = branchId;
+    }
+
     const tables = await this.tableModel
-      .find({
-        restaurantId,
-        isActive: true,
-      })
+      .find(query)
       .sort({ displayOrder: 1, tableNumber: 1 })
       .exec();
 
     return tables.map((table) => this.toDto(table));
   }
 
-  async listForService(restaurantId: string): Promise<ServiceTablesResponseDto> {
+  async listForService(restaurantId: string, branchId?: string): Promise<ServiceTablesResponseDto> {
     await this.ensureRestaurantExists(restaurantId);
 
+    const query: FilterQuery<RestaurantTableDocument> = {
+      restaurantId,
+      isActive: true,
+    };
+
+    if (branchId) {
+      query.branchId = branchId;
+    }
+
     const tables = await this.tableModel
-      .find({
-        restaurantId,
-        isActive: true,
-      })
+      .find(query)
       .sort({ displayOrder: 1, tableNumber: 1 })
       .exec();
 
@@ -122,7 +134,8 @@ export class RestaurantTablesService {
 
   async create(
     restaurantId: string,
-    dto: CreateRestaurantTableDto
+    dto: CreateRestaurantTableDto,
+    branchId?: string
   ): Promise<RestaurantTableResponseDto> {
     await this.ensureRestaurantExists(restaurantId);
 
@@ -130,15 +143,17 @@ export class RestaurantTablesService {
     const existing = await this.tableModel.findOne({
       restaurantId,
       tableNumber,
+      ...(branchId && { branchId }),
     });
     if (existing) {
       throw new ConflictException(
-        `Table ${tableNumber} already exists for this restaurant`
+        `Table ${tableNumber} already exists for this ${branchId ? 'branch' : 'restaurant'}`
       );
     }
 
     const created = await this.tableModel.create({
       restaurantId,
+      branchId,
       tableNumber,
       displayName: dto.displayName?.trim() || undefined,
       capacity: dto.capacity,
@@ -255,13 +270,19 @@ export class RestaurantTablesService {
 
   async bulkCreate(
     restaurantId: string,
-    dto: BulkCreateTablesDto
+    dto: BulkCreateTablesDto,
+    branchId?: string
   ): Promise<RestaurantTableResponseDto[]> {
     await this.ensureRestaurantExists(restaurantId);
 
     // Get existing table numbers to determine the next available number
+    const query: FilterQuery<RestaurantTableDocument> = { restaurantId };
+    if (branchId) {
+      query.branchId = branchId;
+    }
+
     const existingTables = await this.tableModel
-      .find({ restaurantId })
+      .find(query)
       .select('tableNumber')
       .exec();
 
@@ -356,6 +377,7 @@ export class RestaurantTablesService {
     // Create tables in bulk
     const tablesToCreate = tableNumbers.map((tableNumber, index) => ({
       restaurantId,
+      branchId,
       tableNumber,
       capacity,
       zone,

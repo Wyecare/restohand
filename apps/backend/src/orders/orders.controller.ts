@@ -9,7 +9,9 @@ import {
   Post,
   Query,
   UseGuards,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -21,6 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { CreateOrderDto } from './dtos/create-order.dto';
 import { CreateOrderWithPaymentDto } from './dtos/create-order-with-payment.dto';
 import { AddItemsToOrderDto } from './dtos/add-items-to-order.dto';
@@ -58,14 +61,20 @@ export class OrdersController {
   @ApiCreatedResponse({ type: OrderResponseDto })
   async create(
     @Param('restaurantId') restaurantId: string,
-    @Body() dto: CreateOrderDto
+    @Body() dto: CreateOrderDto,
+    @Req() req?: Request
   ) {
     // Default to pending payment for new order-first flow
     const orderDto = {
       ...dto,
       paymentMethod: dto.paymentMethod || 'pending'
     };
-    return this.ordersService.create(restaurantId, orderDto);
+
+    // Extract branchId if user is authenticated (optional for public orders)
+    const user = req?.user as AuthenticatedUser | undefined;
+    const branchId = user?.branchId;
+
+    return this.ordersService.create(restaurantId, orderDto, branchId);
   }
 
   @Post(':orderId/add-items')
@@ -92,9 +101,11 @@ export class OrdersController {
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   async findAll(
     @Param('restaurantId') restaurantId: string,
-    @Query() query: QueryOrdersDto
+    @Query() query: QueryOrdersDto,
+    @Req() req: Request
   ) {
-    return this.ordersService.findAll(restaurantId, query);
+    const user = req.user as AuthenticatedUser;
+    return this.ordersService.findAll(restaurantId, query, user.branchId);
   }
 
   @Get(':orderId')

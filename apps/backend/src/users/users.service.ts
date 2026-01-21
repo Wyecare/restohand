@@ -44,7 +44,8 @@ export class UsersService {
 
   async listForRestaurant(
     restaurantId: string,
-    query: QueryStaffDto = {}
+    query: QueryStaffDto = {},
+    branchId?: string
   ): Promise<StaffListResponseDto> {
     if (!restaurantId) {
       throw new ForbiddenException('No restaurant associated with user');
@@ -57,6 +58,10 @@ export class UsersService {
       restaurantId,
       isPrimaryOwner: { $ne: true }
     };
+
+    if (branchId) {
+      filter.branchId = branchId;
+    }
 
     if (query.search) {
       const regex = new RegExp(query.search, 'i');

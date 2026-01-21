@@ -91,6 +91,9 @@ export class Order {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId?: string;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Session', index: true })
   sessionId?: string;
 
@@ -228,5 +231,8 @@ export class Order {
 export const OrderSchema = SchemaFactory.createForClass(Order);
 
 OrderSchema.index({ restaurantId: 1, orderNumber: 1 }, { unique: true });
+OrderSchema.index({ restaurantId: 1, branchId: 1, orderNumber: 1 }, { unique: true });
 OrderSchema.index({ restaurantId: 1, status: 1 });
 OrderSchema.index({ restaurantId: 1, paymentStatus: 1 });
+OrderSchema.index({ branchId: 1, status: 1 });
+OrderSchema.index({ branchId: 1, createdAt: -1 });

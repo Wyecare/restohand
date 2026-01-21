@@ -26,6 +26,7 @@ import { Users, ChefHat, Clock, Search, CheckCircle } from 'lucide-react';
 import WaiterMenuInterface from '@/components/service/WaiterMenuInterface';
 import PaymentInterface from '@/components/service/PaymentInterface';
 import { ServiceHeader } from '@/components/service/ServiceHeader';
+import { useBranchAwareQueries } from '@/hooks/useBranchAwareQuery';
 
 type ViewMode = 'tables' | 'menu' | 'payment';
 
@@ -79,6 +80,9 @@ const ServicePage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const session = useAppSelector(selectAuthSession);
   const { toast } = useToast();
+
+  // Enable branch-aware queries to auto-refetch when branch changes
+  useBranchAwareQueries();
 
   const [viewMode, setViewMode] = useState<ViewMode>('tables');
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);

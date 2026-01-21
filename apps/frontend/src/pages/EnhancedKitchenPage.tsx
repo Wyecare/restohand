@@ -1,6 +1,7 @@
-import { useMemo, useCallback, useState, ReactNode, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, ReactNode, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Card,
   CardContent,
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -34,7 +36,14 @@ import {
   useListRestaurantTablesQuery,
   useGetRestaurantQuery,
 } from '@/store/api/restaurantsApi';
-import type { Order } from '@/store/api/types';
+import {
+  useListKitchenStationsQuery,
+  useGetStationMetricsQuery,
+  useGetStationAssignmentsQuery,
+  useUpdateAssignmentStatusMutation,
+  useAssignOrderToStationMutation,
+} from '@/store/api/kitchenApi';
+import type { Order, StationType, AssignmentStatus, KitchenStationMetrics, KitchenStation, OrderStationAssignment } from '@/store/api/types';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -45,7 +54,29 @@ import {
   type EnhancedOrderTicketProps,
 } from '@/components/kitchen/EnhancedOrderTicket';
 import { useKitchenSounds } from '@/hooks/useKitchenSounds';
-import { Filter, X } from 'lucide-react';
+import {
+  Filter,
+  X,
+  ChefHat,
+  Clock,
+  Activity,
+  BarChart3,
+  CheckCircle2,
+  Timer,
+  AlertCircle,
+  Flame,
+  Salad,
+  Coffee,
+  Cookie,
+  Settings,
+  Users,
+  TrendingUp,
+  Play,
+  Pause,
+  CheckCircle,
+  Clock3,
+  Target,
+} from 'lucide-react';
 
 const statusesInKitchen: Order['status'][] = [
   'pending',
@@ -82,6 +113,44 @@ const statusConfig = {
   },
 };
 
+const getStationIcon = (type: StationType) => {
+  switch (type) {
+    case 'grill':
+      return Flame;
+    case 'fryer':
+      return Flame;
+    case 'salad':
+      return Salad;
+    case 'beverage':
+      return Coffee;
+    case 'dessert':
+      return Cookie;
+    case 'preparation':
+      return ChefHat;
+    default:
+      return Settings;
+  }
+};
+
+const getStationTypeColor = (type: StationType) => {
+  switch (type) {
+    case 'grill':
+      return 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-900/40';
+    case 'fryer':
+      return 'bg-orange-50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-900/40';
+    case 'salad':
+      return 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900/40';
+    case 'beverage':
+      return 'bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/40';
+    case 'dessert':
+      return 'bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-900/40';
+    case 'preparation':
+      return 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-900/40';
+    default:
+      return 'bg-slate-50 border-slate-200 dark:bg-slate-950/20 dark:border-slate-900/40';
+  }
+};
+
 const EnhancedKitchenPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
@@ -94,6 +163,9 @@ const EnhancedKitchenPage = () => {
   const [zoneFilter, setZoneFilter] = useState<string>('all');
   const [previousOrderCount, setPreviousOrderCount] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('orders');
+  const [updateAssignmentStatus] = useUpdateAssignmentStatusMutation();
+  const [assignOrderToStation] = useAssignOrderToStationMutation();
 
   // Initialize kitchen sounds
   const {
@@ -120,6 +192,18 @@ const EnhancedKitchenPage = () => {
     restaurantId ?? skipToken,
     { skip: !restaurantId }
   );
+
+  // Kitchen station data
+  const stationsArgs = restaurantId ? { restaurantId } : skipToken;
+  const { data: stationsData } = useListKitchenStationsQuery(stationsArgs, {
+    skip: !restaurantId,
+  });
+  const { data: stationMetrics } = useGetStationMetricsQuery(stationsArgs, {
+    skip: !restaurantId,
+  });
+  const { data: stationAssignments } = useGetStationAssignmentsQuery(stationsArgs, {
+    skip: !restaurantId,
+  });
 
   const tableLookup = useMemo(() => {
     const map = new Map<
@@ -438,6 +522,48 @@ const EnhancedKitchenPage = () => {
     setZoneFilter('all');
   };
 
+  const handleAssignmentUpdate = async (assignmentId: string, status: AssignmentStatus) => {
+    if (!restaurantId) return;
+    try {
+      await updateAssignmentStatus({ restaurantId, assignmentId, status });
+      toast({
+        title: 'Assignment updated',
+        description: `Station assignment marked as ${status.replace('_', ' ')}`
+      });
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to update assignment status',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleOrderAssignment = async (orderId: string, stationId: string, menuItemIds: string[]) => {
+    if (!restaurantId) return;
+    try {
+      await assignOrderToStation({
+        restaurantId,
+        orderId,
+        body: {
+          stationId,
+          menuItemIds,
+          estimatedPrepTime: 15,
+        }
+      });
+      toast({
+        title: 'Order assigned',
+        description: 'Order has been assigned to station'
+      });
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Failed to assign order to station',
+        variant: 'destructive'
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-linear-to-br from-background via-background/95 to-muted/40">
       <KitchenHeader
@@ -450,8 +576,26 @@ const EnhancedKitchenPage = () => {
         onSoundToggle={toggleSounds}
       />
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-3 pb-6 pt-4 sm:px-4 lg:px-6">
+      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 px-3 pb-6 pt-4 sm:px-4 lg:px-6">
         <KitchenStats orders={filteredOrders} />
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsTrigger value="orders" className="flex items-center gap-2">
+              <ChefHat className="h-4 w-4" />
+              Orders
+            </TabsTrigger>
+            <TabsTrigger value="stations" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Stations
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="orders" className="space-y-4">
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center py-20">
@@ -699,6 +843,267 @@ const EnhancedKitchenPage = () => {
             )}
           </>
         )}
+          </TabsContent>
+
+          <TabsContent value="stations" className="space-y-4">
+            {stationsData && stationsData.length > 0 ? (
+              <>
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {stationsData.map((station) => {
+                    const Icon = getStationIcon(station.type);
+                    const assignments = stationAssignments?.filter(a => a.stationId === station.id) || [];
+                    const activeAssignments = assignments.filter(a =>
+                      a.status === 'assigned' || a.status === 'in_progress'
+                    );
+                    const utilizationRate = station.capacity > 0
+                      ? (activeAssignments.length / station.capacity) * 100
+                      : 0;
+
+                    return (
+                      <Card key={station.id} className={cn(
+                        'border border-border/60 bg-card/80 backdrop-blur',
+                        getStationTypeColor(station.type)
+                      )}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 rounded-lg bg-background/50">
+                                <Icon className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <CardTitle className="text-base font-semibold">
+                                  {station.name}
+                                </CardTitle>
+                                <CardDescription className="text-xs capitalize">
+                                  {station.type.replace('_', ' ')}
+                                </CardDescription>
+                              </div>
+                            </div>
+                            <Badge
+                              variant={station.isActive ? 'default' : 'secondary'}
+                              className="text-xs"
+                            >
+                              {station.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="space-y-4">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="text-center p-2 bg-background/30 rounded-lg">
+                              <div className="text-lg font-semibold">
+                                {activeAssignments.length}/{station.capacity}
+                              </div>
+                              <div className="text-xs text-muted-foreground">Capacity</div>
+                            </div>
+                            <div className="text-center p-2 bg-background/30 rounded-lg">
+                              <div className="text-lg font-semibold">
+                                {Math.round(utilizationRate)}%
+                              </div>
+                              <div className="text-xs text-muted-foreground">Utilization</div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Avg Prep Time</span>
+                              <span className="font-medium">{station.avgPrepTime}min</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Today's Orders</span>
+                              <span className="font-medium">{station.todayOrdersCount}</span>
+                            </div>
+                          </div>
+
+                          {activeAssignments.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="text-xs font-medium text-muted-foreground mb-2">
+                                Active Orders
+                              </div>
+                              {activeAssignments.slice(0, 2).map((assignment) => (
+                                <div
+                                  key={assignment.id}
+                                  className="flex items-center justify-between p-2 bg-background/50 rounded text-xs"
+                                >
+                                  <span className="font-medium">{assignment.orderNumber}</span>
+                                  <div className="flex items-center gap-1">
+                                    {assignment.status === 'assigned' ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleAssignmentUpdate(assignment.id, 'in_progress')}
+                                        className="h-6 px-2 text-xs"
+                                      >
+                                        <Play className="h-3 w-3 mr-1" />
+                                        Start
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleAssignmentUpdate(assignment.id, 'completed')}
+                                        className="h-6 px-2 text-xs"
+                                      >
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        Done
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                              {activeAssignments.length > 2 && (
+                                <div className="text-xs text-muted-foreground text-center">
+                                  +{activeAssignments.length - 2} more
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Unassigned Orders */}
+                <Card className="border border-border/60 bg-card/80 backdrop-blur">
+                  <CardHeader>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <Clock3 className="h-4 w-4" />
+                      Unassigned Orders
+                    </CardTitle>
+                    <CardDescription>
+                      Orders waiting for station assignment
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {filteredOrders.filter(order =>
+                      !stationAssignments?.some(a => a.orderId === order.id)
+                    ).length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">
+                        All orders are assigned to stations
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                        {filteredOrders
+                          .filter(order => !stationAssignments?.some(a => a.orderId === order.id))
+                          .slice(0, 6)
+                          .map((order) => (
+                            <div
+                              key={order.id}
+                              className="p-3 border rounded-lg bg-background/50 space-y-2"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-medium text-sm">{order.orderNumber}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {order.tableNumber ? `Table ${order.tableNumber}` : 'Takeaway'}
+                                  </div>
+                                </div>
+                                <Badge variant="outline" className="text-xs">
+                                  {order.items.length} items
+                                </Badge>
+                              </div>
+                              <div className="flex gap-1 flex-wrap">
+                                {stationsData?.slice(0, 3).map((station) => (
+                                  <Button
+                                    key={station.id}
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOrderAssignment(
+                                      order.id,
+                                      station.id,
+                                      order.items.map(item => item.menuItemId)
+                                    )}
+                                    className="h-6 px-2 text-xs"
+                                    disabled={!station.isActive}
+                                  >
+                                    <Target className="h-3 w-3 mr-1" />
+                                    {station.name}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card className="border-dashed border-2 bg-card/80 backdrop-blur">
+                <CardHeader className="text-center py-10">
+                  <CardTitle className="text-lg font-semibold">No Kitchen Stations</CardTitle>
+                  <CardDescription className="text-sm mt-2">
+                    Set up kitchen stations to manage order workflow
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-4">
+            {stationMetrics && stationMetrics.length > 0 ? (
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
+                {stationMetrics.map((station) => {
+                  const Icon = getStationIcon(station.type);
+
+                  return (
+                    <Card key={station.id} className="border border-border/60 bg-card/80 backdrop-blur">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          <CardTitle className="text-sm font-semibold truncate">
+                            {station.name}
+                          </CardTitle>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-primary">
+                              {station.completedToday}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Completed</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold">
+                              {Math.round(station.utilizationRate)}%
+                            </div>
+                            <div className="text-xs text-muted-foreground">Efficiency</div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Avg Time</span>
+                            <span className="font-medium">{station.todayAvgPrepTime}min</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Load</span>
+                            <span className="font-medium">
+                              {station.currentLoad}/{station.capacity}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="border-dashed border-2 bg-card/80 backdrop-blur">
+                <CardHeader className="text-center py-10">
+                  <CardTitle className="text-lg font-semibold">No Analytics Available</CardTitle>
+                  <CardDescription className="text-sm mt-2">
+                    Kitchen station analytics will appear here once you start using stations
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

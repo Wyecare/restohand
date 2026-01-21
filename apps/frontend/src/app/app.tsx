@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import { ThemeProvider, ActiveThemeProvider } from '@/contexts/ThemeContext';
 import { JwtAuthProvider } from '@/contexts/JwtAuthProvider';
+import { BranchProvider } from '@/contexts/BranchContext';
 import { store } from '@/store';
 import AppRouter from '@/routes/AppRouter';
 import StaffRouter from '@/routes/StaffRouter';
@@ -55,10 +56,12 @@ export function App() {
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <ActiveThemeProvider>
             <JwtAuthProvider>
-              <BrowserRouter>
-                <RouterComponent />
-              </BrowserRouter>
-              <Toaster />
+              <BranchProvider>
+                <BrowserRouter>
+                  <RouterComponent />
+                </BrowserRouter>
+                <Toaster />
+              </BranchProvider>
             </JwtAuthProvider>
           </ActiveThemeProvider>
         </ThemeProvider>

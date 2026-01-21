@@ -60,6 +60,14 @@ export class EnhancedMenuItem {
   })
   restaurantId: Types.ObjectId;
 
+  @ApiProperty({ description: 'Branch ID' })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Branch',
+    index: true,
+  })
+  branchId?: Types.ObjectId;
+
   @ApiProperty({ description: 'Category ID' })
   @Prop({
     type: MongooseSchema.Types.ObjectId,
@@ -183,3 +191,5 @@ EnhancedMenuItemSchema.index({ restaurantId: 1, status: 1, isBlocked: 1 });
 EnhancedMenuItemSchema.index({ restaurantId: 1, isVeg: 1, isVegan: 1 });
 EnhancedMenuItemSchema.index({ restaurantId: 1, source: 1 });
 EnhancedMenuItemSchema.index({ restaurantId: 1, tags: 1 });
+EnhancedMenuItemSchema.index({ branchId: 1, categoryId: 1, displayOrder: 1 });
+EnhancedMenuItemSchema.index({ branchId: 1, status: 1, isBlocked: 1 });

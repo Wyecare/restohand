@@ -37,11 +37,13 @@ export class InventoryController {
   @Roles(UserRole.Manager)
   async createItem(
     @Param('restaurantId') restaurantId: string,
-    @Body() dto: Omit<CreateInventoryItemDto, 'restaurantId'>
+    @Body() dto: Omit<CreateInventoryItemDto, 'restaurantId' | 'branchId'>,
+    @CurrentUser() user: AuthenticatedUser
   ) {
     return this.inventoryService.createInventoryItem({
       ...dto,
       restaurantId,
+      branchId: user.branchId,
     });
   }
 
@@ -59,13 +61,15 @@ export class InventoryController {
     @Query('category') category?: string,
     @Query('lowStock') lowStock?: boolean,
     @Query('outOfStock') outOfStock?: boolean,
-    @Query('search') search?: string
+    @Query('search') search?: string,
+    @CurrentUser() user: AuthenticatedUser
   ) {
     return this.inventoryService.getInventoryItems(restaurantId, {
       category,
       lowStock,
       outOfStock,
       search,
+      branchId: user.branchId,
     });
   }
 

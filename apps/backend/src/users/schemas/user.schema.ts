@@ -12,6 +12,9 @@ export class User {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId?: string;
+
   @Prop({ type: String, required: true, trim: true })
   name!: string;
 
@@ -60,3 +63,5 @@ export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.index({ restaurantId: 1, roles: 1 });
 UserSchema.index({ restaurantId: 1, isActive: 1 });
+UserSchema.index({ restaurantId: 1, branchId: 1 });
+UserSchema.index({ branchId: 1, roles: 1 });

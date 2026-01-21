@@ -1,5 +1,13 @@
 import { baseApi } from './baseApi';
-import type { PaginatedResponse, Order } from './types';
+import type {
+  PaginatedResponse,
+  Order,
+  OrderModification,
+  CreateOrderModificationRequest,
+  ProcessOrderModificationRequest,
+  ModificationStatus,
+  ModificationType
+} from './types';
 
 export interface ListOrdersParams {
   restaurantId: string;
@@ -229,6 +237,26 @@ export interface BillResponse {
   notes?: string;
 }
 
+// Order Modification Interfaces
+export interface ListOrderModificationsParams {
+  restaurantId: string;
+  status?: ModificationStatus;
+  type?: ModificationType;
+  orderId?: string;
+  orderNumber?: string;
+}
+
+export interface CreateOrderModificationParams {
+  restaurantId: string;
+  body: CreateOrderModificationRequest;
+}
+
+export interface ProcessOrderModificationParams {
+  restaurantId: string;
+  modificationId: string;
+  body: ProcessOrderModificationRequest;
+}
+
 export const ordersApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listOrders: builder.query<PaginatedResponse<Order>, ListOrdersParams>({
@@ -383,6 +411,66 @@ export const ordersApi = baseApi.injectEndpoints({
         { type: 'Order', id: `BILL-${orderId}` },
       ],
     }),
+
+    // Order Modification Endpoints
+    createOrderModification: builder.mutation<OrderModification, CreateOrderModificationParams>({
+      query: ({ restaurantId, body }) => ({
+        url: `/restaurants/${restaurantId}/orders/modifications`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { body }) => [
+        { type: 'OrderModification', id: body.orderId },
+        { type: 'OrderModification', id: 'LIST' },
+        { type: 'Order', id: body.orderId },
+      ],
+    }),
+
+    listOrderModifications: builder.query<OrderModification[], ListOrderModificationsParams>({
+      query: ({ restaurantId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/orders/modifications`,
+        params: Object.fromEntries(Object.entries(params).filter(([_, v]) => v != null)),
+      }),
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map(({ id }) => ({ type: 'OrderModification' as const, id })),
+              { type: 'OrderModification', id: 'LIST' },
+            ]
+          : [{ type: 'OrderModification', id: 'LIST' }],
+    }),
+
+    getOrderModifications: builder.query<OrderModification[], { restaurantId: string; orderId: string }>({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/modifications/order/${orderId}`,
+      }),
+      providesTags: (_result, _error, { orderId }) => [
+        { type: 'OrderModification', id: orderId },
+      ],
+    }),
+
+    checkPendingModifications: builder.query<{ hasPending: boolean }, { restaurantId: string; orderId: string }>({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/modifications/order/${orderId}/pending`,
+      }),
+      providesTags: (_result, _error, { orderId }) => [
+        { type: 'OrderModification', id: `PENDING-${orderId}` },
+      ],
+    }),
+
+    processOrderModification: builder.mutation<OrderModification, ProcessOrderModificationParams>({
+      query: ({ restaurantId, modificationId, body }) => ({
+        url: `/restaurants/${restaurantId}/orders/modifications/${modificationId}/process`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, modificationId }) => [
+        { type: 'OrderModification', id: modificationId },
+        { type: 'OrderModification', id: 'LIST' },
+        // Also invalidate the related order
+        { type: 'Order', id: 'LIST' },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -401,4 +489,10 @@ export const {
   useVerifyPaymentMutation,
   useAddItemsToOrderMutation,
   useGenerateBillQuery,
+  // Order Modification Hooks
+  useCreateOrderModificationMutation,
+  useListOrderModificationsQuery,
+  useGetOrderModificationsQuery,
+  useCheckPendingModificationsQuery,
+  useProcessOrderModificationMutation,
 } = ordersApi;

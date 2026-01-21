@@ -159,9 +159,23 @@ export class TableStatusService {
   }
 
   async getRestaurantTableStatuses(
-    restaurantId: string
+    restaurantId: string,
+    branchId?: string
   ): Promise<TableStatusStatsDto> {
-    const statuses = await this.tableStatusModel.find({ restaurantId });
+    // First get tables for the specific branch
+    const tableQuery: any = { restaurantId, isActive: true };
+    if (branchId) {
+      tableQuery.branchId = branchId;
+    }
+
+    const tables = await this.restaurantTableModel.find(tableQuery).select('_id');
+    const tableIds = tables.map(t => t._id);
+
+    // Then get statuses only for those tables
+    const statuses = await this.tableStatusModel.find({
+      restaurantId,
+      tableId: { $in: tableIds }
+    });
 
     const stats = {
       totalTables: statuses.length,
@@ -207,11 +221,17 @@ export class TableStatusService {
   }
 
   async getEnhancedTablesList(
-    restaurantId: string
+    restaurantId: string,
+    branchId?: string
   ): Promise<EnhancedRestaurantTableResponseDto[]> {
-    // Get all active tables for the restaurant
+    // Get all active tables for the restaurant and branch
+    const tableQuery: any = { restaurantId, isActive: true };
+    if (branchId) {
+      tableQuery.branchId = branchId;
+    }
+
     const tables = await this.restaurantTableModel
-      .find({ restaurantId, isActive: true })
+      .find(tableQuery)
       .sort({ displayOrder: 1, tableNumber: 1 });
 
     // Get all table statuses for the restaurant

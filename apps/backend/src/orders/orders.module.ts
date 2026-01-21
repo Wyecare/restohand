@@ -10,6 +10,9 @@ import { OrderEvent, OrderEventSchema } from './schemas/order-event.schema';
 import { OrdersGateway } from './orders.gateway';
 import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema';
 import { OrderCounter, OrderCounterSchema } from './schemas/order-counter.schema';
+import { OrderModification, OrderModificationSchema } from './schemas/order-modification.schema';
+import { OrderModificationController } from './order-modification.controller';
+import { OrderModificationService } from './order-modification.service';
 import { GstModule } from '../gst/gst.module';
 import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
@@ -26,10 +29,11 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
       { name: OrderEvent.name, schema: OrderEventSchema },
       { name: MenuItem.name, schema: MenuItemSchema },
       { name: OrderCounter.name, schema: OrderCounterSchema },
+      { name: OrderModification.name, schema: OrderModificationSchema },
     ]),
   ],
-  controllers: [OrdersController, WebhooksController],
-  providers: [OrdersService, OrdersGateway, RazorpayService, SubscriptionsService],
-  exports: [OrdersService],
+  controllers: [OrdersController, OrderModificationController, WebhooksController],
+  providers: [OrdersService, OrderModificationService, OrdersGateway, RazorpayService, SubscriptionsService],
+  exports: [OrdersService, OrderModificationService],
 })
 export class OrdersModule {}

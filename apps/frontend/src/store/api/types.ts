@@ -438,3 +438,151 @@ export interface PublicOrder {
     gst?: OrderItemGst;
   }>;
 }
+
+// Order Modification System Types
+export enum ModificationType {
+  ADD_ITEM = 'add_item',
+  REMOVE_ITEM = 'remove_item',
+  UPDATE_QUANTITY = 'update_quantity',
+  UPDATE_NOTES = 'update_notes',
+  CANCEL_ORDER = 'cancel_order',
+}
+
+export enum ModificationStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  APPLIED = 'applied',
+}
+
+export interface ModificationItemData {
+  menuItemId?: string;
+  name?: string;
+  quantity?: number;
+  unitAmount?: number;
+  notes?: string;
+  originalQuantity?: number;
+  newQuantity?: number;
+}
+
+export interface OrderModification {
+  id: string;
+  orderId: string;
+  restaurantId: string;
+  orderNumber: string;
+  type: ModificationType;
+  status: ModificationStatus;
+  itemData?: ModificationItemData;
+  reason?: string;
+  customerNotes?: string;
+  amountDifference: number;
+  requestedBy?: string;
+  processedBy?: string;
+  processedAt?: string;
+  appliedAt?: string;
+  rejectionReason?: string;
+  notifyKitchen: boolean;
+  kitchenNotified: boolean;
+  kitchenNotifiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOrderModificationRequest {
+  orderId: string;
+  type: ModificationType;
+  itemData?: ModificationItemData;
+  reason?: string;
+  customerNotes?: string;
+  notifyKitchen?: boolean;
+}
+
+export interface ProcessOrderModificationRequest {
+  status: ModificationStatus.APPROVED | ModificationStatus.REJECTED | ModificationStatus.APPLIED;
+  rejectionReason?: string;
+  amountDifference?: number;
+}
+
+// Kitchen Station Management Types
+export enum StationType {
+  GRILL = 'grill',
+  FRYER = 'fryer',
+  SALAD = 'salad',
+  BEVERAGE = 'beverage',
+  DESSERT = 'dessert',
+  PREPARATION = 'preparation',
+  GENERAL = 'general',
+}
+
+export enum AssignmentStatus {
+  ASSIGNED = 'assigned',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  SKIPPED = 'skipped',
+}
+
+export interface KitchenStation {
+  id: string;
+  restaurantId: string;
+  name: string;
+  type: StationType;
+  description?: string;
+  capacity: number;
+  isActive: boolean;
+  displayOrder: number;
+  currentLoad: number;
+  avgPrepTime: number;
+  todayOrdersCount: number;
+  todayAvgPrepTime: number;
+  lastOrderAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderStationAssignment {
+  id: string;
+  orderId: string;
+  restaurantId: string;
+  orderNumber: string;
+  stationId: string;
+  stationName: string;
+  status: AssignmentStatus;
+  estimatedPrepTime: number;
+  startedAt?: string;
+  completedAt?: string;
+  actualPrepTime?: number;
+  notes?: string;
+  menuItemIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KitchenStationMetrics extends KitchenStation {
+  completedToday: number;
+  utilizationRate: number;
+}
+
+export interface CreateKitchenStationRequest {
+  name: string;
+  type: StationType;
+  description?: string;
+  capacity?: number;
+  displayOrder?: number;
+  avgPrepTime?: number;
+}
+
+export interface UpdateKitchenStationRequest {
+  name?: string;
+  description?: string;
+  capacity?: number;
+  isActive?: boolean;
+  displayOrder?: number;
+  avgPrepTime?: number;
+}
+
+export interface AssignOrderToStationRequest {
+  stationId: string;
+  menuItemIds: string[];
+  estimatedPrepTime?: number;
+  notes?: string;
+}

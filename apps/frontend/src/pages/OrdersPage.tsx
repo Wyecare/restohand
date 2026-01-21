@@ -52,6 +52,7 @@ import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { skipToken } from '@reduxjs/toolkit/query';
 import type { Order } from '@/store/api/types';
+import { useBranchAwareQueries } from '@/hooks/useBranchAwareQuery';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 
 const statusOptions: Array<{ label: string; value: Order['status'] | 'all' }> =
@@ -85,6 +86,10 @@ const ORDER_CANCELLABLE_STATUSES: Array<Order['status']> = [
 export default function OrdersPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
+
+  // Enable branch-aware queries to auto-refetch when branch changes
+  useBranchAwareQueries();
+
   const [status, setStatus] = React.useState<string>('all');
   const [paymentStatus, setPaymentStatus] = React.useState<string>('all');
   const [sorting, setSorting] = React.useState<SortingState>([]);

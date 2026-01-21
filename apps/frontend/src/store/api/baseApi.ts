@@ -42,6 +42,9 @@ export const baseApi = createApi({
     'MenuCategory',
     'MenuItem',
     'Order',
+    'OrderModification',
+    'KitchenStation',
+    'StationAssignment',
     'Profile',
     'Session',
     'Staff',
@@ -62,6 +65,7 @@ export const baseApi = createApi({
     'Subscription',
     'Reports',
     'CallWaiter',
+    'Branches',
   ],
   endpoints: () => ({}),
 });

@@ -287,6 +287,15 @@ export class Restaurant {
   @Prop({ type: Boolean, default: false })
   applyDefaultGstToMenuItems!: boolean;
 
+  @Prop({ type: Boolean, default: false })
+  isMultibranchEnabled!: boolean;
+
+  @Prop({ type: Number, default: 1, min: 1 })
+  branchCount!: number;
+
+  @Prop({ type: Number, default: 10, min: 1 })
+  maxBranches!: number;
+
   @Prop({ type: RazorpayLinkedAccountSchema })
   razorpayAccount?: RazorpayLinkedAccount;
 

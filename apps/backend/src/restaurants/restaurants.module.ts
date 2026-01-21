@@ -3,10 +3,15 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { Restaurant, RestaurantSchema } from './schemas/restaurant.schema';
+import { KitchenStation, KitchenStationSchema } from './schemas/kitchen-station.schema';
+import { OrderStationAssignment, OrderStationAssignmentSchema } from '../orders/schemas/order-station-assignment.schema';
+import { Order, OrderSchema } from '../orders/schemas/order.schema';
 import { RestaurantsController } from './restaurants.controller';
 import { RestaurantsService } from './restaurants.service';
 import { RestaurantOnboardingController } from './restaurant-onboarding.controller';
 import { RestaurantOnboardingService } from './restaurant-onboarding.service';
+import { KitchenStationController } from './kitchen-station.controller';
+import { KitchenStationService } from './kitchen-station.service';
 import { PaymentsController } from '../payments/payments.controller';
 import { RazorpayService } from '../payments/razorpay.service';
 
@@ -16,10 +21,13 @@ import { RazorpayService } from '../payments/razorpay.service';
     UsersModule,
     MongooseModule.forFeature([
       { name: Restaurant.name, schema: RestaurantSchema },
+      { name: KitchenStation.name, schema: KitchenStationSchema },
+      { name: OrderStationAssignment.name, schema: OrderStationAssignmentSchema },
+      { name: Order.name, schema: OrderSchema },
     ]),
   ],
-  controllers: [RestaurantsController, RestaurantOnboardingController, PaymentsController],
-  providers: [RestaurantsService, RestaurantOnboardingService, RazorpayService],
-  exports: [RestaurantsService, RestaurantOnboardingService],
+  controllers: [RestaurantsController, RestaurantOnboardingController, KitchenStationController, PaymentsController],
+  providers: [RestaurantsService, RestaurantOnboardingService, KitchenStationService, RazorpayService],
+  exports: [RestaurantsService, RestaurantOnboardingService, KitchenStationService],
 })
 export class RestaurantsModule {}

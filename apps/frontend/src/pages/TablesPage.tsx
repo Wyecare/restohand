@@ -6,9 +6,13 @@ import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { TableManagementPanel } from '@/components/tables/TableManagementPanel';
 import { ZoneManagementPanel } from '@/components/tables/ZoneManagementPanel';
 import { ServerAssignmentOverview } from '@/components/tables/ServerAssignmentOverview';
+import { useBranchAwareQueries } from '@/hooks/useBranchAwareQuery';
 
 const TablesPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+
+  // Enable branch-aware queries to auto-refetch when branch changes
+  useBranchAwareQueries();
 
   // Local state
   const [activeTab, setActiveTab] = useState<'tables' | 'zones' | 'servers'>(

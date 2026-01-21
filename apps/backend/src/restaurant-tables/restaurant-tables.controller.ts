@@ -59,16 +59,18 @@ export class RestaurantTablesController {
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiOkResponse({ type: [RestaurantTableResponseDto] })
-  async list(@Param('restaurantId') restaurantId: string) {
-    return this.tablesService.list(restaurantId);
+  async list(@Param('restaurantId') restaurantId: string, @Req() req: Request) {
+    const user = req.user as AuthenticatedUser;
+    return this.tablesService.list(restaurantId, user.branchId);
   }
 
   @Get('service-view')
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiOkResponse({ type: ServiceTablesResponseDto })
-  async listForService(@Param('restaurantId') restaurantId: string) {
-    return this.tablesService.listForService(restaurantId);
+  async listForService(@Param('restaurantId') restaurantId: string, @Req() req: Request) {
+    const user = req.user as AuthenticatedUser;
+    return this.tablesService.listForService(restaurantId, user.branchId);
   }
 
   @Post()
@@ -77,9 +79,11 @@ export class RestaurantTablesController {
   @ApiCreatedResponse({ type: RestaurantTableResponseDto })
   async create(
     @Param('restaurantId') restaurantId: string,
-    @Body() dto: CreateRestaurantTableDto
+    @Body() dto: CreateRestaurantTableDto,
+    @Req() req: Request
   ) {
-    return this.tablesService.create(restaurantId, dto);
+    const user = req.user as AuthenticatedUser;
+    return this.tablesService.create(restaurantId, dto, user.branchId);
   }
 
   @Post('bulk')
@@ -88,9 +92,11 @@ export class RestaurantTablesController {
   @ApiCreatedResponse({ type: [RestaurantTableResponseDto] })
   async bulkCreate(
     @Param('restaurantId') restaurantId: string,
-    @Body() dto: BulkCreateTablesDto
+    @Body() dto: BulkCreateTablesDto,
+    @Req() req: Request
   ) {
-    return this.tablesService.bulkCreate(restaurantId, dto);
+    const user = req.user as AuthenticatedUser;
+    return this.tablesService.bulkCreate(restaurantId, dto, user.branchId);
   }
 
   @Patch(':tableId')
@@ -148,16 +154,18 @@ export class RestaurantTablesController {
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiOkResponse({ type: [EnhancedRestaurantTableResponseDto] })
-  async listEnhanced(@Param('restaurantId') restaurantId: string) {
-    return this.tableStatusService.getEnhancedTablesList(restaurantId);
+  async listEnhanced(@Param('restaurantId') restaurantId: string, @Req() req: Request) {
+    const user = req.user as AuthenticatedUser;
+    return this.tableStatusService.getEnhancedTablesList(restaurantId, user.branchId);
   }
 
   @Get('stats')
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   @ApiOkResponse({ type: TableStatusStatsDto })
-  async getStats(@Param('restaurantId') restaurantId: string) {
-    return this.tableStatusService.getRestaurantTableStatuses(restaurantId);
+  async getStats(@Param('restaurantId') restaurantId: string, @Req() req: Request) {
+    const user = req.user as AuthenticatedUser;
+    return this.tableStatusService.getRestaurantTableStatuses(restaurantId, user.branchId);
   }
 
   @Get(':tableId/status')

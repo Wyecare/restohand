@@ -38,10 +38,10 @@ export class UsersController {
 
   @Get()
   @ApiOkResponse({ type: StaffListResponseDto })
-  @ApiOperation({ summary: 'List staff members for the managers restaurant' })
+  @ApiOperation({ summary: 'List staff members for the managers restaurant and branch' })
   list(@Req() req: Request, @Query() query: QueryStaffDto) {
     const actor = req.user as AuthenticatedUser;
-    return this.usersService.listForRestaurant(actor.restaurantId!, query);
+    return this.usersService.listForRestaurant(actor.restaurantId!, query, actor.branchId);
   }
 
   // QR Code generation (NEW PRIMARY METHOD)

@@ -11,6 +11,9 @@ export class RestaurantTable {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', required: true, index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId?: string;
+
   @Prop({ type: String, required: true, trim: true })
   tableNumber!: string;
 
@@ -52,3 +55,10 @@ RestaurantTableSchema.index(
   { restaurantId: 1, tableNumber: 1 },
   { unique: true, collation: { locale: 'en', strength: 2 } }
 );
+
+RestaurantTableSchema.index(
+  { restaurantId: 1, branchId: 1, tableNumber: 1 },
+  { unique: true, collation: { locale: 'en', strength: 2 } }
+);
+
+RestaurantTableSchema.index({ branchId: 1, isActive: 1 });
