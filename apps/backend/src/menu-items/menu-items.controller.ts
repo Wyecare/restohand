@@ -79,7 +79,7 @@ export class MenuItemsController {
 
     // Get user's manageable branches to determine which branch to assign
     const permissions = await this.branchPermissions.getBranchPermissions(user);
-    const manageableBranches = permissions.getManageableBranches();
+    const manageableBranches = await this.branchPermissions.getManageableBranches(user);
 
     // For main managers, we need to specify a branchId in the request or use the first branch
     // For branch managers, use their assigned branch
@@ -87,7 +87,7 @@ export class MenuItemsController {
 
     if (manageableBranches.length > 0) {
       // Use the first manageable branch for both main managers and branch managers
-      branchId = manageableBranches[0];
+      branchId = manageableBranches[0]._id.toString();
     } else {
       throw new ForbiddenException('No manageable branches found');
     }
@@ -110,14 +110,15 @@ export class MenuItemsController {
 
     // Get user's manageable branches
     const permissions = await this.branchPermissions.getBranchPermissions(user);
-    const manageableBranches = permissions.getManageableBranches();
+    const manageableBranches = await this.branchPermissions.getManageableBranches(user);
 
-    if (permissions.canAccessAllBranches()) {
+    if (permissions.canAccessAllBranches) {
       // Main manager - return items from all branches they can manage
-      return this.menuItemsService.findAllByBranches(restaurantId, manageableBranches, query);
+      const branchIds = manageableBranches.map(branch => branch._id.toString());
+      return this.menuItemsService.findAllByBranches(restaurantId, branchIds, query);
     } else if (manageableBranches.length > 0) {
       // Branch manager - return items from their assigned branch
-      return this.menuItemsService.findByBranch(restaurantId, manageableBranches[0], query);
+      return this.menuItemsService.findByBranch(restaurantId, manageableBranches[0]._id.toString(), query);
     } else {
       throw new ForbiddenException('No manageable branches found');
     }

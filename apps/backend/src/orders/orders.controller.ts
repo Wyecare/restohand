@@ -41,6 +41,8 @@ import { RestaurantOnboardingService } from '../restaurants/restaurant-onboardin
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { InjectModel } from '@nestjs/mongoose';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import { RestaurantTable, RestaurantTableDocument } from '../restaurant-tables/schemas/restaurant-table.schema';
+import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
 import { Model } from 'mongoose';
 
 @ApiTags('orders')
@@ -53,8 +55,36 @@ export class OrdersController {
     private readonly razorpayService: RazorpayService,
     private readonly restaurantOnboardingService: RestaurantOnboardingService,
     @InjectModel(Restaurant.name)
-    private readonly restaurantModel: Model<RestaurantDocument>
+    private readonly restaurantModel: Model<RestaurantDocument>,
+    @InjectModel(RestaurantTable.name)
+    private readonly tableModel: Model<RestaurantTableDocument>,
+    @InjectModel(MenuItem.name)
+    private readonly menuItemModel: Model<MenuItemDocument>
   ) {}
+
+  // CRITICAL FIX: Helper methods for branch isolation
+  private async getBranchIdFromTable(restaurantId: string, tableNumber: string): Promise<string | undefined> {
+    const table = await this.tableModel.findOne({
+      restaurantId,
+      tableNumber: tableNumber.trim(),
+      isActive: true
+    }).lean();
+
+    return table?.branchId?.toString();
+  }
+
+  private async validateItemsBelongToBranch(restaurantId: string, itemIds: string[], branchId: string): Promise<boolean> {
+    if (!branchId || itemIds.length === 0) return true;
+
+    const items = await this.menuItemModel.find({
+      _id: { $in: itemIds },
+      restaurantId,
+      branchId,
+      isAvailable: true
+    }).lean();
+
+    return items.length === itemIds.length;
+  }
 
   @Post()
   @ApiParam({ name: 'restaurantId' })
@@ -70,9 +100,37 @@ export class OrdersController {
       paymentMethod: dto.paymentMethod || 'pending'
     };
 
-    // Extract branchId if user is authenticated (optional for public orders)
+    // Extract branchId if user is authenticated, otherwise get it from table
     const user = req?.user as AuthenticatedUser | undefined;
-    const branchId = user?.branchId;
+    let branchId = user?.branchId;
+
+    // CRITICAL FIX: Get branchId from table using tableId (preferred) or tableNumber (fallback)
+    if (!branchId) {
+      let table = null;
+
+      // Prefer tableId lookup (globally unique)
+      if (orderDto.tableId) {
+        table = await this.tableModel.findOne({
+          _id: orderDto.tableId,
+          isActive: true
+        }).lean();
+      }
+      // Fallback to tableNumber lookup (needs restaurant scope)
+      else if (orderDto.tableNumber) {
+        table = await this.tableModel.findOne({
+          restaurantId,
+          tableNumber: orderDto.tableNumber.trim(),
+          isActive: true
+        }).lean();
+      }
+
+      if (table) {
+        branchId = table.branchId?.toString();
+        // Ensure both tableId and tableNumber are set
+        orderDto.tableId = table._id.toString();
+        orderDto.tableNumber = table.tableNumber;
+      }
+    }
 
     return this.ordersService.create(restaurantId, orderDto, branchId);
   }
@@ -87,6 +145,29 @@ export class OrdersController {
     @Body() dto: AddItemsToOrderDto
   ) {
     return this.ordersService.addItemsToOrder(restaurantId, orderId, dto);
+  }
+
+  @Get('branch/:branchId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'paymentStatus', required: false })
+  @ApiQuery({ name: 'tableNumber', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOkResponse({ type: OrderListResponseDto })
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  async findByBranch(
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Query() query: QueryOrdersDto
+  ) {
+    return this.ordersService.findAll(restaurantId, query, branchId);
   }
 
   @Get()
@@ -385,6 +466,9 @@ export class OrdersController {
     @Param('orderId') orderId: string,
     @Body() dto: UpdateOrderStatusDto
   ) {
+    if (!restaurantId || !orderId) {
+      throw new BadRequestException('Restaurant ID and Order ID are required');
+    }
     return this.ordersService.updateStatus(restaurantId, orderId, dto);
   }
 
@@ -399,6 +483,9 @@ export class OrdersController {
     @Param('orderId') orderId: string,
     @Body() dto: UpdateOrderPaymentDto
   ) {
+    if (!restaurantId || !orderId) {
+      throw new BadRequestException('Restaurant ID and Order ID are required');
+    }
     return this.ordersService.updatePayment(restaurantId, orderId, dto);
   }
 
@@ -468,6 +555,24 @@ export class OrdersController {
   ) {
     this.logger.log(`Calculating cart total for restaurant ${restaurantId}. Items: ${dto.items.length}`);
 
+    // CRITICAL FIX: Get branch ID from table to prevent cross-branch pricing
+    let branchId: string | undefined;
+    if (dto.tableNumber?.trim()) {
+      branchId = await this.getBranchIdFromTable(restaurantId, dto.tableNumber.trim());
+      if (!branchId) {
+        throw new BadRequestException(`Table ${dto.tableNumber} not found or inactive`);
+      }
+    }
+
+    // CRITICAL FIX: Validate all items belong to the correct branch
+    if (branchId) {
+      const itemIds = dto.items.map(item => item.menuItemId);
+      const isValid = await this.validateItemsBelongToBranch(restaurantId, itemIds, branchId);
+      if (!isValid) {
+        throw new BadRequestException('Some items are not available in this branch');
+      }
+    }
+
     // Reuse the same logic as order creation for exact calculation
     const createOrderDto: CreateOrderDto = {
       tableNumber: dto.tableNumber,
@@ -526,6 +631,24 @@ export class OrdersController {
 
     this.logger.log(`Creating order with payment for restaurant ${restaurantId}. Items: ${dto.items.length}, Amount: ₹${dto.totalAmount/100}`);
 
+    // CRITICAL FIX: Get branch ID from table to prevent cross-branch contamination
+    let branchId: string | undefined;
+    if (dto.tableNumber?.trim()) {
+      branchId = await this.getBranchIdFromTable(restaurantId, dto.tableNumber.trim());
+      if (!branchId) {
+        throw new BadRequestException(`Table ${dto.tableNumber} not found or inactive`);
+      }
+    }
+
+    // CRITICAL FIX: Validate all items belong to the correct branch
+    if (branchId) {
+      const itemIds = dto.items.map(item => item.menuItemId);
+      const isValid = await this.validateItemsBelongToBranch(restaurantId, itemIds, branchId);
+      if (!isValid) {
+        throw new BadRequestException('Some items are not available in this branch');
+      }
+    }
+
     // Create order first
     const createOrderDto: CreateOrderDto = {
       tableNumber: dto.tableNumber,
@@ -537,7 +660,8 @@ export class OrdersController {
       paymentMethod: 'upi'
     };
 
-    const order = await this.ordersService.create(restaurantId, createOrderDto);
+    // CRITICAL FIX: Pass branchId to ensure order is created in the correct branch
+    const order = await this.ordersService.create(restaurantId, createOrderDto, branchId);
 
     // Verify amount matches calculated total
     const calculatedAmount = Math.round(order.totalAmount * 100);

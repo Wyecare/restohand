@@ -109,8 +109,14 @@ export default function CustomerMenuPage() {
       ? initialTableParam.trim()
       : undefined;
 
+  const initialTableIdParam = searchParams.get('tableId');
+  const tableIdFromUrl =
+    initialTableIdParam && initialTableIdParam.trim().length > 0
+      ? initialTableIdParam.trim()
+      : undefined;
+
   const { data, isLoading, isError } = useGetPublicMenuQuery(
-    { slug, table: tableFromUrl },
+    { slug, table: tableFromUrl, tableId: tableIdFromUrl },
     { skip: !slug }
   );
   const [createOrderWithPayment, { isLoading: isPlacingOrder }] = useCreateOrderWithPaymentMutation();

@@ -134,7 +134,7 @@ export const useFloorPlanWebSocket = (restaurantId: string): FloorPlanWebSocketH
       });
 
       // Listen for order updates
-      socket.on('order-updated', (orderUpdate: OrderUpdate) => {
+      socket.on('order.updated', (orderUpdate: OrderUpdate) => {
         console.log('[FloorPlan WebSocket] Order updated:', orderUpdate);
         // Handle order updates - could trigger alerts or status changes
       });

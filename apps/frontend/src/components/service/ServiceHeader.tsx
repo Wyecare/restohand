@@ -135,7 +135,9 @@ export function ServiceHeader({
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
               <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
               <span className="text-xs font-semibold">{occupiedTables}</span>
-              <span className="text-[10px] text-muted-foreground">occupied</span>
+              <span className="text-[10px] text-muted-foreground">
+                occupied
+              </span>
             </div>
 
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
@@ -183,7 +185,10 @@ export function ServiceHeader({
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Mobile: Show ready orders badge */}
           {readyOrders > 0 && (
-            <Badge variant="default" className="lg:hidden text-xs h-6 px-2 bg-green-600">
+            <Badge
+              variant="default"
+              className="lg:hidden text-xs h-6 px-2 bg-green-600"
+            >
               {readyOrders} ready
             </Badge>
           )}

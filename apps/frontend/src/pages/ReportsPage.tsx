@@ -20,6 +20,12 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { useToast } from '@/components/ui/use-toast';
 import {
   CalendarIcon,
@@ -33,9 +39,12 @@ import {
   FileTextIcon,
   BarChart3Icon,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { type DateRange } from 'react-day-picker';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { useGetAnalyticsQuery, useDownloadPdfReportMutation } from '@/store/api/reportsApi';
+import { useBranchContext } from '@/contexts/BranchContext';
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -52,17 +61,24 @@ const dateFormatter = new Intl.DateTimeFormat('en-IN', {
 
 const ReportsPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const { currentBranch } = useBranchContext();
   const { toast } = useToast();
 
-  // Get default date range (last 30 days)
-  const endDate = new Date();
-  const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  // Date range state (default to last 30 days)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return {
+      from: thirtyDaysAgo,
+      to: today,
+    };
+  });
 
   const { data: analytics, isLoading, isError } = useGetAnalyticsQuery(
-    restaurantId
+    restaurantId && dateRange?.from && dateRange?.to
       ? {
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: endDate.toISOString().split('T')[0],
+          startDate: dateRange.from.toISOString().split('T')[0],
+          endDate: dateRange.to.toISOString().split('T')[0],
         }
       : skipToken
   );
@@ -70,18 +86,18 @@ const ReportsPage = () => {
   const [downloadPdf, { isLoading: isDownloading }] = useDownloadPdfReportMutation();
 
   const handleDownloadPDF = async () => {
-    if (!restaurantId) return;
+    if (!restaurantId || !dateRange?.from || !dateRange?.to) return;
 
     try {
       const blob = await downloadPdf({
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0],
+        startDate: dateRange.from.toISOString().split('T')[0],
+        endDate: dateRange.to.toISOString().split('T')[0],
       }).unwrap();
 
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `restaurant-report-${startDate.toISOString().split('T')[0]}-${endDate.toISOString().split('T')[0]}.pdf`;
+      a.download = `restaurant-report-${dateRange.from.toISOString().split('T')[0]}-${dateRange.to.toISOString().split('T')[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -122,26 +138,70 @@ const ReportsPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Download */}
-      <div className="flex items-center justify-between">
+      {/* Header with Date Range and Download */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
           <p className="text-muted-foreground">
             Comprehensive insights into your restaurant's performance
+            {currentBranch && (
+              <span className="ml-2 inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                {currentBranch.name}
+              </span>
+            )}
           </p>
         </div>
-        <Button
-          onClick={handleDownloadPDF}
-          disabled={isDownloading}
-          className="gap-2"
-        >
-          {isDownloading ? (
-            <LoadingSpinner size="sm" />
-          ) : (
-            <DownloadIcon className="h-4 w-4" />
-          )}
-          Download PDF Report
-        </Button>
+
+        <div className="flex items-center gap-3">
+          {/* Date Range Picker */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="justify-start px-3 font-normal min-w-70"
+              >
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "MMM dd, y")} -{" "}
+                      {format(dateRange.to, "MMM dd, y")}
+                    </>
+                  ) : (
+                    format(dateRange.from, "MMM dd, y")
+                  )
+                ) : (
+                  <span>Pick a date range</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                defaultMonth={dateRange?.from}
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={2}
+                disabled={(date: Date) =>
+                  date > new Date() || date < new Date("2020-01-01")
+                }
+              />
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            onClick={handleDownloadPDF}
+            disabled={isDownloading || !dateRange?.from || !dateRange?.to}
+            className="gap-2"
+          >
+            {isDownloading ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <DownloadIcon className="h-4 w-4" />
+            )}
+            Download PDF
+          </Button>
+        </div>
       </div>
 
       {/* Key Metrics Cards */}
@@ -308,7 +368,12 @@ const ReportsPage = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5" />
-            Daily Performance (Last 30 Days)
+            Daily Performance
+            {dateRange?.from && dateRange?.to && (
+              <span className="text-sm font-normal text-muted-foreground">
+                ({format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, y")})
+              </span>
+            )}
           </CardTitle>
           <CardDescription>
             Detailed breakdown of orders and revenue by date

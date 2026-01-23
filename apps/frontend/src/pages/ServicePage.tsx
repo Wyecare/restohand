@@ -100,6 +100,7 @@ const ServicePage = () => {
     isLoading: enhancedTablesLoading,
     refetch: refetchEnhancedTables,
   } = useListEnhancedTablesQuery(restaurantId ? { restaurantId } : skipToken);
+  console.log('Enhanced Tables:', enhancedTables);
 
   const { data: restaurant } = useGetRestaurantQuery(
     restaurantId ?? skipToken,

@@ -43,11 +43,13 @@ export const reportsApi = baseApi.injectEndpoints({
         if (params.endDate) searchParams.append('endDate', params.endDate);
 
         return {
-          url: `reports/analytics?${searchParams.toString()}`,
+          url: `/reports/analytics?${searchParams.toString()}`,
           method: 'GET',
         };
       },
-      providesTags: ['Reports'],
+      providesTags: (result, error, { startDate, endDate }) => [
+        { type: 'Reports', id: `analytics-${startDate || 'default'}-${endDate || 'default'}` },
+      ],
     }),
     downloadPdfReport: builder.mutation<Blob, { startDate?: string; endDate?: string }>({
       query: (params) => {
@@ -56,7 +58,7 @@ export const reportsApi = baseApi.injectEndpoints({
         if (params.endDate) searchParams.append('endDate', params.endDate);
 
         return {
-          url: `reports/pdf?${searchParams.toString()}`,
+          url: `/reports/pdf?${searchParams.toString()}`,
           method: 'GET',
           responseHandler: (response) => response.blob(),
         };

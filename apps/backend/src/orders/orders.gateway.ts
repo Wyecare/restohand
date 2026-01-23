@@ -1,4 +1,8 @@
-import { OnGatewayInit, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import {
+  OnGatewayInit,
+  WebSocketGateway,
+  WebSocketServer,
+} from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { OrderResponseDto } from './dtos/order-response.dto';
@@ -19,7 +23,9 @@ export class OrdersGateway implements OnGatewayInit {
   emitOrderCreated(payload: OrderResponseDto) {
     this.logger.debug(`Emitting order.created for ${payload.id}`);
     if (!this.server) {
-      this.logger.warn('Socket server not ready – skipping order.created broadcast');
+      this.logger.warn(
+        'Socket server not ready – skipping order.created broadcast'
+      );
       return;
     }
     this.server.emit('order.created', payload);
@@ -28,49 +34,85 @@ export class OrdersGateway implements OnGatewayInit {
   emitOrderUpdated(payload: OrderResponseDto) {
     this.logger.debug(`Emitting order.updated for ${payload.id}`);
     if (!this.server) {
-      this.logger.warn('Socket server not ready – skipping order.updated broadcast');
+      this.logger.warn(
+        'Socket server not ready – skipping order.updated broadcast'
+      );
       return;
     }
     this.server.emit('order.updated', payload);
   }
 
-  emitOrderModificationRequested(restaurantId: string, modification: OrderModification) {
-    this.logger.debug(`Emitting order.modification.requested for order ${modification.orderNumber}`);
+  emitOrderModificationRequested(
+    restaurantId: string,
+    modification: OrderModification
+  ) {
+    this.logger.debug(
+      `Emitting order.modification.requested for order ${modification.orderNumber}`
+    );
     if (!this.server) {
-      this.logger.warn('Socket server not ready – skipping order.modification.requested broadcast');
+      this.logger.warn(
+        'Socket server not ready – skipping order.modification.requested broadcast'
+      );
       return;
     }
     // Emit to restaurant-specific room for kitchen/staff notifications
-    this.server.to(`restaurant:${restaurantId}`).emit('order.modification.requested', modification);
+    this.server
+      .to(`restaurant:${restaurantId}`)
+      .emit('order.modification.requested', modification);
     // Also emit to the specific order room for customer updates
-    this.server.to(`order:${modification.orderId}`).emit('order.modification.requested', modification);
+    this.server
+      .to(`order:${modification.orderId}`)
+      .emit('order.modification.requested', modification);
   }
 
-  emitOrderModificationProcessed(restaurantId: string, modification: OrderModification) {
-    this.logger.debug(`Emitting order.modification.processed for order ${modification.orderNumber}`);
+  emitOrderModificationProcessed(
+    restaurantId: string,
+    modification: OrderModification
+  ) {
+    this.logger.debug(
+      `Emitting order.modification.processed for order ${modification.orderNumber}`
+    );
     if (!this.server) {
-      this.logger.warn('Socket server not ready – skipping order.modification.processed broadcast');
+      this.logger.warn(
+        'Socket server not ready – skipping order.modification.processed broadcast'
+      );
       return;
     }
     // Notify all parties about the processed modification
-    this.server.to(`restaurant:${restaurantId}`).emit('order.modification.processed', modification);
-    this.server.to(`order:${modification.orderId}`).emit('order.modification.processed', modification);
+    this.server
+      .to(`restaurant:${restaurantId}`)
+      .emit('order.modification.processed', modification);
+    this.server
+      .to(`order:${modification.orderId}`)
+      .emit('order.modification.processed', modification);
   }
 
-  emitOrderModificationApplied(restaurantId: string, modification: OrderModification, updatedOrder?: OrderResponseDto) {
-    this.logger.debug(`Emitting order.modification.applied for order ${modification.orderNumber}`);
+  emitOrderModificationApplied(
+    restaurantId: string,
+    modification: OrderModification,
+    updatedOrder?: OrderResponseDto
+  ) {
+    this.logger.debug(
+      `Emitting order.modification.applied for order ${modification.orderNumber}`
+    );
     if (!this.server) {
-      this.logger.warn('Socket server not ready – skipping order.modification.applied broadcast');
+      this.logger.warn(
+        'Socket server not ready – skipping order.modification.applied broadcast'
+      );
       return;
     }
     // Notify about applied modification
-    this.server.to(`restaurant:${restaurantId}`).emit('order.modification.applied', {
-      modification,
-      order: updatedOrder,
-    });
-    this.server.to(`order:${modification.orderId}`).emit('order.modification.applied', {
-      modification,
-      order: updatedOrder,
-    });
+    this.server
+      .to(`restaurant:${restaurantId}`)
+      .emit('order.modification.applied', {
+        modification,
+        order: updatedOrder,
+      });
+    this.server
+      .to(`order:${modification.orderId}`)
+      .emit('order.modification.applied', {
+        modification,
+        order: updatedOrder,
+      });
   }
 }

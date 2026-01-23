@@ -98,7 +98,7 @@ export class RestaurantsService {
     return this.toDto(restaurant);
   }
 
-  async generateQrCode(restaurantId: string, table?: string) {
+  async generateQrCode(restaurantId: string, tableId?: string, table?: string) {
     const restaurant = await this.restaurantModel.findById(restaurantId);
     if (!restaurant) {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
@@ -108,7 +108,11 @@ export class RestaurantsService {
     const baseUrl = process.env.CUSTOMER_FRONTEND_URL ?? process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
     const slug = restaurant.slug;
     const url = new URL(`${baseUrl.replace(/\/$/, '')}/c/${slug}`);
-    if (table) {
+    // NEW APPROACH: Use tableId for globally unique identification
+    if (tableId) {
+      url.searchParams.set('tableId', tableId);
+    } else if (table) {
+      // LEGACY APPROACH: Use table number (for backwards compatibility)
       url.searchParams.set('table', table);
     }
 

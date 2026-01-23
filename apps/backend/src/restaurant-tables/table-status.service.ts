@@ -1,18 +1,30 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { TableStatus, TableStatusDocument, TableStatusType } from './schemas/table-status.schema';
-import { RestaurantTable, RestaurantTableDocument } from './schemas/restaurant-table.schema';
+import {
+  TableStatus,
+  TableStatusDocument,
+  TableStatusType,
+} from './schemas/table-status.schema';
+import {
+  RestaurantTable,
+  RestaurantTableDocument,
+} from './schemas/restaurant-table.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { TableStatusGateway } from './table-status.gateway';
 import {
   UpdateTableStatusDto,
   TableStatusResponseDto,
   TableStatusStatsDto,
-  EnhancedRestaurantTableResponseDto
+  EnhancedRestaurantTableResponseDto,
 } from './dtos/table-status.dto';
 
 @Injectable()
@@ -26,6 +38,7 @@ export class TableStatusService {
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    private readonly tableStatusGateway: TableStatusGateway
   ) {}
 
   async updateTableStatus(
@@ -38,7 +51,7 @@ export class TableStatusService {
     const table = await this.restaurantTableModel.findOne({
       _id: tableId,
       restaurantId,
-      isActive: true
+      isActive: true,
     });
 
     if (!table) {
@@ -48,7 +61,7 @@ export class TableStatusService {
     // Get or create table status
     let tableStatus = await this.tableStatusModel.findOne({
       restaurantId,
-      tableId
+      tableId,
     });
 
     const now = new Date();
@@ -139,7 +152,7 @@ export class TableStatusService {
       tableStatus = await this.tableStatusModel.create({
         restaurantId,
         tableId,
-        ...statusChanges
+        ...statusChanges,
       });
     }
 
@@ -152,7 +165,7 @@ export class TableStatusService {
   ): Promise<TableStatusResponseDto | null> {
     const status = await this.tableStatusModel.findOne({
       restaurantId,
-      tableId
+      tableId,
     });
 
     return status ? this.toStatusDto(status) : null;
@@ -168,13 +181,15 @@ export class TableStatusService {
       tableQuery.branchId = branchId;
     }
 
-    const tables = await this.restaurantTableModel.find(tableQuery).select('_id');
-    const tableIds = tables.map(t => t._id);
+    const tables = await this.restaurantTableModel
+      .find(tableQuery)
+      .select('_id');
+    const tableIds = tables.map((t) => t._id);
 
     // Then get statuses only for those tables
     const statuses = await this.tableStatusModel.find({
       restaurantId,
-      tableId: { $in: tableIds }
+      tableId: { $in: tableIds },
     });
 
     const stats = {
@@ -184,7 +199,7 @@ export class TableStatusService {
       reservedTables: 0,
       cleaningTables: 0,
       averageOccupancyTime: 0,
-      totalRevenue: 0
+      totalRevenue: 0,
     };
 
     let totalOccupancyTime = 0;
@@ -236,17 +251,35 @@ export class TableStatusService {
 
     // Get all table statuses for the restaurant
     const statuses = await this.tableStatusModel.find({ restaurantId });
-    const statusMap = new Map(statuses.map(s => [s.tableId.toString(), s]));
+    const statusMap = new Map(statuses.map((s) => [s.tableId.toString(), s]));
 
     // Get current bill amounts from active orders
-    const activeOrders = await this.orderModel.find({
+    // CRITICAL FIX: Add branchId filter to ensure correct branch isolation
+    const orderQuery: any = {
       restaurantId: new Types.ObjectId(restaurantId),
-      status: { $in: [OrderStatus.Pending, OrderStatus.Accepted, OrderStatus.InProgress, OrderStatus.Ready] },
-      paymentStatus: { $ne: PaymentStatus.Paid }
-    });
+      status: {
+        $in: [
+          OrderStatus.Pending,
+          OrderStatus.Accepted,
+          OrderStatus.InProgress,
+          OrderStatus.Ready,
+        ],
+      },
+      paymentStatus: { $ne: PaymentStatus.Paid },
+    };
+
+    console.log(branchId, 'branchId in getEnhancedTablesList'); // DEBUG LOG
+
+    if (branchId) {
+      orderQuery.branchId = new Types.ObjectId(branchId);
+    }
+
+    const activeOrders = await this.orderModel.find(orderQuery);
+
+    console.log(activeOrders.length, 'activeOrders count'); // DEBUG LOG
 
     const billMap = new Map<string, number>();
-    activeOrders.forEach(order => {
+    activeOrders.forEach((order) => {
       if (order.tableNumber) {
         const current = billMap.get(order.tableNumber) || 0;
         billMap.set(order.tableNumber, current + order.totalAmount);
@@ -260,11 +293,35 @@ export class TableStatusService {
       const tableStatus = statusMap.get(table._id.toString());
       const currentBill = billMap.get(table.tableNumber) || 0;
 
-      // Update bill amount if different
-      if (tableStatus && currentBill !== tableStatus.currentBillAmount) {
-        tableStatus.currentBillAmount = currentBill;
-        await tableStatus.save();
+      // Update bill amount if different AND auto-correct status if needed
+      if (tableStatus) {
+        let needsUpdate = false;
+
+        if (currentBill !== tableStatus.currentBillAmount) {
+          tableStatus.currentBillAmount = currentBill;
+          needsUpdate = true;
+        }
+
+        // Auto-correct status: if no active orders but table is marked as occupied
+        if (currentBill === 0 && tableStatus.status === TableStatusType.Occupied) {
+          console.log(`Auto-correcting table ${table.tableNumber} status from occupied to available (no active orders)`);
+          tableStatus.status = TableStatusType.Available;
+          tableStatus.availableSince = new Date();
+          tableStatus.occupiedSince = undefined;
+          tableStatus.currentPartySize = undefined;
+          tableStatus.lastStatusChange = new Date();
+          tableStatus.lastUpdatedByName = 'Auto-correction System';
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          await tableStatus.save();
+        }
       }
+
+      const activeOrder = activeOrders.find(
+        (order) => order.tableNumber === table.tableNumber
+      );
 
       enhancedTables.push({
         id: table._id.toString(),
@@ -274,6 +331,7 @@ export class TableStatusService {
         capacity: table.capacity,
         zone: table.zone,
         displayOrder: table.displayOrder,
+        activeOrder: activeOrder || undefined,
         isActive: table.isActive,
         layoutX: table.layoutX,
         layoutY: table.layoutY,
@@ -282,7 +340,7 @@ export class TableStatusService {
         layoutRotation: table.layoutRotation,
         createdAt: table.createdAt.toISOString(),
         updatedAt: table.updatedAt.toISOString(),
-        currentStatus: tableStatus ? this.toStatusDto(tableStatus) : undefined
+        currentStatus: tableStatus ? this.toStatusDto(tableStatus) : undefined,
       });
     }
 
@@ -295,7 +353,7 @@ export class TableStatusService {
   ): Promise<TableStatusResponseDto> {
     const existing = await this.tableStatusModel.findOne({
       restaurantId,
-      tableId
+      tableId,
     });
 
     if (existing) {
@@ -307,7 +365,7 @@ export class TableStatusService {
       tableId,
       status: TableStatusType.Available,
       availableSince: new Date(),
-      lastStatusChange: new Date()
+      lastStatusChange: new Date(),
     });
 
     return this.toStatusDto(newStatus);
@@ -315,7 +373,8 @@ export class TableStatusService {
 
   private toStatusDto(doc: TableStatusDocument): TableStatusResponseDto {
     const now = Date.now();
-    const statusChangeTime = doc.lastStatusChange?.getTime() || doc.createdAt.getTime();
+    const statusChangeTime =
+      doc.lastStatusChange?.getTime() || doc.createdAt.getTime();
 
     let occupiedDuration: number | undefined;
     if (doc.status === TableStatusType.Occupied && doc.occupiedSince) {
@@ -336,11 +395,14 @@ export class TableStatusService {
         break;
       case TableStatusType.Occupied:
         const occupiedTime = occupiedDuration || 0;
-        if (occupiedTime < 3600000) { // < 1 hour
+        if (occupiedTime < 3600000) {
+          // < 1 hour
           statusColor = 'yellow';
-        } else if (occupiedTime < 7200000) { // < 2 hours
+        } else if (occupiedTime < 7200000) {
+          // < 2 hours
           statusColor = 'orange';
-        } else { // > 2 hours
+        } else {
+          // > 2 hours
           statusColor = 'red';
         }
         break;
@@ -372,7 +434,167 @@ export class TableStatusService {
       updatedAt: doc.updatedAt.toISOString(),
       timeSinceLastChange: now - statusChangeTime,
       occupiedDuration,
-      statusColor
+      statusColor,
     };
+  }
+
+  /**
+   * Update table status based on order events - triggered directly from order service
+   */
+  async updateTableStatusFromOrder(
+    restaurantId: string,
+    tableId: string,
+    action: 'order-created' | 'order-completed' | 'order-cancelled',
+    orderData?: {
+      totalAmount?: number;
+      createdBy?: string;
+      createdByName?: string;
+    }
+  ): Promise<TableStatusResponseDto | null> {
+    if (!tableId) {
+      console.warn('Cannot update table status: tableId is missing');
+      return null;
+    }
+
+    try {
+      // Verify table exists
+      const table = await this.restaurantTableModel
+        .findOne({
+          _id: new Types.ObjectId(tableId),
+          restaurantId: new Types.ObjectId(restaurantId),
+          isActive: true,
+        })
+        .lean();
+
+      if (!table) {
+        console.warn(
+          `Table ${tableId} not found for restaurant ${restaurantId}`
+        );
+        return null;
+      }
+
+      // Get current table status
+      let tableStatus = await this.tableStatusModel.findOne({
+        restaurantId: new Types.ObjectId(restaurantId),
+        tableId: new Types.ObjectId(tableId),
+      });
+
+      const now = new Date();
+
+      if (action === 'order-created') {
+        // When order is created, set table to occupied
+        if (!tableStatus) {
+          tableStatus = await this.tableStatusModel.create({
+            restaurantId: new Types.ObjectId(restaurantId),
+            tableId: new Types.ObjectId(tableId),
+            status: TableStatusType.Occupied,
+            occupiedSince: now,
+            lastStatusChange: now,
+            currentBillAmount: orderData?.totalAmount || 0,
+            lastUpdatedBy: orderData?.createdBy,
+            lastUpdatedByName: orderData?.createdByName || 'System',
+          });
+        } else {
+          // Update existing status to occupied
+          if (tableStatus.status !== TableStatusType.Occupied) {
+            tableStatus.status = TableStatusType.Occupied;
+            tableStatus.occupiedSince = now;
+            tableStatus.availableSince = undefined;
+            tableStatus.cleaningSince = undefined;
+            tableStatus.lastStatusChange = now;
+          }
+
+          // Update bill amount
+          if (orderData?.totalAmount) {
+            tableStatus.currentBillAmount =
+              (tableStatus.currentBillAmount || 0) + orderData.totalAmount;
+          }
+
+          tableStatus.lastUpdatedBy = orderData?.createdBy;
+          tableStatus.lastUpdatedByName = orderData?.createdByName || 'System';
+          await tableStatus.save();
+        }
+
+        console.log(
+          `Table ${tableId} status updated to occupied due to new order`
+        );
+        const statusDto = this.toStatusDto(tableStatus);
+        this.tableStatusGateway.emitTableStatusUpdated(statusDto);
+        return statusDto;
+      }
+
+      if (action === 'order-completed' || action === 'order-cancelled') {
+        if (!tableStatus) {
+          return null; // No status to update
+        }
+
+        // Check if there are any remaining active orders for this table
+        const activeOrdersQuery = {
+          tableId: new Types.ObjectId(tableId),
+          status: { $nin: ['completed', 'cancelled', 'refunded'] },
+          paymentStatus: { $nin: ['paid', 'refunded'] },
+        };
+
+        console.log(`Checking for active orders for table ${tableId}:`, activeOrdersQuery);
+
+        const activeOrdersCount = await this.orderModel.countDocuments(activeOrdersQuery);
+
+        console.log(`Found ${activeOrdersCount} active orders for table ${tableId}`);
+
+        if (activeOrdersCount === 0) {
+          // No more active orders, set table to available
+          tableStatus.status = TableStatusType.Available;
+          tableStatus.availableSince = now;
+          tableStatus.occupiedSince = undefined;
+          tableStatus.currentBillAmount = 0;
+          tableStatus.currentPartySize = undefined;
+          tableStatus.lastStatusChange = now;
+          tableStatus.lastUpdatedBy = orderData?.createdBy;
+          tableStatus.lastUpdatedByName = orderData?.createdByName || 'System';
+          await tableStatus.save();
+
+          console.log(
+            `Table ${tableId} status updated to available - no active orders remaining`
+          );
+          const statusDto = this.toStatusDto(tableStatus);
+          this.tableStatusGateway.emitTableStatusUpdated(statusDto);
+          return statusDto;
+        } else {
+          // Calculate new bill amount from remaining active orders
+          const activeBillAmount = await this.orderModel.aggregate([
+            {
+              $match: {
+                tableId: new Types.ObjectId(tableId),
+                status: { $nin: ['completed', 'cancelled', 'refunded'] },
+                paymentStatus: { $nin: ['paid', 'refunded'] },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalAmount: { $sum: '$totalAmount' },
+              },
+            },
+          ]);
+
+          const newBillAmount =
+            activeBillAmount.length > 0 ? activeBillAmount[0].totalAmount : 0;
+          tableStatus.currentBillAmount = newBillAmount;
+          await tableStatus.save();
+
+          console.log(
+            `Table ${tableId} bill amount updated to ${newBillAmount} - ${activeOrdersCount} active orders remaining`
+          );
+          const statusDto = this.toStatusDto(tableStatus);
+          this.tableStatusGateway.emitTableStatusUpdated(statusDto);
+          return statusDto;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Error updating table status for table ${tableId}:`, error);
+      return null;
+    }
   }
 }
