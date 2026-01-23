@@ -6,6 +6,7 @@ import UserMenu from '@/components/layout/header/user-menu';
 import ThemeSwitch from '@/components/layout/header/theme-switch';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
+import BranchSelector from '@/components/branches/BranchSelector';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useAppSelector } from '@/store/hooks';
 import { selectAuthSession } from '@/store/slices/authSlice';
@@ -41,6 +42,8 @@ export default function Header() {
           >
             <PanelLeftIcon />
           </Button>
+
+          <BranchSelector className="ml-4" />
         </div>
 
         <div className="flex items-center gap-3">

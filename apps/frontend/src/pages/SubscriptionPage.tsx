@@ -6,7 +6,10 @@ import {
   useGetPaymentHistoryQuery,
 } from '../store/api/subscriptionsApi';
 import { useAppSelector } from '../store/hooks';
-import { selectActiveRestaurantId, selectAuthSession } from '../store/slices/authSlice';
+import {
+  selectActiveRestaurantId,
+  selectAuthSession,
+} from '../store/slices/authSlice';
 import {
   Card,
   CardContent,
@@ -192,7 +195,9 @@ const SubscriptionPage: React.FC = () => {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">Monthly Price</p>
+                          <p className="text-sm text-muted-foreground">
+                            Monthly Price
+                          </p>
                           <p className="text-2xl font-bold text-foreground">
                             ₹799
                           </p>
@@ -286,7 +291,9 @@ const SubscriptionPage: React.FC = () => {
                         <Zap className="h-6 w-6 text-green-600" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Plan Type</p>
+                        <p className="text-sm text-muted-foreground">
+                          Plan Type
+                        </p>
                         <p className="text-lg font-semibold text-foreground">
                           Standard
                         </p>
@@ -358,7 +365,7 @@ const SubscriptionPage: React.FC = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-blue-600" />
+                    <Users className="h-5 w-5 " />
                     Staff Management
                   </CardTitle>
                 </CardHeader>

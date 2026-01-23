@@ -33,7 +33,7 @@ export class JwtAuthService {
 
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private jwtService: JwtService,
+    private jwtService: JwtService
   ) {}
 
   async validateUser(email: string, password: string): Promise<User | null> {
@@ -75,7 +75,9 @@ export class JwtAuthService {
   }
 
   async register(registerDto: RegisterDto): Promise<AuthResult> {
-    const existingUser = await this.userModel.findOne({ email: registerDto.email });
+    const existingUser = await this.userModel.findOne({
+      email: registerDto.email,
+    });
     if (existingUser) {
       throw new UnauthorizedException('Email already exists');
     }
@@ -116,6 +118,8 @@ export class JwtAuthService {
         photoURL: undefined, // We can add this later if needed
         roles: user.roles,
         restaurantId: user.restaurantId?.toString(),
+        branchId: user.branchId?.toString(),
+        isPrimaryOwner: user.isPrimaryOwner,
         claims: {
           sub: decoded.sub,
           email: decoded.email,
@@ -124,18 +128,6 @@ export class JwtAuthService {
           restaurantId: decoded.restaurantId,
         },
       };
-
-      console.log('🔐 JWT Token Verification Debug:', {
-        userIdFromDb: user._id.toString(),
-        userRestaurantIdFromDb: user.restaurantId,
-        userRolesFromDb: user.roles,
-        decodedRestaurantId: decoded.restaurantId,
-        finalAuthUser: {
-          uid: authenticatedUser.uid,
-          restaurantId: authenticatedUser.restaurantId,
-          roles: authenticatedUser.roles
-        }
-      });
 
       return authenticatedUser;
     } catch (error) {
@@ -192,7 +184,9 @@ export class JwtAuthService {
       photoURL: undefined,
       roles: user.roles,
       restaurantId: user.restaurantId?.toString(),
-      claims: payload,
+      branchId: user.branchId?.toString(),
+      isPrimaryOwner: user.isPrimaryOwner,
+      claims: payload as unknown as Record<string, unknown>,
     };
 
     return {

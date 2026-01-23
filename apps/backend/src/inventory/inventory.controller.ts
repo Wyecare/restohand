@@ -8,6 +8,8 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,12 +25,16 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { InventoryService, CreateInventoryItemDto, UpdateStockDto } from './inventory.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { BranchPermissionsService } from '../users/branch-permissions.service';
 
 @ApiTags('inventory')
 @Controller('restaurants/:restaurantId/inventory')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly branchPermissions: BranchPermissionsService,
+  ) {}
 
   @Post('items')
   @ApiOperation({ summary: 'Create new inventory item' })
@@ -37,11 +43,13 @@ export class InventoryController {
   @Roles(UserRole.Manager)
   async createItem(
     @Param('restaurantId') restaurantId: string,
-    @Body() dto: Omit<CreateInventoryItemDto, 'restaurantId'>
+    @Body() dto: Omit<CreateInventoryItemDto, 'restaurantId' | 'branchId'>,
+    @CurrentUser() user: AuthenticatedUser
   ) {
     return this.inventoryService.createInventoryItem({
       ...dto,
       restaurantId,
+      branchId: user.branchId,
     });
   }
 
@@ -59,13 +67,15 @@ export class InventoryController {
     @Query('category') category?: string,
     @Query('lowStock') lowStock?: boolean,
     @Query('outOfStock') outOfStock?: boolean,
-    @Query('search') search?: string
+    @Query('search') search?: string,
+    @CurrentUser() user: AuthenticatedUser
   ) {
     return this.inventoryService.getInventoryItems(restaurantId, {
       category,
       lowStock,
       outOfStock,
       search,
+      branchId: user.branchId,
     });
   }
 
@@ -170,5 +180,113 @@ export class InventoryController {
         'dozens'
       ]
     };
+  }
+
+  // Branch-aware endpoints
+  @Get('branches/:branchId/items')
+  @ApiOperation({ summary: 'Get inventory items for specific branch' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiQuery({ name: 'category', required: false })
+  @ApiQuery({ name: 'lowStock', required: false, type: Boolean })
+  @ApiQuery({ name: 'outOfStock', required: false, type: Boolean })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiResponse({ status: 200, description: 'Branch inventory items retrieved successfully' })
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter)
+  async getItemsByBranch(
+    @Request() req: any,
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Query('category') category?: string,
+    @Query('lowStock') lowStock?: boolean,
+    @Query('outOfStock') outOfStock?: boolean,
+    @Query('search') search?: string,
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to access this branch inventory');
+    }
+
+    return this.inventoryService.getInventoryItems(restaurantId, {
+      category,
+      lowStock,
+      outOfStock,
+      search,
+      branchId,
+    });
+  }
+
+  @Post('branches/:branchId/items')
+  @ApiOperation({ summary: 'Create inventory item for specific branch' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiResponse({ status: 201, description: 'Branch inventory item created successfully' })
+  @Roles(UserRole.Manager)
+  async createItemForBranch(
+    @Request() req: any,
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Body() dto: Omit<CreateInventoryItemDto, 'restaurantId' | 'branchId'>,
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to create inventory items for this branch');
+    }
+
+    return this.inventoryService.createInventoryItem({
+      ...dto,
+      restaurantId,
+      branchId,
+    });
+  }
+
+  @Get('branches/:branchId/alerts')
+  @ApiOperation({ summary: 'Get stock alerts for specific branch' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiResponse({ status: 200, description: 'Branch alerts retrieved successfully' })
+  @Roles(UserRole.Manager, UserRole.Chef)
+  async getAlertsByBranch(
+    @Request() req: any,
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to access this branch alerts');
+    }
+
+    return this.inventoryService.getActiveAlertsByBranch(restaurantId, branchId);
+  }
+
+  @Get('branches/:branchId/analytics')
+  @ApiOperation({ summary: 'Get inventory analytics for specific branch' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiResponse({ status: 200, description: 'Branch analytics retrieved successfully' })
+  @Roles(UserRole.Manager)
+  async getAnalyticsByBranch(
+    @Request() req: any,
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to access this branch analytics');
+    }
+
+    return this.inventoryService.getInventoryAnalyticsByBranch(restaurantId, branchId);
   }
 }

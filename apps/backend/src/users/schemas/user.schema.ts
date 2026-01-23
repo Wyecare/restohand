@@ -12,6 +12,13 @@ export class User {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId?: string;
+
+  // Multiple branch access scopes for managers (array of branch IDs they can manage)
+  @Prop({ type: [SchemaTypes.ObjectId], ref: 'Branch', default: [] })
+  branchScopes!: string[];
+
   @Prop({ type: String, required: true, trim: true })
   name!: string;
 
@@ -48,9 +55,18 @@ export class User {
 
   @Prop({ type: Date })
   lastLoginAt?: Date;
+
+  @Prop({ type: String, trim: true })
+  fcmToken?: string;
+
+  @Prop({ type: Date })
+  fcmTokenUpdatedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.index({ restaurantId: 1, roles: 1 });
 UserSchema.index({ restaurantId: 1, isActive: 1 });
+UserSchema.index({ restaurantId: 1, branchId: 1 });
+UserSchema.index({ branchId: 1, roles: 1 });
+UserSchema.index({ branchScopes: 1 });

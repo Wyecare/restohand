@@ -186,7 +186,7 @@ const RestaurantSettingsPage = () => {
       case 'pending_approval':
         return <Clock className="h-4 w-4 text-yellow-600" />;
       case 'route_not_available':
-        return <AlertCircle className="h-4 w-4 text-blue-600" />;
+        return <AlertCircle className="h-4 w-4 " />;
       case 'rejected':
       case 'suspended':
         return <XCircle className="h-4 w-4 text-red-600" />;

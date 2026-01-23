@@ -182,9 +182,7 @@ export const restaurantsApi = baseApi.injectEndpoints({
         method: 'POST',
         body,
       }),
-      invalidatesTags: (_result, _error, { restaurantId }) => [
-        { type: 'MenuCategory', id: `LIST-${restaurantId}` },
-      ],
+      invalidatesTags: ['MenuCategory'],
     }),
 
     updateMenuCategory: builder.mutation<
@@ -264,24 +262,95 @@ export const restaurantsApi = baseApi.injectEndpoints({
       ],
     }),
 
+    // Branch-aware menu endpoints
+    listMenuCategoriesByBranch: builder.query<
+      PaginatedResponse<MenuCategory>,
+      {
+        restaurantId: string;
+        branchId: string;
+        page?: number;
+        limit?: number;
+        search?: string;
+      }
+    >({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/menu/categories/branch/${branchId}`,
+        params,
+      }),
+      providesTags: ['MenuCategory'],
+    }),
+
+    createMenuCategoryForBranch: builder.mutation<
+      MenuCategory,
+      {
+        restaurantId: string;
+        branchId: string;
+        body: CreateMenuCategoryPayload;
+      }
+    >({
+      query: ({ restaurantId, branchId, body }) => ({
+        url: `/restaurants/${restaurantId}/menu/categories/branch/${branchId}`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['MenuCategory'],
+    }),
+
+    listMenuItemsByBranch: builder.query<
+      PaginatedResponse<MenuItem>,
+      {
+        restaurantId: string;
+        branchId: string;
+        categoryId?: string;
+        isAvailable?: boolean;
+        search?: string;
+        page?: number;
+        limit?: number;
+      }
+    >({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/menu/items/branch/${branchId}`,
+        params,
+      }),
+      providesTags: (_result, _error, { restaurantId, branchId }) => [
+        { type: 'MenuItem', id: `LIST-${restaurantId}-${branchId}` },
+      ],
+    }),
+
+    createMenuItemForBranch: builder.mutation<
+      MenuItem,
+      { restaurantId: string; branchId: string; body: CreateMenuItemPayload }
+    >({
+      query: ({ restaurantId, branchId, body }) => ({
+        url: `/restaurants/${restaurantId}/menu/items/branch/${branchId}`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, branchId }) => [
+        { type: 'MenuItem', id: `LIST-${restaurantId}-${branchId}` },
+      ],
+    }),
+
     listRestaurantTables: builder.query<
       RestaurantTable[],
-      { restaurantId: string; includeInactive?: boolean }
+      { restaurantId: string; branchId?: string; includeInactive?: boolean }
     >({
       query: ({ restaurantId, includeInactive }) => ({
         url: `/restaurants/${restaurantId}/tables`,
         params: includeInactive ? { includeInactive } : undefined,
       }),
-      providesTags: (result, _error, { restaurantId }) =>
-        result
+      providesTags: (result, _error, { restaurantId, branchId }) => {
+        const branchSuffix = branchId ? `-${branchId}` : '';
+        return result
           ? [
               ...result.map((table) => ({
                 type: 'RestaurantTable' as const,
                 id: table.id,
               })),
-              { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}` },
+              { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}${branchSuffix}` },
             ]
-          : [{ type: 'RestaurantTable' as const, id: `LIST-${restaurantId}` }],
+          : [{ type: 'RestaurantTable' as const, id: `LIST-${restaurantId}${branchSuffix}` }];
+      },
     }),
 
     listServiceTables: builder.query<
@@ -303,7 +372,39 @@ export const restaurantsApi = baseApi.injectEndpoints({
                 id: `SERVICE-${restaurantId}`,
               },
             ]
-          : [{ type: 'RestaurantTable' as const, id: `SERVICE-${restaurantId}` }],
+          : [
+              {
+                type: 'RestaurantTable' as const,
+                id: `SERVICE-${restaurantId}`,
+              },
+            ],
+    }),
+
+    listEnhancedTables: builder.query<
+      EnhancedRestaurantTable[],
+      { restaurantId: string }
+    >({
+      query: ({ restaurantId }) => ({
+        url: `/restaurants/${restaurantId}/tables/enhanced`,
+      }),
+      providesTags: (result, _error, { restaurantId }) =>
+        result
+          ? [
+              ...result.map((table) => ({
+                type: 'RestaurantTable' as const,
+                id: table.id,
+              })),
+              {
+                type: 'RestaurantTable' as const,
+                id: `ENHANCED-${restaurantId}`,
+              },
+            ]
+          : [
+              {
+                type: 'RestaurantTable' as const,
+                id: `ENHANCED-${restaurantId}`,
+              },
+            ],
     }),
 
     createRestaurantTable: builder.mutation<
@@ -409,9 +510,17 @@ export const restaurantsApi = baseApi.injectEndpoints({
                 type: 'TableStatus' as const,
                 id: table.id,
               })),
-              { type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` },
+              {
+                type: 'RestaurantTable' as const,
+                id: `ENHANCED-LIST-${restaurantId}`,
+              },
             ]
-          : [{ type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` }],
+          : [
+              {
+                type: 'RestaurantTable' as const,
+                id: `ENHANCED-LIST-${restaurantId}`,
+              },
+            ],
     }),
     getTableStatusStats: builder.query<
       TableStatusStats,
@@ -448,7 +557,10 @@ export const restaurantsApi = baseApi.injectEndpoints({
         { type: 'TableStatus' as const, id: tableId },
         { type: 'TableStatus' as const, id: `STATS-${restaurantId}` },
         { type: 'RestaurantTable' as const, id: tableId },
-        { type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` },
+        {
+          type: 'RestaurantTable' as const,
+          id: `ENHANCED-LIST-${restaurantId}`,
+        },
         { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}` },
       ],
     }),
@@ -463,7 +575,10 @@ export const restaurantsApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { restaurantId, tableId }) => [
         { type: 'TableStatus' as const, id: tableId },
         { type: 'TableStatus' as const, id: `STATS-${restaurantId}` },
-        { type: 'RestaurantTable' as const, id: `ENHANCED-LIST-${restaurantId}` },
+        {
+          type: 'RestaurantTable' as const,
+          id: `ENHANCED-LIST-${restaurantId}`,
+        },
       ],
     }),
 
@@ -538,12 +653,16 @@ export const restaurantsApi = baseApi.injectEndpoints({
     }),
 
     getPublicMenu: builder.query<
-      { restaurant: PublicRestaurant; menu: PublicMenuPayload; activeOrder?: PublicOrder },
+      {
+        restaurant: PublicRestaurant;
+        menu: PublicMenuPayload;
+        activeOrder?: PublicOrder;
+      },
       { slug: string; table?: string }
     >({
       query: ({ slug, table }) => ({
         url: `/public/restaurants/${slug}/menu`,
-        params: table ? { table } : {}
+        params: table ? { table } : {},
       }),
     }),
 
@@ -689,6 +808,84 @@ export const restaurantsApi = baseApi.injectEndpoints({
         { type: 'RestaurantTable' as const, id: 'LIST' },
       ],
     }),
+
+    // Branch-aware zone endpoints
+    getZonesByBranch: builder.query<
+      ZonesListResponse,
+      { restaurantId: string; branchId: string }
+    >({
+      query: ({ restaurantId, branchId }) =>
+        `/restaurants/${restaurantId}/tables/zones/branch/${branchId}`,
+      providesTags: (_result, _error, { restaurantId, branchId }) => [
+        { type: 'Zone' as const, id: `LIST-${restaurantId}-${branchId}` },
+        { type: 'Zone' as const, id: restaurantId },
+      ],
+    }),
+
+    createZoneForBranch: builder.mutation<
+      ZoneResponse,
+      { restaurantId: string; branchId: string; body: CreateZonePayload }
+    >({
+      query: ({ restaurantId, branchId, body }) => ({
+        url: `/restaurants/${restaurantId}/tables/zones/branch/${branchId}`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, branchId }) => [
+        { type: 'Zone' as const, id: 'LIST' },
+        { type: 'Zone' as const, id: `LIST-${restaurantId}-${branchId}` },
+        { type: 'Zone' as const, id: restaurantId },
+        { type: 'RestaurantTable' as const, id: 'LIST' },
+      ],
+    }),
+
+    // Branch-aware table endpoints
+    listRestaurantTablesByBranch: builder.query<
+      RestaurantTable[],
+      { restaurantId: string; branchId: string; includeInactive?: boolean }
+    >({
+      query: ({ restaurantId, branchId, includeInactive }) => ({
+        url: `/restaurants/${restaurantId}/tables/branch/${branchId}`,
+        params: includeInactive ? { includeInactive } : undefined,
+      }),
+      providesTags: (result, _error, { restaurantId, branchId }) =>
+        result
+          ? [
+              ...result.map((table) => ({
+                type: 'RestaurantTable' as const,
+                id: table.id,
+              })),
+              { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}-${branchId}` },
+            ]
+          : [{ type: 'RestaurantTable' as const, id: `LIST-${restaurantId}-${branchId}` }],
+    }),
+
+    listServiceTablesByBranch: builder.query<
+      ServiceTablesResponse,
+      { restaurantId: string; branchId: string }
+    >({
+      query: ({ restaurantId, branchId }) => ({
+        url: `/restaurants/${restaurantId}/tables/branch/${branchId}/service-view`,
+      }),
+      providesTags: (result, _error, { restaurantId, branchId }) =>
+        result
+          ? [
+              ...result.tables.map((table) => ({
+                type: 'RestaurantTable' as const,
+                id: table.id,
+              })),
+              {
+                type: 'RestaurantTable' as const,
+                id: `SERVICE-${restaurantId}-${branchId}`,
+              },
+            ]
+          : [
+              {
+                type: 'RestaurantTable' as const,
+                id: `SERVICE-${restaurantId}-${branchId}`,
+              },
+            ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -706,12 +903,18 @@ export const {
   useListMenuItemsQuery,
   useGetMenuItemQuery,
   useCreateMenuItemMutation,
+  // Branch-aware menu hooks
+  useListMenuCategoriesByBranchQuery,
+  useCreateMenuCategoryForBranchMutation,
+  useListMenuItemsByBranchQuery,
+  useCreateMenuItemForBranchMutation,
   useUpdateMenuItemMutation,
   useDeleteMenuItemMutation,
   useUploadMenuItemImageMutation,
   useRemoveMenuItemImageMutation,
   useListRestaurantTablesQuery,
   useListServiceTablesQuery,
+  useListEnhancedTablesQuery,
   useCreateRestaurantTableMutation,
   useBulkCreateRestaurantTablesMutation,
   useUpdateRestaurantTableMutation,
@@ -737,4 +940,10 @@ export const {
   useUpdateZoneMutation,
   useDeleteZoneMutation,
   useBulkUpdateZonesMutation,
+  // Branch-aware zone hooks
+  useGetZonesByBranchQuery,
+  useCreateZoneForBranchMutation,
+  // Branch-aware table hooks
+  useListRestaurantTablesByBranchQuery,
+  useListServiceTablesByBranchQuery,
 } = restaurantsApi;

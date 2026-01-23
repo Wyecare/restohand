@@ -52,9 +52,12 @@
     "help": "സഹായം",
     "logout": "ലോഗൗട്ട്",
     "home": "ഹോം",
+    "inventory": "ഇൻവെന്ററി",
+    "branches": "ബ്രാഞ്ചുകൾ",
     "customerQR": "കസ്റ്റമർ ക്യൂആർ",
     "kitchenBoard": "കിച്ചൻ ബോർഡ്",
-    "serviceBoard": "സർവീസ് ബോർഡ്"
+    "serviceBoard": "സർവീസ് ബോർഡ്",
+    "subscription": "സബ്സ്ക്രിപ്ഷൻ"
   },
   "time": {
     "today": "ഇന്ന്",

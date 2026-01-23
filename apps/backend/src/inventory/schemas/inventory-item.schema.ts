@@ -74,6 +74,9 @@ export class InventoryItem {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', required: true, index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId?: string;
+
   @Prop({ type: String, required: true, trim: true })
   name!: string;
 
@@ -131,3 +134,6 @@ InventoryItemSchema.index({ restaurantId: 1, category: 1 });
 InventoryItemSchema.index({ restaurantId: 1, 'tracking.isLowStock': 1 });
 InventoryItemSchema.index({ restaurantId: 1, 'tracking.isOutOfStock': 1 });
 InventoryItemSchema.index({ restaurantId: 1, isActive: 1 });
+InventoryItemSchema.index({ branchId: 1, name: 1 });
+InventoryItemSchema.index({ branchId: 1, category: 1 });
+InventoryItemSchema.index({ branchId: 1, 'tracking.isLowStock': 1 });

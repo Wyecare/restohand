@@ -55,6 +55,8 @@
     "help": "Help",
     "logout": "Logout",
     "home": "Home",
+    "branches": "Branches",
+    "subscription": "Subscription",
     "customerQR": "Customer QR",
     "kitchenBoard": "Kitchen Board",
     "serviceBoard": "Service Board"

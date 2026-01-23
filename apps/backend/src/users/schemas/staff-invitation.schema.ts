@@ -12,6 +12,9 @@ export class StaffInvitation {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', required: true, index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', required: true, index: true })
+  branchId!: string;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true })
   invitedBy!: string;
 
@@ -19,14 +22,14 @@ export class StaffInvitation {
   name!: string;
 
   @Prop({ type: String, required: true, trim: true, index: true })
-  phoneNumber!: string;
+  email!: string;
 
   @Prop({ type: String, trim: true })
-  email?: string;
+  phoneNumber?: string;
 
   @Prop({
     type: String,
-    enum: Object.values(UserRole).filter(role => role !== UserRole.Manager),
+    enum: Object.values(UserRole),
     required: true,
   })
   role!: UserRole;
@@ -50,6 +53,8 @@ export class StaffInvitation {
 export const StaffInvitationSchema = SchemaFactory.createForClass(StaffInvitation);
 
 // Indexes for performance
-StaffInvitationSchema.index({ restaurantId: 1, phoneNumber: 1 });
+StaffInvitationSchema.index({ restaurantId: 1, email: 1 });
+StaffInvitationSchema.index({ restaurantId: 1, branchId: 1 });
+StaffInvitationSchema.index({ branchId: 1, email: 1 });
 StaffInvitationSchema.index({ invitationToken: 1 });
 StaffInvitationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // Auto-delete expired invitations

@@ -8,5 +8,7 @@ export interface AuthenticatedUser {
   photoURL?: string;
   roles: UserRole[];
   restaurantId?: string;
+  branchId?: string;
+  isPrimaryOwner?: boolean;
   claims: Record<string, unknown>;
 }

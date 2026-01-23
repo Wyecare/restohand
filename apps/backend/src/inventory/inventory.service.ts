@@ -12,6 +12,7 @@ import { StockAlert, StockAlertDocument } from './schemas/stock-alert.schema';
 
 export interface CreateInventoryItemDto {
   restaurantId: string;
+  branchId?: string;
   name: string;
   description?: string;
   category: string;
@@ -74,6 +75,7 @@ export class InventoryService {
   async createInventoryItem(dto: CreateInventoryItemDto): Promise<InventoryItem> {
     const item = new this.inventoryItemModel({
       restaurantId: dto.restaurantId,
+      branchId: dto.branchId,
       name: dto.name,
       description: dto.description,
       category: dto.category,
@@ -180,7 +182,7 @@ export class InventoryService {
     const direction = dto.quantity > 0 ? 'in' : 'out';
     const totalCost = Math.abs(dto.quantity) * (dto.unitCost || item.pricing.costPerUnit);
 
-    const movement = new this.stockMovementModel({
+    const movementData: any = {
       restaurantId: item.restaurantId,
       inventoryItemId: itemId,
       type: dto.type,
@@ -197,10 +199,16 @@ export class InventoryService {
       stockBefore: stockBefore ?? item.stockLevels.currentStock,
       stockAfter: stockAfter ?? item.stockLevels.currentStock,
       reason: dto.reason,
-      createdBy: dto.createdBy,
       orderId: dto.orderId,
       isAutomated: dto.createdBy === 'system',
-    });
+    };
+
+    // Only set createdBy if it's not a system operation
+    if (dto.createdBy !== 'system') {
+      movementData.createdBy = dto.createdBy;
+    }
+
+    const movement = new this.stockMovementModel(movementData);
 
     return movement.save();
   }
@@ -332,11 +340,16 @@ export class InventoryService {
     lowStock?: boolean;
     outOfStock?: boolean;
     search?: string;
+    branchId?: string;
   }): Promise<InventoryItem[]> {
     const query: FilterQuery<InventoryItemDocument> = {
       restaurantId,
       isActive: true,
     };
+
+    if (filters?.branchId) {
+      query.branchId = filters.branchId;
+    }
 
     if (filters?.category) {
       query.category = filters.category;
@@ -384,5 +397,58 @@ export class InventoryService {
     }
 
     return alert;
+  }
+
+  // Branch-specific methods
+  async getActiveAlertsByBranch(restaurantId: string, branchId: string): Promise<StockAlert[]> {
+    return this.stockAlertModel
+      .find({ restaurantId, branchId, isActive: true, isRead: false })
+      .populate('inventoryItemId')
+      .sort({ severity: 1, createdAt: -1 });
+  }
+
+  async getInventoryAnalyticsByBranch(restaurantId: string, branchId: string): Promise<InventoryAnalytics> {
+    const items = await this.inventoryItemModel.find({ restaurantId, branchId });
+
+    const totalItems = items.length;
+    const lowStockItems = items.filter(
+      item => item.tracking?.isLowStock || item.stockLevels.currentStock <= item.stockLevels.minimumStock
+    ).length;
+    const outOfStockItems = items.filter(
+      item => item.tracking?.isOutOfStock || item.stockLevels.currentStock === 0
+    ).length;
+
+    const totalInventoryValue = items.reduce((total, item) => {
+      return total + (item.stockLevels.currentStock * item.pricing.costPerUnit);
+    }, 0);
+
+    // Get recent stock movements for this branch
+    const recentMovements = await this.stockMovementModel.find({
+      restaurantId,
+      branchId,
+      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+    });
+
+    const totalConsumed = recentMovements
+      .filter(movement => movement.direction === 'out')
+      .reduce((total, movement) => total + Math.abs(movement.details.quantity), 0);
+
+    const totalPurchased = recentMovements
+      .filter(movement => movement.direction === 'in' && movement.type === 'purchase')
+      .reduce((total, movement) => total + movement.details.quantity, 0);
+
+    const totalPurchaseValue = recentMovements
+      .filter(movement => movement.direction === 'in' && movement.type === 'purchase')
+      .reduce((total, movement) => total + movement.details.totalCost, 0);
+
+    return {
+      totalItems,
+      lowStockItems,
+      outOfStockItems,
+      totalInventoryValue,
+      totalConsumed,
+      totalPurchased,
+      totalPurchaseValue,
+    };
   }
 }

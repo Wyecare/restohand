@@ -46,7 +46,7 @@ const authSlice = createSlice({
         userId: session?.userId,
         restaurantId: session?.restaurantId,
         roles: session?.roles,
-        displayName: session?.displayName
+        displayName: session?.displayName,
       });
 
       state.idToken = idToken;
@@ -113,11 +113,5 @@ export const selectActiveRestaurantId = (state: { auth: AuthState }) =>
 const EMPTY_ROLES: string[] = [];
 export const selectUserRoles = (state: { auth: AuthState }) => {
   const roles = state.auth.session?.roles ?? EMPTY_ROLES;
-  console.log('👤 Getting user roles:', {
-    sessionExists: !!state.auth.session,
-    roles,
-    sessionId: state.auth.session?.id,
-    userId: state.auth.session?.userId
-  });
   return roles;
 };

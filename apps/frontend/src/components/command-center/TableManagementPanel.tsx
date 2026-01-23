@@ -375,7 +375,7 @@ export const TableManagementPanel: React.FC<TableManagementPanelProps> = ({
                         }
                         ${
                           table.currentStatus.status === 'reserved'
-                            ? 'bg-blue-100 text-blue-800'
+                            ? 'bg-blue-100 '
                             : ''
                         }
                         ${

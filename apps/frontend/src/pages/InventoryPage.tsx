@@ -37,6 +37,13 @@ import {
   useGetInventoryAnalyticsQuery,
   useGetStockAlertsQuery,
   useGetInventoryCategoriesQuery,
+  useUpdateStockMutation,
+  useMarkAlertAsReadMutation,
+  useCreateInventoryItemMutation,
+  useGetInventoryUnitsQuery,
+  useGetInventoryItemsByBranchQuery,
+  useGetInventoryAnalyticsByBranchQuery,
+  useGetStockAlertsByBranchQuery,
 } from '@/store/api/inventoryApi';
 import {
   Package,
@@ -48,7 +55,19 @@ import {
   Plus,
   Eye,
   AlertCircle,
+  Edit,
+  BarChart3,
+  ShoppingCart,
+  Minus,
+  Sparkles,
+  Check,
+  Loader2,
 } from 'lucide-react';
+import {
+  searchInventoryItems,
+  type InventoryItemTemplate,
+} from '@/lib/indian-inventory-items';
+import { useBranchContext } from '@/contexts/BranchContext';
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -60,19 +79,50 @@ const formatCurrency = (amount: number) =>
 const InventoryPage = () => {
   const session = useAppSelector(selectAuthSession);
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const { currentBranch } = useBranchContext();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [stockFilter, setStockFilter] = useState<string>('');
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [showStockUpdate, setShowStockUpdate] = useState(false);
+  const [stockUpdateQuantity, setStockUpdateQuantity] = useState('');
+  const [stockUpdateType, setStockUpdateType] = useState<
+    'purchase' | 'consumption' | 'waste' | 'adjustment'
+  >('purchase');
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItemForm, setNewItemForm] = useState({
+    name: '',
+    description: '',
+    category: '',
+    unit: '',
+    costPerUnit: '',
+    minimumStock: '',
+    reorderPoint: '',
+    reorderQuantity: '',
+    currentStock: '',
+    supplier: '',
+    tags: '',
+  });
+  const [itemSuggestions, setItemSuggestions] = useState<
+    InventoryItemTemplate[]
+  >([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+
+  const [updateStock] = useUpdateStockMutation();
+  const [markAlertAsRead] = useMarkAlertAsReadMutation();
+  const [createInventoryItem, { isLoading: isCreatingItem }] = useCreateInventoryItemMutation();
 
   const {
     data: items,
     isLoading: itemsLoading,
     isError: itemsError,
-  } = useGetInventoryItemsQuery(
-    restaurantId
+  } = useGetInventoryItemsByBranchQuery(
+    restaurantId && currentBranch?._id
       ? {
           restaurantId,
+          branchId: currentBranch._id,
           search: searchQuery || undefined,
           category: selectedCategory || undefined,
           lowStock: stockFilter === 'low' ? true : undefined,
@@ -82,13 +132,22 @@ const InventoryPage = () => {
   );
 
   const { data: analytics, isLoading: analyticsLoading } =
-    useGetInventoryAnalyticsQuery(restaurantId ?? skipToken);
+    useGetInventoryAnalyticsByBranchQuery(
+      restaurantId && currentBranch?._id
+        ? { restaurantId, branchId: currentBranch._id }
+        : skipToken
+    );
 
-  const { data: alerts, isLoading: alertsLoading } = useGetStockAlertsQuery(
-    restaurantId ?? skipToken
+  const { data: alerts, isLoading: alertsLoading } = useGetStockAlertsByBranchQuery(
+    restaurantId && currentBranch?._id
+      ? { restaurantId, branchId: currentBranch._id }
+      : skipToken
   );
 
   const { data: categoriesData } = useGetInventoryCategoriesQuery(
+    restaurantId ?? skipToken
+  );
+  const { data: unitsData } = useGetInventoryUnitsQuery(
     restaurantId ?? skipToken
   );
 
@@ -111,6 +170,147 @@ const InventoryPage = () => {
       return matchesSearch && matchesCategory && matchesStockFilter;
     });
   }, [items, searchQuery, selectedCategory, stockFilter]);
+
+  const handleMarkAlertAsRead = async (alertId: string) => {
+    if (!restaurantId) return;
+    try {
+      await markAlertAsRead({ restaurantId, alertId });
+    } catch (error) {
+      console.error('Failed to mark alert as read:', error);
+    }
+  };
+
+  const handleItemNameChange = (value: string) => {
+    setNewItemForm({ ...newItemForm, name: value });
+
+    // Show suggestions when user types
+    if (value.trim().length > 0) {
+      const suggestions = searchInventoryItems(value);
+      setItemSuggestions(suggestions);
+      setShowSuggestions(true);
+      setSelectedSuggestionIndex(-1);
+    } else {
+      setShowSuggestions(false);
+      setItemSuggestions([]);
+    }
+  };
+
+  const selectSuggestion = (suggestion: InventoryItemTemplate) => {
+    setNewItemForm({
+      name: suggestion.name,
+      description: suggestion.description || '',
+      category: suggestion.category,
+      unit: suggestion.unit,
+      costPerUnit: suggestion.estimatedCostPerUnit.toString(),
+      minimumStock: suggestion.minimumStock.toString(),
+      reorderPoint: suggestion.reorderPoint.toString(),
+      reorderQuantity: suggestion.reorderQuantity.toString(),
+      currentStock: '0',
+      supplier: '',
+      tags: suggestion.tags.join(', '),
+    });
+    setShowSuggestions(false);
+    setItemSuggestions([]);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || itemSuggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) =>
+          prev < itemSuggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : prev));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedSuggestionIndex >= 0) {
+          selectSuggestion(itemSuggestions[selectedSuggestionIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowSuggestions(false);
+        break;
+    }
+  };
+
+  const handleStockUpdate = async (itemId: string) => {
+    if (!restaurantId || !stockUpdateQuantity) return;
+    try {
+      await updateStock({
+        restaurantId,
+        itemId,
+        quantity: parseFloat(stockUpdateQuantity),
+        type: stockUpdateType,
+      });
+      toast({
+        title: 'Stock updated successfully',
+        description: `Stock has been updated`,
+      });
+      setShowStockUpdate(false);
+      setSelectedItem(null);
+      setStockUpdateQuantity('');
+    } catch (error) {
+      console.error('Failed to update stock:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update stock. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddItem = async () => {
+    if (!restaurantId) return;
+    try {
+      await createInventoryItem({
+        restaurantId,
+        name: newItemForm.name,
+        description: newItemForm.description || undefined,
+        category: newItemForm.category,
+        unit: newItemForm.unit,
+        costPerUnit: parseFloat(newItemForm.costPerUnit),
+        minimumStock: parseFloat(newItemForm.minimumStock),
+        reorderPoint: parseFloat(newItemForm.reorderPoint),
+        reorderQuantity: parseFloat(newItemForm.reorderQuantity),
+        currentStock: parseFloat(newItemForm.currentStock) || 0,
+        supplier: newItemForm.supplier || undefined,
+        tags: newItemForm.tags
+          ? newItemForm.tags.split(',').map((tag) => tag.trim())
+          : undefined,
+      }).unwrap();
+      toast({
+        title: 'Item added successfully',
+        description: `${newItemForm.name} has been added to your inventory`,
+      });
+      setShowAddItem(false);
+      setNewItemForm({
+        name: '',
+        description: '',
+        category: '',
+        unit: '',
+        costPerUnit: '',
+        minimumStock: '',
+        reorderPoint: '',
+        reorderQuantity: '',
+        currentStock: '',
+        supplier: '',
+        tags: '',
+      });
+    } catch (error) {
+      console.error('Failed to create inventory item:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add inventory item. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (!session) {
     return <Navigate to="/login" replace />;
@@ -145,7 +345,7 @@ const InventoryPage = () => {
             Track stock levels, monitor consumption, and manage supplies
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setShowAddItem(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Item
         </Button>
@@ -170,10 +370,10 @@ const InventoryPage = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                 {analytics.lowStockItems}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -187,10 +387,10 @@ const InventoryPage = () => {
               <CardTitle className="text-sm font-medium">
                 Out of Stock
               </CardTitle>
-              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {analytics.outOfStockItems}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -202,7 +402,7 @@ const InventoryPage = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -221,7 +421,7 @@ const InventoryPage = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              <AlertTriangle className="h-5 w-5 text-muted-foreground" />
               Stock Alerts
             </CardTitle>
             <CardDescription>
@@ -232,25 +432,43 @@ const InventoryPage = () => {
             {criticalAlerts.map((alert) => (
               <div
                 key={alert.id}
-                className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg"
+                className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg dark:bg-red-950/20 dark:border-red-900/40"
               >
                 <div className="flex items-center gap-3">
-                  <AlertCircle className="h-4 w-4 text-red-500" />
+                  <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
                   <span className="text-sm">{alert.message}</span>
                 </div>
-                <Badge variant="destructive">Critical</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="destructive">Critical</Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleMarkAlertAsRead(alert.id)}
+                  >
+                    <Eye className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             ))}
             {warningAlerts.slice(0, 3).map((alert) => (
               <div
                 key={alert.id}
-                className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg"
+                className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg dark:bg-orange-950/20 dark:border-orange-900/40"
               >
                 <div className="flex items-center gap-3">
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                   <span className="text-sm">{alert.message}</span>
                 </div>
-                <Badge variant="secondary">Warning</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Warning</Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleMarkAlertAsRead(alert.id)}
+                  >
+                    <Eye className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             ))}
             {warningAlerts.length > 3 && (
@@ -367,9 +585,21 @@ const InventoryPage = () => {
                         {formatCurrency(item.pricing.costPerUnit)}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedItem(item.id);
+                              setShowStockUpdate(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -391,6 +621,414 @@ const InventoryPage = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Stock Update Modal */}
+      {showStockUpdate && selectedItem && (
+        <Card className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background border rounded-lg shadow-lg p-6 w-full max-w-md mx-4">
+            <CardHeader className="px-0 pt-0">
+              <CardTitle>Update Stock</CardTitle>
+              <CardDescription>
+                {filteredItems?.find((item) => item.id === selectedItem)?.name}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-0">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Quantity</label>
+                  <Input
+                    type="number"
+                    value={stockUpdateQuantity}
+                    onChange={(e) => setStockUpdateQuantity(e.target.value)}
+                    placeholder="Enter quantity"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Type</label>
+                  <Select
+                    value={stockUpdateType}
+                    onValueChange={(value: any) => setStockUpdateType(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="purchase">
+                        Purchase (Add Stock)
+                      </SelectItem>
+                      <SelectItem value="consumption">
+                        Consumption (Use Stock)
+                      </SelectItem>
+                      <SelectItem value="waste">
+                        Waste (Remove Stock)
+                      </SelectItem>
+                      <SelectItem value="adjustment">Adjustment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowStockUpdate(false);
+                      setSelectedItem(null);
+                      setStockUpdateQuantity('');
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => handleStockUpdate(selectedItem)}
+                    disabled={!stockUpdateQuantity}
+                    className="flex-1"
+                  >
+                    Update Stock
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </div>
+        </Card>
+      )}
+
+      {/* Add Item Modal */}
+      {showAddItem && (
+        <Card className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background border rounded-lg shadow-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader className="px-0 pt-0">
+              <CardTitle>Add New Inventory Item</CardTitle>
+              <CardDescription>
+                Create a new inventory item to track stock levels
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-0">
+              <div className="space-y-4">
+                {/* Quick Add Common Items */}
+                <div className="bg-accent/20 border border-accent/40 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Quick Add Common Items
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { name: 'Onion', category: 'vegetables' },
+                      { name: 'Tomato', category: 'vegetables' },
+                      { name: 'Basmati Rice', category: 'grains' },
+                      { name: 'Paneer', category: 'dairy' },
+                      { name: 'Chicken', category: 'meat' },
+                      { name: 'Turmeric Powder', category: 'spices' },
+                    ].map((item) => {
+                      const suggestion = searchInventoryItems(item.name).find(
+                        (s) =>
+                          s.name === item.name && s.category === item.category
+                      );
+                      return suggestion ? (
+                        <button
+                          key={suggestion.name}
+                          onClick={() => selectSuggestion(suggestion)}
+                          className="text-left p-2 text-xs bg-background hover:bg-accent/50 border border-border rounded transition-colors"
+                        >
+                          <div className="font-medium">{suggestion.name}</div>
+                          <div className="text-muted-foreground">
+                            ₹{suggestion.estimatedCostPerUnit}/{suggestion.unit}
+                          </div>
+                        </button>
+                      ) : null;
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const allSuggestions = searchInventoryItems('');
+                      setItemSuggestions(allSuggestions);
+                      setShowSuggestions(true);
+                    }}
+                    className="w-full mt-3 text-xs"
+                  >
+                    <Package className="h-3 w-3 mr-1" />
+                    Browse All {searchInventoryItems('').length}+ Common Items
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="relative">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      Item Name *
+                      <Sparkles className="h-3 w-3 text-primary" />
+                      <span className="text-xs text-muted-foreground font-normal">
+                        Smart suggestions available
+                      </span>
+                    </label>
+                    <Input
+                      value={newItemForm.name}
+                      onChange={(e) => handleItemNameChange(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Type to search common items (e.g., onion, rice, paneer)"
+                      autoComplete="off"
+                    />
+
+                    {/* Smart Suggestions Dropdown */}
+                    {showSuggestions && itemSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border border-border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                        <div className="p-2 text-xs text-muted-foreground border-b">
+                          Common Indian restaurant items
+                        </div>
+                        {itemSuggestions.map((suggestion, index) => (
+                          <div
+                            key={`${suggestion.name}-${suggestion.category}`}
+                            className={cn(
+                              'p-3 cursor-pointer border-b border-border/50 hover:bg-accent/50 transition-colors',
+                              selectedSuggestionIndex === index && 'bg-accent'
+                            )}
+                            onClick={() => selectSuggestion(suggestion)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-medium text-sm">
+                                  {suggestion.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {suggestion.description}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                    {suggestion.category}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {suggestion.unit} • ₹
+                                    {suggestion.estimatedCostPerUnit}
+                                  </span>
+                                </div>
+                              </div>
+                              <Check className="h-3 w-3 text-muted-foreground" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Category *</label>
+                    <Select
+                      value={newItemForm.category}
+                      onValueChange={(value) =>
+                        setNewItemForm({ ...newItemForm, category: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categoriesData?.predefinedCategories.map(
+                          (category) => (
+                            <SelectItem key={category} value={category}>
+                              {category.charAt(0).toUpperCase() +
+                                category.slice(1)}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Description</label>
+                  <Input
+                    value={newItemForm.description}
+                    onChange={(e) =>
+                      setNewItemForm({
+                        ...newItemForm,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder="Enter description (optional)"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Unit *</label>
+                    <Select
+                      value={newItemForm.unit}
+                      onValueChange={(value) =>
+                        setNewItemForm({ ...newItemForm, unit: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unitsData?.units.map((unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">
+                      Cost Per Unit *
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={newItemForm.costPerUnit}
+                      onChange={(e) =>
+                        setNewItemForm({
+                          ...newItemForm,
+                          costPerUnit: e.target.value,
+                        })
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Current Stock</label>
+                    <Input
+                      type="number"
+                      value={newItemForm.currentStock}
+                      onChange={(e) =>
+                        setNewItemForm({
+                          ...newItemForm,
+                          currentStock: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">
+                      Minimum Stock *
+                    </label>
+                    <Input
+                      type="number"
+                      value={newItemForm.minimumStock}
+                      onChange={(e) =>
+                        setNewItemForm({
+                          ...newItemForm,
+                          minimumStock: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">
+                      Reorder Point *
+                    </label>
+                    <Input
+                      type="number"
+                      value={newItemForm.reorderPoint}
+                      onChange={(e) =>
+                        setNewItemForm({
+                          ...newItemForm,
+                          reorderPoint: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">
+                      Reorder Quantity *
+                    </label>
+                    <Input
+                      type="number"
+                      value={newItemForm.reorderQuantity}
+                      onChange={(e) =>
+                        setNewItemForm({
+                          ...newItemForm,
+                          reorderQuantity: e.target.value,
+                        })
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Supplier</label>
+                    <Input
+                      value={newItemForm.supplier}
+                      onChange={(e) =>
+                        setNewItemForm({
+                          ...newItemForm,
+                          supplier: e.target.value,
+                        })
+                      }
+                      placeholder="Supplier name (optional)"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Tags</label>
+                  <Input
+                    value={newItemForm.tags}
+                    onChange={(e) =>
+                      setNewItemForm({ ...newItemForm, tags: e.target.value })
+                    }
+                    placeholder="Comma-separated tags (e.g., perishable, organic)"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddItem(false);
+                      setNewItemForm({
+                        name: '',
+                        description: '',
+                        category: '',
+                        unit: '',
+                        costPerUnit: '',
+                        minimumStock: '',
+                        reorderPoint: '',
+                        reorderQuantity: '',
+                        currentStock: '',
+                        supplier: '',
+                        tags: '',
+                      });
+                    }}
+                    disabled={isCreatingItem}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAddItem}
+                    disabled={
+                      isCreatingItem ||
+                      !newItemForm.name ||
+                      !newItemForm.category ||
+                      !newItemForm.unit ||
+                      !newItemForm.costPerUnit ||
+                      !newItemForm.minimumStock ||
+                      !newItemForm.reorderPoint ||
+                      !newItemForm.reorderQuantity
+                    }
+                    className="flex-1"
+                  >
+                    {isCreatingItem && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    {isCreatingItem ? 'Adding...' : 'Add Item'}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

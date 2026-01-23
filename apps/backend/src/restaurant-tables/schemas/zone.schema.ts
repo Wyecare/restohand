@@ -8,6 +8,9 @@ export class Zone {
   @Prop({ type: Types.ObjectId, ref: 'Restaurant', required: true, index: true })
   restaurantId!: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Branch', index: true })
+  branchId?: Types.ObjectId;
+
   @Prop({ type: String, required: true, trim: true })
   name!: string;
 
@@ -23,5 +26,6 @@ export class Zone {
 
 export const ZoneSchema = SchemaFactory.createForClass(Zone);
 
-// Ensure zone names are unique per restaurant
-ZoneSchema.index({ restaurantId: 1, name: 1 }, { unique: true });
+// Ensure zone names are unique per restaurant and branch
+ZoneSchema.index({ restaurantId: 1, branchId: 1, name: 1 }, { unique: true });
+ZoneSchema.index({ branchId: 1, isActive: 1 });

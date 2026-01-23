@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsOptional, IsPhoneNumber, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsPhoneNumber, IsString, MaxLength, MinLength, IsMongoId } from 'class-validator';
 import { UserRole } from '../../common/enums/user-role.enum';
 
 export class CreateStaffInvitationDto {
@@ -9,20 +9,27 @@ export class CreateStaffInvitationDto {
   @MaxLength(100)
   name!: string;
 
-  @ApiProperty({ example: '+919876543210' })
-  @IsPhoneNumber('IN')
-  phoneNumber!: string;
-
-  @ApiProperty({ example: 'john@example.com', required: false })
-  @IsOptional()
+  @ApiProperty({ example: 'john@example.com' })
   @IsEmail()
-  email?: string;
+  email!: string;
+
+  @ApiProperty({ example: '+919876543210', required: false })
+  @IsOptional()
+  @IsPhoneNumber('IN')
+  phoneNumber?: string;
 
   @ApiProperty({
-    enum: [UserRole.Chef, UserRole.Waiter, UserRole.Cashier],
+    example: '507f1f77bcf86cd799439011',
+    description: 'Branch ID where the staff member will be assigned'
+  })
+  @IsMongoId()
+  branchId!: string;
+
+  @ApiProperty({
+    enum: [UserRole.Chef, UserRole.Waiter, UserRole.Cashier, UserRole.Manager],
     example: UserRole.Chef
   })
-  @IsEnum([UserRole.Chef, UserRole.Waiter, UserRole.Cashier])
+  @IsEnum([UserRole.Chef, UserRole.Waiter, UserRole.Cashier, UserRole.Manager])
   role!: UserRole;
 }
 
@@ -32,9 +39,16 @@ export class AcceptStaffInvitationDto {
   @MinLength(10)
   invitationToken!: string;
 
-  @ApiProperty({ example: '+919876543210' })
-  @IsPhoneNumber('IN')
-  phoneNumber!: string;
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name!: string;
+
+  @ApiProperty({ example: 'password123' })
+  @IsString()
+  @MinLength(6)
+  password!: string;
 }
 
 export class StaffInvitationResponseDto {
@@ -45,13 +59,16 @@ export class StaffInvitationResponseDto {
   restaurantId!: string;
 
   @ApiProperty()
+  branchId!: string;
+
+  @ApiProperty()
   name!: string;
 
   @ApiProperty()
-  phoneNumber!: string;
+  email!: string;
 
   @ApiProperty({ required: false })
-  email?: string;
+  phoneNumber?: string;
 
   @ApiProperty({ enum: UserRole })
   role!: UserRole;

@@ -224,7 +224,7 @@ const MenuPage = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Dishes</CardTitle>
-            <Utensils className="h-4 w-4 text-blue-600" />
+            <Utensils className="h-4 w-4 " />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{menuStats.total}</div>

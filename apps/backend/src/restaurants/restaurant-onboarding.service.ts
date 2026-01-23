@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Restaurant } from './schemas/restaurant.schema';
+import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
 import { RazorpayService } from '../payments/razorpay.service';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../common/enums/user-role.enum';
@@ -38,6 +39,7 @@ export class RestaurantOnboardingService {
 
   constructor(
     @InjectModel(Restaurant.name) private restaurantModel: Model<Restaurant>,
+    @InjectModel(Branch.name) private branchModel: Model<BranchDocument>,
     private readonly razorpayService: RazorpayService,
     private readonly usersService: UsersService
   ) {}
@@ -198,7 +200,49 @@ export class RestaurantOnboardingService {
         `Restaurant onboarded successfully with SaaS model: ${savedRestaurant.id}`
       );
 
-      // 3. Associate user with restaurant and set Firebase claims
+      // 3. Create default main branch
+      const mainBranch = new this.branchModel({
+        restaurantId: savedRestaurant.id,
+        name: 'Main Branch',
+        slug: 'main',
+        description: `Main branch of ${savedRestaurant.name}`,
+        address: {
+          line1: data.address.street,
+          city: data.address.city,
+          state: data.address.state,
+          postalCode: data.address.postalCode,
+          country: data.address.country,
+        },
+        contactPhone: data.phone,
+        contactEmail: data.email,
+        isMainBranch: true,
+        isActive: true,
+        settings: {
+          orderNumberPrefix: 'ORD',
+          enableTakeout: true,
+          enableDineIn: true,
+          enableDelivery: false,
+          deliveryRadius: 0,
+          deliveryFee: 0,
+          minimumOrderValue: 0,
+          operatingDays: [0, 1, 2, 3, 4, 5, 6],
+        },
+        sortOrder: 0,
+      });
+
+      const savedBranch = await mainBranch.save();
+
+      this.logger.log(
+        `Main branch created successfully for restaurant: ${savedBranch.id}`
+      );
+
+      // Update restaurant to enable multi-branch
+      await this.restaurantModel.findByIdAndUpdate(savedRestaurant.id, {
+        isMultibranchEnabled: true,
+        branchCount: 1,
+      });
+
+      // 4. Associate user with restaurant and set Firebase claims
       const actor = {
         uid: ownerId,
         email: data.email,
@@ -211,11 +255,12 @@ export class RestaurantOnboardingService {
       await this.usersService.attachRestaurantToUser(
         actor,
         savedRestaurant.id,
-        [UserRole.Manager]
+        [UserRole.Manager],
+        savedBranch.id
       );
 
       this.logger.log(
-        `User ${ownerId} attached to restaurant ${savedRestaurant.id}`
+        `User ${ownerId} attached to restaurant ${savedRestaurant.id} and main branch ${savedBranch.id}`
       );
 
       // 4. Schedule first subscription billing (after trial)

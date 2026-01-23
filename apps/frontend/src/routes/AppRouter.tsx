@@ -30,6 +30,7 @@ import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
 import InventoryPage from '@/pages/InventoryPage';
 import RecipesPage from '@/pages/RecipesPage';
 import SubscriptionPage from '@/pages/SubscriptionPage';
+import BranchManagementPage from '@/pages/BranchManagementPage';
 
 const AppRouter = () => {
   return (
@@ -97,7 +98,8 @@ const AppRouter = () => {
           <Route path="tables" element={<TablesPage />} />
           <Route path="command-center" element={<CommandCenterPage />} />
           <Route path="customer-qr" element={<CustomerQrPage />} />
-          {/* <Route path="inventory" element={<InventoryPage />} /> */}
+          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="branches" element={<BranchManagementPage />} />
           {/* <Route path="recipes" element={<RecipesPage />} /> */}
           <Route path="reports" element={<ReportsPage />} />
           <Route path="subscription" element={<SubscriptionPage />} />

@@ -176,7 +176,7 @@ const CustomerQrPage = () => {
               <h4 className="font-medium text-sm mb-3 text-blue-900">
                 {tCustomer('qr.usage.howItWorks')}
               </h4>
-              <ul className="space-y-2 text-sm text-blue-800">
+              <ul className="space-y-2 text-sm ">
                 <li className="flex items-start gap-2">
                   <span className="bg-blue-100 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold mt-0.5">
                     1
@@ -207,7 +207,7 @@ const CustomerQrPage = () => {
               <h4 className="font-medium text-sm mb-3 text-blue-900">
                 {tCustomer('qr.usage.benefits.title')}:
               </h4>
-              <ul className="space-y-2 text-sm text-blue-800">
+              <ul className="space-y-2 text-sm ">
                 <li className="flex items-start gap-2">
                   <span className="text-green-600">✓</span>
                   {tCustomer('qr.usage.benefits.contactless')}

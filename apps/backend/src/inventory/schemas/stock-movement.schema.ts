@@ -37,6 +37,9 @@ export class StockMovement {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', required: true, index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId?: string;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'InventoryItem', required: true, index: true })
   inventoryItemId!: string;
 
@@ -67,8 +70,8 @@ export class StockMovement {
   @Prop({ type: String, trim: true })
   reason?: string; // Reason for adjustment/waste
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true })
-  createdBy!: string;
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'User' })
+  createdBy?: string;
 
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Order' })
   orderId?: string; // If movement is due to order consumption
@@ -87,3 +90,6 @@ StockMovementSchema.index({ restaurantId: 1, createdAt: -1 });
 StockMovementSchema.index({ restaurantId: 1, inventoryItemId: 1, createdAt: -1 });
 StockMovementSchema.index({ restaurantId: 1, type: 1, createdAt: -1 });
 StockMovementSchema.index({ restaurantId: 1, direction: 1, createdAt: -1 });
+StockMovementSchema.index({ branchId: 1, createdAt: -1 });
+StockMovementSchema.index({ branchId: 1, inventoryItemId: 1, createdAt: -1 });
+StockMovementSchema.index({ branchId: 1, type: 1, createdAt: -1 });

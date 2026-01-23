@@ -61,7 +61,8 @@ export class OrdersService {
 
   async create(
     restaurantId: string,
-    dto: CreateOrderDto
+    dto: CreateOrderDto,
+    branchId?: string
   ): Promise<OrderResponseDto> {
     const orderNumber = await this.generateOrderNumber(restaurantId);
     const paymentMethod = dto.paymentMethod ?? 'upi';
@@ -101,6 +102,7 @@ export class OrdersService {
 
     const created = await this.orderModel.create({
       restaurantId,
+      branchId,
       orderNumber,
       sessionId: dto.sessionId,
       tableNumber: dto.tableNumber,
@@ -221,12 +223,17 @@ export class OrdersService {
 
   async findAll(
     restaurantId: string,
-    query: QueryOrdersDto
+    query: QueryOrdersDto,
+    branchId?: string
   ): Promise<OrderListResponseDto> {
     const filter: FilterQuery<OrderDocument> = {
       restaurantId,
       isArchived: false,
     };
+
+    if (branchId) {
+      filter.branchId = branchId;
+    }
 
     if (query.status) {
       filter.status = query.status;

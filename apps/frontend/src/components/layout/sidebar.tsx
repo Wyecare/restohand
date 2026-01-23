@@ -34,6 +34,7 @@ import {
   BookOpen,
   CreditCard,
   Monitor,
+  Building2,
 } from 'lucide-react';
 
 interface NavLink {
@@ -50,7 +51,8 @@ const managerLinks: NavLink[] = [
   },
   { titleKey: 'navigation.orders', href: '/orders', icon: ShoppingBag },
   { titleKey: 'navigation.menu', href: '/menu', icon: UtensilsCrossed },
-  // { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
+  { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
+  { titleKey: 'navigation.branches', href: '/branches', icon: Building2 },
   // { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
   { titleKey: 'navigation.tables', href: '/tables', icon: Table },
   // { titleKey: 'navigation.commandCenter', href: '/command-center', icon: Monitor },

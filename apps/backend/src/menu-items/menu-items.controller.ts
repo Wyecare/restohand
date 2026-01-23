@@ -11,6 +11,8 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ForbiddenException,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
@@ -27,6 +29,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { BranchPermissionsService } from '../users/branch-permissions.service';
 import { CreateMenuItemDto } from './dtos/create-menu-item.dto';
 import { MenuItemListResponseDto } from './dtos/menu-item-list-response.dto';
 import { MenuItemResponseDto } from './dtos/menu-item-response.dto';
@@ -59,17 +63,36 @@ const multerConfig = {
 export class MenuItemsController {
   constructor(
     private readonly menuItemsService: MenuItemsService,
-    private readonly imageUploadService: ImageUploadService
+    private readonly imageUploadService: ImageUploadService,
+    private readonly branchPermissions: BranchPermissionsService,
   ) {}
 
   @Post()
   @ApiParam({ name: 'restaurantId' })
   @ApiCreatedResponse({ type: MenuItemResponseDto })
   async create(
+    @Request() req: any,
     @Param('restaurantId') restaurantId: string,
     @Body() dto: CreateMenuItemDto
   ) {
-    return this.menuItemsService.create(restaurantId, dto);
+    const user = req.user as AuthenticatedUser;
+
+    // Get user's manageable branches to determine which branch to assign
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    const manageableBranches = permissions.getManageableBranches();
+
+    // For main managers, we need to specify a branchId in the request or use the first branch
+    // For branch managers, use their assigned branch
+    let branchId: string;
+
+    if (manageableBranches.length > 0) {
+      // Use the first manageable branch for both main managers and branch managers
+      branchId = manageableBranches[0];
+    } else {
+      throw new ForbiddenException('No manageable branches found');
+    }
+
+    return this.menuItemsService.createForBranch(restaurantId, branchId, dto);
   }
 
   @Get()
@@ -79,10 +102,25 @@ export class MenuItemsController {
   @ApiQuery({ name: 'search', required: false })
   @ApiOkResponse({ type: MenuItemListResponseDto })
   async findAll(
+    @Request() req: any,
     @Param('restaurantId') restaurantId: string,
     @Query() query: QueryMenuItemsDto
   ) {
-    return this.menuItemsService.findAll(restaurantId, query);
+    const user = req.user as AuthenticatedUser;
+
+    // Get user's manageable branches
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    const manageableBranches = permissions.getManageableBranches();
+
+    if (permissions.canAccessAllBranches()) {
+      // Main manager - return items from all branches they can manage
+      return this.menuItemsService.findAllByBranches(restaurantId, manageableBranches, query);
+    } else if (manageableBranches.length > 0) {
+      // Branch manager - return items from their assigned branch
+      return this.menuItemsService.findByBranch(restaurantId, manageableBranches[0], query);
+    } else {
+      throw new ForbiddenException('No manageable branches found');
+    }
   }
 
   @Get('profitability-analysis')
@@ -251,5 +289,51 @@ export class MenuItemsController {
     // but keeping it for now in case of accidental deletions
 
     return { success: true };
+  }
+
+  // New branch-aware endpoints
+  @Get('branch/:branchId')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiQuery({ name: 'categoryId', required: false })
+  @ApiQuery({ name: 'isAvailable', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOkResponse({ type: MenuItemListResponseDto })
+  async findByBranch(
+    @Request() req: any,
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Query() query: QueryMenuItemsDto
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to access this branch menu');
+    }
+
+    return this.menuItemsService.findByBranch(restaurantId, branchId, query);
+  }
+
+  @Post('branch/:branchId')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiCreatedResponse({ type: MenuItemResponseDto })
+  async createForBranch(
+    @Request() req: any,
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Body() dto: CreateMenuItemDto
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to create menu items for this branch');
+    }
+
+    return this.menuItemsService.createForBranch(restaurantId, branchId, dto);
   }
 }
