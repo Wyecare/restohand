@@ -41,6 +41,8 @@ import { RestaurantOnboardingService } from '../restaurants/restaurant-onboardin
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { InjectModel } from '@nestjs/mongoose';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
+import { RestaurantTable, RestaurantTableDocument } from '../restaurant-tables/schemas/restaurant-table.schema';
+import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
 import { Model } from 'mongoose';
 
 @ApiTags('orders')
@@ -53,8 +55,36 @@ export class OrdersController {
     private readonly razorpayService: RazorpayService,
     private readonly restaurantOnboardingService: RestaurantOnboardingService,
     @InjectModel(Restaurant.name)
-    private readonly restaurantModel: Model<RestaurantDocument>
+    private readonly restaurantModel: Model<RestaurantDocument>,
+    @InjectModel(RestaurantTable.name)
+    private readonly tableModel: Model<RestaurantTableDocument>,
+    @InjectModel(MenuItem.name)
+    private readonly menuItemModel: Model<MenuItemDocument>
   ) {}
+
+  // CRITICAL FIX: Helper methods for branch isolation
+  private async getBranchIdFromTable(restaurantId: string, tableNumber: string): Promise<string | undefined> {
+    const table = await this.tableModel.findOne({
+      restaurantId,
+      tableNumber: tableNumber.trim(),
+      isActive: true
+    }).lean();
+
+    return table?.branchId?.toString();
+  }
+
+  private async validateItemsBelongToBranch(restaurantId: string, itemIds: string[], branchId: string): Promise<boolean> {
+    if (!branchId || itemIds.length === 0) return true;
+
+    const items = await this.menuItemModel.find({
+      _id: { $in: itemIds },
+      restaurantId,
+      branchId,
+      isAvailable: true
+    }).lean();
+
+    return items.length === itemIds.length;
+  }
 
   @Post()
   @ApiParam({ name: 'restaurantId' })
@@ -468,6 +498,24 @@ export class OrdersController {
   ) {
     this.logger.log(`Calculating cart total for restaurant ${restaurantId}. Items: ${dto.items.length}`);
 
+    // CRITICAL FIX: Get branch ID from table to prevent cross-branch pricing
+    let branchId: string | undefined;
+    if (dto.tableNumber?.trim()) {
+      branchId = await this.getBranchIdFromTable(restaurantId, dto.tableNumber.trim());
+      if (!branchId) {
+        throw new BadRequestException(`Table ${dto.tableNumber} not found or inactive`);
+      }
+    }
+
+    // CRITICAL FIX: Validate all items belong to the correct branch
+    if (branchId) {
+      const itemIds = dto.items.map(item => item.menuItemId);
+      const isValid = await this.validateItemsBelongToBranch(restaurantId, itemIds, branchId);
+      if (!isValid) {
+        throw new BadRequestException('Some items are not available in this branch');
+      }
+    }
+
     // Reuse the same logic as order creation for exact calculation
     const createOrderDto: CreateOrderDto = {
       tableNumber: dto.tableNumber,
@@ -526,6 +574,24 @@ export class OrdersController {
 
     this.logger.log(`Creating order with payment for restaurant ${restaurantId}. Items: ${dto.items.length}, Amount: ₹${dto.totalAmount/100}`);
 
+    // CRITICAL FIX: Get branch ID from table to prevent cross-branch contamination
+    let branchId: string | undefined;
+    if (dto.tableNumber?.trim()) {
+      branchId = await this.getBranchIdFromTable(restaurantId, dto.tableNumber.trim());
+      if (!branchId) {
+        throw new BadRequestException(`Table ${dto.tableNumber} not found or inactive`);
+      }
+    }
+
+    // CRITICAL FIX: Validate all items belong to the correct branch
+    if (branchId) {
+      const itemIds = dto.items.map(item => item.menuItemId);
+      const isValid = await this.validateItemsBelongToBranch(restaurantId, itemIds, branchId);
+      if (!isValid) {
+        throw new BadRequestException('Some items are not available in this branch');
+      }
+    }
+
     // Create order first
     const createOrderDto: CreateOrderDto = {
       tableNumber: dto.tableNumber,
@@ -537,7 +603,8 @@ export class OrdersController {
       paymentMethod: 'upi'
     };
 
-    const order = await this.ordersService.create(restaurantId, createOrderDto);
+    // CRITICAL FIX: Pass branchId to ensure order is created in the correct branch
+    const order = await this.ordersService.create(restaurantId, createOrderDto, branchId);
 
     // Verify amount matches calculated total
     const calculatedAmount = Math.round(order.totalAmount * 100);

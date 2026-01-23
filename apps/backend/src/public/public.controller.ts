@@ -14,7 +14,15 @@ export class PublicController {
   @Get('restaurants/:slug/menu')
   async getMenu(@Param('slug') slug: string, @Query('table') table?: string) {
     const restaurant = await this.publicService.getRestaurantBySlug(slug);
-    const menu = await this.publicService.getMenuForRestaurant(restaurant.id);
+
+    // CRITICAL FIX: Determine branch from table to prevent cross-branch menu contamination
+    let branchId: string | undefined;
+    if (table?.trim()) {
+      branchId = await this.publicService.getBranchIdFromTable(restaurant.id, table.trim());
+    }
+
+    // Load menu filtered by branch - this prevents Branch A customers seeing Branch B items
+    const menu = await this.publicService.getMenuForRestaurant(restaurant.id, branchId);
 
     // If table is specified, check for active orders on that table
     let activeOrder = null;

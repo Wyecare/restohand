@@ -5,6 +5,7 @@ import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restauran
 import { MenuCategory, MenuCategoryDocument } from '../menu-categories/schemas/menu-category.schema';
 import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
+import { RestaurantTable, RestaurantTableDocument } from '../restaurant-tables/schemas/restaurant-table.schema';
 import { OrdersService } from '../orders/orders.service';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
@@ -20,6 +21,8 @@ export class PublicService {
     private readonly itemModel: Model<MenuItemDocument>,
     @InjectModel(Order.name)
     private readonly orderModel: Model<OrderDocument>,
+    @InjectModel(RestaurantTable.name)
+    private readonly tableModel: Model<RestaurantTableDocument>,
     private readonly ordersService: OrdersService
   ) {}
 
@@ -45,14 +48,35 @@ export class PublicService {
     };
   }
 
-  async getMenuForRestaurant(restaurantId: string) {
+  // CRITICAL FIX: Get branch ID from table number for proper branch isolation
+  async getBranchIdFromTable(restaurantId: string, tableNumber: string): Promise<string | undefined> {
+    const table = await this.tableModel.findOne({
+      restaurantId,
+      tableNumber: tableNumber.trim(),
+      isActive: true
+    }).lean();
+
+    return table?.branchId?.toString();
+  }
+
+  async getMenuForRestaurant(restaurantId: string, branchId?: string) {
+    // CRITICAL FIX: Add branch filtering to prevent cross-branch menu contamination
+    const categoryQuery: any = { restaurantId, isActive: true };
+    const itemQuery: any = { restaurantId, isAvailable: true };
+
+    // If branchId is provided, only show items/categories from that branch
+    if (branchId) {
+      categoryQuery.branchId = branchId;
+      itemQuery.branchId = branchId;
+    }
+
     const [categories, items] = await Promise.all([
       this.categoryModel
-        .find({ restaurantId, isActive: true })
+        .find(categoryQuery)
         .sort({ displayOrder: 1, createdAt: 1 })
         .lean(),
       this.itemModel
-        .find({ restaurantId, isAvailable: true })
+        .find(itemQuery)
         .sort({ displayOrder: 1, name: 1 })
         .lean(),
     ]);
@@ -88,6 +112,21 @@ export class PublicService {
       categories: grouped,
       uncategorised: uncategorisedItems,
     };
+  }
+
+  // CRITICAL FIX: Validate that ordered items belong to the correct branch
+  async validateItemsBelongToBranch(restaurantId: string, itemIds: string[], branchId: string): Promise<boolean> {
+    if (!branchId || itemIds.length === 0) return true;
+
+    const items = await this.itemModel.find({
+      _id: { $in: itemIds },
+      restaurantId,
+      branchId,
+      isAvailable: true
+    }).lean();
+
+    // All items must belong to the specified branch
+    return items.length === itemIds.length;
   }
 
   async getOrderById(slug: string, orderId: string) {

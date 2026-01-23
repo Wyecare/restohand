@@ -9,6 +9,7 @@ import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.
 import { OrderEvent, OrderEventSchema } from './schemas/order-event.schema';
 import { OrdersGateway } from './orders.gateway';
 import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema';
+import { RestaurantTable, RestaurantTableSchema } from '../restaurant-tables/schemas/restaurant-table.schema';
 import { OrderCounter, OrderCounterSchema } from './schemas/order-counter.schema';
 import { OrderModification, OrderModificationSchema } from './schemas/order-modification.schema';
 import { OrderModificationController } from './order-modification.controller';
@@ -28,6 +29,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: OrderEvent.name, schema: OrderEventSchema },
       { name: MenuItem.name, schema: MenuItemSchema },
+      { name: RestaurantTable.name, schema: RestaurantTableSchema },
       { name: OrderCounter.name, schema: OrderCounterSchema },
       { name: OrderModification.name, schema: OrderModificationSchema },
     ]),

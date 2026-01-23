@@ -4,6 +4,7 @@ import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.
 import { MenuCategory, MenuCategorySchema } from '../menu-categories/schemas/menu-category.schema';
 import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema';
 import { Order, OrderSchema } from '../orders/schemas/order.schema';
+import { RestaurantTable, RestaurantTableSchema } from '../restaurant-tables/schemas/restaurant-table.schema';
 import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
 import { OrdersModule } from '../orders/orders.module';
@@ -15,6 +16,7 @@ import { OrdersModule } from '../orders/orders.module';
       { name: MenuCategory.name, schema: MenuCategorySchema },
       { name: MenuItem.name, schema: MenuItemSchema },
       { name: Order.name, schema: OrderSchema },
+      { name: RestaurantTable.name, schema: RestaurantTableSchema },
     ]),
     OrdersModule,
   ],
