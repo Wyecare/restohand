@@ -276,6 +276,26 @@ export const ordersApi = baseApi.injectEndpoints({
           : [{ type: 'Order' as const, id: `LIST-${restaurantId}` }],
     }),
 
+    listOrdersByBranch: builder.query<
+      PaginatedResponse<Order>,
+      ListOrdersParams & { branchId: string }
+    >({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/orders/branch/${branchId}`,
+        params,
+      }),
+      providesTags: (result, _error, { restaurantId, branchId }) =>
+        result
+          ? [
+              ...result.data.map((order) => ({
+                type: 'Order' as const,
+                id: order.id,
+              })),
+              { type: 'Order' as const, id: `LIST-${restaurantId}-${branchId}` },
+            ]
+          : [{ type: 'Order' as const, id: `LIST-${restaurantId}-${branchId}` }],
+    }),
+
     getOrder: builder.query<Order, { restaurantId: string; orderId: string }>(
       {
         query: ({ restaurantId, orderId }) =>
@@ -477,6 +497,7 @@ export const ordersApi = baseApi.injectEndpoints({
 
 export const {
   useListOrdersQuery,
+  useListOrdersByBranchQuery,
   useGetOrderQuery,
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,

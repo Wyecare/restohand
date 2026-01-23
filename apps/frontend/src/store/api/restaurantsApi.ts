@@ -658,11 +658,14 @@ export const restaurantsApi = baseApi.injectEndpoints({
         menu: PublicMenuPayload;
         activeOrder?: PublicOrder;
       },
-      { slug: string; table?: string }
+      { slug: string; table?: string; tableId?: string }
     >({
-      query: ({ slug, table }) => ({
+      query: ({ slug, table, tableId }) => ({
         url: `/public/restaurants/${slug}/menu`,
-        params: table ? { table } : {},
+        params: {
+          ...(table && { table }),
+          ...(tableId && { tableId })
+        },
       }),
     }),
 

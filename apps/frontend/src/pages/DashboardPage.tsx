@@ -25,8 +25,9 @@ import {
   selectAuthSession,
 } from '@/store/slices/authSlice';
 import { useGetRestaurantQuery } from '@/store/api/restaurantsApi';
-import { useListOrdersQuery } from '@/store/api/ordersApi';
+import { useListOrdersByBranchQuery } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
+import { useBranchContext } from '@/contexts/BranchContext';
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import {
   RefreshCw,
@@ -49,6 +50,7 @@ const formatCurrency = (amount: number, currency: string) =>
 const DashboardPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const session = useAppSelector(selectAuthSession);
+  const { currentBranch } = useBranchContext();
   const { t: tDashboard } = useDashboardTranslation();
   const { t: tCommon, formatCurrency: formatCurrencyLocale } = useCommonTranslation();
 
@@ -58,12 +60,13 @@ const DashboardPage = () => {
     isError: isRestaurantError,
   } = useGetRestaurantQuery(restaurantId ?? skipToken);
 
+  const branchId = currentBranch?._id;
   const {
     data: recentOrders,
     isLoading: isOrdersLoading,
     refetch: refetchOrders,
-  } = useListOrdersQuery(
-    restaurantId ? { restaurantId, limit: 5, page: 1 } : skipToken
+  } = useListOrdersByBranchQuery(
+    restaurantId && branchId ? { restaurantId, branchId, limit: 5, page: 1 } : skipToken
   );
 
   // Real-time order updates via WebSocket

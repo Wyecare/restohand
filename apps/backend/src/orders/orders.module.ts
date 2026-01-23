@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
+import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { Order, OrderSchema } from './schemas/order.schema';
@@ -24,6 +25,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
     AuthModule,
     GstModule,
     RestaurantsModule,
+    RestaurantTablesModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Restaurant.name, schema: RestaurantSchema },

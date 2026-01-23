@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model } from 'mongoose';
+import { FilterQuery, Model, Types } from 'mongoose';
 import { OrderProgressStage } from '../common/enums/order-progress.enum';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
@@ -38,6 +38,8 @@ import {
   TaxCalculation,
 } from '../gst/gst.service';
 import { RazorpayService } from '../payments/razorpay.service';
+import { TableStatusService } from '../restaurant-tables/table-status.service';
+import { TableStatusType } from '../restaurant-tables/schemas/table-status.schema';
 
 @Injectable()
 export class OrdersService {
@@ -56,7 +58,8 @@ export class OrdersService {
     private readonly orderCounterModel: Model<OrderCounterDocument>,
     private readonly ordersGateway: OrdersGateway,
     private readonly gstService: GstService,
-    private readonly razorpayService: RazorpayService
+    private readonly razorpayService: RazorpayService,
+    private readonly tableStatusService: TableStatusService
   ) {}
 
   async create(
@@ -106,6 +109,7 @@ export class OrdersService {
       orderNumber,
       sessionId: dto.sessionId,
       tableNumber: dto.tableNumber,
+      tableId: dto.tableId,
       customerName: dto.customerName,
       customerPhone: dto.customerPhone,
       customerEmail: dto.customerEmail?.trim().toLowerCase(),
@@ -129,6 +133,7 @@ export class OrdersService {
       taxType: summary.taxType,
     });
 
+    console.log('Created Order successfully:', created);
     const response = this.toDto(created);
 
     await this.recordEvent(
@@ -141,6 +146,28 @@ export class OrdersService {
         taxType: response.taxType,
       }
     );
+
+    console.log('Recording order created event completed');
+
+    // DIRECT TABLE STATUS UPDATE: Update table status immediately upon order creation
+    if (created.tableId) {
+      try {
+        await this.tableStatusService.updateTableStatusFromOrder(
+          restaurantId,
+          created.tableId.toString(),
+          'order-created',
+          {
+            totalAmount: finalTotalAmount,
+            createdBy: created.createdBy?.toString(),
+            createdByName: 'Order System'
+          }
+        );
+        console.log(`Table status updated for table ${created.tableId} after order creation`);
+      } catch (error) {
+        console.error(`Failed to update table status for table ${created.tableId}:`, error);
+        // Don't fail the order creation if table status update fails
+      }
+    }
 
     if (paymentMethod === 'upi' && !this.razorpayService.isEnabled()) {
       const upiConfig = restaurant.upi;
@@ -160,7 +187,6 @@ export class OrdersService {
       });
       response.paymentIntentUrl = `upi://pay?${params.toString()}`;
     }
-
     this.ordersGateway.emitOrderCreated(response);
     return response;
   }
@@ -207,7 +233,9 @@ export class OrdersService {
     );
 
     const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
-    const finalTotalAmount = this.roundToTwo(summary.totalAmount + roundOffAmount);
+    const finalTotalAmount = this.roundToTwo(
+      summary.totalAmount + roundOffAmount
+    );
 
     return {
       subtotal: summary.subtotal,
@@ -217,7 +245,7 @@ export class OrdersService {
       igstAmount: summary.igstAmount,
       roundOffAmount,
       totalAmount: finalTotalAmount,
-      items
+      items,
     };
   }
 
@@ -334,6 +362,15 @@ export class OrdersService {
     orderId: string,
     dto: UpdateOrderStatusDto
   ): Promise<OrderResponseDto> {
+    // Validate inputs
+    if (!orderId || orderId === 'undefined') {
+      throw new BadRequestException('Invalid order ID');
+    }
+
+    if (!restaurantId || restaurantId === 'undefined') {
+      throw new BadRequestException('Invalid restaurant ID');
+    }
+
     const updateDoc: Record<string, unknown> = {};
 
     if (dto.status) {
@@ -369,6 +406,33 @@ export class OrdersService {
       progress: response.progress,
       statusNote: response.statusNote,
     });
+
+    // DIRECT TABLE STATUS UPDATE: Update table status when order is completed or cancelled
+    if (
+      updated.tableId &&
+      (updated.status === OrderStatus.Completed ||
+        updated.status === OrderStatus.Cancelled)
+    ) {
+      try {
+        await this.tableStatusService.updateTableStatusFromOrder(
+          restaurantId,
+          updated.tableId.toString(),
+          updated.status === OrderStatus.Completed ? 'order-completed' : 'order-cancelled',
+          {
+            createdBy: 'system',
+            createdByName: 'Order System'
+          }
+        );
+        console.log(`Table status updated for table ${updated.tableId} after order ${updated.status}`);
+      } catch (error) {
+        console.error(
+          `Failed to update table status for order ${response.orderNumber}:`,
+          error
+        );
+        // Don't fail the order update if table status update fails
+      }
+    }
+
     this.ordersGateway.emitOrderUpdated(response);
     return response;
   }
@@ -378,6 +442,15 @@ export class OrdersService {
     orderId: string,
     dto: UpdateOrderPaymentDto
   ): Promise<OrderResponseDto> {
+    // Validate inputs
+    if (!orderId || orderId === 'undefined') {
+      throw new BadRequestException('Invalid order ID');
+    }
+
+    if (!restaurantId || restaurantId === 'undefined') {
+      throw new BadRequestException('Invalid restaurant ID');
+    }
+
     const updateDoc: Record<string, unknown> = {};
 
     if (dto.paymentStatus) {
@@ -421,7 +494,7 @@ export class OrdersService {
         updated.status !== OrderStatus.Completed &&
         updated.status !== OrderStatus.Cancelled
       ) {
-        updated = await this.orderModel.findByIdAndUpdate(
+        const finalUpdate = await this.orderModel.findByIdAndUpdate(
           updated._id,
           {
             $set: {
@@ -432,6 +505,10 @@ export class OrdersService {
           },
           { new: true }
         );
+
+        if (finalUpdate) {
+          updated = finalUpdate;
+        }
       }
     }
 
@@ -442,6 +519,30 @@ export class OrdersService {
       paidAt: response.paidAt,
       taxInvoiceNumber: response.taxInvoiceNumber,
     });
+
+    // DIRECT TABLE STATUS UPDATE: Update table status when payment is completed
+    if (
+      updated.tableId &&
+      dto.paymentStatus === PaymentStatus.Paid &&
+      updated.status === OrderStatus.Completed
+    ) {
+      try {
+        await this.tableStatusService.updateTableStatusFromOrder(
+          restaurantId,
+          updated.tableId.toString(),
+          'order-completed',
+          {
+            createdBy: 'system',
+            createdByName: 'Order System'
+          }
+        );
+        console.log(`Table status updated for table ${updated.tableId} after payment completion`);
+      } catch (error) {
+        console.error(`Failed to update table status for table ${updated.tableId}:`, error);
+        // Don't fail the payment update if table status update fails
+      }
+    }
+
     this.ordersGateway.emitOrderUpdated(response);
     return response;
   }
@@ -567,8 +668,13 @@ export class OrdersService {
   ): Promise<OrderResponseDto> {
     const order = await this.findOne(restaurantId, orderId);
 
-    if (order.status === OrderStatus.Completed || order.status === OrderStatus.Cancelled) {
-      throw new BadRequestException('Cannot add items to completed or cancelled orders');
+    if (
+      order.status === OrderStatus.Completed ||
+      order.status === OrderStatus.Cancelled
+    ) {
+      throw new BadRequestException(
+        'Cannot add items to completed or cancelled orders'
+      );
     }
 
     // Get restaurant info for GST calculation
@@ -577,7 +683,8 @@ export class OrdersService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const customerState = order.customerState || restaurant.address?.state || 'Kerala';
+    const customerState =
+      order.customerState || restaurant.address?.state || 'Kerala';
 
     let defaultGstRateId: string | undefined;
     if (restaurant.applyDefaultGstToMenuItems) {
@@ -591,13 +698,14 @@ export class OrdersService {
     }
 
     // Process new items
-    const { items: newItems, summary: newItemsSummary } = await this.prepareOrderPricing(
-      restaurantId,
-      { items: dto.items } as any,
-      customerState,
-      restaurant.applyDefaultGstToMenuItems ?? false,
-      defaultGstRateId
-    );
+    const { items: newItems, summary: newItemsSummary } =
+      await this.prepareOrderPricing(
+        restaurantId,
+        { items: dto.items } as any,
+        customerState,
+        restaurant.applyDefaultGstToMenuItems ?? false,
+        defaultGstRateId
+      );
 
     // Get existing order document
     const orderDoc = await this.orderModel.findById(orderId);
@@ -611,38 +719,35 @@ export class OrdersService {
     // Recalculate totals (handle both existing and new item structures)
     const subtotal = allItems.reduce((sum, item) => {
       // For new items, use lineTotal; for existing items, calculate from pricing
-      const lineTotal = 'lineTotal' in item
-        ? item.lineTotal
-        : (item.pricing.unitAmount * item.quantity);
+      const lineTotal =
+        'lineTotal' in item
+          ? item.lineTotal
+          : item.pricing.unitAmount * item.quantity;
       return sum + lineTotal;
     }, 0);
 
     const taxAmount = allItems.reduce((sum, item) => {
       // For new items, use taxAmount; for existing items, use gst.totalTaxAmount
-      const tax = 'taxAmount' in item
-        ? item.taxAmount
-        : (item.gst?.totalTaxAmount || 0);
+      const tax =
+        'taxAmount' in item ? item.taxAmount : item.gst?.totalTaxAmount || 0;
       return sum + tax;
     }, 0);
 
     const cgstAmount = allItems.reduce((sum, item) => {
-      const cgst = 'cgstAmount' in item
-        ? item.cgstAmount
-        : (item.gst?.cgstAmount || 0);
+      const cgst =
+        'cgstAmount' in item ? item.cgstAmount : item.gst?.cgstAmount || 0;
       return sum + cgst;
     }, 0);
 
     const sgstAmount = allItems.reduce((sum, item) => {
-      const sgst = 'sgstAmount' in item
-        ? item.sgstAmount
-        : (item.gst?.sgstAmount || 0);
+      const sgst =
+        'sgstAmount' in item ? item.sgstAmount : item.gst?.sgstAmount || 0;
       return sum + sgst;
     }, 0);
 
     const igstAmount = allItems.reduce((sum, item) => {
-      const igst = 'igstAmount' in item
-        ? item.igstAmount
-        : (item.gst?.igstAmount || 0);
+      const igst =
+        'igstAmount' in item ? item.igstAmount : item.gst?.igstAmount || 0;
       return sum + igst;
     }, 0);
 
@@ -660,12 +765,17 @@ export class OrdersService {
       igstAmount,
       roundOffAmount,
       totalAmount,
-      notes: dto.notes ? [orderDoc.notes, dto.notes].filter(Boolean).join(' | ') : orderDoc.notes,
+      notes: dto.notes
+        ? [orderDoc.notes, dto.notes].filter(Boolean).join(' | ')
+        : orderDoc.notes,
     });
 
     // Create event
     await this.recordEvent(orderId, restaurantId, 'items_added', {
-      newItems: newItems.map(item => ({ name: item.name, quantity: item.quantity })),
+      newItems: newItems.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+      })),
       addedAmount: newItemsSummary.totalAmount,
     });
 
@@ -673,7 +783,9 @@ export class OrdersService {
     const updatedOrder = await this.findOne(restaurantId, orderId);
     this.ordersGateway.emitOrderUpdated(updatedOrder);
 
-    this.logger.log(`Added ${newItems.length} items to order ${orderId}. New total: ₹${totalAmount}`);
+    this.logger.log(
+      `Added ${newItems.length} items to order ${orderId}. New total: ₹${totalAmount}`
+    );
 
     return updatedOrder;
   }
@@ -716,7 +828,7 @@ export class OrdersService {
         state: order.customerState,
       },
       tableNumber: order.tableNumber,
-      items: order.items.map(item => ({
+      items: order.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
         unitPrice: item.pricing.unitAmount,
@@ -734,7 +846,8 @@ export class OrdersService {
       roundOffAmount: order.roundOffAmount,
       totalAmount: order.totalAmount,
       paymentStatus: order.paymentStatus,
-      billGeneratedAt: order.billGeneratedAt?.toISOString() || new Date().toISOString(),
+      billGeneratedAt:
+        order.billGeneratedAt?.toISOString() || new Date().toISOString(),
       notes: order.notes,
     };
   }
@@ -1135,8 +1248,8 @@ export class OrdersService {
       { $inc: { lastOrderNumber: 1 } },
       {
         upsert: true, // Create if doesn't exist
-        new: true,    // Return the updated document
-        setDefaultsOnInsert: true
+        new: true, // Return the updated document
+        setDefaultsOnInsert: true,
       }
     );
 

@@ -20,6 +20,7 @@ export const useOrdersSocket = ({
     const socket: Socket = io(namespaceUrl);
 
     const handler = (order: Order) => {
+      console.log('Received order event via socket:', order);
       onEvent?.(order);
     };
 

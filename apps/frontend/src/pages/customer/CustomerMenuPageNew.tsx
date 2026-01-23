@@ -103,6 +103,7 @@ export default function CustomerMenuPageNew() {
 
   const slug = params.slug ?? '';
   const tableFromUrl = searchParams.get('table');
+  const tableIdFromUrl = searchParams.get('tableId');
 
   // Get current order from storage
   const [currentOrder, setCurrentOrder] = useState<CurrentOrder | null>(() => {
@@ -123,7 +124,7 @@ export default function CustomerMenuPageNew() {
   const [showSearch, setShowSearch] = useState(false);
 
   const { data, isLoading, isError } = useGetPublicMenuQuery(
-    { slug, table: tableFromUrl },
+    { slug, table: tableFromUrl, tableId: tableIdFromUrl },
     { skip: !slug }
   );
 

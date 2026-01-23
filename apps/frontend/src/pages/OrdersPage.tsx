@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import * as React from 'react';
 import {
   ColumnDef,
@@ -44,7 +45,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import { useToast } from '@/components/ui/use-toast';
 import {
-  useListOrdersQuery,
+  useListOrdersByBranchQuery,
   useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,
 } from '@/store/api/ordersApi';
@@ -52,7 +53,7 @@ import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { skipToken } from '@reduxjs/toolkit/query';
 import type { Order } from '@/store/api/types';
-import { useBranchAwareQueries } from '@/hooks/useBranchAwareQuery';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 
 const statusOptions: Array<{ label: string; value: Order['status'] | 'all' }> =
@@ -85,29 +86,39 @@ const ORDER_CANCELLABLE_STATUSES: Array<Order['status']> = [
 
 export default function OrdersPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const { currentBranch } = useBranchContext();
   const { toast } = useToast();
-
-  // Enable branch-aware queries to auto-refetch when branch changes
-  useBranchAwareQueries();
 
   const [status, setStatus] = React.useState<string>('all');
   const [paymentStatus, setPaymentStatus] = React.useState<string>('all');
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
-  const queryArgs = restaurantId
-    ? {
-        restaurantId,
-        status: status !== 'all' ? (status as Order['status']) : undefined,
-        paymentStatus:
-          paymentStatus !== 'all'
-            ? (paymentStatus as Order['paymentStatus'])
-            : undefined,
-        limit: 20,
-        page: 1,
-      }
-    : skipToken;
+  console.log(
+    'Rendering OrdersPage with status:',
+    status,
+    'and paymentStatus:',
+    paymentStatus
+  );
 
-  const { data, isLoading, refetch } = useListOrdersQuery(queryArgs);
+  console.log('Current Branch:', currentBranch);
+
+  const branchId = currentBranch?._id;
+  const queryArgs =
+    restaurantId && branchId
+      ? {
+          restaurantId,
+          branchId,
+          status: status !== 'all' ? (status as Order['status']) : undefined,
+          paymentStatus:
+            paymentStatus !== 'all'
+              ? (paymentStatus as Order['paymentStatus'])
+              : undefined,
+          limit: 20,
+          page: 1,
+        }
+      : skipToken;
+
+  const { data, isLoading, refetch } = useListOrdersByBranchQuery(queryArgs);
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateOrderPayment] = useUpdateOrderPaymentMutation();
 
@@ -117,26 +128,40 @@ export default function OrdersPage() {
     orderId: string,
     newStatus: Order['status']
   ) => {
+    if (!restaurantId) return;
+
     try {
-      await updateOrderStatus({ restaurantId, orderId, status: newStatus }).unwrap();
+      await updateOrderStatus({
+        restaurantId,
+        orderId,
+        status: newStatus,
+      }).unwrap();
       toast({ title: 'Order updated' });
     } catch (error) {
       toast({
         title: 'Unable to update order',
-        description: error instanceof Error ? error.message : 'Unexpected error',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error',
         variant: 'destructive',
       });
     }
   };
 
   const handleMarkPaid = async (orderId: string) => {
+    if (!restaurantId) return;
+
     try {
-      await updateOrderPayment({ restaurantId, orderId, paymentStatus: 'paid' }).unwrap();
+      await updateOrderPayment({
+        restaurantId,
+        orderId,
+        paymentStatus: 'paid',
+      }).unwrap();
       toast({ title: 'Marked as Paid' });
     } catch (error) {
       toast({
         title: 'Unable to mark as paid',
-        description: error instanceof Error ? error.message : 'Unexpected error',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error',
         variant: 'destructive',
       });
     }
@@ -177,7 +202,8 @@ export default function OrdersPage() {
     } catch (error) {
       toast({
         title: 'Unable to cancel order',
-        description: error instanceof Error ? error.message : 'Unexpected error',
+        description:
+          error instanceof Error ? error.message : 'Unexpected error',
         variant: 'destructive',
       });
     }
@@ -284,16 +310,16 @@ export default function OrdersPage() {
             {row.original.status !== 'cancelled' &&
               row.original.status !== 'completed' &&
               ORDER_CANCELLABLE_STATUSES.includes(row.original.status) && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => handleCancelOrder(row.original)}
-                className="flex items-center gap-1"
-              >
-                <Ban className="h-3.5 w-3.5" />
-                Cancel
-              </Button>
-            )}
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleCancelOrder(row.original)}
+                  className="flex items-center gap-1"
+                >
+                  <Ban className="h-3.5 w-3.5" />
+                  Cancel
+                </Button>
+              )}
           </div>
         ),
       },

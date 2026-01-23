@@ -84,9 +84,11 @@ export default function WaiterMenuInterface({
         ...i,
         _categoryId: c.id,
         _categoryName: c.name,
-        _isVegetarian: i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isVegetarian:
+          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
         _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
-        _isPopular: i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isPopular:
+          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
         _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
       }))
     );
@@ -96,9 +98,11 @@ export default function WaiterMenuInterface({
         ...i,
         _categoryId: 'uncategorised',
         _categoryName: 'Others',
-        _isVegetarian: i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isVegetarian:
+          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
         _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
-        _isPopular: i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isPopular:
+          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
         _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
       })),
     ];
@@ -149,7 +153,10 @@ export default function WaiterMenuInterface({
     ];
   }, [categories, filteredProducts]);
 
-  const totalItems = Object.values(cart).reduce((sum, e) => sum + e.quantity, 0);
+  const totalItems = Object.values(cart).reduce(
+    (sum, e) => sum + e.quantity,
+    0
+  );
   const totalAmount = Object.values(cart).reduce(
     (sum, e) => sum + e.quantity * e.pricing.amount,
     0
@@ -188,7 +195,7 @@ export default function WaiterMenuInterface({
 
     const payload = {
       restaurantId: restaurant.id,
-      tableNumber: table.tableNumber,
+      tableId: table.id,
       paymentMethod: 'cash' as const,
       items: Object.values(cart).map((entry) => ({
         menuItemId: entry.id,
@@ -296,7 +303,11 @@ export default function WaiterMenuInterface({
               className="rounded-full"
               onClick={() => setShowSearch(!showSearch)}
             >
-              {showSearch ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+              {showSearch ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
             </Button>
           </div>
 
@@ -314,10 +325,13 @@ export default function WaiterMenuInterface({
                   </p>
                   <div className="flex items-center gap-2 text-sm text-blue-700">
                     <Clock className="h-3 w-3" />
-                    <span className="capitalize">{activeExistingOrder.status.replace('_', ' ')}</span>
+                    <span className="capitalize">
+                      {activeExistingOrder.status.replace('_', ' ')}
+                    </span>
                     <span>• ₹{activeExistingOrder.totalAmount.toFixed(0)}</span>
                   </div>
                 </div>
+
                 {activeExistingOrder.status === 'ready' && (
                   <Button
                     onClick={handlePaymentAction}
@@ -402,7 +416,9 @@ export default function WaiterMenuInterface({
             >
               <div className="text-6xl mb-4">🔍</div>
               <h3 className="text-xl font-bold mb-2">No items found</h3>
-              <p className="text-muted-foreground mb-4">Try adjusting your search</p>
+              <p className="text-muted-foreground mb-4">
+                Try adjusting your search
+              </p>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -508,7 +524,9 @@ export default function WaiterMenuInterface({
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
-                              onClick={() => handleAdd(item.id, item.name, item.pricing)}
+                              onClick={() =>
+                                handleAdd(item.id, item.name, item.pricing)
+                              }
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </Button>
@@ -517,7 +535,9 @@ export default function WaiterMenuInterface({
                           <Button
                             size="sm"
                             className="w-full rounded-full h-7 font-semibold text-xs"
-                            onClick={() => handleAdd(item.id, item.name, item.pricing)}
+                            onClick={() =>
+                              handleAdd(item.id, item.name, item.pricing)
+                            }
                           >
                             Add
                           </Button>
@@ -556,7 +576,9 @@ export default function WaiterMenuInterface({
                     </div>
                     <div className="text-left">
                       <p className="text-sm opacity-90">{totalItems} items</p>
-                      <p className="text-base font-black">{formatCurrency(totalAmount)}</p>
+                      <p className="text-base font-black">
+                        {formatCurrency(totalAmount)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">

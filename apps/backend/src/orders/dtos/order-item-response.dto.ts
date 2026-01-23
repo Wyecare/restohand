@@ -20,4 +20,9 @@ export class OrderItemResponseDto {
 
   @ApiProperty({ required: false })
   notes?: string;
+  lineTotal: any;
+  taxAmount: any;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
 }

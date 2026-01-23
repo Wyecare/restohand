@@ -128,7 +128,7 @@ export default function PaymentInterface({
   const handleMarkPaid = async () => {
     setIsProcessing(true);
     try {
-      await onMarkAsPaid(order.id, paymentMethod);
+      await onMarkAsPaid(order._id, paymentMethod);
     } finally {
       setIsProcessing(false);
     }
@@ -163,12 +163,19 @@ export default function PaymentInterface({
       >
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onBack}
+            className="rounded-full"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
             <h1 className="text-xl font-bold">Payment</h1>
-            <p className="text-sm text-muted-foreground">Order #{order.orderNumber}</p>
+            <p className="text-sm text-muted-foreground">
+              Order #{order.orderNumber}
+            </p>
           </div>
         </div>
 
@@ -178,12 +185,19 @@ export default function PaymentInterface({
             <div className="flex items-center gap-3">
               {statusInfo.icon}
               <div className="flex-1">
-                <p className={`font-semibold ${statusInfo.color}`}>{statusInfo.text}</p>
+                <p className={`font-semibold ${statusInfo.color}`}>
+                  {statusInfo.text}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Table {order.tableNumber} • {formatCurrency(order.totalAmount)}
+                  Table {order.tableNumber} •{' '}
+                  {formatCurrency(order.totalAmount)}
                 </p>
               </div>
-              <Badge variant={order.paymentStatus === 'paid' ? 'default' : 'destructive'}>
+              <Badge
+                variant={
+                  order.paymentStatus === 'paid' ? 'default' : 'destructive'
+                }
+              >
                 {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
               </Badge>
             </div>
@@ -221,13 +235,16 @@ export default function PaymentInterface({
                     Scan to view & download receipt
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Customer can scan this QR code to view order details and download PDF receipt
+                    Customer can scan this QR code to view order details and
+                    download PDF receipt
                   </p>
                 </div>
 
                 {/* Receipt URL for manual access */}
                 <div className="p-3 bg-white rounded-lg border border-green-200">
-                  <p className="text-xs text-muted-foreground mb-1">Or visit manually:</p>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Or visit manually:
+                  </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-xs font-mono text-green-700 break-all">
                       {receiptUrl}
@@ -333,7 +350,9 @@ export default function PaymentInterface({
 
                   {/* Amount */}
                   <div className="text-center p-4 bg-primary/10 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Amount to pay</p>
+                    <p className="text-sm text-muted-foreground">
+                      Amount to pay
+                    </p>
                     <p className="text-2xl font-bold text-primary">
                       {formatCurrency(order.totalAmount)}
                     </p>

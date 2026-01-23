@@ -100,9 +100,37 @@ export class OrdersController {
       paymentMethod: dto.paymentMethod || 'pending'
     };
 
-    // Extract branchId if user is authenticated (optional for public orders)
+    // Extract branchId if user is authenticated, otherwise get it from table
     const user = req?.user as AuthenticatedUser | undefined;
-    const branchId = user?.branchId;
+    let branchId = user?.branchId;
+
+    // CRITICAL FIX: Get branchId from table using tableId (preferred) or tableNumber (fallback)
+    if (!branchId) {
+      let table = null;
+
+      // Prefer tableId lookup (globally unique)
+      if (orderDto.tableId) {
+        table = await this.tableModel.findOne({
+          _id: orderDto.tableId,
+          isActive: true
+        }).lean();
+      }
+      // Fallback to tableNumber lookup (needs restaurant scope)
+      else if (orderDto.tableNumber) {
+        table = await this.tableModel.findOne({
+          restaurantId,
+          tableNumber: orderDto.tableNumber.trim(),
+          isActive: true
+        }).lean();
+      }
+
+      if (table) {
+        branchId = table.branchId?.toString();
+        // Ensure both tableId and tableNumber are set
+        orderDto.tableId = table._id.toString();
+        orderDto.tableNumber = table.tableNumber;
+      }
+    }
 
     return this.ordersService.create(restaurantId, orderDto, branchId);
   }
@@ -117,6 +145,29 @@ export class OrdersController {
     @Body() dto: AddItemsToOrderDto
   ) {
     return this.ordersService.addItemsToOrder(restaurantId, orderId, dto);
+  }
+
+  @Get('branch/:branchId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'paymentStatus', required: false })
+  @ApiQuery({ name: 'tableNumber', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'from', required: false })
+  @ApiQuery({ name: 'to', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiOkResponse({ type: OrderListResponseDto })
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  async findByBranch(
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Query() query: QueryOrdersDto
+  ) {
+    return this.ordersService.findAll(restaurantId, query, branchId);
   }
 
   @Get()
@@ -415,6 +466,9 @@ export class OrdersController {
     @Param('orderId') orderId: string,
     @Body() dto: UpdateOrderStatusDto
   ) {
+    if (!restaurantId || !orderId) {
+      throw new BadRequestException('Restaurant ID and Order ID are required');
+    }
     return this.ordersService.updateStatus(restaurantId, orderId, dto);
   }
 
@@ -429,6 +483,9 @@ export class OrdersController {
     @Param('orderId') orderId: string,
     @Body() dto: UpdateOrderPaymentDto
   ) {
+    if (!restaurantId || !orderId) {
+      throw new BadRequestException('Restaurant ID and Order ID are required');
+    }
     return this.ordersService.updatePayment(restaurantId, orderId, dto);
   }
 

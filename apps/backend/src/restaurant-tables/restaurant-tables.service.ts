@@ -78,13 +78,20 @@ export class RestaurantTablesService {
     let activeOrders: OrderDocument[] = [];
 
     if (tableNumbers.length > 0) {
+      // CRITICAL FIX: Add branchId filter to ensure orders belong to correct branch
+      const orderQuery: FilterQuery<OrderDocument> = {
+        restaurantId: restaurantObjectId,
+        tableNumber: { $in: tableNumbers },
+        status: { $in: activeStatuses },
+        paymentStatus: { $ne: PaymentStatus.Paid },
+      };
+
+      if (branchId) {
+        orderQuery.branchId = new Types.ObjectId(branchId);
+      }
+
       activeOrders = await this.orderModel
-        .find({
-          restaurantId: restaurantObjectId,
-          tableNumber: { $in: tableNumbers },
-          status: { $in: activeStatuses },
-          paymentStatus: { $ne: PaymentStatus.Paid },
-        })
+        .find(orderQuery)
         .sort({ createdAt: -1 })
         .exec();
     }
@@ -264,6 +271,7 @@ export class RestaurantTablesService {
 
     return this.restaurantsService.generateQrCode(
       restaurantId,
+      tableId,
       table.tableNumber
     );
   }

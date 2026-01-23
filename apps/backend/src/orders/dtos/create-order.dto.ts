@@ -34,6 +34,15 @@ export class CreateOrderDto {
   @MaxLength(20)
   tableNumber?: string;
 
+  @ApiProperty({
+    example: '6973687bf222179855e651bf',
+    required: false,
+    description: 'Globally unique table ID (preferred over tableNumber for branch isolation)'
+  })
+  @IsOptional()
+  @IsMongoId()
+  tableId?: string;
+
   @ApiProperty({ example: 'Rahul', required: false })
   @IsOptional()
   @IsString()

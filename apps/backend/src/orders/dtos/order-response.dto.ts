@@ -121,4 +121,6 @@ export class OrderResponseDto {
 
   @ApiProperty()
   updatedAt!: string;
+  billGeneratedAt: any;
+  subtotal: any;
 }

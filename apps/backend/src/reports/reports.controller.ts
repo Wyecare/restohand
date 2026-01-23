@@ -49,9 +49,11 @@ export class ReportsController {
     }
 
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default to 30 days ago
-    const end = endDate ? new Date(endDate) : new Date(); // Default to today
+    const end = endDate ? new Date(new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1) : new Date(); // Include the entire end date
 
-    return this.reportsService.getAnalytics(user.restaurantId, start, end);
+    // For main branch users (no branchId), show combined data from all branches
+    // For specific branch users, show only their branch data
+    return this.reportsService.getAnalytics(user.restaurantId, start, end, user.branchId);
   }
 
   @Get('pdf')
@@ -88,13 +90,14 @@ export class ReportsController {
     }
 
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const end = endDate ? new Date(endDate) : new Date();
+    const end = endDate ? new Date(new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1) : new Date();
 
     try {
       const pdfBuffer = await this.reportsService.generatePdfReport(
         user.restaurantId,
         start,
         end,
+        user.branchId,
       );
 
       const filename = `restaurant-report-${start.toISOString().split('T')[0]}-${end.toISOString().split('T')[0]}.pdf`;

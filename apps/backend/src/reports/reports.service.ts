@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import puppeteer from 'puppeteer';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
@@ -52,27 +52,59 @@ export class ReportsService {
     @InjectModel(MenuItem.name) private menuItemModel: Model<MenuItemDocument>,
   ) {}
 
-  async getAnalytics(restaurantId: string, startDate: Date, endDate: Date): Promise<AnalyticsData> {
-    const currentPeriodOrders = await this.orderModel.find({
+  async getAnalytics(restaurantId: string, startDate: Date, endDate: Date, branchId?: string): Promise<AnalyticsData> {
+    // Build query - if branchId is provided, filter by branch; otherwise get all orders
+    const baseQuery: any = {
       restaurantId,
       createdAt: {
         $gte: startDate,
         $lte: endDate,
       },
-    }).exec();
+    };
+
+    // Add branch filter only if branchId is specified (main branch users see combined data)
+    if (branchId) {
+      // Include both orders with matching branchId AND orders without branchId (legacy orders)
+      const branchObjectId = new Types.ObjectId(branchId);
+      baseQuery.$or = [
+        { branchId: branchObjectId },
+        { branchId: { $exists: false } },
+        { branchId: null }
+      ];
+    }
+
+    console.log('Reports query:', JSON.stringify(baseQuery, null, 2));
+
+    const currentPeriodOrders = await this.orderModel.find(baseQuery).exec();
+
+    console.log(`Found ${currentPeriodOrders.length} orders for period ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    console.log('Sample order branchIds:', currentPeriodOrders.slice(0, 3).map(o => ({ id: o._id, branchId: o.branchId })));
 
     // Calculate previous period for trends
     const periodDuration = endDate.getTime() - startDate.getTime();
     const previousStartDate = new Date(startDate.getTime() - periodDuration);
     const previousEndDate = startDate;
 
-    const previousPeriodOrders = await this.orderModel.find({
+    const previousQuery: any = {
       restaurantId,
       createdAt: {
         $gte: previousStartDate,
         $lt: previousEndDate,
       },
-    }).exec();
+    };
+
+    // Apply same branch filter to previous period
+    if (branchId) {
+      // Include both orders with matching branchId AND orders without branchId (legacy orders)
+      const branchObjectId = new Types.ObjectId(branchId);
+      previousQuery.$or = [
+        { branchId: branchObjectId },
+        { branchId: { $exists: false } },
+        { branchId: null }
+      ];
+    }
+
+    const previousPeriodOrders = await this.orderModel.find(previousQuery).exec();
 
     const currentMetrics = this.calculateMetrics(currentPeriodOrders);
     const previousMetrics = this.calculateMetrics(previousPeriodOrders);
@@ -210,14 +242,14 @@ export class ReportsService {
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  async generatePdfReport(restaurantId: string, startDate: Date, endDate: Date): Promise<Buffer> {
+  async generatePdfReport(restaurantId: string, startDate: Date, endDate: Date, branchId?: string): Promise<Buffer> {
     try {
       const restaurant = await this.restaurantModel.findById(restaurantId).exec();
       if (!restaurant) {
         throw new Error('Restaurant not found');
       }
 
-      const analytics = await this.getAnalytics(restaurantId, startDate, endDate);
+      const analytics = await this.getAnalytics(restaurantId, startDate, endDate, branchId);
 
       const htmlContent = this.generateReportHtml(restaurant, analytics, startDate, endDate);
 

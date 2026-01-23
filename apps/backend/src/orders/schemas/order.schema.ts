@@ -106,6 +106,9 @@ export class Order {
   @Prop({ type: String, trim: true })
   tableNumber?: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'RestaurantTable', index: true })
+  tableId?: string;
+
   @Prop({ type: String, trim: true })
   customerName?: string;
 
@@ -236,3 +239,5 @@ OrderSchema.index({ restaurantId: 1, status: 1 });
 OrderSchema.index({ restaurantId: 1, paymentStatus: 1 });
 OrderSchema.index({ branchId: 1, status: 1 });
 OrderSchema.index({ branchId: 1, createdAt: -1 });
+OrderSchema.index({ tableId: 1, status: 1 });
+OrderSchema.index({ tableId: 1, paymentStatus: 1 });

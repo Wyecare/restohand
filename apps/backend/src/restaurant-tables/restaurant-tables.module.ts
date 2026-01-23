@@ -10,6 +10,7 @@ import { RestaurantTablesService } from './restaurant-tables.service';
 import { TableStatusService } from './table-status.service';
 import { ZoneManagementService } from './zone-management.service';
 import { RestaurantTablesController } from './restaurant-tables.controller';
+import { TableStatusGateway } from './table-status.gateway';
 import { Order, OrderSchema } from '../orders/schemas/order.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 
@@ -26,7 +27,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
       { name: User.name, schema: UserSchema },
     ]),
   ],
-  providers: [RestaurantTablesService, TableStatusService, ZoneManagementService],
+  providers: [RestaurantTablesService, TableStatusService, ZoneManagementService, TableStatusGateway],
   controllers: [RestaurantTablesController],
   exports: [RestaurantTablesService, TableStatusService, ZoneManagementService],
 })
