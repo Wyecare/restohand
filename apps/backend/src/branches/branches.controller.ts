@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { BranchesService } from './branches.service';
@@ -17,32 +18,51 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+import { BranchPermissionsService } from '../users/branch-permissions.service';
+import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
 @ApiTags('Branches')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('branches')
 export class BranchesController {
-  constructor(private readonly branchesService: BranchesService) {}
+  constructor(
+    private readonly branchesService: BranchesService,
+    private readonly branchPermissions: BranchPermissionsService,
+  ) {}
 
   @Post()
   @Roles(UserRole.Owner, UserRole.Manager)
   @ApiOperation({ summary: 'Create a new branch' })
   @ApiResponse({ status: 201, description: 'Branch created successfully' })
   @ApiResponse({ status: 400, description: 'Invalid input' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions to create branches' })
   @ApiResponse({ status: 409, description: 'Branch slug already exists' })
   async create(@Request() req: any, @Body() createBranchDto: CreateBranchDto) {
-    const restaurantId = req.user.restaurantId;
-    return this.branchesService.create(restaurantId, createBranchDto);
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to create branches
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+
+    // Only primary owners and users with access to all branches can create new branches
+    if (!permissions.canAccessAllBranches) {
+      throw new ForbiddenException(
+        'Only primary owners and main branch managers can create new branches'
+      );
+    }
+
+    return this.branchesService.create(user.restaurantId!, createBranchDto);
   }
 
   @Get()
   @Roles(UserRole.Owner, UserRole.Manager, UserRole.Waiter, UserRole.Kitchen, UserRole.Cashier)
-  @ApiOperation({ summary: 'Get all branches for the restaurant' })
+  @ApiOperation({ summary: 'Get all branches accessible to the user' })
   @ApiResponse({ status: 200, description: 'Branches retrieved successfully' })
   async findAll(@Request() req: any) {
-    const restaurantId = req.user.restaurantId;
-    return this.branchesService.findAllByRestaurant(restaurantId);
+    const user = req.user as AuthenticatedUser;
+
+    // Use branch permissions service to get only accessible branches
+    return this.branchPermissions.getManageableBranches(user);
   }
 
   @Get('main')
@@ -89,6 +109,7 @@ export class BranchesController {
   @Roles(UserRole.Owner, UserRole.Manager)
   @ApiOperation({ summary: 'Update a branch' })
   @ApiResponse({ status: 200, description: 'Branch updated successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions to update this branch' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
   @ApiResponse({ status: 409, description: 'Branch slug already exists' })
   async update(
@@ -96,19 +117,38 @@ export class BranchesController {
     @Param('id') id: string,
     @Body() updateBranchDto: UpdateBranchDto,
   ) {
-    const restaurantId = req.user.restaurantId;
-    return this.branchesService.update(restaurantId, id, updateBranchDto);
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this specific branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(id)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to update this branch'
+      );
+    }
+
+    return this.branchesService.update(user.restaurantId!, id, updateBranchDto);
   }
 
   @Delete(':id')
   @Roles(UserRole.Owner, UserRole.Manager)
   @ApiOperation({ summary: 'Delete a branch' })
   @ApiResponse({ status: 200, description: 'Branch deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions to delete this branch' })
   @ApiResponse({ status: 404, description: 'Branch not found' })
   @ApiResponse({ status: 400, description: 'Cannot delete main branch' })
   async remove(@Request() req: any, @Param('id') id: string) {
-    const restaurantId = req.user.restaurantId;
-    await this.branchesService.remove(restaurantId, id);
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this specific branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(id)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to delete this branch'
+      );
+    }
+
+    await this.branchesService.remove(user.restaurantId!, id);
     return { message: 'Branch deleted successfully' };
   }
 }

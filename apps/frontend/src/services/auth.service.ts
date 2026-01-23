@@ -28,6 +28,7 @@ export interface AuthResponse {
     photoURL?: string;
     roles: string[];
     restaurantId?: string;
+    branchId?: string;
     claims: Record<string, unknown>;
   };
   expires_in: number;

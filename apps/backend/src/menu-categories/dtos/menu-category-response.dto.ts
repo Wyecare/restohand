@@ -7,6 +7,9 @@ export class MenuCategoryResponseDto {
   @ApiProperty()
   restaurantId!: string;
 
+  @ApiProperty({ required: false })
+  branchId?: string;
+
   @ApiProperty()
   name!: string;
 

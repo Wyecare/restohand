@@ -23,17 +23,24 @@ export class UsersService {
   async attachRestaurantToUser(
     actor: AuthenticatedUser,
     restaurantId: string,
-    roles: UserRole[] = [UserRole.Manager]
+    roles: UserRole[] = [UserRole.Manager],
+    branchId?: string
   ): Promise<void> {
+    const updateData: any = {
+      restaurantId,
+      roles,
+      isPrimaryOwner: true,
+      lastLoginAt: new Date(),
+    };
+
+    if (branchId) {
+      updateData.branchId = branchId;
+    }
+
     await this.userModel.findByIdAndUpdate(
       actor.uid,
       {
-        $set: {
-          restaurantId,
-          roles,
-          isPrimaryOwner: true,
-          lastLoginAt: new Date(),
-        },
+        $set: updateData,
       },
       { new: true }
     );
@@ -56,19 +63,38 @@ export class UsersService {
     // Build filter
     const filter: FilterQuery<UserDocument> = {
       restaurantId,
-      isPrimaryOwner: { $ne: true }
     };
 
+    // For branch-specific queries, include primary owner only if they belong to that branch
+    // For restaurant-wide queries (no branchId), exclude primary owner to maintain backward compatibility
+    const branchFilters: any[] = [];
     if (branchId) {
-      filter.branchId = branchId;
+      branchFilters.push(
+        { branchId, isPrimaryOwner: { $ne: true } }, // Regular staff in the branch
+        { branchId, isPrimaryOwner: true }           // Primary owner in the branch
+      );
+    } else {
+      filter.isPrimaryOwner = { $ne: true };
     }
 
     if (query.search) {
       const regex = new RegExp(query.search, 'i');
-      filter.$or = [
+      const searchFilters = [
         { name: regex },
         { email: regex },
       ];
+
+      if (branchFilters.length > 0) {
+        // Combine branch filters with search filters
+        filter.$and = [
+          { $or: branchFilters },
+          { $or: searchFilters }
+        ];
+      } else {
+        filter.$or = searchFilters;
+      }
+    } else if (branchFilters.length > 0) {
+      filter.$or = branchFilters;
     }
 
     if (query.role) {

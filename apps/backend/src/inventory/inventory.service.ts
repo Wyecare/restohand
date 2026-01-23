@@ -398,4 +398,57 @@ export class InventoryService {
 
     return alert;
   }
+
+  // Branch-specific methods
+  async getActiveAlertsByBranch(restaurantId: string, branchId: string): Promise<StockAlert[]> {
+    return this.stockAlertModel
+      .find({ restaurantId, branchId, isActive: true, isRead: false })
+      .populate('inventoryItemId')
+      .sort({ severity: 1, createdAt: -1 });
+  }
+
+  async getInventoryAnalyticsByBranch(restaurantId: string, branchId: string): Promise<InventoryAnalytics> {
+    const items = await this.inventoryItemModel.find({ restaurantId, branchId });
+
+    const totalItems = items.length;
+    const lowStockItems = items.filter(
+      item => item.tracking?.isLowStock || item.stockLevels.currentStock <= item.stockLevels.minimumStock
+    ).length;
+    const outOfStockItems = items.filter(
+      item => item.tracking?.isOutOfStock || item.stockLevels.currentStock === 0
+    ).length;
+
+    const totalInventoryValue = items.reduce((total, item) => {
+      return total + (item.stockLevels.currentStock * item.pricing.costPerUnit);
+    }, 0);
+
+    // Get recent stock movements for this branch
+    const recentMovements = await this.stockMovementModel.find({
+      restaurantId,
+      branchId,
+      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+    });
+
+    const totalConsumed = recentMovements
+      .filter(movement => movement.direction === 'out')
+      .reduce((total, movement) => total + Math.abs(movement.details.quantity), 0);
+
+    const totalPurchased = recentMovements
+      .filter(movement => movement.direction === 'in' && movement.type === 'purchase')
+      .reduce((total, movement) => total + movement.details.quantity, 0);
+
+    const totalPurchaseValue = recentMovements
+      .filter(movement => movement.direction === 'in' && movement.type === 'purchase')
+      .reduce((total, movement) => total + movement.details.totalCost, 0);
+
+    return {
+      totalItems,
+      lowStockItems,
+      outOfStockItems,
+      totalInventoryValue,
+      totalConsumed,
+      totalPurchased,
+      totalPurchaseValue,
+    };
+  }
 }

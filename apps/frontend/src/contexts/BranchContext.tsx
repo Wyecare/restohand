@@ -10,7 +10,9 @@ import {
   useGetBranchesQuery,
   useGetMainBranchQuery,
 } from '@/store/api/branchesApi';
-import { useAppSelector } from '@/store/hooks';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { baseApi } from '@/store/api/baseApi';
+import { updateSession } from '@/store/slices/authSlice';
 
 interface BranchContextType {
   branches: Branch[];
@@ -31,18 +33,7 @@ interface BranchProviderProps {
 export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
   const [currentBranchId, setCurrentBranchId] = useState<string | null>(null);
   const { session, status } = useAppSelector((state) => state.auth);
-
-  console.log('🏢 BranchProvider - Auth state:', {
-    session: session
-      ? {
-          userId: session.userId,
-          restaurantId: session.restaurantId,
-          roles: session.roles,
-          displayName: session.displayName,
-        }
-      : null,
-    status,
-  });
+  const dispatch = useAppDispatch();
 
   const {
     data: branches = [],
@@ -62,14 +53,6 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
 
   const isLoading = branchesLoading || mainBranchLoading;
   const error = branchesError || mainBranchError;
-
-  console.log('🏢 BranchProvider - Query state:', {
-    branchesLoading,
-    branchesError: branchesError ? String(branchesError) : null,
-    branchesCount: branches.length,
-    mainBranchLoading,
-    skip: !session || status !== 'authenticated',
-  });
 
   // Log branches data when it changes
   useEffect(() => {
@@ -126,6 +109,30 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
     if (canAccessAllBranches) {
       setCurrentBranchId(branchId);
       localStorage.setItem('currentBranchId', branchId);
+
+      // Update the session branchId so that JWT-based backend endpoints work correctly
+      dispatch(updateSession({ branchId }));
+
+      // Invalidate all branch-dependent caches when switching branches
+      dispatch(baseApi.util.invalidateTags([
+        'InventoryItem',
+        'InventoryAnalytics',
+        'StockAlert',
+        'MenuCategory',
+        'MenuItem',
+        'Order',
+        'OrderModification',
+        'KitchenStation',
+        'StationAssignment',
+        'RestaurantTable',
+        'TableStatus',
+        'Zone',
+        'Staff',
+        'FloorPlanOverview',
+        'CallWaiter'
+      ]));
+
+      console.log('🔄 Branch switched to:', branchId, '- Session updated and cache invalidated');
     }
   };
 

@@ -25,6 +25,9 @@ export class MenuItem {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId!: string;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'MenuCategory', trim: true })
   categoryId?: string;
 
@@ -61,4 +64,5 @@ export class MenuItem {
 
 export const MenuItemSchema = SchemaFactory.createForClass(MenuItem);
 
-MenuItemSchema.index({ restaurantId: 1, categoryId: 1, displayOrder: 1 });
+MenuItemSchema.index({ restaurantId: 1, branchId: 1, categoryId: 1, displayOrder: 1 });
+MenuItemSchema.index({ branchId: 1, categoryId: 1 });

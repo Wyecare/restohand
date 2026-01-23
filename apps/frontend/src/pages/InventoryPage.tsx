@@ -41,6 +41,9 @@ import {
   useMarkAlertAsReadMutation,
   useCreateInventoryItemMutation,
   useGetInventoryUnitsQuery,
+  useGetInventoryItemsByBranchQuery,
+  useGetInventoryAnalyticsByBranchQuery,
+  useGetStockAlertsByBranchQuery,
 } from '@/store/api/inventoryApi';
 import {
   Package,
@@ -64,6 +67,7 @@ import {
   searchInventoryItems,
   type InventoryItemTemplate,
 } from '@/lib/indian-inventory-items';
+import { useBranchContext } from '@/contexts/BranchContext';
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -75,6 +79,7 @@ const formatCurrency = (amount: number) =>
 const InventoryPage = () => {
   const session = useAppSelector(selectAuthSession);
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const { currentBranch } = useBranchContext();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -113,10 +118,11 @@ const InventoryPage = () => {
     data: items,
     isLoading: itemsLoading,
     isError: itemsError,
-  } = useGetInventoryItemsQuery(
-    restaurantId
+  } = useGetInventoryItemsByBranchQuery(
+    restaurantId && currentBranch?._id
       ? {
           restaurantId,
+          branchId: currentBranch._id,
           search: searchQuery || undefined,
           category: selectedCategory || undefined,
           lowStock: stockFilter === 'low' ? true : undefined,
@@ -126,10 +132,16 @@ const InventoryPage = () => {
   );
 
   const { data: analytics, isLoading: analyticsLoading } =
-    useGetInventoryAnalyticsQuery(restaurantId ?? skipToken);
+    useGetInventoryAnalyticsByBranchQuery(
+      restaurantId && currentBranch?._id
+        ? { restaurantId, branchId: currentBranch._id }
+        : skipToken
+    );
 
-  const { data: alerts, isLoading: alertsLoading } = useGetStockAlertsQuery(
-    restaurantId ?? skipToken
+  const { data: alerts, isLoading: alertsLoading } = useGetStockAlertsByBranchQuery(
+    restaurantId && currentBranch?._id
+      ? { restaurantId, branchId: currentBranch._id }
+      : skipToken
   );
 
   const { data: categoriesData } = useGetInventoryCategoriesQuery(

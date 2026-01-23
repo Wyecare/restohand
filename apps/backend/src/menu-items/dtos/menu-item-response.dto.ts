@@ -9,6 +9,9 @@ export class MenuItemResponseDto {
   restaurantId!: string;
 
   @ApiProperty({ required: false })
+  branchId?: string;
+
+  @ApiProperty({ required: false })
   categoryId?: string;
 
   @ApiProperty()

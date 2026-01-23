@@ -1,6 +1,7 @@
 import { Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CreateDefaultBranchesMigration } from './create-default-branches.migration';
+import { FixMenuBranchAssignmentMigration } from './fix-menu-branch-assignment.migration';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -13,6 +14,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 export class MigrationController {
   constructor(
     private readonly defaultBranchesMigration: CreateDefaultBranchesMigration,
+    private readonly menuBranchAssignmentMigration: FixMenuBranchAssignmentMigration,
   ) {}
 
   @Post('create-default-branches')
@@ -33,5 +35,25 @@ export class MigrationController {
   async rollbackDefaultBranches() {
     await this.defaultBranchesMigration.rollback();
     return { message: 'Default branches rollback completed successfully' };
+  }
+
+  @Post('fix-menu-branch-assignment')
+  @Roles(UserRole.Owner) // Only system owners can run migrations
+  @ApiOperation({ summary: 'Fix menu items and categories branch assignment' })
+  @ApiResponse({ status: 200, description: 'Migration completed successfully' })
+  @ApiResponse({ status: 500, description: 'Migration failed' })
+  async fixMenuBranchAssignment() {
+    await this.menuBranchAssignmentMigration.execute();
+    return { message: 'Menu branch assignment migration completed successfully' };
+  }
+
+  @Post('rollback-menu-branch-assignment')
+  @Roles(UserRole.Owner) // Only system owners can rollback migrations
+  @ApiOperation({ summary: 'Rollback menu branch assignment migration' })
+  @ApiResponse({ status: 200, description: 'Rollback completed successfully' })
+  @ApiResponse({ status: 500, description: 'Rollback failed' })
+  async rollbackMenuBranchAssignment() {
+    await this.menuBranchAssignmentMigration.rollback();
+    return { message: 'Menu branch assignment rollback completed successfully' };
   }
 }

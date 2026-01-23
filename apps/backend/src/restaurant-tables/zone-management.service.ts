@@ -72,6 +72,51 @@ export class ZoneManagementService {
   }
 
   /**
+   * Get zones for a specific branch
+   */
+  async getZonesByBranch(restaurantId: string, branchId: string): Promise<ZonesListResponseDto> {
+    await this.ensureRestaurantExists(restaurantId);
+
+    // Get zones for the specific branch
+    const zones = await this.zoneModel
+      .find({ restaurantId, branchId, isActive: true })
+      .sort({ displayOrder: 1, name: 1 })
+      .exec();
+
+    // Get table counts for each zone in this branch
+    const tableCounts = await this.tableModel.aggregate([
+      {
+        $match: {
+          restaurantId,
+          branchId,
+          isActive: true,
+          zone: { $exists: true, $ne: null, $ne: '' }
+        }
+      },
+      {
+        $group: {
+          _id: '$zone',
+          tableCount: { $sum: 1 }
+        }
+      }
+    ]).exec();
+
+    const tableCountMap = new Map(
+      tableCounts.map(tc => [tc._id, tc.tableCount])
+    );
+
+    return {
+      zones: zones.map(zone => ({
+        id: zone._id.toString(),
+        name: zone.name,
+        tableCount: tableCountMap.get(zone.name) || 0,
+        createdAt: zone.createdAt?.toISOString() || new Date().toISOString(),
+        updatedAt: zone.updatedAt?.toISOString() || new Date().toISOString()
+      }))
+    };
+  }
+
+  /**
    * Create a new zone
    */
   async createZone(restaurantId: string, dto: CreateZoneDto): Promise<ZoneResponseDto> {
@@ -93,6 +138,42 @@ export class ZoneManagementService {
     // Create the zone
     const zone = await this.zoneModel.create({
       restaurantId,
+      name: zoneName,
+    });
+
+    return {
+      id: zone._id.toString(),
+      name: zone.name,
+      tableCount: 0,
+      createdAt: zone.createdAt?.toISOString() || new Date().toISOString(),
+      updatedAt: zone.updatedAt?.toISOString() || new Date().toISOString()
+    };
+  }
+
+  /**
+   * Create a new zone for a specific branch
+   */
+  async createZoneForBranch(restaurantId: string, branchId: string, dto: CreateZoneDto): Promise<ZoneResponseDto> {
+    await this.ensureRestaurantExists(restaurantId);
+
+    const zoneName = dto.name.trim();
+
+    // Check if zone already exists in this branch
+    const existingZone = await this.zoneModel.findOne({
+      restaurantId,
+      branchId,
+      name: zoneName,
+      isActive: true
+    }).exec();
+
+    if (existingZone) {
+      throw new ConflictException(`Zone '${zoneName}' already exists in this branch`);
+    }
+
+    // Create the zone for this branch
+    const zone = await this.zoneModel.create({
+      restaurantId,
+      branchId,
       name: zoneName,
     });
 

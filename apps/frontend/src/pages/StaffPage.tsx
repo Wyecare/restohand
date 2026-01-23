@@ -49,9 +49,10 @@ import StaffInvitationForm from '@/components/staff/StaffInvitationForm';
 
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { useBranchContext } from '@/contexts/BranchContext';
 
 import {
-  useListStaffQuery,
+  useListStaffByBranchQuery,
   useResetStaffPinMutation,
   useUpdateStaffMutation,
 } from '@/store/api/staffApi';
@@ -61,6 +62,7 @@ import { useStaffTranslation } from '@/hooks/use-translation';
 
 export default function StaffPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+  const { currentBranch } = useBranchContext();
   const { toast } = useToast();
   const { t: tStaff } = useStaffTranslation();
 
@@ -75,15 +77,17 @@ export default function StaffPage() {
   if (!restaurantId) return <Navigate to="/onboarding" replace />;
 
   // --- API Query and Mutations ---
+  const branchId = currentBranch?._id;
   const {
     data: staffResponse,
     isFetching,
     isError,
     refetch,
-  } = useListStaffQuery(restaurantId ? undefined : skipToken);
+  } = useListStaffByBranchQuery(
+    restaurantId && branchId ? { branchId } : skipToken
+  );
 
-  const staff = staffResponse?.data ?? [];
-  const meta = staffResponse?.meta ?? {};
+  const staff = staffResponse ?? [];
 
   const [resetStaffPin] = useResetStaffPinMutation();
   const [updateStaff] = useUpdateStaffMutation();
@@ -141,7 +145,7 @@ export default function StaffPage() {
   async function handleResetPin(member: StaffMember) {
     markUpdating(member.id);
     try {
-      const res = await resetStaffPin(member.id).unwrap();
+      await resetStaffPin(member.id).unwrap();
 
       toast({
         title: tStaff('messages.pinReset'),
@@ -525,7 +529,7 @@ export default function StaffPage() {
                 <div>
                   {tStaff('table.showingStaff', {
                     showing: table.getRowModel().rows.length,
-                    total: meta?.total ?? staff.length,
+                    total: staff.length,
                   })}
                 </div>
                 <div className="flex items-center gap-2">

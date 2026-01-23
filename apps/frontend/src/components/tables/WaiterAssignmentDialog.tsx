@@ -23,8 +23,9 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { useListWaitersQuery } from '@/store/api/staffApi';
+import { useListWaitersByBranchQuery } from '@/store/api/staffApi';
 import { useUpdateTableStatusMutation, useGetTableStatusQuery } from '@/store/api/restaurantsApi';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { TableStatusType } from '@/store/api/types';
 import type { RestaurantTable, StaffMember } from '@/store/api/types';
 
@@ -44,16 +45,18 @@ export const WaiterAssignmentDialog: React.FC<WaiterAssignmentDialogProps> = ({
   onAssignmentSuccess,
 }) => {
   const { toast } = useToast();
+  const { currentBranch } = useBranchContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
 
+  const branchId = currentBranch?._id;
   const {
     data: waiters,
     isLoading: isLoadingWaiters,
     error: waitersError,
-  } = useListWaitersQuery(
-    restaurantId ? { restaurantId } : { restaurantId: '' },
-    { skip: !restaurantId || !isOpen }
+  } = useListWaitersByBranchQuery(
+    branchId ? { branchId } : skipToken,
+    { skip: !branchId || !isOpen }
   );
 
   const {

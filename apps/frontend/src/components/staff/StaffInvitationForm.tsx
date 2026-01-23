@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -29,13 +29,22 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { UserPlus, Mail, Loader2 } from 'lucide-react';
-import { useInviteStaffByEmailMutation } from '@/store/api/staffApi';
-import { useAppSelector } from '@/store/hooks';
-import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { useCreateStaffInvitationMutation } from '@/store/api/staffApi';
+import { useBranchContext } from '@/contexts/BranchContext';
 
 const inviteStaffSchema = z.object({
+  name: z
+    .string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name must be less than 100 characters'),
   email: z.string().email('Please enter a valid email address'),
-  role: z.enum(['chef', 'waiter', 'cashier'], {
+  phoneNumber: z
+    .string()
+    .min(10, 'Please enter a valid phone number')
+    .optional()
+    .or(z.literal('')),
+  branchId: z.string().min(1, 'Please select a branch'),
+  role: z.enum(['chef', 'waiter', 'cashier', 'manager'], {
     required_error: 'Please select a role',
   }),
 });
@@ -46,42 +55,71 @@ interface StaffInvitationFormProps {
   onSuccess?: () => void;
 }
 
-export default function StaffInvitationForm({ onSuccess }: StaffInvitationFormProps) {
+export default function StaffInvitationForm({
+  onSuccess,
+}: StaffInvitationFormProps) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
-  const restaurantId = useAppSelector(selectActiveRestaurantId);
-  const [inviteStaffByEmail, { isLoading }] = useInviteStaffByEmailMutation();
+  const { branches, currentBranch, canAccessAllBranches } = useBranchContext();
+  const [createStaffInvitation, { isLoading }] =
+    useCreateStaffInvitationMutation();
 
   const form = useForm<InviteStaffForm>({
     resolver: zodResolver(inviteStaffSchema),
     defaultValues: {
+      name: '',
       email: '',
+      phoneNumber: '',
+      branchId: currentBranch?._id || '',
       role: undefined,
     },
   });
 
-  const onSubmit = async (data: InviteStaffForm) => {
-    if (!restaurantId) {
-      toast({
-        title: 'Error',
-        description: 'No restaurant selected',
-        variant: 'destructive',
-      });
-      return;
+  // Ensure branchId is set when currentBranch changes
+  React.useEffect(() => {
+    if (currentBranch?._id && (!canAccessAllBranches || branches.length === 1)) {
+      form.setValue('branchId', currentBranch._id);
     }
+  }, [currentBranch, canAccessAllBranches, branches.length, form]);
+
+  // Debug: log form state
+  console.log('🔍 StaffInvitationForm Debug:', {
+    currentBranch,
+    branches,
+    canAccessAllBranches,
+    formBranchId: form.watch('branchId'),
+    formErrors: form.formState.errors
+  });
+
+  const onSubmit = async (data: InviteStaffForm) => {
+    console.log('🚀 Form submitted with data:', data);
+    console.log('🏢 Current branch:', currentBranch);
+    console.log('🌐 Can access all branches:', canAccessAllBranches);
 
     try {
-      await inviteStaffByEmail({
-        restaurantId,
-        ...data,
-      }).unwrap();
+      const payload = {
+        name: data.name,
+        email: data.email,
+        ...(data.phoneNumber && { phoneNumber: data.phoneNumber }),
+        branchId: data.branchId,
+        role: data.role,
+      };
+
+      console.log('📤 Sending payload:', payload);
+      await createStaffInvitation(payload).unwrap();
 
       toast({
         title: 'Invitation sent!',
-        description: `An invitation has been sent to ${data.email}`,
+        description: `A staff invitation has been sent to ${data.email}`,
       });
 
-      form.reset();
+      form.reset({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        branchId: currentBranch?._id || '',
+        role: undefined,
+      });
       setOpen(false);
       onSuccess?.();
     } catch (error: any) {
@@ -104,11 +142,16 @@ export default function StaffInvitationForm({ onSuccess }: StaffInvitationFormPr
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
+            <UserPlus className="h-5 w-5" />
             Invite Staff Member
           </DialogTitle>
           <DialogDescription>
-            Send an email invitation to add a new staff member to your restaurant.
+            Send an email invitation to add a new staff member to your
+            restaurant
+            {branches.length > 1 && canAccessAllBranches
+              ? ' and assign them to a specific branch'
+              : ''}
+            .
           </DialogDescription>
         </DialogHeader>
 
@@ -116,10 +159,24 @@ export default function StaffInvitationForm({ onSuccess }: StaffInvitationFormPr
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email Address</FormLabel>
+                  <FormLabel>Email Address *</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="staff@example.com"
@@ -134,11 +191,65 @@ export default function StaffInvitationForm({ onSuccess }: StaffInvitationFormPr
 
             <FormField
               control={form.control}
+              name="phoneNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="+919876543210" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {canAccessAllBranches && branches.length > 1 ? (
+              <FormField
+                control={form.control}
+                name="branchId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Branch *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a branch" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch._id} value={branch._id}>
+                            {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              // Show current branch for single-branch managers
+              currentBranch && (
+                <div className="space-y-2">
+                  <FormLabel>Branch</FormLabel>
+                  <div className="p-3 bg-muted rounded-md border">
+                    <span className="text-sm font-medium">{currentBranch.name}</span>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      (Your assigned branch)
+                    </span>
+                  </div>
+                </div>
+              )
+            )}
+
+            <FormField
+              control={form.control}
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormLabel>Role *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a role" />
@@ -148,6 +259,9 @@ export default function StaffInvitationForm({ onSuccess }: StaffInvitationFormPr
                       <SelectItem value="chef">Chef</SelectItem>
                       <SelectItem value="waiter">Waiter</SelectItem>
                       <SelectItem value="cashier">Cashier</SelectItem>
+                      {canAccessAllBranches && (
+                        <SelectItem value="manager">Manager</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />

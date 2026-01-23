@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAppSelector } from '@/store/hooks';
-import { selectIsAuthenticated, selectUserRoles } from '@/store/slices/authSlice';
+import {
+  selectIsAuthenticated,
+  selectUserRoles,
+} from '@/store/slices/authSlice';
 import { useUpdateFcmTokenMutation } from '@/store/api/fcmApi';
 import { initializeApp, getApps } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
@@ -47,27 +50,38 @@ export const useFCMInitialization = () => {
     }
 
     const initializeFCM = async () => {
-      console.log(`🔔 Starting FCM initialization for user with roles: [${userRoles.join(', ')}]`);
+      console.log(
+        `🔔 Starting FCM initialization for user with roles: [${userRoles.join(
+          ', '
+        )}]`
+      );
 
       try {
         // Check browser support
-        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        if (
+          !('serviceWorker' in navigator) ||
+          !('PushManager' in window) ||
+          !('Notification' in window)
+        ) {
           console.warn('FCM: Browser not supported');
-          setState(prev => ({
+          setState((prev) => ({
             ...prev,
             isSupported: false,
-            error: 'Push notifications not supported in this browser'
+            error: 'Push notifications not supported in this browser',
           }));
           return;
         }
 
-        setState(prev => ({ ...prev, isSupported: true }));
+        setState((prev) => ({ ...prev, isSupported: true }));
         console.log('✅ FCM: Browser support confirmed');
 
         // Validate Firebase config
         if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !VAPID_KEY) {
           console.error('❌ Missing Firebase configuration');
-          setState(prev => ({ ...prev, error: 'Missing Firebase configuration' }));
+          setState((prev) => ({
+            ...prev,
+            error: 'Missing Firebase configuration',
+          }));
           return;
         }
 
@@ -80,48 +94,40 @@ export const useFCMInitialization = () => {
         }
 
         const messaging = getMessaging(app);
-        setState(prev => ({ ...prev, isInitialized: true }));
-        console.log('✅ FCM: Service initialized');
-
+        setState((prev) => ({ ...prev, isInitialized: true }));
         // Request notification permission
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') {
           console.warn('⚠️ FCM: Notification permission denied');
-          setState(prev => ({
+          setState((prev) => ({
             ...prev,
             hasPermission: false,
-            error: 'Notification permission denied'
+            error: 'Notification permission denied',
           }));
           return;
         }
 
-        // Get FCM token
-        console.log('📡 Getting FCM token...');
         const token = await getToken(messaging, { vapidKey: VAPID_KEY });
 
         if (token) {
-          console.log('✅ FCM token received:', token);
           localStorage.setItem('fcm_token', token);
 
           // Send token to server using RTK Query
           try {
-            console.log('📡 Sending FCM token to server...');
             const result = await updateFcmToken({ fcmToken: token }).unwrap();
-            console.log('✅ FCM token sent to server:', result);
 
-            setState(prev => ({
-              ...prev,
-              hasPermission: true,
-              token
-            }));
-          } catch (error: any) {
-            console.error('❌ Failed to send FCM token to server:', error);
-            // Still set the token locally even if server update fails
-            setState(prev => ({
+            setState((prev) => ({
               ...prev,
               hasPermission: true,
               token,
-              error: 'Token generated but failed to send to server'
+            }));
+          } catch (error: any) {
+            // Still set the token locally even if server update fails
+            setState((prev) => ({
+              ...prev,
+              hasPermission: true,
+              token,
+              error: 'Token generated but failed to send to server',
             }));
           }
 
@@ -131,28 +137,29 @@ export const useFCMInitialization = () => {
 
             // Show notification
             if (payload.notification) {
-              new Notification(payload.notification.title || 'New notification', {
-                body: payload.notification.body,
-                icon: '/favicon.ico',
-                data: payload.data
-              });
+              new Notification(
+                payload.notification.title || 'New notification',
+                {
+                  body: payload.notification.body,
+                  icon: '/favicon.ico',
+                  data: payload.data,
+                }
+              );
             }
           });
-
         } else {
           console.warn('⚠️ FCM: Failed to get token');
-          setState(prev => ({
+          setState((prev) => ({
             ...prev,
             hasPermission: false,
-            error: 'Failed to get FCM token'
+            error: 'Failed to get FCM token',
           }));
         }
-
       } catch (error) {
         console.error('❌ FCM: Initialization failed:', error);
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         }));
       }
     };

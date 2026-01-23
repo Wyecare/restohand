@@ -62,6 +62,122 @@ export class MenuItemsService {
     return this.toDto(created);
   }
 
+  async findByBranch(
+    restaurantId: string,
+    branchId: string,
+    query: QueryMenuItemsDto
+  ): Promise<MenuItemListResponseDto> {
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query, 50);
+
+    const filter: FilterQuery<MenuItemDocument> = { restaurantId, branchId };
+
+    if (query.categoryId) {
+      filter.categoryId = query.categoryId;
+    }
+
+    if (query.isAvailable !== undefined) {
+      filter.isAvailable = query.isAvailable === 'true';
+    }
+
+    if (query.search) {
+      const regex = new RegExp(query.search, 'i');
+      filter.$or = [{ name: regex }, { description: regex }, { tags: regex }];
+    }
+
+    // Execute queries in parallel
+    const [total, items] = await Promise.all([
+      this.menuItemModel.countDocuments(filter),
+      this.menuItemModel
+        .find(filter)
+        .sort({ displayOrder: 1, name: 1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    const data = items.map((item) => this.toDto(item));
+
+    return PaginationUtil.createPaginatedResponse(data, total, page, limit);
+  }
+
+  async createForBranch(
+    restaurantId: string,
+    branchId: string,
+    dto: CreateMenuItemDto
+  ): Promise<MenuItemResponseDto> {
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId)
+      .lean();
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${restaurantId} not found`);
+    }
+
+    const useDefaultGst = restaurant.applyDefaultGstToMenuItems ?? false;
+    let gstRateId = dto.gstRateId;
+    let gstRate = dto.gstRate;
+
+    if (useDefaultGst) {
+      const defaultGst = await this.getDefaultGstRateOrThrow(restaurantId);
+      gstRateId = defaultGst.gstRateId;
+      gstRate = defaultGst.gstRate;
+    } else if (gstRateId) {
+      const gstMetadata = await this.resolveGstRate(restaurantId, gstRateId);
+      gstRateId = gstMetadata?.gstRateId;
+      if (gstRate === undefined && gstMetadata?.gstRate !== undefined) {
+        gstRate = gstMetadata.gstRate;
+      }
+    }
+
+    const created = await this.menuItemModel.create({
+      ...dto,
+      hsnCode: dto.hsnCode?.trim(),
+      gstRateId,
+      gstRate,
+      restaurantId,
+      branchId,
+    });
+    return this.toDto(created);
+  }
+
+  async findAllByBranches(
+    restaurantId: string,
+    branchIds: string[],
+    query: QueryMenuItemsDto
+  ): Promise<MenuItemListResponseDto> {
+    const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query, 50);
+
+    const filter: FilterQuery<MenuItemDocument> = {
+      restaurantId,
+      branchId: { $in: branchIds }
+    };
+
+    if (query.categoryId) {
+      filter.categoryId = query.categoryId;
+    }
+
+    if (query.isAvailable !== undefined) {
+      filter.isAvailable = query.isAvailable === 'true';
+    }
+
+    if (query.search) {
+      const regex = new RegExp(query.search, 'i');
+      filter.$or = [{ name: regex }, { description: regex }, { tags: regex }];
+    }
+
+    // Execute queries in parallel
+    const [total, items] = await Promise.all([
+      this.menuItemModel.countDocuments(filter),
+      this.menuItemModel
+        .find(filter)
+        .sort({ displayOrder: 1, name: 1 })
+        .skip(skip)
+        .limit(limit),
+    ]);
+
+    const data = items.map((item) => this.toDto(item));
+
+    return PaginationUtil.createPaginatedResponse(data, total, page, limit);
+  }
+
   async findAll(
     restaurantId: string,
     query: QueryMenuItemsDto
@@ -307,6 +423,7 @@ export class MenuItemsService {
     return {
       id: doc._id.toString(),
       restaurantId: doc.restaurantId.toString(),
+      branchId: doc.branchId?.toString(),
       categoryId: doc.categoryId?.toString(),
       name: doc.name,
       description: doc.description,

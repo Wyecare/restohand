@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   ColumnDef,
   flexRender,
@@ -60,24 +60,21 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
-  Upload,
-  GripVertical,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
-  useListMenuCategoriesQuery,
+  useListMenuCategoriesByBranchQuery,
   useCreateMenuCategoryMutation,
   useUpdateMenuCategoryMutation,
   useDeleteMenuCategoryMutation,
   useListMenuItemsQuery,
   useCreateMenuItemMutation,
-  useUpdateMenuItemMutation,
-  useDeleteMenuItemMutation,
 } from '@/store/api/restaurantsApi';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
+import { useBranchContext } from '@/contexts/BranchContext';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 
 const categoryFormSchema = z.object({
@@ -96,16 +93,33 @@ const menuItemFormSchema = z.object({
 });
 
 type CategoryFormData = z.infer<typeof categoryFormSchema>;
+type MenuItemFormData = z.infer<typeof menuItemFormSchema>;
 
 export function CategoriesTab() {
+  console.log('🔄 CategoriesTab render');
   const { toast } = useToast();
   const { user } = useJwtAuth();
+  const { currentBranch } = useBranchContext();
+  console.log('👤 Current user in CategoriesTab:', user);
+  console.log('🏢 Current branch from context:', currentBranch);
   const restaurantId = user?.restaurantId;
+  const branchId = currentBranch?._id;
+
+  console.log('🏪 restaurantId:', restaurantId, 'branchId:', branchId);
 
   // API hooks
-  const { data: categoriesData, isLoading } = useListMenuCategoriesQuery(
-    restaurantId ? { restaurantId } : skipToken
-  );
+  const queryParams =
+    restaurantId && branchId ? { restaurantId, branchId } : skipToken;
+  console.log('🔍 queryParams:', queryParams);
+
+  const {
+    data: categoriesData,
+    isLoading,
+    refetch: refetchCategories,
+  } = useListMenuCategoriesByBranchQuery(queryParams);
+
+  console.log('📦 categoriesData:', categoriesData);
+
   const [createCategory, { isLoading: isCreating }] =
     useCreateMenuCategoryMutation();
   const [updateCategory, { isLoading: isUpdating }] =
@@ -115,6 +129,7 @@ export function CategoriesTab() {
 
   const categories = categoriesData?.data || [];
 
+  // Dialog states
   const [isAddEditDialogOpen, setIsAddEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isMenuItemsDialogOpen, setIsMenuItemsDialogOpen] = useState(false);
@@ -123,7 +138,7 @@ export function CategoriesTab() {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  // TanStack Table state
+  // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -141,6 +156,7 @@ export function CategoriesTab() {
     },
   });
 
+  // Handler functions - no useCallback needed
   const handleAddCategory = () => {
     setSelectedCategory(null);
     setImagePreview('');
@@ -167,8 +183,6 @@ export function CategoriesTab() {
   };
 
   const handleViewItems = (category: any) => {
-    console.log('Viewing items for category:', category);
-    console.log('Category ID:', category._id || category.id);
     setViewItemsCategory(category);
     setIsMenuItemsDialogOpen(true);
   };
@@ -187,6 +201,7 @@ export function CategoriesTab() {
       });
       setIsDeleteDialogOpen(false);
       setSelectedCategory(null);
+      refetchCategories();
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -222,7 +237,6 @@ export function CategoriesTab() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file
     if (!file.type.startsWith('image/')) {
       toast({
         variant: 'destructive',
@@ -244,7 +258,6 @@ export function CategoriesTab() {
     setIsUploadingImage(true);
 
     try {
-      // Convert to base64
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
@@ -298,6 +311,8 @@ export function CategoriesTab() {
             isActive: true,
           },
         }).unwrap();
+
+        refetchCategories();
         toast({
           title: 'Created',
           description: 'Category created successfully',
@@ -316,119 +331,111 @@ export function CategoriesTab() {
     }
   };
 
-  // Define columns for TanStack Table
-  const columns = useMemo<ColumnDef<any>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: ({ column }) => (
-          <Button
-            variant="ghost"
-            className="h-8 px-2 text-left"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+  // Define columns inline - no useMemo needed
+  const columns: ColumnDef<any>[] = [
+    {
+      accessorKey: 'name',
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          className="h-8 px-2 text-left"
+          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        >
+          Category
+          <ArrowUpDown className="ml-2 h-3 w-3" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const category = row.original;
+        return (
+          <div
+            className="flex items-center gap-3 cursor-pointer"
+            onClick={() => handleViewItems(category)}
           >
-            Category
-            <ArrowUpDown className="ml-2 h-3 w-3" />
-          </Button>
-        ),
-        cell: ({ row }) => {
-          const category = row.original;
-          return (
-            <div
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={() => handleViewItems(category)}
-            >
-              {category.imageUrl ? (
-                <img
-                  src={category.imageUrl}
-                  alt={category.name}
-                  className="h-10 w-10 rounded object-cover"
-                />
-              ) : (
-                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-                  <ImagePlus className="h-5 w-5 text-muted-foreground" />
+            {category.imageUrl ? (
+              <img
+                src={category.imageUrl}
+                alt={category.name}
+                className="h-10 w-10 rounded object-cover"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                <ImagePlus className="h-5 w-5 text-muted-foreground" />
+              </div>
+            )}
+            <div>
+              <div className="font-medium">{category.name}</div>
+              {category.description && (
+                <div className="text-sm text-muted-foreground">
+                  {category.description}
                 </div>
               )}
-              <div>
-                <div className="font-medium">{category.name}</div>
-                {category.description && (
-                  <div className="text-sm text-muted-foreground">
-                    {category.description}
-                  </div>
-                )}
-              </div>
             </div>
-          );
-        },
+          </div>
+        );
       },
-      {
-        accessorKey: 'displayOrder',
-        header: 'Order',
-        cell: ({ row }) => (
-          <span className="text-sm">{row.original.displayOrder}</span>
-        ),
+    },
+    {
+      accessorKey: 'displayOrder',
+      header: 'Order',
+      cell: ({ row }) => (
+        <span className="text-sm">{row.original.displayOrder}</span>
+      ),
+    },
+    {
+      accessorKey: 'isActive',
+      header: 'Status',
+      cell: ({ row }) => {
+        const category = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={category.isActive}
+              onCheckedChange={() => handleToggleAvailability(category)}
+            />
+            <span className="text-sm">
+              {category.isActive ? 'Active' : 'Inactive'}
+            </span>
+          </div>
+        );
       },
-      {
-        accessorKey: 'isActive',
-        header: 'Status',
-        cell: ({ row }) => {
-          const category = row.original;
-          return (
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={category.isActive}
-                onCheckedChange={() => handleToggleAvailability(category)}
-              />
-              <span className="text-sm">
-                {category.isActive ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-          );
-        },
+    },
+    {
+      id: 'actions',
+      enableHiding: false,
+      cell: ({ row }) => {
+        const category = row.original;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => handleViewItems(category)}>
+                <Eye className="mr-2 h-4 w-4" />
+                View Items
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleEditCategory(category)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Details
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleDeleteClick(category)}
+                className="text-red-600 focus:bg-red-50"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
       },
-      {
-        id: 'actions',
-        enableHiding: false,
-        cell: ({ row }) => {
-          const category = row.original;
-          return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => handleViewItems(category)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  View Items
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleEditCategory(category)}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Details
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleDeleteClick(category)}
-                  className="text-red-600 focus:bg-red-50"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          );
-        },
-      },
-    ],
-    [
-      handleToggleAvailability,
-      handleEditCategory,
-      handleDeleteClick,
-      handleViewItems,
-    ]
-  );
+    },
+  ];
 
-  // Initialize TanStack Table
+  // Initialize table
   const table = useReactTable({
     data: categories,
     columns,
@@ -724,16 +731,13 @@ function MenuItemsDialog({
         }
       : skipToken;
 
-  console.log('Menu items query params:', queryParams);
-
   const { data: itemsData, isLoading } = useListMenuItemsQuery(queryParams);
-
   const [createMenuItem, { isLoading: isCreatingItem }] =
     useCreateMenuItemMutation();
 
   const items = itemsData?.data || [];
 
-  const itemForm = useForm({
+  const itemForm = useForm<MenuItemFormData>({
     resolver: zodResolver(menuItemFormSchema),
     defaultValues: {
       name: '',
@@ -748,7 +752,7 @@ function MenuItemsDialog({
     setIsAddItemDialogOpen(true);
   };
 
-  const onItemSubmit = async (data: any) => {
+  const onItemSubmit = async (data: MenuItemFormData) => {
     if (!restaurantId || !category) {
       toast({
         variant: 'destructive',
@@ -816,7 +820,7 @@ function MenuItemsDialog({
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-scroll">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {items.map((item: any) => (
                   <Card
                     key={item._id || item.id}
@@ -846,11 +850,7 @@ function MenuItemsDialog({
                             <span className="font-semibold text-lg">
                               ₹{item.pricing?.amount || 0}
                             </span>
-                            <Switch
-                              checked={item.isAvailable}
-                              disabled
-                              size="sm"
-                            />
+                            <Switch checked={item.isAvailable} disabled />
                           </div>
                         </div>
                       </div>
@@ -922,8 +922,10 @@ function MenuItemsDialog({
 
             <div className="flex items-center space-x-2">
               <Switch
-                {...itemForm.register('isAvailable')}
-                defaultChecked={true}
+                checked={itemForm.watch('isAvailable')}
+                onCheckedChange={(checked) =>
+                  itemForm.setValue('isAvailable', checked)
+                }
               />
               <Label>Available for ordering</Label>
             </div>

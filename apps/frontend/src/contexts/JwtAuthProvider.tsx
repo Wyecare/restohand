@@ -27,6 +27,7 @@ interface User {
   photoURL?: string;
   roles: string[];
   restaurantId?: string;
+  branchId?: string;
 }
 
 interface AuthContextValue {
@@ -45,6 +46,7 @@ const mapAuthResponseToSession = (authResponse: AuthResponse): SessionInfo => ({
   email: authResponse.user.email,
   phoneNumber: authResponse.user.phoneNumber,
   restaurantId: authResponse.user.restaurantId,
+  branchId: authResponse.user.branchId,
   roles: authResponse.user.roles,
 });
 
@@ -56,6 +58,7 @@ const mapAuthResponseToUser = (authResponse: AuthResponse): User => ({
   photoURL: authResponse.user.photoURL,
   roles: authResponse.user.roles,
   restaurantId: authResponse.user.restaurantId,
+  branchId: authResponse.user.branchId,
 });
 
 export const JwtAuthProvider = ({ children }: PropsWithChildren) => {
@@ -65,21 +68,6 @@ export const JwtAuthProvider = ({ children }: PropsWithChildren) => {
 
   // Initialize FCM for all authenticated users
   const fcmState = useFCMInitialization();
-
-  // Log FCM initialization status
-  useEffect(() => {
-    if (user && fcmState.isInitialized) {
-      console.log('📱 FCM Status for user:', {
-        userId: user.uid,
-        roles: user.roles,
-        fcmSupported: fcmState.isSupported,
-        fcmInitialized: fcmState.isInitialized,
-        hasPermission: fcmState.hasPermission,
-        hasToken: !!fcmState.token,
-        error: fcmState.error,
-      });
-    }
-  }, [user, fcmState]);
 
   // Check for existing authentication on mount
   useEffect(() => {
@@ -97,19 +85,24 @@ export const JwtAuthProvider = ({ children }: PropsWithChildren) => {
             const authResponse = await authService.refreshToken(refreshToken);
 
             // Update stored tokens
-            authService.setTokens(authResponse.access_token, authResponse.refresh_token);
+            authService.setTokens(
+              authResponse.access_token,
+              authResponse.refresh_token
+            );
 
             // Update state
             const sessionInfo = mapAuthResponseToSession(authResponse);
             const userData = mapAuthResponseToUser(authResponse);
 
             setUser(userData);
-            dispatch(setCredentials({
-              idToken: authResponse.access_token,
-              refreshToken: authResponse.refresh_token,
-              expiresIn: authResponse.expires_in,
-              session: sessionInfo,
-            }));
+            dispatch(
+              setCredentials({
+                idToken: authResponse.access_token,
+                refreshToken: authResponse.refresh_token,
+                expiresIn: authResponse.expires_in,
+                session: sessionInfo,
+              })
+            );
           } catch (refreshError) {
             console.warn('Token refresh failed, clearing auth state');
             authService.clearTokens();
@@ -132,91 +125,111 @@ export const JwtAuthProvider = ({ children }: PropsWithChildren) => {
     checkAuth();
   }, [dispatch]);
 
-  const signInWithEmail = useCallback(async (email: string, password: string) => {
-    try {
-      setIsLoading(true);
-      dispatch(setAuthPending());
+  const signInWithEmail = useCallback(
+    async (email: string, password: string) => {
+      try {
+        setIsLoading(true);
+        dispatch(setAuthPending());
 
-      const authResponse = await authService.login({ email, password });
+        const authResponse = await authService.login({ email, password });
 
-      // Store tokens
-      authService.setTokens(authResponse.access_token, authResponse.refresh_token);
+        // Store tokens
+        authService.setTokens(
+          authResponse.access_token,
+          authResponse.refresh_token
+        );
 
-      // Update state
-      const sessionInfo = mapAuthResponseToSession(authResponse);
-      const userData = mapAuthResponseToUser(authResponse);
+        // Update state
+        const sessionInfo = mapAuthResponseToSession(authResponse);
+        const userData = mapAuthResponseToUser(authResponse);
 
-      console.log('🔄 JWT Auth Response Debug:', {
-        originalResponse: authResponse,
-        sessionInfo,
-        userData,
-      });
+        console.log('🔄 JWT Auth Response Debug:', {
+          originalResponse: authResponse,
+          sessionInfo,
+          userData,
+        });
 
-      setUser(userData);
-      dispatch(setCredentials({
-        idToken: authResponse.access_token,
-        refreshToken: authResponse.refresh_token,
-        expiresIn: authResponse.expires_in,
-        session: sessionInfo,
-      }));
+        setUser(userData);
+        dispatch(
+          setCredentials({
+            idToken: authResponse.access_token,
+            refreshToken: authResponse.refresh_token,
+            expiresIn: authResponse.expires_in,
+            session: sessionInfo,
+          })
+        );
 
-      console.log('✅ JWT sign-in completed successfully');
-    } catch (error: any) {
-      console.error('❌ JWT sign-in error:', error);
+        console.log('✅ JWT sign-in completed successfully');
+      } catch (error: any) {
+        console.error('❌ JWT sign-in error:', error);
 
-      let errorMessage = 'Sign-in failed';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+        let errorMessage = 'Sign-in failed';
+        if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        dispatch(setAuthError(errorMessage));
+        throw new Error(errorMessage);
+      } finally {
+        setIsLoading(false);
       }
+    },
+    [dispatch]
+  );
 
-      dispatch(setAuthError(errorMessage));
-      throw new Error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [dispatch]);
+  const register = useCallback(
+    async (email: string, password: string, name: string) => {
+      try {
+        setIsLoading(true);
+        dispatch(setAuthPending());
 
-  const register = useCallback(async (email: string, password: string, name: string) => {
-    try {
-      setIsLoading(true);
-      dispatch(setAuthPending());
+        const authResponse = await authService.register({
+          email,
+          password,
+          name,
+        });
 
-      const authResponse = await authService.register({ email, password, name });
+        // Store tokens
+        authService.setTokens(
+          authResponse.access_token,
+          authResponse.refresh_token
+        );
 
-      // Store tokens
-      authService.setTokens(authResponse.access_token, authResponse.refresh_token);
+        // Update state
+        const sessionInfo = mapAuthResponseToSession(authResponse);
+        const userData = mapAuthResponseToUser(authResponse);
 
-      // Update state
-      const sessionInfo = mapAuthResponseToSession(authResponse);
-      const userData = mapAuthResponseToUser(authResponse);
+        setUser(userData);
+        dispatch(
+          setCredentials({
+            idToken: authResponse.access_token,
+            refreshToken: authResponse.refresh_token,
+            expiresIn: authResponse.expires_in,
+            session: sessionInfo,
+          })
+        );
 
-      setUser(userData);
-      dispatch(setCredentials({
-        idToken: authResponse.access_token,
-        refreshToken: authResponse.refresh_token,
-        expiresIn: authResponse.expires_in,
-        session: sessionInfo,
-      }));
+        console.log('✅ JWT registration completed successfully');
+      } catch (error: any) {
+        console.error('❌ JWT registration error:', error);
 
-      console.log('✅ JWT registration completed successfully');
-    } catch (error: any) {
-      console.error('❌ JWT registration error:', error);
+        let errorMessage = 'Registration failed';
+        if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
 
-      let errorMessage = 'Registration failed';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
+        dispatch(setAuthError(errorMessage));
+        throw new Error(errorMessage);
+      } finally {
+        setIsLoading(false);
       }
-
-      dispatch(setAuthError(errorMessage));
-      throw new Error(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [dispatch]);
+    },
+    [dispatch]
+  );
 
   const logout = useCallback(async () => {
     try {

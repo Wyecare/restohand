@@ -51,11 +51,7 @@ export class RestaurantTable {
 
 export const RestaurantTableSchema = SchemaFactory.createForClass(RestaurantTable);
 
-RestaurantTableSchema.index(
-  { restaurantId: 1, tableNumber: 1 },
-  { unique: true, collation: { locale: 'en', strength: 2 } }
-);
-
+// Ensure table numbers are unique per restaurant and branch
 RestaurantTableSchema.index(
   { restaurantId: 1, branchId: 1, tableNumber: 1 },
   { unique: true, collation: { locale: 'en', strength: 2 } }

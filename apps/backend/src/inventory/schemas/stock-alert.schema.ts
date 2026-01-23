@@ -11,6 +11,9 @@ export class StockAlert {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', required: true, index: true })
   restaurantId!: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
+  branchId?: string;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'InventoryItem', required: true, index: true })
   inventoryItemId!: string;
 
@@ -71,3 +74,6 @@ StockAlertSchema.index({ restaurantId: 1, isActive: 1, createdAt: -1 });
 StockAlertSchema.index({ restaurantId: 1, type: 1, isActive: 1 });
 StockAlertSchema.index({ restaurantId: 1, severity: 1, isActive: 1 });
 StockAlertSchema.index({ restaurantId: 1, isRead: 1, isActive: 1 });
+StockAlertSchema.index({ branchId: 1, isActive: 1, createdAt: -1 });
+StockAlertSchema.index({ branchId: 1, type: 1, isActive: 1 });
+StockAlertSchema.index({ branchId: 1, severity: 1, isActive: 1 });

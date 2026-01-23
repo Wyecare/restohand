@@ -3,6 +3,7 @@ import { baseApi } from './baseApi';
 export interface InventoryItem {
   id: string;
   restaurantId: string;
+  branchId?: string;
   name: string;
   description?: string;
   category: string;
@@ -44,6 +45,7 @@ export interface InventoryItem {
 export interface StockAlert {
   id: string;
   restaurantId: string;
+  branchId?: string;
   inventoryItemId: string;
   type: 'low_stock' | 'out_of_stock' | 'expiry_warning' | 'reorder_point';
   severity: 'critical' | 'warning' | 'info';
@@ -107,6 +109,15 @@ export interface UpdateStockPayload {
 
 export interface InventoryFilters {
   restaurantId: string;
+  category?: string;
+  lowStock?: boolean;
+  outOfStock?: boolean;
+  search?: string;
+}
+
+export interface BranchInventoryFilters {
+  restaurantId: string;
+  branchId: string;
   category?: string;
   lowStock?: boolean;
   outOfStock?: boolean;
@@ -204,6 +215,57 @@ export const inventoryApi = baseApi.injectEndpoints({
     getInventoryUnits: builder.query<{ units: string[] }, string>({
       query: (restaurantId) => `/restaurants/${restaurantId}/inventory/units`,
     }),
+
+    // Branch-aware endpoints
+    getInventoryItemsByBranch: builder.query<InventoryItem[], BranchInventoryFilters>({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/inventory/branches/${branchId}/items`,
+        params,
+      }),
+      providesTags: (result, _error, { restaurantId, branchId }) =>
+        result
+          ? [
+              ...result.map((item) => ({
+                type: 'InventoryItem' as const,
+                id: item.id,
+              })),
+              { type: 'InventoryItem' as const, id: `LIST-${restaurantId}-${branchId}` },
+            ]
+          : [{ type: 'InventoryItem' as const, id: `LIST-${restaurantId}-${branchId}` }],
+    }),
+
+    createInventoryItemForBranch: builder.mutation<InventoryItem, CreateInventoryItemPayload & { branchId: string }>({
+      query: ({ restaurantId, branchId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/inventory/branches/${branchId}/items`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, branchId }) => [
+        { type: 'InventoryItem', id: `LIST-${restaurantId}-${branchId}` },
+        { type: 'InventoryAnalytics', id: `${restaurantId}-${branchId}` },
+      ],
+    }),
+
+    getStockAlertsByBranch: builder.query<StockAlert[], { restaurantId: string; branchId: string }>({
+      query: ({ restaurantId, branchId }) => `/restaurants/${restaurantId}/inventory/branches/${branchId}/alerts`,
+      providesTags: (result, _error, { restaurantId, branchId }) =>
+        result
+          ? [
+              ...result.map((alert) => ({
+                type: 'StockAlert' as const,
+                id: alert.id,
+              })),
+              { type: 'StockAlert' as const, id: `LIST-${restaurantId}-${branchId}` },
+            ]
+          : [{ type: 'StockAlert' as const, id: `LIST-${restaurantId}-${branchId}` }],
+    }),
+
+    getInventoryAnalyticsByBranch: builder.query<InventoryAnalytics, { restaurantId: string; branchId: string }>({
+      query: ({ restaurantId, branchId }) => `/restaurants/${restaurantId}/inventory/branches/${branchId}/analytics`,
+      providesTags: (result, _error, { restaurantId, branchId }) => [
+        { type: 'InventoryAnalytics', id: `${restaurantId}-${branchId}` },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -217,4 +279,9 @@ export const {
   useMarkAlertAsReadMutation,
   useGetInventoryCategoriesQuery,
   useGetInventoryUnitsQuery,
+  // Branch-aware hooks
+  useGetInventoryItemsByBranchQuery,
+  useCreateInventoryItemForBranchMutation,
+  useGetStockAlertsByBranchQuery,
+  useGetInventoryAnalyticsByBranchQuery,
 } = inventoryApi;

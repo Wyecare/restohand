@@ -72,6 +72,7 @@ export interface Restaurant {
 export interface RestaurantTable {
   id: string;
   restaurantId: string;
+  branchId?: string;
   tableNumber: string;
   displayName?: string;
   capacity?: number;
@@ -155,6 +156,7 @@ export interface TableStatusStats {
 export interface ZoneResponse {
   id: string;
   name: string;
+  branchId?: string;
   tableCount: number;
   createdAt: string;
   updatedAt: string;
@@ -199,6 +201,7 @@ export interface EnhancedRestaurantTable {
 export interface MenuCategory {
   id: string;
   restaurantId: string;
+  branchId?: string;
   name: string;
   description?: string;
   displayOrder: number;
@@ -216,6 +219,7 @@ export interface MenuItemPricing {
 export interface MenuItem {
   id: string;
   restaurantId: string;
+  branchId?: string;
   categoryId?: string;
   name: string;
   description?: string;
@@ -328,6 +332,7 @@ export interface SessionInfo {
   displayName?: string;
   email?: string;
   phoneNumber?: string;
+  branchId?: string;
 }
 
 export interface StaffMember {

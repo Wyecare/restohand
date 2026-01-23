@@ -18,6 +18,7 @@ export interface UpdateStaffPayload {
 export interface StaffInvitation {
   id: string;
   restaurantId: string;
+  branchId: string;
   name: string;
   phoneNumber: string;
   email?: string;
@@ -66,7 +67,7 @@ export interface CompleteSignupResponse {
 
 // JWT-based staff signup interfaces
 export interface JwtStaffSignupPayload {
-  token: string;
+  invitationToken: string;
   name: string;
   password: string;
 }
@@ -82,6 +83,30 @@ export interface JwtStaffSignupResponse {
     restaurantId: string;
   };
   expires_in: number;
+}
+
+// New branch-aware invitation interfaces
+export interface CreateStaffInvitationPayload {
+  name: string;
+  email: string;
+  phoneNumber?: string;
+  branchId: string;
+  role: 'chef' | 'waiter' | 'cashier' | 'manager';
+}
+
+export interface AcceptStaffInvitationPayload {
+  invitationToken: string;
+  phoneNumber: string;
+}
+
+export interface AcceptStaffInvitationResponse {
+  success: boolean;
+  user: {
+    id: string;
+    name: string;
+    role: string;
+    restaurantId: string;
+  };
 }
 
 export const staffApi = baseApi.injectEndpoints({
@@ -178,6 +203,79 @@ export const staffApi = baseApi.injectEndpoints({
         body,
       }),
     }),
+
+    // New branch-aware staff invitation endpoints
+    createStaffInvitation: builder.mutation<StaffInvitation, CreateStaffInvitationPayload>({
+      query: (body) => ({
+        url: '/users/invitations',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [{ type: 'StaffInvitation', id: 'LIST' }, { type: 'Staff', id: 'LIST' }],
+    }),
+
+    deleteStaffInvitation: builder.mutation<void, string>({
+      query: (invitationId) => ({
+        url: `/users/invitations/${invitationId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: [{ type: 'StaffInvitation', id: 'LIST' }],
+    }),
+
+    acceptStaffInvitation: builder.mutation<AcceptStaffInvitationResponse, AcceptStaffInvitationPayload>({
+      query: (body) => ({
+        url: '/users/invitations/accept',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [{ type: 'Staff', id: 'LIST' }, { type: 'StaffInvitation', id: 'LIST' }],
+    }),
+
+    // New branch-aware invitation verification and signup
+    verifyBranchInvite: builder.query<VerifyInviteResponse, string>({
+      query: (token) => ({
+        url: `/public/staff-invitations/verify/${token}`,
+        method: 'GET',
+      }),
+    }),
+
+    branchStaffSignup: builder.mutation<JwtStaffSignupResponse, JwtStaffSignupPayload>({
+      query: (body) => ({
+        url: `/public/staff-invitations/accept`,
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    // Branch-aware staff endpoints
+    listStaffByBranch: builder.query<StaffMember[], { branchId: string; role?: string }>({
+      query: ({ branchId, role }) => ({
+        url: `/users/branch/${branchId}`,
+        params: role ? { role } : {},
+      }),
+      providesTags: (result, _error, { branchId }) =>
+        result
+          ? [
+              ...result.map((staff) => ({ type: 'Staff' as const, id: staff.id })),
+              { type: 'Staff' as const, id: `LIST-${branchId}` },
+            ]
+          : [{ type: 'Staff' as const, id: `LIST-${branchId}` }],
+      transformResponse: (response: { data: StaffMember[] }) => response.data,
+    }),
+
+    listWaitersByBranch: builder.query<StaffMember[], { branchId: string }>({
+      query: ({ branchId }) => ({
+        url: `/users/branch/${branchId}/waiters`,
+      }),
+      providesTags: (result, _error, { branchId }) =>
+        result
+          ? [
+              ...result.map((staff) => ({ type: 'Staff' as const, id: staff.id })),
+              { type: 'Staff' as const, id: `WAITERS-${branchId}` },
+            ]
+          : [{ type: 'Staff' as const, id: `WAITERS-${branchId}` }],
+      transformResponse: (response: { data: StaffMember[] }) => response.data,
+    }),
   }),
 });
 
@@ -193,4 +291,12 @@ export const {
   useVerifyInviteQuery,
   useCompleteSignupMutation,
   useJwtStaffSignupMutation,
+  useCreateStaffInvitationMutation,
+  useDeleteStaffInvitationMutation,
+  useAcceptStaffInvitationMutation,
+  useVerifyBranchInviteQuery,
+  useBranchStaffSignupMutation,
+  // Branch-aware hooks
+  useListStaffByBranchQuery,
+  useListWaitersByBranchQuery,
 } = staffApi;

@@ -10,6 +10,7 @@ import {
   UseGuards,
   Req,
   Put,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -23,6 +24,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { BranchPermissionsService } from '../users/branch-permissions.service';
 import { RestaurantTablesService } from './restaurant-tables.service';
 import { TableStatusService } from './table-status.service';
 import { ZoneManagementService } from './zone-management.service';
@@ -52,7 +54,8 @@ export class RestaurantTablesController {
   constructor(
     private readonly tablesService: RestaurantTablesService,
     private readonly tableStatusService: TableStatusService,
-    private readonly zoneManagementService: ZoneManagementService
+    private readonly zoneManagementService: ZoneManagementService,
+    private readonly branchPermissions: BranchPermissionsService
   ) {}
 
   @Get()
@@ -238,9 +241,12 @@ export class RestaurantTablesController {
   @ApiCreatedResponse({ type: ZoneResponseDto })
   async createZone(
     @Param('restaurantId') restaurantId: string,
-    @Body() dto: CreateZoneDto
+    @Body() dto: CreateZoneDto,
+    @Req() req: Request
   ) {
-    return this.zoneManagementService.createZone(restaurantId, dto);
+    const user = req.user as AuthenticatedUser;
+    // Use branch-aware creation with user's current branch
+    return this.zoneManagementService.createZoneForBranch(restaurantId, user.branchId!, dto);
   }
 
   @Patch('zones/:zoneId')
@@ -278,5 +284,92 @@ export class RestaurantTablesController {
     @Body() dto: BulkUpdateZonesDto
   ) {
     return this.zoneManagementService.bulkUpdateZones(restaurantId, dto);
+  }
+
+  // Branch-aware zone endpoints
+  @Get('zones/branch/:branchId')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
+  @ApiParam({ name: 'branchId', description: 'Branch ID' })
+  @ApiOkResponse({ type: ZonesListResponseDto })
+  async getZonesByBranch(
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Req() req: Request
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to access this branch zones');
+    }
+
+    return this.zoneManagementService.getZonesByBranch(restaurantId, branchId);
+  }
+
+  @Post('zones/branch/:branchId')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
+  @ApiParam({ name: 'branchId', description: 'Branch ID' })
+  @ApiCreatedResponse({ type: ZoneResponseDto })
+  async createZoneForBranch(
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Body() dto: CreateZoneDto,
+    @Req() req: Request
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to create zones for this branch');
+    }
+
+    return this.zoneManagementService.createZoneForBranch(restaurantId, branchId, dto);
+  }
+
+  // Branch-aware table endpoints
+  @Get('branch/:branchId')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
+  @ApiParam({ name: 'branchId', description: 'Branch ID' })
+  @ApiOkResponse({ type: [RestaurantTableResponseDto] })
+  async listByBranch(
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Req() req: Request
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to access this branch tables');
+    }
+
+    return this.tablesService.list(restaurantId, branchId);
+  }
+
+  @Get('branch/:branchId/service-view')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
+  @ApiParam({ name: 'branchId', description: 'Branch ID' })
+  @ApiOkResponse({ type: ServiceTablesResponseDto })
+  async listForServiceByBranch(
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Req() req: Request
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to access this branch tables');
+    }
+
+    return this.tablesService.listForService(restaurantId, branchId);
   }
 }

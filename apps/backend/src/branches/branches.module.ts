@@ -4,6 +4,7 @@ import { BranchesService } from './branches.service';
 import { BranchesController } from './branches.controller';
 import { Branch, BranchSchema } from './schemas/branch.schema';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { AuthModule } from '../auth/auth.module';
       { name: Branch.name, schema: BranchSchema },
     ]),
     AuthModule,
+    UsersModule,
   ],
   controllers: [BranchesController],
   providers: [BranchesService],

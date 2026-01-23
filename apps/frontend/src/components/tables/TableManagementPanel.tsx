@@ -56,15 +56,16 @@ import {
   UserPlus,
 } from 'lucide-react';
 import {
-  useListRestaurantTablesQuery,
+  useListRestaurantTablesByBranchQuery,
   useCreateRestaurantTableMutation,
   useUpdateRestaurantTableMutation,
   useArchiveRestaurantTableMutation,
   useReactivateRestaurantTableMutation,
   useGenerateRestaurantTableQrMutation,
   useBulkCreateRestaurantTablesMutation,
-  useGetZonesQuery,
+  useGetZonesByBranchQuery,
 } from '@/store/api/restaurantsApi';
+import { useBranchContext } from '@/contexts/BranchContext';
 import type { RestaurantTable, ZoneResponse } from '@/store/api/types';
 import { WaiterAssignmentDialog } from './WaiterAssignmentDialog';
 
@@ -91,15 +92,19 @@ export const TableManagementPanel: React.FC<TableManagementPanelProps> = ({
   restaurantId,
 }) => {
   const { toast } = useToast();
+  const { currentBranch } = useBranchContext();
 
   // API hooks
+  const branchId = currentBranch?._id;
   const {
     data: tables,
     isLoading,
     refetch,
-  } = useListRestaurantTablesQuery(restaurantId ? { restaurantId } : skipToken);
-
-  const { data: zonesData } = useGetZonesQuery(restaurantId || skipToken);
+  } = useListRestaurantTablesByBranchQuery(
+    restaurantId && branchId ? { restaurantId, branchId } : skipToken
+  );
+  const zoneQueryParams = restaurantId && branchId ? { restaurantId, branchId } : skipToken;
+  const { data: zonesData } = useGetZonesByBranchQuery(zoneQueryParams);
 
   const [createTable] = useCreateRestaurantTableMutation();
   const [updateTable] = useUpdateRestaurantTableMutation();

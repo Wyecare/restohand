@@ -42,12 +42,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
-  useGetZonesQuery,
-  useCreateZoneMutation,
+  useGetZonesByBranchQuery,
+  useCreateZoneForBranchMutation,
   useUpdateZoneMutation,
   useDeleteZoneMutation,
 } from '@/store/api/restaurantsApi';
 import type { ZoneResponse } from '@/store/api/types';
+import { useBranchContext } from '@/contexts/BranchContext';
 
 interface ZoneManagementPanelProps {
   restaurantId: string;
@@ -59,10 +60,13 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
   onZoneChange,
 }) => {
   const { toast } = useToast();
+  const { currentBranch } = useBranchContext();
 
   // API hooks
-  const { data: zonesData, refetch } = useGetZonesQuery(restaurantId || skipToken);
-  const [createZone] = useCreateZoneMutation();
+  const branchId = currentBranch?._id;
+  const queryParams = restaurantId && branchId ? { restaurantId, branchId } : skipToken;
+  const { data: zonesData, refetch } = useGetZonesByBranchQuery(queryParams);
+  const [createZone] = useCreateZoneForBranchMutation();
   const [updateZone] = useUpdateZoneMutation();
   const [deleteZone] = useDeleteZoneMutation();
 
@@ -78,11 +82,12 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
   // Event handlers
   const handleCreateZone = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!restaurantId) return;
+    if (!restaurantId || !branchId) return;
 
     try {
       await createZone({
         restaurantId,
+        branchId,
         body: { name: zoneForm.name.trim() },
       }).unwrap();
 
