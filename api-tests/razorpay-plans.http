@@ -1,0 +1,208 @@
+###
+# Razorpay Plans Management
+# Base URL: https://api.razorpay.com/v1
+# Auth: Basic Auth with Key ID and Secret
+###
+
+@baseUrl = https://api.razorpay.com/v1
+@keyId = rzp_live_RbHutYgpJaFNZ8
+@keySecret = K0yG0fEBzdeaAU1MdtrdRp4J
+
+### Create Starter Monthly Plan
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "monthly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Starter - Monthly",
+    "amount": 69900,
+    "currency": "INR",
+    "description": "Perfect for new cloud kitchens and small cafes. Single location, up to 10 tables, basic analytics."
+  },
+  "notes": {
+    "tier": "starter",
+    "billing_cycle": "monthly",
+    "locations": "1",
+    "tables": "10",
+    "features": "basic_analytics,email_support,qr_ordering"
+  }
+}
+
+### Create Professional Monthly Plan
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "monthly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Professional - Monthly",
+    "amount": 129900,
+    "currency": "INR",
+    "description": "Recommended for growing QSRs and established cafes. Up to 3 locations, unlimited tables, advanced analytics."
+  },
+  "notes": {
+    "tier": "professional",
+    "billing_cycle": "monthly",
+    "locations": "3",
+    "tables": "unlimited",
+    "features": "advanced_analytics,priority_support,custom_branding,inventory_alerts"
+  }
+}
+
+### Create Enterprise Monthly Plan
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "monthly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Enterprise - Monthly",
+    "amount": 249900,
+    "currency": "INR",
+    "description": "For restaurant chains and franchises. Unlimited locations, dedicated account manager, phone support."
+  },
+  "notes": {
+    "tier": "enterprise",
+    "billing_cycle": "monthly",
+    "locations": "unlimited",
+    "tables": "unlimited",
+    "features": "dedicated_manager,phone_support,custom_integrations,advanced_inventory"
+  }
+}
+
+### Create Starter Yearly Plan (2 months discount)
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "yearly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Starter - Yearly",
+    "amount": 769900,
+    "currency": "INR",
+    "description": "Starter plan billed annually. Save 2 months! Perfect for new cloud kitchens and small cafes."
+  },
+  "notes": {
+    "tier": "starter",
+    "billing_cycle": "yearly",
+    "locations": "1",
+    "tables": "10",
+    "features": "basic_analytics,email_support,qr_ordering",
+    "discount": "2_months_free"
+  }
+}
+
+### Create Professional Yearly Plan (2 months discount)
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "yearly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Professional - Yearly",
+    "amount": 1429900,
+    "currency": "INR",
+    "description": "Professional plan billed annually. Save 2 months! Recommended for growing QSRs and established cafes."
+  },
+  "notes": {
+    "tier": "professional",
+    "billing_cycle": "yearly",
+    "locations": "3",
+    "tables": "unlimited",
+    "features": "advanced_analytics,priority_support,custom_branding,inventory_alerts",
+    "discount": "2_months_free"
+  }
+}
+
+### Create Enterprise Yearly Plan (2 months discount)
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "yearly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Enterprise - Yearly",
+    "amount": 2749900,
+    "currency": "INR",
+    "description": "Enterprise plan billed annually. Save 2 months! For restaurant chains and franchises."
+  },
+  "notes": {
+    "tier": "enterprise",
+    "billing_cycle": "yearly",
+    "locations": "unlimited",
+    "tables": "unlimited",
+    "features": "dedicated_manager,phone_support,custom_integrations,advanced_inventory",
+    "discount": "2_months_free"
+  }
+}
+
+### Fetch All Plans
+GET {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+
+### Fetch Specific Plan
+GET {{baseUrl}}/plans/plan_PLAN_ID_HERE
+Authorization: Basic {{keyId}}:{{keySecret}}
+
+### ===== LEGACY PLANS (for grandfathering early customers) =====
+
+### Create Founding Member Plan (₹699 forever)
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "monthly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Founding Member - Monthly",
+    "amount": 69900,
+    "currency": "INR",
+    "description": "Special founding member rate. Locked forever at ₹699/month with Professional features."
+  },
+  "notes": {
+    "tier": "founding_member",
+    "billing_cycle": "monthly",
+    "locations": "3",
+    "tables": "unlimited",
+    "features": "advanced_analytics,priority_support,custom_branding,inventory_alerts",
+    "special": "founding_member_forever_rate"
+  }
+}
+
+### Create Early Adopter Plan (₹999 rate)
+POST {{baseUrl}}/plans
+Authorization: Basic {{keyId}}:{{keySecret}}
+Content-Type: application/json
+
+{
+  "period": "monthly",
+  "interval": 1,
+  "item": {
+    "name": "RestoHand Early Adopter - Monthly",
+    "amount": 99900,
+    "currency": "INR",
+    "description": "Special early adopter rate. Professional features at ₹999/month."
+  },
+  "notes": {
+    "tier": "early_adopter",
+    "billing_cycle": "monthly",
+    "locations": "3",
+    "tables": "unlimited",
+    "features": "advanced_analytics,priority_support,custom_branding,inventory_alerts",
+    "special": "early_adopter_rate"
+  }
+}

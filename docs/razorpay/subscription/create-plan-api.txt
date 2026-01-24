@@ -1,0 +1,192 @@
+Create a Plan
+POST
+https://api.razorpay.com/v1/plans
+
+Click to copy
+
+Available in
+
+IN
+India
+
+MY
+Malaysia
+
+SG
+Singapore
+
+US
+United States
+
+Use this endpoint to create a plan.
+
+
+Is this page helpful?
+
+
+
+
+Request Parameters
+
+4
+
+
+Response Parameters
+
+7
+
+
+Errors
+
+3
+
+Request Parameters
+period
+*
+
+string
+This, combined with interval, defines the frequency of the plan. Possible values:
+daily
+weekly
+monthly
+quarterly
+yearly
+Handy Tips
+
+You can create custom frequencies while creating a plan. For example, once in 3 weeks.
+
+For UPI, all undefined frequencies except daily, weekly, monthly, quarterly and yearly are considered as-presented.
+For domestic cards, all undefined frequencies except weekly, monthly and yearly are considered as-presented while registering the mandate with banks.
+For Emandate, all defined and undefined frequencies are considered as-presented while registering the mandate with banks.
+
+interval
+*
+
+integer
+This, combined with period, defines the frequency of the plan. If the billing cycle is 2 months, the value should be 2. For daily plans, the minimum value should be 7.
+
+item
+object
+Details of the plan.
+
+Show child parameters (4)
+
+notes
+object
+Notes you can enter of the contact for future reference. This is a key-value pair. You can enter a maximum of 15 key-value pairs. For example, "note_key": "Monthly gym membership".
+
+Response Parameters
+id
+string
+The unique identifier linked to a plan. For example, plan_00000000000001. This ID is used when creating a subscription for a customer.
+
+entity
+string
+The entity being created. Here, it is plan.
+
+interval
+integer
+Used together with period to define how often the customer should be charged.
+
+period
+string
+Used together with interval to define how often the customer should be charged. Possible values:
+daily
+weekly
+monthly
+yearly
+
+item
+array
+Details of the plan.
+
+Show child parameters (5)
+
+notes
+object
+Notes you can enter of the contact for future reference. This is a key-value pair. You can enter a maximum of 15 key-value pairs. For example, "note_key": "Monthly Gym".
+
+created_at
+integer
+The Unix timestamp at which the plan was created.
+
+Errors
+Authentication failed
+
+Error Status: 401
+
+This error occurs when you use incorrect or invalid API Keys.
+
+Solution
+
+offer_id is/are not required and should not be sent
+
+Error Status: 400
+
+This error occurs when you are passing offer_id parameter in the request body.
+
+Solution
+
+The amount must be at least INR 1.00.
+
+Error Status: 400
+
+The amount specified is less than the minimum amount. Currency subunits, such as pais
+
+
+
+
+example: 
+
+
+curl -u [YOUR_KEY_ID]:[YOUR_KEY_SECRET] \
+-X POST https://api.razorpay.com/v1/plans \
+-H "Content-Type: application/json" \
+-d '{
+  "period": "weekly",
+  "interval": 1,
+  "item": {
+    "name": "Test plan - Weekly",
+    "amount": 69900,
+    "currency": "<currency>",
+    "description": "Description for the test plan"
+  },
+  "notes": {
+    "notes_key_1": "Tea, Earl Grey, Hot",
+    "notes_key_2": "Tea, Earl Grey… decaf."
+  }
+}'
+
+
+
+{
+  "id":"plan_00000000000001",
+  "entity":"plan",
+  "interval":1,
+  "period":"weekly",
+  "item":{
+    "id":"item_00000000000001",
+    "active":true,
+    "name":"Test plan - Weekly",
+    "description":"Description for the test plan - Weekly",
+    "amount":69900,
+    "unit_amount":69900,
+    "currency":"<currency>",
+    "type":"plan",
+    "unit":null,
+    "tax_inclusive":false,
+    "hsn_code":null,
+    "sac_code":null,
+    "tax_rate":null,
+    "tax_id":null,
+    "tax_group_id":null,
+    "created_at":1580219935,
+    "updated_at":1580219935
+  },
+  "notes":{
+    "notes_key_1":"Tea, Earl Grey, Hot",
+    "notes_key_2":"Tea, Earl Grey… decaf."
+  },
+  "created_at":1580219935
+}
+
