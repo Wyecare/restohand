@@ -216,7 +216,11 @@ module "run_api" {
         secret_name = module.secrets.secret_names["razorpay-webhook-secret"]
         version     = "latest"
       }
-
+      USER_FRONTENT_URL = {
+        secret_name = module.secrets.secret_names["customer_frontend_url"]
+        version     = "latest"
+      }
+      
       ANTHROPIC_API_KEY = {
         secret_name = module.secrets.secret_names["athropic_api_key"]
         version     = "latest"

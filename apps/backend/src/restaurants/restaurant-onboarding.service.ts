@@ -25,12 +25,6 @@ export interface RestaurantOnboardingData {
     | 'public_limited';
   gstNumber?: string;
   panNumber?: string;
-  bankAccount: {
-    accountNumber: string;
-    ifscCode: string;
-    accountHolderName: string;
-    bankName: string;
-  };
 }
 
 @Injectable()
@@ -167,12 +161,6 @@ export class RestaurantOnboardingService {
           gstNumber: data.gstNumber,
           panNumber: data.panNumber,
           businessType: data.businessType,
-        },
-
-        // Bank Account
-        bankAccount: {
-          ...data.bankAccount,
-          verified: false, // Will be verified by Razorpay
         },
 
         // Default settings

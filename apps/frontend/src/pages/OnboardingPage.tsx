@@ -52,10 +52,6 @@ const OnboardingPage = () => {
   const [businessType, setBusinessType] = useState<'sole_proprietorship' | 'partnership' | 'private_limited' | 'public_limited'>('sole_proprietorship');
   const [gstNumber, setGstNumber] = useState('');
   const [panNumber, setPanNumber] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [ifscCode, setIfscCode] = useState('');
-  const [accountHolderName, setAccountHolderName] = useState('');
-  const [bankName, setBankName] = useState('');
 
   if (existingRestaurantId) {
     return <Navigate to="/dashboard" replace />;
@@ -80,7 +76,7 @@ const OnboardingPage = () => {
       return;
     }
 
-    if (!name || !email || !phone || !street || !city || !state || !postalCode || !accountNumber || !ifscCode || !accountHolderName || !bankName) {
+    if (!name || !email || !phone || !street || !city || !state || !postalCode) {
       toast({
         title: 'Missing information',
         description: 'Please fill in all required fields to continue.',
@@ -106,12 +102,6 @@ const OnboardingPage = () => {
         businessType,
         gstNumber: gstNumber || undefined,
         panNumber: panNumber || undefined,
-        bankAccount: {
-          accountNumber,
-          ifscCode,
-          accountHolderName,
-          bankName,
-        },
       };
 
       const result = await onboardRestaurant(onboardingData).unwrap();
@@ -274,55 +264,6 @@ const OnboardingPage = () => {
               </div>
             </div>
 
-            {/* Bank Account */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Bank Account Details</h3>
-              <div className="grid gap-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="accountNumber">Account Number *</Label>
-                    <Input
-                      id="accountNumber"
-                      value={accountNumber}
-                      onChange={(event) => setAccountNumber(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="ifscCode">IFSC Code *</Label>
-                    <Input
-                      id="ifscCode"
-                      placeholder="HDFC0000123"
-                      value={ifscCode}
-                      onChange={(event) => setIfscCode(event.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <Label htmlFor="accountHolderName">Account Holder Name *</Label>
-                    <Input
-                      id="accountHolderName"
-                      value={accountHolderName}
-                      onChange={(event) => setAccountHolderName(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="bankName">Bank Name *</Label>
-                    <Input
-                      id="bankName"
-                      placeholder="HDFC Bank"
-                      value={bankName}
-                      onChange={(event) => setBankName(event.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Policy Agreement */}
             <div className="text-center space-y-2 mt-6">
@@ -355,7 +296,7 @@ const OnboardingPage = () => {
         </CardContent>
         <CardFooter>
           <p className="text-xs text-muted-foreground">
-            You'll get a 30-day free trial. After that, it's ₹999/month. You can cancel anytime.
+            You'll get a 30-day free trial. After that, subscription billing starts automatically via Razorpay. You can cancel anytime.
           </p>
         </CardFooter>
       </Card>

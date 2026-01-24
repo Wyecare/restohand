@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
-import { useCreateOrderWithPaymentMutation, useVerifyPaymentMutation } from '@/store/api/ordersApi';
+import {
+  useCreateOrderWithPaymentMutation,
+  useVerifyPaymentMutation,
+} from '@/store/api/ordersApi';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
   Plus,
@@ -24,7 +27,14 @@ import { CartErrorBoundary } from '@/components/cart/ErrorBoundary';
 import { NetworkStatus } from '@/components/cart/NetworkErrorHandler';
 import { useCartCalculation } from '@/hooks/useCartCalculation';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { addItem, removeItem, updateItemQuantity, updateCustomerInfo, clearCart, initializeCart } from '@/store/slices/cartSlice';
+import {
+  addItem,
+  removeItem,
+  updateItemQuantity,
+  updateCustomerInfo,
+  clearCart,
+  initializeCart,
+} from '@/store/slices/cartSlice';
 import { Input } from '@/components/ui/input';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
 import { formatCurrency } from '@/lib/billing';
@@ -34,7 +44,6 @@ declare global {
     Razorpay?: any;
   }
 }
-
 
 type DisplayCategory = {
   id: string;
@@ -94,7 +103,6 @@ const formatOrderStatus = (status: string) =>
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
 
-
 export default function CustomerMenuPage() {
   const params = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -119,19 +127,29 @@ export default function CustomerMenuPage() {
     { slug, table: tableFromUrl, tableId: tableIdFromUrl },
     { skip: !slug }
   );
-  const [createOrderWithPayment, { isLoading: isPlacingOrder }] = useCreateOrderWithPaymentMutation();
-  const [verifyPayment, { isLoading: isVerifyingPayment }] = useVerifyPaymentMutation();
+  const [createOrderWithPayment, { isLoading: isPlacingOrder }] =
+    useCreateOrderWithPaymentMutation();
+  const [verifyPayment, { isLoading: isVerifyingPayment }] =
+    useVerifyPaymentMutation();
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const { items: cartItems, totalQuantity, totalAmount } = useAppSelector((state) => ({
+  const {
+    items: cartItems,
+    totalQuantity,
+    totalAmount,
+  } = useAppSelector((state) => ({
     items: state.cart.items,
-    totalQuantity: state.cart.items.reduce((sum: number, item: any) => sum + item.quantity, 0),
-    totalAmount: state.cart.backendCalculated?.totalAmount ?? state.cart.subtotal,
+    totalQuantity: state.cart.items.reduce(
+      (sum: number, item: any) => sum + item.quantity,
+      0
+    ),
+    totalAmount:
+      state.cart.backendCalculated?.totalAmount ?? state.cart.subtotal,
   }));
 
   // Initialize cart calculation hook
-  const { isCalculating, backendTotal, hasBackendCalculation } = useCartCalculation();
-
+  const { isCalculating, backendTotal, hasBackendCalculation } =
+    useCartCalculation();
 
   const [cartDialogOpen, setCartDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,7 +165,8 @@ export default function CustomerMenuPage() {
       console.error('Failed to load Razorpay script');
       toast({
         title: 'Payment system unavailable',
-        description: 'Online payments may not work. Please try cash payment or refresh the page.',
+        description:
+          'Online payments may not work. Please try cash payment or refresh the page.',
         variant: 'destructive',
       });
     };
@@ -168,11 +187,13 @@ export default function CustomerMenuPage() {
   // Initialize cart when restaurant data is available
   useEffect(() => {
     if (restaurant && slug) {
-      dispatch(initializeCart({
-        restaurantId: restaurant.id,
-        restaurantSlug: slug,
-        tableNumber: tableFromUrl,
-      }));
+      dispatch(
+        initializeCart({
+          restaurantId: restaurant.id,
+          restaurantSlug: slug,
+          tableNumber: tableFromUrl,
+        })
+      );
     }
   }, [dispatch, restaurant, slug, tableFromUrl]);
   const activeOrder = data?.activeOrder;
@@ -268,18 +289,19 @@ export default function CustomerMenuPage() {
     return displayCategories;
   }, [categories, filteredProducts]);
 
-
   const handleAdd = (id: string, name: string, pricing: MenuItemPricing) => {
     try {
-      dispatch(addItem({
-        id: `${id}-${Date.now()}`, // Generate unique cart item ID
-        menuItemId: id,
-        name,
-        price: pricing.amount,
-        categoryId: '', // Will be set properly later
-        categoryName: '',
-        customizations: {},
-      }));
+      dispatch(
+        addItem({
+          id: `${id}-${Date.now()}`, // Generate unique cart item ID
+          menuItemId: id,
+          name,
+          price: pricing.amount,
+          categoryId: '', // Will be set properly later
+          categoryName: '',
+          customizations: {},
+        })
+      );
     } catch (error) {
       console.error('Error adding item to cart:', error);
       toast({
@@ -292,12 +314,19 @@ export default function CustomerMenuPage() {
 
   const handleRemove = (id: string) => {
     try {
-      const existingItem = cartItems.find((item: any) => item.menuItemId === id);
+      const existingItem = cartItems.find(
+        (item: any) => item.menuItemId === id
+      );
       if (existingItem) {
         if (existingItem.quantity === 1) {
           dispatch(removeItem(existingItem.id));
         } else {
-          dispatch(updateItemQuantity({ id: existingItem.id, quantity: existingItem.quantity - 1 }));
+          dispatch(
+            updateItemQuantity({
+              id: existingItem.id,
+              quantity: existingItem.quantity - 1,
+            })
+          );
         }
       }
     } catch (error) {
@@ -348,7 +377,8 @@ export default function CustomerMenuPage() {
         if (!window.Razorpay) {
           toast({
             title: 'Payment system not ready',
-            description: 'Please wait a moment and try again, or use cash payment.',
+            description:
+              'Please wait a moment and try again, or use cash payment.',
             variant: 'destructive',
           });
           return;
@@ -398,7 +428,8 @@ export default function CustomerMenuPage() {
             ondismiss: () => {
               toast({
                 title: 'Payment cancelled',
-                description: 'You can complete the payment later from your order.',
+                description:
+                  'You can complete the payment later from your order.',
                 variant: 'destructive',
               });
             },
@@ -492,7 +523,7 @@ export default function CustomerMenuPage() {
               Try Again
             </Button>
             <Button
-              onClick={() => navigate('/') }
+              onClick={() => navigate('/')}
               className="w-full"
               variant="ghost"
             >
@@ -511,307 +542,312 @@ export default function CustomerMenuPage() {
     <CartErrorBoundary>
       <NetworkStatus />
       <div className="relative min-h-screen bg-linear-to-b from-background via-muted/5 to-background pb-32">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b"
-      >
-        <div className="max-w-2xl mx-auto p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1">
-              <h1 className="text-2xl font-black tracking-tight">
-                {restaurant?.name || 'Menu'}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {allProducts.length} items available
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={() => setShowSearch(!showSearch)}
-            >
-              {showSearch ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Search className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-
-          {/* Search Bar */}
-          <AnimatePresence>
-            {showSearch && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search menu..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-11"
-                  />
-                  {searchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                      onClick={() => setSearchQuery('')}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {activeOrder && tableFromUrl && (
-              <motion.div
-                initial={{ opacity: 0, y: -12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-              >
-                <Card className="border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-orange-100 dark:bg-orange-900/50 rounded-full p-2">
-                          <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-orange-900 dark:text-orange-100">
-                            Active Order for Table {tableFromUrl}
-                          </h3>
-                          <p className="text-sm text-orange-700 dark:text-orange-300">
-                            Order #{activeOrder.orderNumber} •{' '}
-                            {formatOrderStatus(activeOrder.status)}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-900/50"
-                        onClick={() => {
-                          const encodedTable = encodeURIComponent(tableFromUrl);
-                          navigate(
-                            `/c/${slug}/order/${activeOrder.id}?table=${encodedTable}`
-                          );
-                        }}
-                      >
-                        <Receipt className="h-4 w-4 mr-2" />
-                        View Order
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="border-t border-border/70 pt-3 pb-1">
-            <ScrollArea className="w-full">
-              <div className="flex gap-2 max-w-2xl mx-auto pb-1">
-                {availableCategories.map((category) => (
-                  <Button
-                    key={category.id}
-                    variant={
-                      activeCategory === category.id ? 'default' : 'outline'
-                    }
-                    size="sm"
-                    onClick={() => setActiveCategory(category.id)}
-                    className="shrink-0 h-9 px-4 rounded-full"
-                  >
-                    <AccessibleEmoji
-                      symbol={category.icon.symbol}
-                      label={category.icon.label}
-                      className="mr-1.5"
-                    />
-                    {category.name}
-                  </Button>
-                ))}
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b"
+        >
+          <div className="max-w-2xl mx-auto p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1">
+                <h1 className="text-2xl font-black tracking-tight">
+                  {restaurant?.name || 'Menu'}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {allProducts.length} items available
+                </p>
               </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Menu Items */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="p-4 max-w-2xl mx-auto"
-      >
-        {displayItems.length === 0 ? (
-          <div className="text-center py-16">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-            >
-              <div className="text-6xl mb-4">
-                <AccessibleEmoji symbol="🔍" label="No items found" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">No items found</h3>
-              <p className="text-muted-foreground mb-4">
-                Try adjusting your search
-              </p>
               <Button
                 variant="outline"
-                onClick={() => {
-                  setSearchQuery('');
-                  setActiveCategory('all');
-                }}
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => setShowSearch(!showSearch)}
               >
-                Clear filters
+                {showSearch ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <Search className="h-5 w-5" />
+                )}
               </Button>
-            </motion.div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {displayItems.map((item, index) => {
-              const quantity = getItemQuantity(item.id);
-              return (
+            </div>
+
+            {/* Search Bar */}
+            <AnimatePresence>
+              {showSearch && (
                 <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.02 }}
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
                 >
-                  <Card className=" py-2 overflow-hidden border hover:shadow-md transition-all duration-200 hover:border-primary/30 h-full">
-                    <CardContent className="px-2 py-0 flex flex-col h-full">
-                      {/* Item Image */}
-                      <div className="relative w-full aspect-square rounded-md overflow-hidden mb-2 bg-linear-to-br from-muted to-muted/50">
-                        {item.imageUrls?.[0] ? (
-                          <img
-                            src={item.imageUrls[0]}
-                            alt={item.name}
-                            className="absolute inset-0 h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <AccessibleEmoji
-                              symbol="🍽️"
-                              label="Dish placeholder"
-                              className="text-4xl opacity-30"
-                            />
-                          </div>
-                        )}
-                        {/* Popular badge */}
-                        {item._isPopular && (
-                          <div className="absolute top-1.5 right-1.5 bg-yellow-500 rounded-full p-0.5 shadow-sm z-10">
-                            <Sparkles className="h-3 w-3 text-white fill-white" />
-                          </div>
-                        )}
-                        {/* Tags on image */}
-                        {(item._isSpicy || item._isQuick) && (
-                          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
-                            {item._isSpicy && (
-                              <AccessibleEmoji
-                                symbol="🌶️"
-                                label="Spicy"
-                                className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
-                              />
-                            )}
-                            {item._isQuick && (
-                              <AccessibleEmoji
-                                symbol="⚡"
-                                label="Quick serve"
-                                className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
-                              />
-                            )}
-                          </div>
-                        )}
-                      </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search menu..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-11"
+                    />
+                    {searchQuery && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                        onClick={() => setSearchQuery('')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                      {/* Item Details */}
-                      <div className="flex-1 flex flex-col px-1">
-                        <h3 className="font-bold text-xs line-clamp-2 mb-1.5 leading-tight">
-                          {item.name}
-                        </h3>
-
-                        {/* Price */}
-                        <p className="text-base font-black mb-2">
-                          {formatCurrency(item.pricing.amount)}
-                        </p>
-
-                        {/* Add Button - only show if self-ordering is enabled */}
-                        {isSelfOrderingEnabled && (
-                          <>
-                            {quantity > 0 ? (
-                              <div className="flex items-center justify-center gap-1.5 bg-primary rounded-full px-1.5 py-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
-                                  onClick={() => handleRemove(item.id)}
-                                >
-                                  <Minus className="h-3.5 w-3.5" />
-                                </Button>
-                                <span className="w-5 text-center font-bold text-sm text-primary-foreground">
-                                  {quantity}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
-                                  onClick={() =>
-                                    handleAdd(item.id, item.name, item.pricing)
-                                  }
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                size="sm"
-                                className="w-full rounded-full h-7 font-semibold text-xs"
-                                onClick={() =>
-                                  handleAdd(item.id, item.name, item.pricing)
-                                }
-                              >
-                                Add
-                              </Button>
-                            )}
-                          </>
-                        )}
+            <AnimatePresence>
+              {activeOrder && tableFromUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: -12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                >
+                  <Card className="border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-orange-100 dark:bg-orange-900/50 rounded-full p-2">
+                            <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-orange-900 dark:text-orange-100">
+                              Active Order for Table {tableFromUrl}
+                            </h3>
+                            <p className="text-sm text-orange-700 dark:text-orange-300">
+                              Order #{activeOrder.orderNumber} •{' '}
+                              {formatOrderStatus(activeOrder.status)}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-900/50"
+                          onClick={() => {
+                            const encodedTable =
+                              encodeURIComponent(tableFromUrl);
+                            navigate(
+                              `/c/${slug}/order/${activeOrder.id}?table=${encodedTable}`
+                            );
+                          }}
+                        >
+                          <Receipt className="h-4 w-4 mr-2" />
+                          View Order
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
                 </motion.div>
-              );
-            })}
+              )}
+            </AnimatePresence>
+
+            <div className="border-t border-border/70 pt-3 pb-1">
+              <ScrollArea className="w-full">
+                <div className="flex gap-2 max-w-2xl mx-auto pb-1">
+                  {availableCategories.map((category) => (
+                    <Button
+                      key={category.id}
+                      variant={
+                        activeCategory === category.id ? 'default' : 'outline'
+                      }
+                      size="sm"
+                      onClick={() => setActiveCategory(category.id)}
+                      className="shrink-0 h-9 px-4 rounded-full"
+                    >
+                      <AccessibleEmoji
+                        symbol={category.icon.symbol}
+                        label={category.icon.label}
+                        className="mr-1.5"
+                      />
+                      {category.name}
+                    </Button>
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </div>
           </div>
+        </motion.div>
+
+        {/* Menu Items */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="p-4 max-w-2xl mx-auto"
+        >
+          {displayItems.length === 0 ? (
+            <div className="text-center py-16">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+              >
+                <div className="text-6xl mb-4">
+                  <AccessibleEmoji symbol="🔍" label="No items found" />
+                </div>
+                <h3 className="text-xl font-bold mb-2">No items found</h3>
+                <p className="text-muted-foreground mb-4">
+                  Try adjusting your search
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setActiveCategory('all');
+                  }}
+                >
+                  Clear filters
+                </Button>
+              </motion.div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {displayItems.map((item, index) => {
+                const quantity = getItemQuantity(item.id);
+                return (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.02 }}
+                  >
+                    <Card className=" py-2 overflow-hidden border hover:shadow-md transition-all duration-200 hover:border-primary/30 h-full">
+                      <CardContent className="px-2 py-0 flex flex-col h-full">
+                        {/* Item Image */}
+                        <div className="relative w-full aspect-square rounded-md overflow-hidden mb-2 bg-linear-to-br from-muted to-muted/50">
+                          {item.imageUrls?.[0] ? (
+                            <img
+                              src={item.imageUrls[0]}
+                              alt={item.name}
+                              className="absolute inset-0 h-full w-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <AccessibleEmoji
+                                symbol="🍽️"
+                                label="Dish placeholder"
+                                className="text-4xl opacity-30"
+                              />
+                            </div>
+                          )}
+                          {/* Popular badge */}
+                          {item._isPopular && (
+                            <div className="absolute top-1.5 right-1.5 bg-yellow-500 rounded-full p-0.5 shadow-sm z-10">
+                              <Sparkles className="h-3 w-3 text-white fill-white" />
+                            </div>
+                          )}
+                          {/* Tags on image */}
+                          {(item._isSpicy || item._isQuick) && (
+                            <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+                              {item._isSpicy && (
+                                <AccessibleEmoji
+                                  symbol="🌶️"
+                                  label="Spicy"
+                                  className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
+                                />
+                              )}
+                              {item._isQuick && (
+                                <AccessibleEmoji
+                                  symbol="⚡"
+                                  label="Quick serve"
+                                  className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Item Details */}
+                        <div className="flex-1 flex flex-col px-1">
+                          <h3 className="font-bold text-xs line-clamp-2 mb-1.5 leading-tight">
+                            {item.name}
+                          </h3>
+
+                          {/* Price */}
+                          <p className="text-base font-black mb-2">
+                            {formatCurrency(item.pricing.amount)}
+                          </p>
+
+                          {/* Add Button - only show if self-ordering is enabled */}
+                          {isSelfOrderingEnabled && (
+                            <>
+                              {quantity > 0 ? (
+                                <div className="flex items-center justify-center gap-1.5 bg-primary rounded-full px-1.5 py-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
+                                    onClick={() => handleRemove(item.id)}
+                                  >
+                                    <Minus className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <span className="w-5 text-center font-bold text-sm text-primary-foreground">
+                                    {quantity}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
+                                    onClick={() =>
+                                      handleAdd(
+                                        item.id,
+                                        item.name,
+                                        item.pricing
+                                      )
+                                    }
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  className="w-full rounded-full h-7 font-semibold text-xs"
+                                  onClick={() =>
+                                    handleAdd(item.id, item.name, item.pricing)
+                                  }
+                                >
+                                  Add
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
+
+        {/* Floating Cart Button - only show if self-ordering is enabled */}
+        {isSelfOrderingEnabled && (
+          <FloatingCartButton onClick={() => setCartDialogOpen(true)} />
         )}
-      </motion.div>
 
-      {/* Floating Cart Button - only show if self-ordering is enabled */}
-      {isSelfOrderingEnabled && (
-        <FloatingCartButton onClick={() => setCartDialogOpen(true)} />
-      )}
-
-      {/* Cart Dialog */}
-      <CartDialog
-        open={cartDialogOpen}
-        onOpenChange={setCartDialogOpen}
-        onPlaceOrder={handlePlaceOrder}
-        isLoading={isPlacingOrder || isVerifyingPayment}
-        defaultTableNumber={tableFromUrl}
-      />
+        {/* Cart Dialog */}
+        <CartDialog
+          open={cartDialogOpen}
+          onOpenChange={setCartDialogOpen}
+          onPlaceOrder={handlePlaceOrder}
+          isLoading={isPlacingOrder || isVerifyingPayment}
+          defaultTableNumber={tableFromUrl}
+        />
       </div>
     </CartErrorBoundary>
   );

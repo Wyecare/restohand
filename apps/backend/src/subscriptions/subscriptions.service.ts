@@ -1,80 +1,300 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Restaurant } from '../restaurants/schemas/restaurant.schema';
 import { RazorpayService } from '../payments/razorpay.service';
+import { Subscription, SubscriptionDocument, SubscriptionPlan, SubscriptionStatus, SubscriptionPlanDetails } from './schemas/subscription.schema';
+import { CreateSubscriptionDto, UpdateSubscriptionDto } from './dto';
+import { ConfigService } from '@nestjs/config';
 
-export interface SubscriptionBilling {
-  restaurantId: string;
+
+export interface PlanConfig {
+  name: string;
   amount: number;
   currency: string;
   period: string;
-  status: 'pending' | 'success' | 'failed';
-  razorpayOrderId?: string;
-  createdAt: Date;
-  paidAt?: Date;
+  interval: number;
+  features: {
+    locations?: number | string;
+    tables?: number | string;
+    analytics?: string;
+    support?: string;
+    customBranding?: boolean;
+    inventoryAlerts?: boolean;
+    customIntegrations?: boolean;
+    dedicatedManager?: boolean;
+  };
 }
 
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
+  private readonly planConfigs: Record<SubscriptionPlan, PlanConfig>;
 
   constructor(
     @InjectModel(Restaurant.name) private restaurantModel: Model<Restaurant>,
+    @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
     private readonly razorpayService: RazorpayService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.planConfigs = this.initializePlanConfigs();
+  }
 
-  async getSubscriptionStatus(restaurantId: string) {
-    const restaurant = await this.restaurantModel.findById(restaurantId);
+  private initializePlanConfigs(): Record<SubscriptionPlan, PlanConfig> {
+    return {
+      [SubscriptionPlan.STARTER_MONTHLY]: {
+        name: 'RestoHand Starter - Monthly',
+        amount: 69900, // ₹699
+        currency: 'INR',
+        period: 'monthly',
+        interval: 1,
+        features: {
+          locations: 1,
+          tables: 10,
+          analytics: 'basic_analytics',
+          support: 'email_support',
+          customBranding: false,
+          inventoryAlerts: false,
+          customIntegrations: false,
+          dedicatedManager: false,
+        },
+      },
+      [SubscriptionPlan.STARTER_YEARLY]: {
+        name: 'RestoHand Starter - Yearly',
+        amount: 769900, // ₹7,699 (2 months free)
+        currency: 'INR',
+        period: 'yearly',
+        interval: 1,
+        features: {
+          locations: 1,
+          tables: 10,
+          analytics: 'basic_analytics',
+          support: 'email_support',
+          customBranding: false,
+          inventoryAlerts: false,
+          customIntegrations: false,
+          dedicatedManager: false,
+        },
+      },
+      [SubscriptionPlan.PROFESSIONAL_MONTHLY]: {
+        name: 'RestoHand Professional - Monthly',
+        amount: 129900, // ₹1,299
+        currency: 'INR',
+        period: 'monthly',
+        interval: 1,
+        features: {
+          locations: 3,
+          tables: 'unlimited',
+          analytics: 'advanced_analytics',
+          support: 'priority_support',
+          customBranding: true,
+          inventoryAlerts: true,
+          customIntegrations: false,
+          dedicatedManager: false,
+        },
+      },
+      [SubscriptionPlan.PROFESSIONAL_YEARLY]: {
+        name: 'RestoHand Professional - Yearly',
+        amount: 1429900, // ₹14,299 (2 months free)
+        currency: 'INR',
+        period: 'yearly',
+        interval: 1,
+        features: {
+          locations: 3,
+          tables: 'unlimited',
+          analytics: 'advanced_analytics',
+          support: 'priority_support',
+          customBranding: true,
+          inventoryAlerts: true,
+          customIntegrations: false,
+          dedicatedManager: false,
+        },
+      },
+      [SubscriptionPlan.ENTERPRISE_MONTHLY]: {
+        name: 'RestoHand Enterprise - Monthly',
+        amount: 249900, // ₹2,499
+        currency: 'INR',
+        period: 'monthly',
+        interval: 1,
+        features: {
+          locations: 'unlimited',
+          tables: 'unlimited',
+          analytics: 'advanced_analytics',
+          support: 'phone_support',
+          customBranding: true,
+          inventoryAlerts: true,
+          customIntegrations: true,
+          dedicatedManager: true,
+        },
+      },
+      [SubscriptionPlan.ENTERPRISE_YEARLY]: {
+        name: 'RestoHand Enterprise - Yearly',
+        amount: 2749900, // ₹27,499 (2 months free)
+        currency: 'INR',
+        period: 'yearly',
+        interval: 1,
+        features: {
+          locations: 'unlimited',
+          tables: 'unlimited',
+          analytics: 'advanced_analytics',
+          support: 'phone_support',
+          customBranding: true,
+          inventoryAlerts: true,
+          customIntegrations: true,
+          dedicatedManager: true,
+        },
+      },
+      [SubscriptionPlan.FOUNDING_MEMBER]: {
+        name: 'RestoHand Founding Member - Monthly',
+        amount: 69900, // ₹699 forever with Professional features
+        currency: 'INR',
+        period: 'monthly',
+        interval: 1,
+        features: {
+          locations: 3,
+          tables: 'unlimited',
+          analytics: 'advanced_analytics',
+          support: 'priority_support',
+          customBranding: true,
+          inventoryAlerts: true,
+          customIntegrations: false,
+          dedicatedManager: false,
+        },
+      },
+      [SubscriptionPlan.EARLY_ADOPTER]: {
+        name: 'RestoHand Early Adopter - Monthly',
+        amount: 99900, // ₹999 with Professional features
+        currency: 'INR',
+        period: 'monthly',
+        interval: 1,
+        features: {
+          locations: 3,
+          tables: 'unlimited',
+          analytics: 'advanced_analytics',
+          support: 'priority_support',
+          customBranding: true,
+          inventoryAlerts: true,
+          customIntegrations: false,
+          dedicatedManager: false,
+        },
+      },
+    };
+  }
 
-    if (!restaurant) {
-      throw new Error('Restaurant not found');
+  async getAllPlans() {
+    return Object.entries(this.planConfigs).map(([planType, config]) => ({
+      planType: planType as SubscriptionPlan,
+      name: config.name,
+      amount: config.amount,
+      currency: config.currency,
+      period: config.period,
+      interval: config.interval,
+      features: config.features,
+      monthlyEquivalent: config.period === 'yearly' ? Math.round(config.amount / 12) : config.amount,
+      isPopular: planType === SubscriptionPlan.PROFESSIONAL_MONTHLY || planType === SubscriptionPlan.PROFESSIONAL_YEARLY,
+      isLegacy: planType === SubscriptionPlan.FOUNDING_MEMBER || planType === SubscriptionPlan.EARLY_ADOPTER,
+    }));
+  }
+
+  async getPlanConfig(planType: SubscriptionPlan): Promise<PlanConfig> {
+    const config = this.planConfigs[planType];
+    if (!config) {
+      throw new BadRequestException(`Invalid plan type: ${planType}`);
+    }
+    return config;
+  }
+
+  async getSubscriptionByRestaurant(restaurantId: string): Promise<SubscriptionDocument | null> {
+    if (!Types.ObjectId.isValid(restaurantId)) {
+      throw new BadRequestException('Invalid restaurant ID');
     }
 
-    // Check if restaurant has SaaS configuration
-    if (!restaurant.saasConfig) {
-      throw new Error('Restaurant not onboarded to SaaS model. Please complete onboarding first.');
+    return this.subscriptionModel
+      .findOne({ restaurantId: new Types.ObjectId(restaurantId) })
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
+  async getSubscriptionStatus(restaurantId: string) {
+    const subscription = await this.getSubscriptionByRestaurant(restaurantId);
+
+    if (!subscription) {
+      return {
+        restaurantId,
+        hasSubscription: false,
+        plan: null,
+        status: null,
+        isActive: false,
+        isTrialActive: false,
+        trialEndsAt: null,
+        currentStart: null,
+        currentEnd: null,
+        nextChargeAt: null,
+        features: null,
+      };
     }
 
     const now = new Date();
-    const isTrialActive = restaurant.saasConfig.trialEndsAt > now;
-    const isSubscriptionActive = restaurant.saasConfig.subscriptionStatus === 'active';
+    const isTrialActive = subscription.isTrialActive && subscription.trialEnd && subscription.trialEnd > now;
+    const isSubscriptionActive = [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED].includes(subscription.status);
 
-    let razorpaySubscriptionData = null;
-
-    // Get Razorpay subscription details if available
-    if (restaurant.saasConfig.razorpaySubscriptionId) {
+    // Get latest Razorpay data if subscription exists
+    let razorpayData = null;
+    if (subscription.razorpaySubscriptionId) {
       try {
-        const razorpaySubscription = await this.razorpayService.getSubscription(restaurant.saasConfig.razorpaySubscriptionId);
-        razorpaySubscriptionData = {
+        const razorpaySubscription = await this.razorpayService.getSubscription(subscription.razorpaySubscriptionId);
+        razorpayData = {
           id: razorpaySubscription.id,
           status: razorpaySubscription.status,
-          plan_id: razorpaySubscription.plan_id,
-          customer_id: razorpaySubscription.customer_id,
-          current_start: new Date(razorpaySubscription.current_start * 1000),
-          current_end: new Date(razorpaySubscription.current_end * 1000),
-          ended_at: razorpaySubscription.ended_at ? new Date(razorpaySubscription.ended_at * 1000) : null,
-          charge_at: new Date(razorpaySubscription.charge_at * 1000),
-          total_count: razorpaySubscription.total_count,
-          paid_count: razorpaySubscription.paid_count,
-          remaining_count: razorpaySubscription.remaining_count,
+          currentStart: razorpaySubscription.current_start ? new Date(razorpaySubscription.current_start * 1000) : null,
+          currentEnd: razorpaySubscription.current_end ? new Date(razorpaySubscription.current_end * 1000) : null,
+          chargeAt: razorpaySubscription.charge_at ? new Date(razorpaySubscription.charge_at * 1000) : null,
+          totalCount: razorpaySubscription.total_count,
+          paidCount: razorpaySubscription.paid_count,
+          remainingCount: razorpaySubscription.remaining_count,
         };
       } catch (error) {
-        this.logger.error(`Failed to fetch Razorpay subscription ${restaurant.saasConfig.razorpaySubscriptionId}: ${error.message}`);
+        this.logger.error(`Failed to fetch Razorpay subscription ${subscription.razorpaySubscriptionId}: ${error.message}`);
       }
     }
 
     return {
       restaurantId,
-      plan: restaurant.saasConfig.plan,
-      billingCycle: restaurant.saasConfig.billingCycle,
-      status: restaurant.saasConfig.subscriptionStatus,
+      hasSubscription: true,
+      subscription: {
+        id: subscription._id,
+        razorpaySubscriptionId: subscription.razorpaySubscriptionId,
+        razorpayCustomerId: subscription.razorpayCustomerId,
+        plan: subscription.plan,
+        status: subscription.status,
+        isGrandfathered: subscription.isGrandfathered,
+        grandfatherReason: subscription.grandfatherReason,
+        currentStart: subscription.currentStart,
+        currentEnd: subscription.currentEnd,
+        trialStart: subscription.trialStart,
+        trialEnd: subscription.trialEnd,
+        isTrialActive: subscription.isTrialActive,
+        chargeAt: subscription.chargeAt,
+        quantity: subscription.quantity,
+        totalCount: subscription.totalCount,
+        paidCount: subscription.paidCount,
+        remainingCount: subscription.remainingCount,
+        billingHistory: subscription.billingHistory || [],
+        lastWebhookAt: subscription.lastWebhookAt,
+        lastWebhookEvent: subscription.lastWebhookEvent,
+        createdAt: subscription.createdAt,
+        updatedAt: subscription.updatedAt,
+      },
+      plan: subscription.plan,
+      status: subscription.status,
       isActive: isTrialActive || isSubscriptionActive,
-      trialEndsAt: restaurant.saasConfig.trialEndsAt,
-      nextBillingDate: restaurant.saasConfig.nextBillingDate,
-      monthlyPrice: restaurant.saasConfig.monthlyPrice,
-      daysUntilBilling: Math.ceil((restaurant.saasConfig.nextBillingDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
-      razorpaySubscription: razorpaySubscriptionData,
+      isTrialActive,
+      trialEndsAt: subscription.trialEnd,
+      currentStart: razorpayData?.currentStart || subscription.currentStart,
+      currentEnd: razorpayData?.currentEnd || subscription.currentEnd,
+      nextChargeAt: razorpayData?.chargeAt || subscription.chargeAt,
+      features: subscription.plan.features,
+      razorpayData,
     };
   }
 
@@ -395,25 +615,164 @@ export class SubscriptionsService {
     }
   }
 
-  async getAnalytics() {
-    const analytics = await this.restaurantModel.aggregate([
+  async getSubscriptionAnalytics() {
+    const analytics = await this.subscriptionModel.aggregate([
       {
         $group: {
-          _id: '$saasConfig.subscriptionStatus',
+          _id: {
+            status: '$status',
+            planType: '$plan.planType',
+          },
           count: { $sum: 1 },
-          totalRevenue: { $sum: '$saasConfig.monthlyPrice' },
+          totalRevenue: { $sum: '$plan.amount' },
         },
       },
     ]);
 
-    const totalRestaurants = await this.restaurantModel.countDocuments();
+    const totalSubscriptions = await this.subscriptionModel.countDocuments();
+    const activeSubscriptions = await this.subscriptionModel.countDocuments({
+      status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED] },
+    });
+
+    const trialSubscriptions = await this.subscriptionModel.countDocuments({
+      isTrialActive: true,
+      trialEnd: { $gt: new Date() },
+    });
+
+    const monthlyRecurringRevenue = analytics
+      .filter(item => item._id.status === 'active')
+      .reduce((total, item) => {
+        // Convert yearly to monthly equivalent
+        const monthlyAmount = item._id.planType.includes('yearly')
+          ? Math.round(item.totalRevenue / 12)
+          : item.totalRevenue;
+        return total + (monthlyAmount * item.count);
+      }, 0);
+
+    const planDistribution = analytics.reduce((acc, item) => {
+      const key = item._id.planType;
+      if (!acc[key]) {
+        acc[key] = { count: 0, revenue: 0 };
+      }
+      acc[key].count += item.count;
+      acc[key].revenue += item.totalRevenue;
+      return acc;
+    }, {});
 
     return {
-      totalRestaurants,
-      byStatus: analytics,
-      monthlyRecurringRevenue: analytics
-        .filter(item => item._id === 'active')
-        .reduce((total, item) => total + item.totalRevenue, 0),
+      totalSubscriptions,
+      activeSubscriptions,
+      trialSubscriptions,
+      monthlyRecurringRevenue,
+      planDistribution,
+      statusDistribution: analytics,
+      churnRate: totalSubscriptions > 0
+        ? ((totalSubscriptions - activeSubscriptions) / totalSubscriptions * 100).toFixed(2)
+        : '0',
     };
+  }
+
+  async createGrandfatheredSubscription(
+    restaurantId: string,
+    planType: SubscriptionPlan.FOUNDING_MEMBER | SubscriptionPlan.EARLY_ADOPTER,
+    reason: string
+  ): Promise<SubscriptionDocument> {
+    const subscription = await this.createSubscription({
+      restaurantId,
+      planType,
+      notes: {
+        grandfathered: true,
+        reason,
+        special_pricing: true,
+      },
+    });
+
+    // Mark as grandfathered
+    subscription.isGrandfathered = true;
+    subscription.grandfatherReason = reason;
+    subscription.grandfatheredAt = new Date();
+    await subscription.save();
+
+    this.logger.log(`Created grandfathered subscription for restaurant ${restaurantId}: ${reason}`);
+    return subscription;
+  }
+
+  // Legacy support methods for gradual migration
+  async migrateLegacySubscription(restaurantId: string): Promise<SubscriptionDocument | null> {
+    const restaurant = await this.restaurantModel.findById(restaurantId);
+    if (!restaurant?.saasConfig) {
+      return null;
+    }
+
+    // Check if already migrated
+    const existingSubscription = await this.getSubscriptionByRestaurant(restaurantId);
+    if (existingSubscription) {
+      return existingSubscription;
+    }
+
+    // Map legacy plan to new plan type
+    const legacyToNewPlan = {
+      starter: SubscriptionPlan.STARTER_MONTHLY,
+      pro: SubscriptionPlan.PROFESSIONAL_MONTHLY,
+      enterprise: SubscriptionPlan.ENTERPRISE_MONTHLY,
+      standard: SubscriptionPlan.PROFESSIONAL_MONTHLY, // Default mapping
+    };
+
+    const planType = legacyToNewPlan[restaurant.saasConfig.plan] || SubscriptionPlan.PROFESSIONAL_MONTHLY;
+
+    try {
+      // Create new subscription record from legacy data
+      const planConfig = await this.getPlanConfig(planType);
+      const subscriptionPlanDetails: SubscriptionPlanDetails = {
+        razorpayPlanId: restaurant.saasConfig.razorpayPlanId || '',
+        planType,
+        name: planConfig.name,
+        amount: restaurant.saasConfig.monthlyPrice || planConfig.amount,
+        currency: 'INR',
+        period: restaurant.saasConfig.billingCycle || 'monthly',
+        interval: 1,
+        features: planConfig.features,
+      };
+
+      const subscription = new this.subscriptionModel({
+        restaurantId: new Types.ObjectId(restaurantId),
+        razorpaySubscriptionId: restaurant.saasConfig.razorpaySubscriptionId || '',
+        razorpayCustomerId: restaurant.saasConfig.razorpayCustomerId || '',
+        plan: subscriptionPlanDetails,
+        status: this.mapLegacyStatus(restaurant.saasConfig.subscriptionStatus),
+        currentStart: restaurant.saasConfig.razorpaySubscriptionStartedAt,
+        currentEnd: restaurant.saasConfig.nextBillingDate,
+        trialStart: restaurant.saasConfig.trialStartedAt,
+        trialEnd: restaurant.saasConfig.trialEndsAt,
+        isTrialActive: restaurant.saasConfig.trialEndsAt ? restaurant.saasConfig.trialEndsAt > new Date() : false,
+        chargeAt: restaurant.saasConfig.nextBillingDate,
+        quantity: 1,
+        lastWebhookAt: restaurant.saasConfig.lastUpdated,
+        lastWebhookEvent: 'migrated_from_legacy',
+        notes: {
+          migratedFromLegacy: true,
+          originalSaasConfig: restaurant.saasConfig,
+        },
+      });
+
+      await subscription.save();
+      this.logger.log(`Migrated legacy subscription for restaurant ${restaurantId}`);
+
+      return subscription;
+    } catch (error) {
+      this.logger.error(`Failed to migrate legacy subscription for ${restaurantId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private mapLegacyStatus(legacyStatus: string): SubscriptionStatus {
+    const statusMap = {
+      active: SubscriptionStatus.ACTIVE,
+      suspended: SubscriptionStatus.HALTED,
+      pending: SubscriptionStatus.PENDING,
+      cancelled: SubscriptionStatus.CANCELLED,
+      trial: SubscriptionStatus.ACTIVE,
+    };
+    return statusMap[legacyStatus] || SubscriptionStatus.CREATED;
   }
 }

@@ -218,25 +218,6 @@ class BusinessDetails {
 
 const BusinessDetailsSchema = SchemaFactory.createForClass(BusinessDetails);
 
-@Schema({ _id: false })
-class BankAccount {
-  @Prop({ type: String, trim: true })
-  accountNumber?: string;
-
-  @Prop({ type: String, trim: true })
-  ifscCode?: string;
-
-  @Prop({ type: String, trim: true })
-  accountHolderName?: string;
-
-  @Prop({ type: String, trim: true })
-  bankName?: string;
-
-  @Prop({ type: Boolean, default: false })
-  verified!: boolean;
-}
-
-const BankAccountSchema = SchemaFactory.createForClass(BankAccount);
 
 @Schema({
   timestamps: true,
@@ -307,9 +288,6 @@ export class Restaurant {
 
   @Prop({ type: BusinessDetailsSchema })
   businessDetails?: BusinessDetails;
-
-  @Prop({ type: BankAccountSchema })
-  bankAccount?: BankAccount;
 
   @Prop({ type: String })
   ownerId?: string;

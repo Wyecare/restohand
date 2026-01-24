@@ -533,39 +533,76 @@ export class RazorpayService {
     }
   }
 
-  async cancelSubscription(subscriptionId: string, cancelAtCycleEnd: boolean = false): Promise<any> {
+  async updateSubscription(subscriptionId: string, params: any): Promise<any> {
     if (!this.client) {
       throw new InternalServerErrorException('Razorpay is not configured');
     }
 
     try {
-      return await this.client.subscriptions.cancel(subscriptionId, cancelAtCycleEnd);
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.subscriptions && typeof this.client.subscriptions.update === 'function') {
+        return await this.client.subscriptions.update(subscriptionId, params);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Subscriptions API
+        return await this.makeHttpRequest('PATCH', `/v1/subscriptions/${subscriptionId}`, params);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to update subscription: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async cancelSubscription(subscriptionId: string, params: { cancel_at_cycle_end: boolean }): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.subscriptions && typeof this.client.subscriptions.cancel === 'function') {
+        return await this.client.subscriptions.cancel(subscriptionId, params.cancel_at_cycle_end);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Subscriptions API
+        return await this.makeHttpRequest('POST', `/v1/subscriptions/${subscriptionId}/cancel`, params);
+      }
     } catch (error) {
       this.logger.error(`Failed to cancel subscription: ${error.message}`, error);
       throw error;
     }
   }
 
-  async pauseSubscription(subscriptionId: string): Promise<any> {
+  async pauseSubscription(subscriptionId: string, params: { pause_at: string }): Promise<any> {
     if (!this.client) {
       throw new InternalServerErrorException('Razorpay is not configured');
     }
 
     try {
-      return await this.client.subscriptions.pause(subscriptionId);
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.subscriptions && typeof this.client.subscriptions.pause === 'function') {
+        return await this.client.subscriptions.pause(subscriptionId, params);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Subscriptions API
+        return await this.makeHttpRequest('POST', `/v1/subscriptions/${subscriptionId}/pause`, params);
+      }
     } catch (error) {
       this.logger.error(`Failed to pause subscription: ${error.message}`, error);
       throw error;
     }
   }
 
-  async resumeSubscription(subscriptionId: string): Promise<any> {
+  async resumeSubscription(subscriptionId: string, params: { resume_at: string }): Promise<any> {
     if (!this.client) {
       throw new InternalServerErrorException('Razorpay is not configured');
     }
 
     try {
-      return await this.client.subscriptions.resume(subscriptionId);
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.subscriptions && typeof this.client.subscriptions.resume === 'function') {
+        return await this.client.subscriptions.resume(subscriptionId, params);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Subscriptions API
+        return await this.makeHttpRequest('POST', `/v1/subscriptions/${subscriptionId}/resume`, params);
+      }
     } catch (error) {
       this.logger.error(`Failed to resume subscription: ${error.message}`, error);
       throw error;
@@ -610,7 +647,7 @@ export class RazorpayService {
     }
   }
 
-  private async makeHttpRequest(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, data?: any): Promise<any> {
+  private async makeHttpRequest(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, data?: any): Promise<any> {
     const https = require('https');
     const auth = Buffer.from(`${this.razorpayConfig.keyId}:${this.razorpayConfig.keySecret}`).toString('base64');
 
