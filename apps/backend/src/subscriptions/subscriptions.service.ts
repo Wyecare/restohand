@@ -452,7 +452,164 @@ export class SubscriptionsService {
     }
   }
 
-  async createSubscription(restaurantId: string) {
+  // Overload for DTO-based creation (from controller)
+  async createSubscription(dto: CreateSubscriptionDto): Promise<any>;
+  // Existing method signature
+  async createSubscription(restaurantId: string): Promise<any>;
+  // Implementation
+  async createSubscription(restaurantIdOrDto: string | CreateSubscriptionDto): Promise<any> {
+    // Handle DTO object
+    if (typeof restaurantIdOrDto === 'object') {
+      return this.createSubscriptionFromDto(restaurantIdOrDto);
+    }
+
+    // Handle string restaurantId (existing logic)
+    return this.createSubscriptionLegacy(restaurantIdOrDto);
+  }
+
+  /**
+   * Create subscription from DTO (called from controller)
+   */
+  private async createSubscriptionFromDto(dto: CreateSubscriptionDto): Promise<any> {
+    const { restaurantId, planType, totalCount, startAt, customerNotify, notes } = dto;
+
+    // Validate restaurant exists
+    const restaurant = await this.restaurantModel.findById(restaurantId);
+    if (!restaurant) {
+      throw new BadRequestException(`Restaurant with ID ${restaurantId} not found`);
+    }
+
+    // Check if restaurant already has an active subscription
+    const existingSubscription = await this.subscriptionModel.findOne({
+      restaurantId: new Types.ObjectId(restaurantId),
+      status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED] },
+    });
+
+    if (existingSubscription) {
+      throw new BadRequestException('Restaurant already has an active subscription');
+    }
+
+    // Get plan config for the specified plan type
+    const planConfig = await this.getPlanConfig(planType);
+
+    // Get or use test plan if in development
+    let razorpayPlanId: string;
+    if (planConfig.isTestPlan || process.env.NODE_ENV !== 'production') {
+      // Extract tier from planType for test plan lookup
+      const tierMap = {
+        [SubscriptionPlan.STARTER_MONTHLY]: 'starter',
+        [SubscriptionPlan.STARTER_YEARLY]: 'starter',
+        [SubscriptionPlan.PROFESSIONAL_MONTHLY]: 'professional',
+        [SubscriptionPlan.PROFESSIONAL_YEARLY]: 'professional',
+        [SubscriptionPlan.ENTERPRISE_MONTHLY]: 'enterprise',
+        [SubscriptionPlan.ENTERPRISE_YEARLY]: 'enterprise',
+        [SubscriptionPlan.FOUNDING_MEMBER]: 'professional',
+        [SubscriptionPlan.EARLY_ADOPTER]: 'professional',
+      };
+
+      const tier = tierMap[planType] as 'starter' | 'professional' | 'enterprise';
+      razorpayPlanId = await this.getOrCreateRazorpayPlan(tier);
+    } else {
+      // Use the actual Razorpay plan ID for this plan type
+      razorpayPlanId = planConfig.razorpayPlanId || await this.getOrCreateRazorpayPlan('professional');
+    }
+
+    try {
+      // Create customer in Razorpay
+      const customerData = {
+        name: restaurant.name,
+        email: restaurant.email || 'no-email@restohand.com',
+        contact: restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
+        fail_existing: 0 as const,
+        notes: {
+          restaurant_id: restaurantId,
+          created_by: 'subscription_page',
+        },
+      };
+
+      const customer = await this.razorpayService.createCustomer(customerData);
+      this.logger.log(`Created/fetched Razorpay customer: ${customer.id}`);
+
+      // Create subscription in Razorpay
+      const subscriptionData = {
+        plan_id: razorpayPlanId,
+        customer_id: customer.id,
+        total_count: totalCount,
+        start_at: startAt,
+        customer_notify: customerNotify ?? false,
+        notes: {
+          restaurant_id: restaurantId,
+          plan_type: planType,
+          created_from: 'subscription_page',
+          ...notes,
+        },
+      };
+
+      const razorpaySubscription = await this.razorpayService.createSubscription(subscriptionData);
+      this.logger.log(`Created Razorpay subscription: ${razorpaySubscription.id}`);
+
+      // Create subscription in our database
+      const subscription = new this.subscriptionModel({
+        restaurantId: new Types.ObjectId(restaurantId),
+        razorpaySubscriptionId: razorpaySubscription.id,
+        razorpayCustomerId: customer.id,
+        plan: {
+          razorpayPlanId,
+          planType,
+          name: planConfig.name,
+          amount: planConfig.amount,
+          currency: planConfig.currency,
+          period: planConfig.period,
+          interval: planConfig.interval,
+          features: planConfig.features,
+        },
+        status: razorpaySubscription.status as SubscriptionStatus,
+        quantity: razorpaySubscription.quantity || 1,
+        totalCount: razorpaySubscription.total_count,
+        paidCount: razorpaySubscription.paid_count || 0,
+        remainingCount: razorpaySubscription.remaining_count,
+        currentStart: razorpaySubscription.current_start ? new Date(razorpaySubscription.current_start * 1000) : undefined,
+        currentEnd: razorpaySubscription.current_end ? new Date(razorpaySubscription.current_end * 1000) : undefined,
+        chargeAt: razorpaySubscription.charge_at ? new Date(razorpaySubscription.charge_at * 1000) : undefined,
+        startAt: razorpaySubscription.start_at ? new Date(razorpaySubscription.start_at * 1000) : undefined,
+        endAt: razorpaySubscription.end_at ? new Date(razorpaySubscription.end_at * 1000) : undefined,
+        notes: razorpaySubscription.notes || {},
+      });
+
+      const savedSubscription = await subscription.save();
+
+      // Update restaurant's SaaS config
+      await this.restaurantModel.findByIdAndUpdate(restaurantId, {
+        'saasConfig.subscriptionStatus': 'active',
+        'saasConfig.currentPlan': planType,
+        'saasConfig.subscriptionId': savedSubscription._id,
+        'saasConfig.lastUpdated': new Date(),
+        'saasConfig.features': planConfig.features,
+      });
+
+      this.logger.log(`Subscription created successfully for restaurant ${restaurantId}`);
+
+      return {
+        id: savedSubscription._id,
+        restaurantId,
+        razorpaySubscriptionId: razorpaySubscription.id,
+        plan: savedSubscription.plan,
+        status: savedSubscription.status,
+        shortUrl: razorpaySubscription.short_url,
+        isTrialActive: false, // Implement trial logic if needed
+        trialEnd: null,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to create subscription for restaurant ${restaurantId}: ${errorMessage}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Existing createSubscription method (legacy, for string restaurantId)
+   */
+  private async createSubscriptionLegacy(restaurantId: string) {
     const SUBSCRIPTION_AMOUNT = 79900; // ₹799 per month
 
     const restaurant = await this.restaurantModel.findById(restaurantId);
