@@ -6,8 +6,10 @@ import { RazorpayService } from '../payments/razorpay.service';
 import { Subscription, SubscriptionDocument, SubscriptionPlan, SubscriptionStatus, SubscriptionPlanDetails } from './schemas/subscription.schema';
 import { CreateSubscriptionDto, UpdateSubscriptionDto } from './dto';
 import { ConfigService } from '@nestjs/config';
+import { PlanCacheService } from './plan-cache.service';
 
 
+// Legacy interface for backward compatibility
 export interface PlanConfig {
   name: string;
   amount: number;
@@ -24,184 +26,229 @@ export interface PlanConfig {
     customIntegrations?: boolean;
     dedicatedManager?: boolean;
   };
+  razorpayPlanId?: string; // NEW: Link to actual Razorpay plan
+  isTestPlan?: boolean;    // NEW: Indicate if this is a test plan
 }
 
 @Injectable()
 export class SubscriptionsService {
   private readonly logger = new Logger(SubscriptionsService.name);
-  private readonly planConfigs: Record<SubscriptionPlan, PlanConfig>;
 
   constructor(
     @InjectModel(Restaurant.name) private restaurantModel: Model<Restaurant>,
     @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
     private readonly razorpayService: RazorpayService,
     private readonly configService: ConfigService,
-  ) {
-    this.planConfigs = this.initializePlanConfigs();
-  }
+    private readonly planCacheService: PlanCacheService,
+  ) {}
 
-  private initializePlanConfigs(): Record<SubscriptionPlan, PlanConfig> {
+  /**
+   * Convert Razorpay plan to our internal format
+   */
+  private convertRazorpayPlanToInternal(razorpayPlan: any): PlanConfig & { razorpayPlanId: string } {
+    const notes = razorpayPlan.notes || {};
+    const tier = notes.tier || 'unknown';
+    const features = this.getFeaturesForTier(tier);
+    const isTestPlan = notes.test_mode === 'true';
+
     return {
-      [SubscriptionPlan.STARTER_MONTHLY]: {
-        name: 'RestoHand Starter - Monthly',
-        amount: 69900, // ₹699
-        currency: 'INR',
-        period: 'monthly',
-        interval: 1,
-        features: {
-          locations: 1,
-          tables: 10,
-          analytics: 'basic_analytics',
-          support: 'email_support',
-          customBranding: false,
-          inventoryAlerts: false,
-          customIntegrations: false,
-          dedicatedManager: false,
-        },
-      },
-      [SubscriptionPlan.STARTER_YEARLY]: {
-        name: 'RestoHand Starter - Yearly',
-        amount: 769900, // ₹7,699 (2 months free)
-        currency: 'INR',
-        period: 'yearly',
-        interval: 1,
-        features: {
-          locations: 1,
-          tables: 10,
-          analytics: 'basic_analytics',
-          support: 'email_support',
-          customBranding: false,
-          inventoryAlerts: false,
-          customIntegrations: false,
-          dedicatedManager: false,
-        },
-      },
-      [SubscriptionPlan.PROFESSIONAL_MONTHLY]: {
-        name: 'RestoHand Professional - Monthly',
-        amount: 129900, // ₹1,299
-        currency: 'INR',
-        period: 'monthly',
-        interval: 1,
-        features: {
-          locations: 3,
-          tables: 'unlimited',
-          analytics: 'advanced_analytics',
-          support: 'priority_support',
-          customBranding: true,
-          inventoryAlerts: true,
-          customIntegrations: false,
-          dedicatedManager: false,
-        },
-      },
-      [SubscriptionPlan.PROFESSIONAL_YEARLY]: {
-        name: 'RestoHand Professional - Yearly',
-        amount: 1429900, // ₹14,299 (2 months free)
-        currency: 'INR',
-        period: 'yearly',
-        interval: 1,
-        features: {
-          locations: 3,
-          tables: 'unlimited',
-          analytics: 'advanced_analytics',
-          support: 'priority_support',
-          customBranding: true,
-          inventoryAlerts: true,
-          customIntegrations: false,
-          dedicatedManager: false,
-        },
-      },
-      [SubscriptionPlan.ENTERPRISE_MONTHLY]: {
-        name: 'RestoHand Enterprise - Monthly',
-        amount: 249900, // ₹2,499
-        currency: 'INR',
-        period: 'monthly',
-        interval: 1,
-        features: {
-          locations: 'unlimited',
-          tables: 'unlimited',
-          analytics: 'advanced_analytics',
-          support: 'phone_support',
-          customBranding: true,
-          inventoryAlerts: true,
-          customIntegrations: true,
-          dedicatedManager: true,
-        },
-      },
-      [SubscriptionPlan.ENTERPRISE_YEARLY]: {
-        name: 'RestoHand Enterprise - Yearly',
-        amount: 2749900, // ₹27,499 (2 months free)
-        currency: 'INR',
-        period: 'yearly',
-        interval: 1,
-        features: {
-          locations: 'unlimited',
-          tables: 'unlimited',
-          analytics: 'advanced_analytics',
-          support: 'phone_support',
-          customBranding: true,
-          inventoryAlerts: true,
-          customIntegrations: true,
-          dedicatedManager: true,
-        },
-      },
-      [SubscriptionPlan.FOUNDING_MEMBER]: {
-        name: 'RestoHand Founding Member - Monthly',
-        amount: 69900, // ₹699 forever with Professional features
-        currency: 'INR',
-        period: 'monthly',
-        interval: 1,
-        features: {
-          locations: 3,
-          tables: 'unlimited',
-          analytics: 'advanced_analytics',
-          support: 'priority_support',
-          customBranding: true,
-          inventoryAlerts: true,
-          customIntegrations: false,
-          dedicatedManager: false,
-        },
-      },
-      [SubscriptionPlan.EARLY_ADOPTER]: {
-        name: 'RestoHand Early Adopter - Monthly',
-        amount: 99900, // ₹999 with Professional features
-        currency: 'INR',
-        period: 'monthly',
-        interval: 1,
-        features: {
-          locations: 3,
-          tables: 'unlimited',
-          analytics: 'advanced_analytics',
-          support: 'priority_support',
-          customBranding: true,
-          inventoryAlerts: true,
-          customIntegrations: false,
-          dedicatedManager: false,
-        },
-      },
+      name: razorpayPlan.item?.name || `Plan ${razorpayPlan.id}`,
+      amount: razorpayPlan.item?.amount || 0,
+      currency: razorpayPlan.item?.currency || 'INR',
+      period: razorpayPlan.period || 'monthly',
+      interval: razorpayPlan.interval || 1,
+      features,
+      razorpayPlanId: razorpayPlan.id,
+      isTestPlan,
     };
   }
 
-  async getAllPlans() {
-    return Object.entries(this.planConfigs).map(([planType, config]) => ({
-      planType: planType as SubscriptionPlan,
-      name: config.name,
-      amount: config.amount,
-      currency: config.currency,
-      period: config.period,
-      interval: config.interval,
-      features: config.features,
-      monthlyEquivalent: config.period === 'yearly' ? Math.round(config.amount / 12) : config.amount,
-      isPopular: planType === SubscriptionPlan.PROFESSIONAL_MONTHLY || planType === SubscriptionPlan.PROFESSIONAL_YEARLY,
-      isLegacy: planType === SubscriptionPlan.FOUNDING_MEMBER || planType === SubscriptionPlan.EARLY_ADOPTER,
-    }));
+  /**
+   * Get features based on tier from plan notes
+   */
+  private getFeaturesForTier(tier: string) {
+    const featureMap = {
+      starter: {
+        locations: 1,
+        tables: 10,
+        analytics: 'basic_analytics',
+        support: 'email_support',
+        customBranding: false,
+        inventoryAlerts: false,
+        customIntegrations: false,
+        dedicatedManager: false,
+      },
+      professional: {
+        locations: 3,
+        tables: 'unlimited',
+        analytics: 'advanced_analytics',
+        support: 'priority_support',
+        customBranding: true,
+        inventoryAlerts: true,
+        customIntegrations: false,
+        dedicatedManager: false,
+      },
+      enterprise: {
+        locations: 'unlimited',
+        tables: 'unlimited',
+        analytics: 'advanced_analytics',
+        support: 'phone_support',
+        customBranding: true,
+        inventoryAlerts: true,
+        customIntegrations: true,
+        dedicatedManager: true,
+      },
+      founding_member: {
+        locations: 3,
+        tables: 'unlimited',
+        analytics: 'advanced_analytics',
+        support: 'priority_support',
+        customBranding: true,
+        inventoryAlerts: true,
+        customIntegrations: false,
+        dedicatedManager: false,
+      },
+      early_adopter: {
+        locations: 3,
+        tables: 'unlimited',
+        analytics: 'advanced_analytics',
+        support: 'priority_support',
+        customBranding: true,
+        inventoryAlerts: true,
+        customIntegrations: false,
+        dedicatedManager: false,
+      },
+    };
+
+    return featureMap[tier] || featureMap.starter;
+  }
+
+  /**
+   * Get all available plans from Razorpay (cached)
+   */
+  async getAllPlans(includeTestPlans = false) {
+    try {
+      const razorpayPlans = await this.planCacheService.getAllPlans();
+
+      const plans = razorpayPlans
+        .filter(plan => {
+          const isTestPlan = plan.notes?.test_mode === 'true';
+          return includeTestPlans ? true : !isTestPlan;
+        })
+        .map(plan => {
+          const converted = this.convertRazorpayPlanToInternal(plan);
+          const tier = plan.notes?.tier || 'unknown';
+
+          return {
+            razorpayPlanId: plan.id,
+            planType: this.mapTierToPlanType(tier, plan.period),
+            name: converted.name,
+            amount: converted.amount,
+            currency: converted.currency,
+            period: converted.period,
+            interval: converted.interval,
+            features: converted.features,
+            monthlyEquivalent: converted.period === 'yearly' ? Math.round(converted.amount / 12) : converted.amount,
+            isPopular: tier === 'professional',
+            isLegacy: tier === 'founding_member' || tier === 'early_adopter',
+            isTestPlan: converted.isTestPlan,
+            tier,
+            notes: plan.notes,
+            createdAt: plan.created_at,
+          };
+        })
+        .sort((a, b) => {
+          // Sort by tier priority, then by period
+          const tierOrder = { starter: 1, professional: 2, enterprise: 3, founding_member: 4, early_adopter: 5 };
+          const aTierOrder = tierOrder[a.tier] || 999;
+          const bTierOrder = tierOrder[b.tier] || 999;
+
+          if (aTierOrder !== bTierOrder) {
+            return aTierOrder - bTierOrder;
+          }
+
+          const periodOrder = { daily: 1, weekly: 2, monthly: 3, yearly: 4 };
+          return (periodOrder[a.period] || 999) - (periodOrder[b.period] || 999);
+        });
+
+      this.logger.log(`Retrieved ${plans.length} plans from Razorpay (includeTestPlans: ${includeTestPlans})`);
+      return plans;
+    } catch (error) {
+      this.logger.error(`Failed to get plans: ${error.message}`);
+      throw new BadRequestException('Unable to fetch subscription plans');
+    }
+  }
+
+  /**
+   * Map tier and period to internal SubscriptionPlan enum
+   */
+  private mapTierToPlanType(tier: string, period: string): SubscriptionPlan | null {
+    const mapping = {
+      'starter-monthly': SubscriptionPlan.STARTER_MONTHLY,
+      'starter-yearly': SubscriptionPlan.STARTER_YEARLY,
+      'professional-monthly': SubscriptionPlan.PROFESSIONAL_MONTHLY,
+      'professional-yearly': SubscriptionPlan.PROFESSIONAL_YEARLY,
+      'enterprise-monthly': SubscriptionPlan.ENTERPRISE_MONTHLY,
+      'enterprise-yearly': SubscriptionPlan.ENTERPRISE_YEARLY,
+      'founding_member-monthly': SubscriptionPlan.FOUNDING_MEMBER,
+      'early_adopter-monthly': SubscriptionPlan.EARLY_ADOPTER,
+    };
+
+    return mapping[`${tier}-${period}`] || null;
   }
 
   async getPlanConfig(planType: SubscriptionPlan): Promise<PlanConfig> {
-    const config = this.planConfigs[planType];
-    if (!config) {
-      throw new BadRequestException(`Invalid plan type: ${planType}`);
+    try {
+      // Get the actual Razorpay plan ID for this plan type
+      const razorpayPlanId = await this.planCacheService.mapLegacyPlanToRazorpayId(planType);
+      if (!razorpayPlanId) {
+        throw new BadRequestException(`No Razorpay plan found for plan type: ${planType}`);
+      }
+
+      // Fetch the plan details from Razorpay
+      const razorpayPlan = await this.planCacheService.getPlan(razorpayPlanId);
+      if (!razorpayPlan) {
+        throw new BadRequestException(`Razorpay plan ${razorpayPlanId} not found`);
+      }
+
+      // Convert to internal format
+      const config = this.convertRazorpayPlanToInternal(razorpayPlan);
+      return config;
+    } catch (error) {
+      this.logger.error(`Failed to get plan config for ${planType}: ${error.message}`);
+      throw error;
     }
-    return config;
+  }
+
+  /**
+   * Get test plan for a specific tier (for development/testing)
+   */
+  async getTestPlan(tier: 'starter' | 'professional' | 'enterprise'): Promise<PlanConfig | null> {
+    try {
+      const testPlan = await this.planCacheService.getTestPlan(tier);
+      if (!testPlan) {
+        this.logger.warn(`No test plan found for tier: ${tier}`);
+        return null;
+      }
+
+      return this.convertRazorpayPlanToInternal(testPlan);
+    } catch (error) {
+      this.logger.error(`Failed to get test plan for ${tier}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Sync plans from Razorpay (force refresh cache)
+   */
+  async syncPlansFromRazorpay(): Promise<void> {
+    try {
+      await this.planCacheService.syncPlansFromRazorpay();
+      this.logger.log('Successfully synced plans from Razorpay');
+    } catch (error) {
+      this.logger.error(`Failed to sync plans from Razorpay: ${error.message}`);
+      throw error;
+    }
   }
 
   async getSubscriptionByRestaurant(restaurantId: string): Promise<SubscriptionDocument | null> {
@@ -355,29 +402,34 @@ export class SubscriptionsService {
     this.logger.log(`Restaurant ${restaurantId} subscription reactivated`);
   }
 
-  private async createOrGetRazorpayPlan(): Promise<string> {
-    const PLAN_AMOUNT = 79900; // ₹799 per month
-
+  /**
+   * Get or create a Razorpay plan for subscription creation
+   * Now uses existing plans from Razorpay instead of creating new ones
+   */
+  private async getOrCreateRazorpayPlan(tier: 'starter' | 'professional' | 'enterprise' = 'professional'): Promise<string> {
     try {
-      const razorpayPlan = await this.razorpayService.createPlan({
-        period: 'monthly',
-        interval: 1,
-        item: {
-          name: 'RestoHand Subscription Plan',
-          amount: PLAN_AMOUNT,
-          currency: 'INR',
-          description: 'RestoHand restaurant management subscription - monthly billing',
-        },
-        notes: {
-          created_by: 'restohand_system',
-          plan_type: 'standard',
-        },
-      });
+      // Try to get existing plan from Razorpay
+      const existingPlan = await this.planCacheService.getTestPlan(tier);
+      if (existingPlan) {
+        this.logger.log(`Using existing Razorpay plan: ${existingPlan.razorpayPlanId} for tier: ${tier}`);
+        return existingPlan.razorpayPlanId!;
+      }
 
-      this.logger.log(`Created Razorpay plan: ${razorpayPlan.id}`);
-      return razorpayPlan.id;
+      // Fallback: Get any professional monthly plan
+      const plans = await this.getAllPlans(true); // Include test plans
+      const fallbackPlan = plans.find(p =>
+        p.tier === 'professional' &&
+        (p.period === 'monthly' || p.period === 'daily')
+      );
+
+      if (fallbackPlan) {
+        this.logger.log(`Using fallback Razorpay plan: ${fallbackPlan.razorpayPlanId}`);
+        return fallbackPlan.razorpayPlanId;
+      }
+
+      throw new Error('No suitable plans found in Razorpay. Please create plans first.');
     } catch (error) {
-      this.logger.error(`Failed to create Razorpay plan: ${error.message}`, error);
+      this.logger.error(`Failed to get Razorpay plan: ${error.message}`, error);
       throw error;
     }
   }
@@ -410,8 +462,8 @@ export class SubscriptionsService {
       const customer = await this.razorpayService.createCustomer(customerData);
       this.logger.log(`Created/fetched Razorpay customer: ${customer.id}`);
 
-      // Create plan
-      const planId = await this.createOrGetRazorpayPlan();
+      // Get existing plan from Razorpay
+      const planId = await this.getOrCreateRazorpayPlan('professional');
 
       // Create subscription
       const subscription = await this.razorpayService.createSubscription({

@@ -476,6 +476,56 @@ export class RazorpayService {
     }
   }
 
+  async getAllPlans(params?: {
+    from?: number;
+    to?: number;
+    count?: number;
+    skip?: number;
+  }): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.from) queryParams.append('from', params.from.toString());
+      if (params?.to) queryParams.append('to', params.to.toString());
+      if (params?.count) queryParams.append('count', params.count.toString());
+      if (params?.skip) queryParams.append('skip', params.skip.toString());
+
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.plans && typeof this.client.plans.all === 'function') {
+        return await this.client.plans.all(params || {});
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Plans API
+        const url = `/v1/plans${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        return await this.makeHttpRequest('GET', url);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to fetch plans: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async getPlan(planId: string): Promise<any> {
+    if (!this.client) {
+      throw new InternalServerErrorException('Razorpay is not configured');
+    }
+
+    try {
+      // Try SDK first, fallback to direct HTTP call
+      if (this.client.plans && typeof this.client.plans.fetch === 'function') {
+        return await this.client.plans.fetch(planId);
+      } else {
+        // Fallback: Direct HTTP call to Razorpay Plans API
+        return await this.makeHttpRequest('GET', `/v1/plans/${planId}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to fetch plan ${planId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
   async createSubscription(params: {
     plan_id: string;
     customer_id?: string;
