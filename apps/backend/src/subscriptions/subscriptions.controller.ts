@@ -9,7 +9,13 @@ import {
   UseGuards,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto, UpdateSubscriptionDto } from './dto';
 import { RazorpayService } from '../payments/razorpay.service';
@@ -23,9 +29,7 @@ import { SubscriptionPlan } from './schemas/subscription.schema';
 @Controller('subscriptions')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SubscriptionsController {
-  constructor(
-    private readonly subscriptionsService: SubscriptionsService,
-  ) {}
+  constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
   @Get('plans')
   @ApiOperation({ summary: 'Get all available subscription plans' })
@@ -52,7 +56,8 @@ export class SubscriptionsController {
     },
   })
   async getAllPlans() {
-    return this.subscriptionsService.getAllPlans();
+    const isTestMode = process.env.NODE_ENV !== 'production';
+    return this.subscriptionsService.getAllPlans(isTestMode);
   }
 
   @Get('restaurant/:restaurantId/status')
@@ -104,7 +109,9 @@ export class SubscriptionsController {
     },
   })
   async createSubscription(@Body() createDto: CreateSubscriptionDto) {
-    const subscription = await this.subscriptionsService.createSubscription(createDto);
+    const subscription = await this.subscriptionsService.createSubscription(
+      createDto
+    );
     return {
       message: 'Subscription created successfully',
       subscription,
@@ -121,9 +128,12 @@ export class SubscriptionsController {
   })
   async updateSubscription(
     @Param('subscriptionId') subscriptionId: string,
-    @Body() updateDto: UpdateSubscriptionDto,
+    @Body() updateDto: UpdateSubscriptionDto
   ) {
-    const subscription = await this.subscriptionsService.updateSubscription(subscriptionId, updateDto);
+    const subscription = await this.subscriptionsService.updateSubscription(
+      subscriptionId,
+      updateDto
+    );
     return {
       message: 'Subscription updated successfully',
       subscription,
@@ -139,7 +149,9 @@ export class SubscriptionsController {
     description: 'Subscription paused successfully',
   })
   async pauseSubscription(@Param('subscriptionId') subscriptionId: string) {
-    const subscription = await this.subscriptionsService.pauseSubscription(subscriptionId);
+    const subscription = await this.subscriptionsService.pauseSubscription(
+      subscriptionId
+    );
     return {
       message: 'Subscription paused successfully',
       subscription,
@@ -155,7 +167,9 @@ export class SubscriptionsController {
     description: 'Subscription resumed successfully',
   })
   async resumeSubscription(@Param('subscriptionId') subscriptionId: string) {
-    const subscription = await this.subscriptionsService.resumeSubscription(subscriptionId);
+    const subscription = await this.subscriptionsService.resumeSubscription(
+      subscriptionId
+    );
     return {
       message: 'Subscription resumed successfully',
       subscription,
@@ -166,18 +180,23 @@ export class SubscriptionsController {
   @Roles(UserRole.Manager)
   @ApiOperation({ summary: 'Cancel subscription' })
   @ApiParam({ name: 'subscriptionId', description: 'Subscription ID' })
-  @ApiQuery({ name: 'cancelAtCycleEnd', required: false, type: 'boolean', description: 'Cancel at cycle end (default: true)' })
+  @ApiQuery({
+    name: 'cancelAtCycleEnd',
+    required: false,
+    type: 'boolean',
+    description: 'Cancel at cycle end (default: true)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Subscription cancelled successfully',
   })
   async cancelSubscription(
     @Param('subscriptionId') subscriptionId: string,
-    @Query('cancelAtCycleEnd') cancelAtCycleEnd?: boolean,
+    @Query('cancelAtCycleEnd') cancelAtCycleEnd?: boolean
   ) {
     const subscription = await this.subscriptionsService.cancelSubscription(
       subscriptionId,
-      cancelAtCycleEnd !== false,
+      cancelAtCycleEnd !== false
     );
     return {
       message: 'Subscription cancelled successfully',
@@ -204,13 +223,16 @@ export class SubscriptionsController {
     description: 'Webhook processed successfully',
   })
   async handleWebhook(
-    @Body() payload: any,
+    @Body() payload: any
     // In production, you'd verify webhook signature here
   ) {
     const event = payload.event;
     const entityPayload = payload.payload;
 
-    await this.subscriptionsService.handleSubscriptionWebhook(event, entityPayload);
+    await this.subscriptionsService.handleSubscriptionWebhook(
+      event,
+      entityPayload
+    );
 
     return { status: 'ok' };
   }
@@ -247,20 +269,26 @@ export class AdminSubscriptionsController {
 
   @Post('restaurant/:restaurantId/grandfathered')
   @Roles(UserRole.Admin)
-  @ApiOperation({ summary: 'Create grandfathered subscription for early customers' })
+  @ApiOperation({
+    summary: 'Create grandfathered subscription for early customers',
+  })
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   async createGrandfatheredSubscription(
     @Param('restaurantId') restaurantId: string,
-    @Body() body: {
-      planType: SubscriptionPlan.FOUNDING_MEMBER | SubscriptionPlan.EARLY_ADOPTER;
+    @Body()
+    body: {
+      planType:
+        | SubscriptionPlan.FOUNDING_MEMBER
+        | SubscriptionPlan.EARLY_ADOPTER;
       reason: string;
-    },
+    }
   ) {
-    const subscription = await this.subscriptionsService.createGrandfatheredSubscription(
-      restaurantId,
-      body.planType,
-      body.reason,
-    );
+    const subscription =
+      await this.subscriptionsService.createGrandfatheredSubscription(
+        restaurantId,
+        body.planType,
+        body.reason
+      );
     return {
       message: 'Grandfathered subscription created successfully',
       subscription,
@@ -272,9 +300,12 @@ export class AdminSubscriptionsController {
   @ApiOperation({ summary: 'Migrate legacy subscription to new system' })
   @ApiParam({ name: 'restaurantId', description: 'Restaurant ID' })
   async migrateLegacySubscription(@Param('restaurantId') restaurantId: string) {
-    const subscription = await this.subscriptionsService.migrateLegacySubscription(restaurantId);
+    const subscription =
+      await this.subscriptionsService.migrateLegacySubscription(restaurantId);
     return {
-      message: subscription ? 'Subscription migrated successfully' : 'No legacy subscription found',
+      message: subscription
+        ? 'Subscription migrated successfully'
+        : 'No legacy subscription found',
       subscription,
     };
   }

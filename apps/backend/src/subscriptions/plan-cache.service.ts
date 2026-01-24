@@ -21,6 +21,7 @@ interface CachedPlan {
   };
   notes: Record<string, string>;
   created_at: number;
+  razorpayPlanId?: string; // Add the missing property for consistency
 }
 
 interface PlanCacheEntry {
@@ -203,7 +204,7 @@ export class PlanCacheService {
   }
 
   /**
-   * Get plan for testing (daily/weekly billing)
+   * Get plan for testing (weekly intervals with daily period per Razorpay requirements)
    */
   async getTestPlan(tier: 'starter' | 'professional' | 'enterprise'): Promise<CachedPlan | null> {
     const testPlans = await this.findPlans({
@@ -211,17 +212,33 @@ export class PlanCacheService {
       testMode: true,
     });
 
-    // Prefer daily plans for testing, then weekly
-    const dailyPlan = testPlans.find(p => p.period === 'daily');
-    if (dailyPlan) {
-      return dailyPlan;
+    // Prefer ultra-fast plans (7-day intervals) for testing
+    const ultraFastPlan = testPlans.find(p =>
+      p.period === 'daily' &&
+      p.interval === 7 &&
+      p.notes?.billing_cycle === 'ultra_fast'
+    );
+    if (ultraFastPlan) {
+      return ultraFastPlan;
     }
 
+    // Then weekly-daily plans (7-day intervals)
+    const weeklyDailyPlan = testPlans.find(p =>
+      p.period === 'daily' &&
+      p.interval === 7 &&
+      p.notes?.billing_cycle === 'weekly_daily'
+    );
+    if (weeklyDailyPlan) {
+      return weeklyDailyPlan;
+    }
+
+    // Fallback to weekly plans
     const weeklyPlan = testPlans.find(p => p.period === 'weekly');
     if (weeklyPlan) {
       return weeklyPlan;
     }
 
+    // Last resort: any test plan for this tier
     return testPlans[0] || null;
   }
 

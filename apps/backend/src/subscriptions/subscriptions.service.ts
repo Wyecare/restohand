@@ -141,7 +141,7 @@ export class SubscriptionsService {
 
           return {
             razorpayPlanId: plan.id,
-            planType: this.mapTierToPlanType(tier, plan.period),
+            planType: this.mapTierToPlanType(tier, plan.period, converted.isTestPlan),
             name: converted.name,
             amount: converted.amount,
             currency: converted.currency,
@@ -181,9 +181,23 @@ export class SubscriptionsService {
 
   /**
    * Map tier and period to internal SubscriptionPlan enum
+   * Handles both production plans and test plans
    */
-  private mapTierToPlanType(tier: string, period: string): SubscriptionPlan | null {
-    const mapping = {
+  private mapTierToPlanType(tier: string, period: string, isTestPlan = false): SubscriptionPlan | null {
+    // For test plans, map to the closest production equivalent
+    if (isTestPlan) {
+      const testMapping: Record<string, SubscriptionPlan> = {
+        'starter': SubscriptionPlan.STARTER_MONTHLY,
+        'professional': SubscriptionPlan.PROFESSIONAL_MONTHLY,
+        'enterprise': SubscriptionPlan.ENTERPRISE_MONTHLY,
+        'founding_member': SubscriptionPlan.FOUNDING_MEMBER,
+        'early_adopter': SubscriptionPlan.EARLY_ADOPTER,
+      };
+      return testMapping[tier] || null;
+    }
+
+    // Production plan mapping
+    const mapping: Record<string, SubscriptionPlan> = {
       'starter-monthly': SubscriptionPlan.STARTER_MONTHLY,
       'starter-yearly': SubscriptionPlan.STARTER_YEARLY,
       'professional-monthly': SubscriptionPlan.PROFESSIONAL_MONTHLY,
@@ -215,7 +229,8 @@ export class SubscriptionsService {
       const config = this.convertRazorpayPlanToInternal(razorpayPlan);
       return config;
     } catch (error) {
-      this.logger.error(`Failed to get plan config for ${planType}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get plan config for ${planType}: ${errorMessage}`);
       throw error;
     }
   }
@@ -233,7 +248,8 @@ export class SubscriptionsService {
 
       return this.convertRazorpayPlanToInternal(testPlan);
     } catch (error) {
-      this.logger.error(`Failed to get test plan for ${tier}: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get test plan for ${tier}: ${errorMessage}`);
       throw error;
     }
   }
@@ -246,7 +262,8 @@ export class SubscriptionsService {
       await this.planCacheService.syncPlansFromRazorpay();
       this.logger.log('Successfully synced plans from Razorpay');
     } catch (error) {
-      this.logger.error(`Failed to sync plans from Razorpay: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to sync plans from Razorpay: ${errorMessage}`);
       throw error;
     }
   }
@@ -411,8 +428,8 @@ export class SubscriptionsService {
       // Try to get existing plan from Razorpay
       const existingPlan = await this.planCacheService.getTestPlan(tier);
       if (existingPlan) {
-        this.logger.log(`Using existing Razorpay plan: ${existingPlan.razorpayPlanId} for tier: ${tier}`);
-        return existingPlan.razorpayPlanId!;
+        this.logger.log(`Using existing Razorpay plan: ${existingPlan.id} for tier: ${tier}`);
+        return existingPlan.id;
       }
 
       // Fallback: Get any professional monthly plan
@@ -429,7 +446,8 @@ export class SubscriptionsService {
 
       throw new Error('No suitable plans found in Razorpay. Please create plans first.');
     } catch (error) {
-      this.logger.error(`Failed to get Razorpay plan: ${error.message}`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get Razorpay plan: ${errorMessage}`, error);
       throw error;
     }
   }
@@ -450,9 +468,9 @@ export class SubscriptionsService {
       // Create or get existing customer
       const customerData = {
         name: restaurant.name,
-        email: restaurant.email,
+        email: restaurant.email || 'no-email@restohand.com',
         contact: restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
-        fail_existing: 0,
+        fail_existing: 0 as const,
         notes: {
           restaurant_id: restaurantId,
           created_by: 'restohand_system',
