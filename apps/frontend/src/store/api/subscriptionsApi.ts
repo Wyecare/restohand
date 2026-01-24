@@ -111,6 +111,9 @@ export interface PlanOption {
   monthlyEquivalent: number;
   isPopular: boolean;
   isLegacy: boolean;
+  isTestPlan: boolean;
+  tier: string;
+  razorpayPlanId: string;
 }
 
 export interface CreateSubscriptionRequest {

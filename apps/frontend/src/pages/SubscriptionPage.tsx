@@ -48,7 +48,8 @@ import {
 
 const SubscriptionPage = () => {
   const [isYearly, setIsYearly] = useState(false);
-  const [selectedPlanType, setSelectedPlanType] = useState<SubscriptionPlan | null>(null);
+  const [selectedPlanType, setSelectedPlanType] =
+    useState<SubscriptionPlan | null>(null);
   const { toast } = useToast();
   const activeRestaurantId = useAppSelector(selectActiveRestaurantId);
 
@@ -68,29 +69,46 @@ const SubscriptionPage = () => {
     skip: !activeRestaurantId,
   });
 
-  const {
-    data: paymentHistory,
-    isLoading: historyLoading,
-  } = useGetPaymentHistoryQuery(activeRestaurantId || '', {
-    skip: !activeRestaurantId,
-  });
+  const { data: paymentHistory, isLoading: historyLoading } =
+    useGetPaymentHistoryQuery(activeRestaurantId || '', {
+      skip: !activeRestaurantId,
+    });
 
   // Mutations
-  const [createSubscription, { isLoading: creating }] = useCreateSubscriptionMutation();
-  const [updateSubscription, { isLoading: updating }] = useUpdateSubscriptionMutation();
-  const [pauseSubscription, { isLoading: pausing }] = usePauseSubscriptionMutation();
-  const [resumeSubscription, { isLoading: resuming }] = useResumeSubscriptionMutation();
-  const [cancelSubscription, { isLoading: cancelling }] = useCancelSubscriptionMutation();
+  const [createSubscription, { isLoading: creating }] =
+    useCreateSubscriptionMutation();
+  const [updateSubscription, { isLoading: updating }] =
+    useUpdateSubscriptionMutation();
+  const [pauseSubscription, { isLoading: pausing }] =
+    usePauseSubscriptionMutation();
+  const [resumeSubscription, { isLoading: resuming }] =
+    useResumeSubscriptionMutation();
+  const [cancelSubscription, { isLoading: cancelling }] =
+    useCancelSubscriptionMutation();
 
   // Filter plans based on billing cycle and exclude legacy plans from main display
   const filteredPlans = useMemo(() => {
     const period = isYearly ? 'yearly' : 'monthly';
-    return plans.filter(plan =>
-      plan.period === period &&
-      !plan.isLegacy &&
-      plan.planType !== SubscriptionPlan.FOUNDING_MEMBER &&
-      plan.planType !== SubscriptionPlan.EARLY_ADOPTER
-    );
+    return plans.filter((plan) => {
+      // Include production plans based on selected period
+      if (plan.period === period && !plan.isTestPlan) {
+        return (
+          !plan.isLegacy &&
+          plan.planType !== SubscriptionPlan.FOUNDING_MEMBER &&
+          plan.planType !== SubscriptionPlan.EARLY_ADOPTER
+        );
+      }
+
+      // Include all test plans regardless of period (for development)
+      if (plan.isTestPlan) {
+        return (
+          plan.planType !== SubscriptionPlan.FOUNDING_MEMBER &&
+          plan.planType !== SubscriptionPlan.EARLY_ADOPTER
+        );
+      }
+
+      return false;
+    });
   }, [plans, isYearly]);
 
   if (!activeRestaurantId) {
@@ -247,7 +265,10 @@ const SubscriptionPage = () => {
   };
 
   const getFeatureIcon = (featureKey: string) => {
-    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    const iconMap: Record<
+      string,
+      React.ComponentType<{ className?: string }>
+    > = {
       locations: Building2,
       tables: Users,
       analytics: BarChart3,
@@ -289,14 +310,17 @@ const SubscriptionPage = () => {
   };
 
   const getPlanIcon = (planType: SubscriptionPlan) => {
-    if (planType.includes('starter')) return Zap;
-    if (planType.includes('professional')) return Crown;
-    if (planType.includes('enterprise')) return Building2;
+    if (planType?.includes('starter')) return Zap;
+    if (planType?.includes('professional')) return Crown;
+    if (planType?.includes('enterprise')) return Building2;
     return Star;
   };
 
   const renderCurrentSubscription = () => {
-    if (!subscriptionStatus?.hasSubscription || !subscriptionStatus.subscription) {
+    if (
+      !subscriptionStatus?.hasSubscription ||
+      !subscriptionStatus.subscription
+    ) {
       return (
         <Card className="mb-8">
           <CardHeader>
@@ -305,7 +329,8 @@ const SubscriptionPage = () => {
               No Active Subscription
             </CardTitle>
             <CardDescription>
-              You don't have an active subscription. Choose a plan below to get started.
+              You don't have an active subscription. Choose a plan below to get
+              started.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -327,7 +352,11 @@ const SubscriptionPage = () => {
                 <CardTitle className="flex items-center gap-2">
                   {subscription.plan.name}
                   <Badge
-                    variant={subscription.status === SubscriptionStatus.ACTIVE ? 'default' : 'secondary'}
+                    variant={
+                      subscription.status === SubscriptionStatus.ACTIVE
+                        ? 'default'
+                        : 'secondary'
+                    }
                     className={getStatusColor(subscription.status)}
                   >
                     {isTrialActive ? 'Trial Active' : subscription.status}
@@ -339,10 +368,12 @@ const SubscriptionPage = () => {
                   )}
                 </CardTitle>
                 <CardDescription>
-                  {formatPrice(subscription.plan.amount)} / {subscription.plan.period}
+                  {formatPrice(subscription.plan.amount)} /{' '}
+                  {subscription.plan.period}
                   {isTrialActive && subscription.trialEnd && (
                     <span className="block text-green-600 font-medium">
-                      Trial ends: {new Date(subscription.trialEnd).toLocaleDateString()}
+                      Trial ends:{' '}
+                      {new Date(subscription.trialEnd).toLocaleDateString()}
                     </span>
                   )}
                 </CardDescription>
@@ -357,15 +388,17 @@ const SubscriptionPage = () => {
                 >
                   {resuming ? 'Resuming...' : 'Resume'}
                 </Button>
-              ) : subscription.status === SubscriptionStatus.ACTIVE && (
-                <Button
-                  variant="outline"
-                  onClick={handlePauseSubscription}
-                  disabled={pausing}
-                  size="sm"
-                >
-                  {pausing ? 'Pausing...' : 'Pause'}
-                </Button>
+              ) : (
+                subscription.status === SubscriptionStatus.ACTIVE && (
+                  <Button
+                    variant="outline"
+                    onClick={handlePauseSubscription}
+                    disabled={pausing}
+                    size="sm"
+                  >
+                    {pausing ? 'Pausing...' : 'Pause'}
+                  </Button>
+                )
               )}
               {subscription.status !== SubscriptionStatus.CANCELLED && (
                 <Button
@@ -388,7 +421,8 @@ const SubscriptionPage = () => {
                 <div>
                   <p className="text-sm font-medium">Current Period</p>
                   <p className="text-xs text-gray-500">
-                    {new Date(subscription.currentStart).toLocaleDateString()} - {new Date(subscription.currentEnd).toLocaleDateString()}
+                    {new Date(subscription.currentStart).toLocaleDateString()} -{' '}
+                    {new Date(subscription.currentEnd).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -408,7 +442,8 @@ const SubscriptionPage = () => {
                 <div>
                   <p className="text-sm font-medium">Billing Cycle</p>
                   <p className="text-xs text-gray-500">
-                    {subscription.paidCount}/{subscription.totalCount || '∞'} payments
+                    {subscription.paidCount}/{subscription.totalCount || '∞'}{' '}
+                    payments
                   </p>
                 </div>
               </div>
@@ -421,14 +456,23 @@ const SubscriptionPage = () => {
 
   const renderPlanCard = (plan: PlanOption) => {
     const Icon = getPlanIcon(plan.planType);
-    const isCurrentPlan = subscriptionStatus?.subscription?.plan.planType === plan.planType;
+    const isCurrentPlan =
+      subscriptionStatus?.subscription?.plan.planType === plan.planType;
     const canUpgrade = subscriptionStatus?.hasSubscription && !isCurrentPlan;
 
     return (
-      <Card key={plan.planType} className={`relative ${plan.isPopular ? 'ring-2 ring-purple-500' : ''}`}>
-        {plan.isPopular && (
+      <Card
+        key={plan.planType}
+        className={`relative ${plan.isPopular ? 'ring-2 ring-purple-500' : ''}`}
+      >
+        {plan.isPopular && !plan.isTestPlan && (
           <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-purple-500">
             Most Popular
+          </Badge>
+        )}
+        {plan.isTestPlan && (
+          <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500">
+            <span role="img" aria-label="test tube">🧪</span> Test Plan
           </Badge>
         )}
         <CardHeader>
@@ -448,11 +492,18 @@ const SubscriptionPage = () => {
               <CardDescription className="text-lg font-semibold">
                 {formatPrice(plan.amount)}
                 <span className="text-sm font-normal text-gray-500">
-                  /{plan.period}
+                  /{plan.isTestPlan ? (plan.period === 'daily' ? `${plan.interval} days` : plan.period) : plan.period}
                 </span>
-                {isYearly && (
+                {plan.isTestPlan && (
+                  <span className="block text-xs text-blue-600">
+                    <span role="img" aria-label="test tube">🧪</span> Test Plan - Fast Billing
+                  </span>
+                )}
+                {isYearly && !plan.isTestPlan && (
                   <span className="block text-xs text-green-600">
-                    Save ₹{formatPrice((plan.monthlyEquivalent * 12) - plan.amount)} annually
+                    Save ₹
+                    {formatPrice(plan.monthlyEquivalent * 12 - plan.amount)}{' '}
+                    annually
                   </span>
                 )}
               </CardDescription>
@@ -475,13 +526,14 @@ const SubscriptionPage = () => {
                       <X className="h-4 w-4 text-gray-400" />
                     )}
                     <FeatureIcon className="h-4 w-4 text-gray-500" />
-                    <span className={`text-sm ${isIncluded ? '' : 'text-gray-500'}`}>
+                    <span
+                      className={`text-sm ${isIncluded ? '' : 'text-gray-500'}`}
+                    >
                       {key === 'locations' || key === 'tables'
                         ? `${formatFeatureValue(value)} ${key}`
                         : typeof value === 'string'
                         ? value.replace(/_/g, ' ')
-                        : key.replace(/([A-Z])/g, ' $1').toLowerCase()
-                      }
+                        : key.replace(/([A-Z])/g, ' $1').toLowerCase()}
                     </span>
                   </div>
                 );
@@ -508,8 +560,7 @@ const SubscriptionPage = () => {
                   ? 'Current Plan'
                   : canUpgrade
                   ? 'Upgrade to This Plan'
-                  : 'Start Free Trial'
-                }
+                  : 'Start Free Trial'}
               </Button>
             </div>
           </div>
@@ -543,7 +594,9 @@ const SubscriptionPage = () => {
             onClick={() => setIsYearly(true)}
             className="flex items-center gap-2"
           >
-            <Badge variant="secondary" className="text-xs">17% OFF</Badge>
+            <Badge variant="secondary" className="text-xs">
+              17% OFF
+            </Badge>
             Yearly
           </Button>
         </div>
@@ -570,17 +623,26 @@ const SubscriptionPage = () => {
             ) : paymentHistory?.payments.length ? (
               <div className="space-y-3">
                 {paymentHistory.payments.map((payment, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
                     <div className="flex items-center gap-3">
                       <CreditCard className="h-5 w-5 text-gray-500" />
                       <div>
-                        <p className="font-medium">{formatPrice(payment.amount)}</p>
+                        <p className="font-medium">
+                          {formatPrice(payment.amount)}
+                        </p>
                         <p className="text-sm text-gray-500">
                           {new Date(payment.paidAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
-                    <Badge variant={payment.status === 'captured' ? 'default' : 'secondary'}>
+                    <Badge
+                      variant={
+                        payment.status === 'captured' ? 'default' : 'secondary'
+                      }
+                    >
                       {payment.status}
                     </Badge>
                   </div>
@@ -604,21 +666,26 @@ const SubscriptionPage = () => {
           <div>
             <h4 className="font-medium mb-2">Can I change my plan anytime?</h4>
             <p className="text-sm text-gray-600">
-              Yes, you can upgrade or downgrade your plan at any time. Changes will be prorated and reflected in your next billing cycle.
+              Yes, you can upgrade or downgrade your plan at any time. Changes
+              will be prorated and reflected in your next billing cycle.
             </p>
           </div>
           <Separator />
           <div>
-            <h4 className="font-medium mb-2">What happens during the free trial?</h4>
+            <h4 className="font-medium mb-2">
+              What happens during the free trial?
+            </h4>
             <p className="text-sm text-gray-600">
-              New customers get 30 days free trial with full access to all features. No credit card required.
+              New customers get 30 days free trial with full access to all
+              features. No credit card required.
             </p>
           </div>
           <Separator />
           <div>
             <h4 className="font-medium mb-2">Can I pause my subscription?</h4>
             <p className="text-sm text-gray-600">
-              Yes, you can pause your subscription temporarily. Your data will be preserved and you can resume anytime.
+              Yes, you can pause your subscription temporarily. Your data will
+              be preserved and you can resume anytime.
             </p>
           </div>
         </CardContent>
