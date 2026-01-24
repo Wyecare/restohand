@@ -27,6 +27,7 @@ import { MenuExtractionModule } from '../menu-extraction/menu-extraction.module'
 import { CallWaiterModule } from '../call-waiter/call-waiter.module';
 import { BranchesModule } from '../branches/branches.module';
 import { MigrationModule } from '../migrations/migration.module';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -63,6 +64,7 @@ import { AppService } from './app.service';
     CallWaiterModule,
     BranchesModule,
     MigrationModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
