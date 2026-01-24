@@ -10,6 +10,7 @@ import {
   useCreateOrderMutation,
   useAddItemsToOrderMutation,
 } from '@/store/api/ordersApi';
+import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
   Plus,
@@ -44,22 +45,7 @@ type AugmentedMenuItem = PublicMenuCategory['items'][number] & {
   _isQuick: boolean;
 };
 
-// Session storage key for current order
-const CURRENT_ORDER_KEY = 'restohand:current-order';
-
-interface CurrentOrder {
-  id: string;
-  orderNumber: string;
-  restaurantId: string;
-  items: Array<{
-    menuItemId: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }>;
-  totalAmount: number;
-  createdAt: string;
-}
+// Removed session storage - using real-time API data only
 
 const AccessibleEmoji = ({
   symbol,
@@ -105,11 +91,7 @@ export default function CustomerMenuPageNew() {
   const tableFromUrl = searchParams.get('table');
   const tableIdFromUrl = searchParams.get('tableId');
 
-  // Get current order from storage
-  const [currentOrder, setCurrentOrder] = useState<CurrentOrder | null>(() => {
-    const stored = sessionStorage.getItem(CURRENT_ORDER_KEY);
-    return stored ? JSON.parse(stored) : null;
-  });
+  // Removed session storage - activeOrder comes directly from API
 
   // Local cart for new items before placing order
   const [cart, setCart] = useState<Array<{
@@ -123,7 +105,7 @@ export default function CustomerMenuPageNew() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
-  const { data, isLoading, isError } = useGetPublicMenuQuery(
+  const { data, isLoading, isError, refetch } = useGetPublicMenuQuery(
     { slug, table: tableFromUrl, tableId: tableIdFromUrl },
     { skip: !slug }
   );
@@ -135,6 +117,17 @@ export default function CustomerMenuPageNew() {
   const restaurant = data?.restaurant;
   const menu = data?.menu;
   const activeOrderFromAPI = data?.activeOrder;
+
+  // Setup WebSocket for real-time order updates
+  useOrdersSocket({
+    onEvent: (order) => {
+      // Refetch menu data to get updated activeOrder when our order is updated
+      if (activeOrderFromAPI && order.id === activeOrderFromAPI.id) {
+        refetch();
+      }
+    },
+    enabled: !!activeOrderFromAPI, // Only listen when we have an active order
+  });
 
   const categories = useMemo(() => menu?.categories ?? [], [menu]);
   const uncategorised = useMemo(() => menu?.uncategorised ?? [], [menu]);
@@ -228,8 +221,8 @@ export default function CustomerMenuPageNew() {
     return displayCategories;
   }, [categories, filteredProducts]);
 
-  // Check if we have an existing order (from API or storage)
-  const hasActiveOrder = currentOrder || activeOrderFromAPI;
+  // Check if we have an existing order from API only
+  const hasActiveOrder = !!activeOrderFromAPI;
 
   const handleAddToCart = (id: string, name: string, pricing: MenuItemPricing) => {
     const existingIndex = cart.findIndex(item => item.menuItemId === id);
@@ -293,61 +286,51 @@ export default function CustomerMenuPageNew() {
     }));
 
     try {
-      // Customer info for first order
+      // Customer info for first order - include tableId for proper branch isolation
       const customerInfo = {
         customerName: 'Guest Customer', // We'll add a form for this later
         tableNumber: tableFromUrl || undefined,
+        tableId: tableIdFromUrl || undefined, // CRITICAL: Include tableId for branch lookup
       };
 
-      if (hasActiveOrder && currentOrder) {
+      if (hasActiveOrder && activeOrderFromAPI) {
         // Add to existing order
         await addItemsToOrder({
           restaurantId: restaurant.id,
-          orderId: currentOrder.id,
+          orderId: activeOrderFromAPI.id,
           items: orderItems,
           notes: `Additional items ordered at ${new Date().toLocaleTimeString()}`,
         }).unwrap();
 
         toast({
           title: 'Items added to your order! 🎉',
-          description: `${cartItemCount} items added to order #${currentOrder.orderNumber}`,
+          description: `${cartItemCount} items added to order #${activeOrderFromAPI.orderNumber}`,
         });
       } else {
-        // Create new order
+        // Create new order with tableId for proper branch isolation
         const result = await createOrder({
           restaurantId: restaurant.id,
           items: orderItems,
           ...customerInfo,
-          paymentMethod: 'pending', // Order first, pay later
+          paymentMethod: 'upi', // Default to UPI for customer orders
         }).unwrap();
-
-        // Store current order info
-        const newCurrentOrder: CurrentOrder = {
-          id: result.id,
-          orderNumber: result.orderNumber,
-          restaurantId: restaurant.id,
-          items: cart,
-          totalAmount: cartTotal,
-          createdAt: new Date().toISOString(),
-        };
-
-        setCurrentOrder(newCurrentOrder);
-        sessionStorage.setItem(CURRENT_ORDER_KEY, JSON.stringify(newCurrentOrder));
 
         toast({
           title: 'Order placed! 🎉',
           description: `Order #${result.orderNumber} sent to kitchen`,
         });
+
+        // Clear cart after successful order
+        setCart([]);
+
+        // Navigate to order status
+        const tableSuffix = tableFromUrl ? `?table=${encodeURIComponent(tableFromUrl)}` : '';
+        navigate(`/c/${slug}/order/${result.id}${tableSuffix}`);
       }
 
-      // Clear cart after successful order
-      setCart([]);
-
-      // Navigate to order status
-      const orderId = currentOrder?.id || hasActiveOrder ? activeOrderFromAPI?.id : undefined;
-      if (orderId) {
-        const tableSuffix = tableFromUrl ? `?table=${encodeURIComponent(tableFromUrl)}` : '';
-        navigate(`/c/${slug}/order/${orderId}${tableSuffix}`);
+      // Clear cart after successful order if adding to existing
+      if (hasActiveOrder) {
+        setCart([]);
       }
 
     } catch (error) {
@@ -361,7 +344,7 @@ export default function CustomerMenuPageNew() {
   };
 
   const handleViewOrder = () => {
-    const orderId = currentOrder?.id || activeOrderFromAPI?.id;
+    const orderId = activeOrderFromAPI?.id;
     if (orderId) {
       const tableSuffix = tableFromUrl ? `?table=${encodeURIComponent(tableFromUrl)}` : '';
       navigate(`/c/${slug}/order/${orderId}${tableSuffix}`);
@@ -489,7 +472,7 @@ export default function CustomerMenuPageNew() {
                   <div className="flex items-center gap-2">
                     <div className="bg-green-500 rounded-full w-2 h-2 animate-pulse"></div>
                     <span className="font-medium text-green-900 dark:text-green-100 text-sm">
-                      Order #{currentOrder?.orderNumber || activeOrderFromAPI?.orderNumber}
+                      Order #{activeOrderFromAPI?.orderNumber}
                     </span>
                     <span className="text-green-600 dark:text-green-400 text-xs">• In Progress</span>
                   </div>
@@ -516,7 +499,7 @@ export default function CustomerMenuPageNew() {
                 <CallWaiterButton
                   tableId={tableFromUrl}
                   restaurantId={restaurant.id}
-                  orderId={currentOrder?.id || activeOrderFromAPI?.id}
+                  orderId={activeOrderFromAPI?.id}
                 />
               </motion.div>
             )}
