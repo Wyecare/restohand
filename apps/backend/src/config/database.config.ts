@@ -17,7 +17,7 @@ export const databaseConfig = registerAs<DatabaseConfig>('database', () => {
     '🔗 Database Connection URI:',
     uri.includes('@') ? uri.replace(/\/\/(.*):.*@/, '//$1:****@') : uri
   );
-  const dbName = process.env.MONGODB_DB_NAME;
+  const dbName = 'restohand';
   const serverSelectionTimeoutMs = Number(
     process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS ?? 5000
   );
