@@ -23,7 +23,6 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '../common/enums/user-role.enum';
-import { SubscriptionPlan } from './schemas/subscription.schema';
 
 @ApiTags('Subscriptions')
 @Controller('subscriptions')
@@ -41,7 +40,7 @@ export class SubscriptionsController {
       items: {
         type: 'object',
         properties: {
-          planType: { type: 'string', enum: Object.values(SubscriptionPlan) },
+          planType: { type: 'string' },
           name: { type: 'string' },
           amount: { type: 'number' },
           currency: { type: 'string' },
@@ -56,8 +55,9 @@ export class SubscriptionsController {
     },
   })
   async getAllPlans() {
-    const isTestMode = process.env.NODE_ENV === 'local';
-    return this.subscriptionsService.getAllPlans(isTestMode);
+    // Always fetch production plans unless explicitly requested otherwise
+    const includeTestPlans = false;
+    return this.subscriptionsService.getAllPlans(includeTestPlans);
   }
 
   @Get('restaurant/:restaurantId/status')

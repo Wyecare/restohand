@@ -55,7 +55,7 @@ export class PlansController {
     try {
       this.logger.log('Fetching plans with filters:', { testMode, tier });
 
-      const isDevMode = process.env.NODE_ENV !== 'local';
+      const isDevMode = process.env.NODE_ENV === 'local';
 
       // Get all plans directly from Razorpay
       const response = await this.razorpayService.getAllPlans({ count: 100 });
