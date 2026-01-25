@@ -170,11 +170,69 @@ export class PlanCacheService {
 
   /**
    * Map legacy SubscriptionPlan enum to actual Razorpay plan IDs
+   * Enhanced to handle development mode with test plans
    */
   async mapLegacyPlanToRazorpayId(legacyPlan: SubscriptionPlan): Promise<string | null> {
     const plans = await this.getAllPlans();
 
-    // Mapping logic based on plan characteristics
+    // Extract tier from legacy plan enum
+    const getTierFromPlan = (plan: SubscriptionPlan): string => {
+      if (plan.includes('starter')) return 'starter';
+      if (plan.includes('professional')) return 'professional';
+      if (plan.includes('enterprise')) return 'enterprise';
+      if (plan.includes('founding')) return 'founding_member';
+      if (plan.includes('early')) return 'early_adopter';
+      return 'professional'; // default fallback
+    };
+
+    const tier = getTierFromPlan(legacyPlan);
+
+    // In development, prioritize test plans for faster billing cycles
+    const isDevMode = process.env.NODE_ENV !== 'production';
+
+    if (isDevMode) {
+      this.logger.log(`Development mode: Looking for test plans for tier: ${tier}`);
+
+      // Find test plans for this tier, prioritizing ultra-fast plans
+      const testPlans = plans.filter(p =>
+        p.notes?.tier === tier &&
+        p.notes?.test_mode === 'true'
+      );
+
+      if (testPlans.length > 0) {
+        // Prioritize ultra-fast plans, then weekly-daily plans
+        const ultraFastPlan = testPlans.find(p =>
+          p.notes?.billing_cycle === 'ultra_fast' ||
+          (p.period === 'daily' && p.interval === 7)
+        );
+
+        if (ultraFastPlan) {
+          this.logger.log(`Found ultra-fast test plan: ${ultraFastPlan.id} for ${tier}`);
+          return ultraFastPlan.id;
+        }
+
+        const weeklyDailyPlan = testPlans.find(p =>
+          p.notes?.billing_cycle === 'weekly_daily'
+        );
+
+        if (weeklyDailyPlan) {
+          this.logger.log(`Found weekly-daily test plan: ${weeklyDailyPlan.id} for ${tier}`);
+          return weeklyDailyPlan.id;
+        }
+
+        const weeklyPlan = testPlans.find(p => p.period === 'weekly');
+        if (weeklyPlan) {
+          this.logger.log(`Found weekly test plan: ${weeklyPlan.id} for ${tier}`);
+          return weeklyPlan.id;
+        }
+
+        // Fallback to any test plan for this tier
+        this.logger.log(`Using fallback test plan: ${testPlans[0].id} for ${tier}`);
+        return testPlans[0].id;
+      }
+    }
+
+    // Production mode or no test plans found - look for production plans
     const mapping = {
       [SubscriptionPlan.STARTER_MONTHLY]: { tier: 'starter', period: 'monthly' },
       [SubscriptionPlan.STARTER_YEARLY]: { tier: 'starter', period: 'yearly' },
@@ -188,6 +246,7 @@ export class PlanCacheService {
 
     const criteria = mapping[legacyPlan];
     if (!criteria) {
+      this.logger.warn(`No criteria found for legacy plan: ${legacyPlan}`);
       return null;
     }
 
@@ -196,11 +255,18 @@ export class PlanCacheService {
     // Prefer production plans over test plans
     const productionPlan = matchingPlans.find(p => p.notes?.test_mode !== 'true');
     if (productionPlan) {
+      this.logger.log(`Found production plan: ${productionPlan.id} for ${legacyPlan}`);
       return productionPlan.id;
     }
 
     // Fallback to test plan if no production plan found
-    return matchingPlans[0]?.id || null;
+    if (matchingPlans[0]) {
+      this.logger.log(`Using fallback plan: ${matchingPlans[0].id} for ${legacyPlan}`);
+      return matchingPlans[0].id;
+    }
+
+    this.logger.error(`No plans found for ${legacyPlan} with criteria:`, criteria);
+    return null;
   }
 
   /**

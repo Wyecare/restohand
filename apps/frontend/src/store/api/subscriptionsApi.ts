@@ -63,6 +63,12 @@ export interface SubscriptionData {
   totalCount?: number;
   paidCount: number;
   remainingCount?: number;
+  authAttempts?: number;
+  expireBy?: string;
+  shortUrl?: string; // CRITICAL: Payment authorization URL
+  hasScheduledChanges?: boolean;
+  scheduleChangeAt?: string;
+  customerNotify?: boolean;
   billingHistory?: Array<{
     invoiceId: string;
     amount: number;
@@ -101,24 +107,30 @@ export interface SubscriptionStatusResponse {
 }
 
 export interface PlanOption {
-  planType: SubscriptionPlan;
+  id: string; // Razorpay plan ID
   name: string;
+  description?: string;
   amount: number;
   currency: string;
   period: string;
   interval: number;
-  features: PlanFeatures;
-  monthlyEquivalent: number;
-  isPopular: boolean;
-  isLegacy: boolean;
-  isTestPlan: boolean;
   tier: string;
-  razorpayPlanId: string;
+  isTestPlan: boolean;
+  billingCycle?: string;
+  features: string[]; // Array of feature strings
+  popular?: boolean;
+  createdAt?: number;
+}
+
+export interface PlansResponse {
+  plans: PlanOption[];
+  total: number;
+  isDevMode: boolean;
 }
 
 export interface CreateSubscriptionRequest {
   restaurantId: string;
-  planType: SubscriptionPlan;
+  planId: string; // Use Razorpay plan ID directly
   totalCount?: number;
   startAt?: number;
   customerNotify?: boolean;
@@ -192,8 +204,8 @@ export interface RestaurantOnboardingData {
 export const subscriptionsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     // Get all available subscription plans
-    getAllPlans: builder.query<PlanOption[], void>({
-      query: () => '/subscriptions/plans',
+    getAllPlans: builder.query<PlansResponse, void>({
+      query: () => '/plans',
       providesTags: ['SubscriptionPlans'],
     }),
 

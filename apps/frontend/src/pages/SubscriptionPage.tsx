@@ -45,6 +45,7 @@ import {
   SubscriptionStatus,
   PlanOption,
 } from '@/store/api/subscriptionsApi';
+import { subscribe } from 'diagnostics_channel';
 
 const SubscriptionPage = () => {
   const [isYearly, setIsYearly] = useState(false);
@@ -55,10 +56,12 @@ const SubscriptionPage = () => {
 
   // API queries
   const {
-    data: plans = [],
+    data: plansResponse,
     isLoading: plansLoading,
     error: plansError,
   } = useGetAllPlansQuery();
+
+  const plans = plansResponse?.plans || [];
 
   const {
     data: subscriptionStatus,
@@ -86,25 +89,23 @@ const SubscriptionPage = () => {
   const [cancelSubscription, { isLoading: cancelling }] =
     useCancelSubscriptionMutation();
 
-  // Filter plans based on billing cycle and exclude legacy plans from main display
+  // Filter plans based on billing cycle and exclude founding/early adopter plans
   const filteredPlans = useMemo(() => {
     const period = isYearly ? 'yearly' : 'monthly';
     return plans.filter((plan) => {
+      // Exclude founding member and early adopter tiers
+      if (plan.tier === 'founding_member' || plan.tier === 'early_adopter') {
+        return false;
+      }
+
       // Include production plans based on selected period
       if (plan.period === period && !plan.isTestPlan) {
-        return (
-          !plan.isLegacy &&
-          plan.planType !== SubscriptionPlan.FOUNDING_MEMBER &&
-          plan.planType !== SubscriptionPlan.EARLY_ADOPTER
-        );
+        return true;
       }
 
       // Include all test plans regardless of period (for development)
       if (plan.isTestPlan) {
-        return (
-          plan.planType !== SubscriptionPlan.FOUNDING_MEMBER &&
-          plan.planType !== SubscriptionPlan.EARLY_ADOPTER
-        );
+        return true;
       }
 
       return false;
@@ -146,13 +147,13 @@ const SubscriptionPage = () => {
     );
   }
 
-  const handleCreateSubscription = async (planType: SubscriptionPlan) => {
+  const handleCreateSubscription = async (planId: string) => {
     if (!activeRestaurantId) return;
 
     try {
       await createSubscription({
         restaurantId: activeRestaurantId,
-        planType,
+        planId,
         customerNotify: true,
         notes: { source: 'subscription_page' },
       }).unwrap();
@@ -309,10 +310,10 @@ const SubscriptionPage = () => {
     }
   };
 
-  const getPlanIcon = (planType: SubscriptionPlan) => {
-    if (planType?.includes('starter')) return Zap;
-    if (planType?.includes('professional')) return Crown;
-    if (planType?.includes('enterprise')) return Building2;
+  const getPlanIcon = (tier: string) => {
+    if (tier === 'starter') return Zap;
+    if (tier === 'professional') return Crown;
+    if (tier === 'enterprise') return Building2;
     return Star;
   };
 
@@ -338,7 +339,10 @@ const SubscriptionPage = () => {
     }
 
     const { subscription, isTrialActive } = subscriptionStatus;
-    const Icon = getPlanIcon(subscription.plan.planType);
+    const Icon = getPlanIcon(subscription.plan.planType || 'professional');
+
+    // Check if payment authorization is required
+    const requiresPaymentAuth = subscription.status === 'created' && subscription.shortUrl;
 
     return (
       <Card className="mb-8">
@@ -413,6 +417,59 @@ const SubscriptionPage = () => {
             </div>
           </div>
         </CardHeader>
+
+        {/* Payment Authorization Required Section */}
+        {requiresPaymentAuth && (
+          <CardContent>
+            <Card className="border-2 border-orange-200 bg-orange-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-700">
+                  <CreditCard className="h-5 w-5" />
+                  Payment Authorization Required
+                </CardTitle>
+                <CardDescription className="text-orange-600">
+                  Complete your subscription setup by adding a payment method
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-white p-4 rounded-lg border border-orange-200">
+                  <p className="text-sm text-gray-700 mb-3">
+                    Your subscription has been created but requires payment authorization to activate.
+                    Click the button below to add your payment method (Credit Card, Debit Card, UPI, etc.).
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      className="flex-1"
+                      onClick={() => window.open(subscription.shortUrl, '_blank')}
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Add Payment Method
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(subscription.shortUrl || '');
+                        toast({
+                          title: 'Payment Link Copied! 📋',
+                          description: 'Open the link to complete payment setup',
+                        });
+                      }}
+                    >
+                      Copy Link
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="text-xs text-orange-600">
+                  <p>• Your subscription will activate automatically after payment authorization</p>
+                  <p>• Recurring billing will start according to your selected plan</p>
+                  <p>• You can use Credit Card, Debit Card, UPI, or Net Banking</p>
+                </div>
+              </CardContent>
+            </Card>
+          </CardContent>
+        )}
         {subscription.currentStart && subscription.currentEnd && (
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -455,24 +512,42 @@ const SubscriptionPage = () => {
   };
 
   const renderPlanCard = (plan: PlanOption) => {
-    const Icon = getPlanIcon(plan.planType);
+    const Icon = getPlanIcon(plan.tier);
     const isCurrentPlan =
-      subscriptionStatus?.subscription?.plan.planType === plan.planType;
-    const canUpgrade = subscriptionStatus?.hasSubscription && !isCurrentPlan;
+      subscriptionStatus?.subscription?.plan.razorpayPlanId === plan.id;
+
+    // Check if subscription is active (includes 'created' state for new subscriptions)
+    const isSubscriptionActive =
+      subscriptionStatus?.hasSubscription &&
+      [
+        'ACTIVE',
+        'CREATED',
+        'AUTHENTICATED',
+        'active',
+        'created',
+        'authenticated',
+      ].includes(subscriptionStatus?.subscription?.status || '');
+
+    const canUpgrade = isSubscriptionActive && !isCurrentPlan;
+    const canSubscribe =
+      !subscriptionStatus?.hasSubscription || !isSubscriptionActive; // Can subscribe if no subscription or cancelled
 
     return (
       <Card
-        key={plan.planType}
-        className={`relative ${plan.isPopular ? 'ring-2 ring-purple-500' : ''}`}
+        key={plan.id}
+        className={`relative ${plan.popular ? 'ring-2 ring-purple-500' : ''}`}
       >
-        {plan.isPopular && !plan.isTestPlan && (
+        {plan.popular && !plan.isTestPlan && (
           <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-purple-500">
             Most Popular
           </Badge>
         )}
         {plan.isTestPlan && (
           <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500">
-            <span role="img" aria-label="test tube">🧪</span> Test Plan
+            <span role="img" aria-label="test tube">
+              🧪
+            </span>{' '}
+            Test Plan
           </Badge>
         )}
         <CardHeader>
@@ -492,18 +567,24 @@ const SubscriptionPage = () => {
               <CardDescription className="text-lg font-semibold">
                 {formatPrice(plan.amount)}
                 <span className="text-sm font-normal text-gray-500">
-                  /{plan.isTestPlan ? (plan.period === 'daily' ? `${plan.interval} days` : plan.period) : plan.period}
+                  /
+                  {plan.isTestPlan
+                    ? plan.period === 'daily'
+                      ? `${plan.interval} days`
+                      : plan.period
+                    : plan.period}
                 </span>
                 {plan.isTestPlan && (
                   <span className="block text-xs text-blue-600">
-                    <span role="img" aria-label="test tube">🧪</span> Test Plan - Fast Billing
+                    <span role="img" aria-label="test tube">
+                      🧪
+                    </span>{' '}
+                    Test Plan - Fast Billing
                   </span>
                 )}
                 {isYearly && !plan.isTestPlan && (
                   <span className="block text-xs text-green-600">
-                    Save ₹
-                    {formatPrice(plan.monthlyEquivalent * 12 - plan.amount)}{' '}
-                    annually
+                    Save annually!
                   </span>
                 )}
               </CardDescription>
@@ -514,53 +595,40 @@ const SubscriptionPage = () => {
           <div className="space-y-3">
             <div className="space-y-2">
               <h4 className="font-medium">Features included:</h4>
-              {Object.entries(plan.features).map(([key, value]) => {
-                const FeatureIcon = getFeatureIcon(key);
-                const isIncluded = typeof value === 'boolean' ? value : !!value;
-
-                return (
-                  <div key={key} className="flex items-center gap-2">
-                    {isIncluded ? (
-                      <Check className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <X className="h-4 w-4 text-gray-400" />
-                    )}
-                    <FeatureIcon className="h-4 w-4 text-gray-500" />
-                    <span
-                      className={`text-sm ${isIncluded ? '' : 'text-gray-500'}`}
-                    >
-                      {key === 'locations' || key === 'tables'
-                        ? `${formatFeatureValue(value)} ${key}`
-                        : typeof value === 'string'
-                        ? value.replace(/_/g, ' ')
-                        : key.replace(/([A-Z])/g, ' $1').toLowerCase()}
-                    </span>
-                  </div>
-                );
-              })}
+              {plan.features.map((feature, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">{feature}</span>
+                </div>
+              ))}
             </div>
 
             <Separator />
-
             <div className="space-y-2">
               <Button
                 className="w-full"
-                disabled={creating || updating || isCurrentPlan}
+                disabled={
+                  creating ||
+                  updating ||
+                  (isCurrentPlan && isSubscriptionActive)
+                }
                 onClick={() => {
                   if (canUpgrade) {
-                    handleUpdateSubscription(plan.planType);
-                  } else if (!subscriptionStatus?.hasSubscription) {
-                    handleCreateSubscription(plan.planType);
+                    // handleUpdateSubscription(plan.id); // TODO: Update when implementing plan updates
+                  } else if (canSubscribe) {
+                    handleCreateSubscription(plan.id);
                   }
                 }}
               >
                 {creating || updating
                   ? 'Processing...'
-                  : isCurrentPlan
+                  : isCurrentPlan && isSubscriptionActive
                   ? 'Current Plan'
+                  : isCurrentPlan && !isSubscriptionActive
+                  ? 'Subscribe Again'
                   : canUpgrade
                   ? 'Upgrade to This Plan'
-                  : 'Start Free Trial'}
+                  : 'Subscribe Now'}
               </Button>
             </div>
           </div>

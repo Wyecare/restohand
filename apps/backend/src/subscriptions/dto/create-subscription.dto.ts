@@ -1,6 +1,5 @@
-import { IsString, IsEnum, IsOptional, IsNumber, IsBoolean, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean, IsObject } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SubscriptionPlan } from '../schemas/subscription.schema';
 
 export class CreateSubscriptionDto {
   @ApiProperty({
@@ -11,12 +10,11 @@ export class CreateSubscriptionDto {
   restaurantId: string;
 
   @ApiProperty({
-    description: 'Subscription plan type',
-    enum: SubscriptionPlan,
-    example: SubscriptionPlan.STARTER_MONTHLY,
+    description: 'Razorpay plan ID',
+    example: 'plan_MhY0fgHr8H1234',
   })
-  @IsEnum(SubscriptionPlan)
-  planType: SubscriptionPlan;
+  @IsString()
+  planId: string;
 
   @ApiPropertyOptional({
     description: 'Total count of billing cycles (default: 12 for yearly plans)',

@@ -1,0 +1,193 @@
+GST on Food and Restaurants: Key Rules and Tax Rates Explained
+September 25, 2025  11 Mins Read
+gst-food-items-and-restaurants
+Share
+Table of Contents
+
+Latest Update for GST on Restaurant in 2025
+GST on Food and Restaurants in India
+Restaurant Bills Before GST Implementation
+What were the Original GST Rules for Restaurants?
+GST on Restaurant Food & Services, Beverage Services, and Accommodation
+GST on Food Items
+Understanding GST Rules for Restaurants
+Food Bill Pre and Post GST Era with Example
+Impact of GST on Food Items and Restaurants
+Frequently Asked Questions
+Latest Update for GST on Restaurant in 2025
+Starting April 1, 2025, diners at restaurants located within hotels classified as ‘specified premises’ will be subject to 18% GST on their restaurant bills. As per the latest government circular, hotels that do not fall under the ‘specified premises’ category have the option to either continue charging 5% GST or shift to 18% GST, depending on their chosen tax structure.
+
+Opting for the higher rate will lead to increased costs for customers. However, hotels can potentially offset this impact through strategic planning and operational adjustments to manage pricing and customer experience more effectively.
+
+GST on Food and Restaurants in India
+In India, the Goods and Services Tax (GST) on food items and restaurant services varies depending on factors such as the type of establishment, whether the food is branded or unbranded, and the nature of service (dine-in or takeaway).
+
+As per current norms:
+
+5% GST is applicable to most restaurant services, including dine-in and takeaway, provided the restaurant does not claim Input Tax Credit (ITC). This is the standard restaurant GST rate applicable across most casual dining outlets.
+18% GST is charged on food served at restaurants located within hotels where the room tariff exceeds ₹7,500 per night, and where ITC is claimed.
+Unbranded and unpackaged food items such as cereals, pulses, and fresh vegetables are exempt from GST. In contrast, branded and packaged food products attract a 5% or 12% GST, depending on the item and branding status—impacting the applicable food GST rate.
+The GST on restaurant food has replaced the previous VAT and Service Tax system, streamlining tax compliance for the sector. However, it is important to note that the service charge levied by some restaurants is separate from GST and remains a discretionary charge for consumers.
+
+Overall, the applicable restaurant GST rate on food depends on whether the food is served in a restaurant, packaged and branded, or sold unprocessed. Staying updated with the latest rate slabs helps businesses and consumers better understand their tax liabilities.
+
+For alcoholic liquor for human consumption, GST is not applicable. Instead, it continues to be taxed by individual State Governments through excise duty and state-level taxes. However, GST on alcohol is not charged. State-level VAT in charged on Alcohol.
+
+For example, if you’re at a restaurant that serves both food and alcohol, you’ll pay GST on the food and non-alcoholic drinks, while VAT will be applied to the alcoholic beverages. For everyday food purchases, the restaurant GST rates range from 0% to 18%, depending on what you’re buying.
+
+Restaurant Bills Before GST Implementation
+Before the implementation of GST, restaurant bills included multiple components:
+
+VAT: Applied to the food portion of the bill.
+Service Tax: Tax on the services provided by the restaurant.
+Service Charge: Additional charge by the restaurant, not a tax.
+Under the VAT system, different items on the menu were taxed at different rates, complicating the billing process. GST rates on food aimed to standardise this by replacing multiple taxes with a single tax rate applicable to the entire bill.
+
+What were the Original GST Rules for Restaurants?
+Restaurants fell under three different GST rate slabs, when the GST was first launched in July 2017.
+
+GST Rate on restaurants without air conditioning was subject to an 12% GST.
+GST Rate on restaurants with air conditioning or a liquor license was subject to an 18% GST.
+GST Rate on restaurants within five-star hotels was subject to a 28% GST.
+At that time, all Indian restaurants in India could take advantage of the input tax credit. It is applicable when you paid GST while buying supplies for your restaurant, you could subtract that amount from your tax bill.
+
+Related Read: GST Rate on Air Conditioners (AC): Find Latest GST Rate & HSN Code
+
+GST on Restaurant Food & Services, Beverage Services, and Accommodation
+Under GST, Restaurants fall under the 5% GST rate, with no option to claim input tax credit (ITC) or the 18% GST rate, with ITC claims.
+
+GST rate is decided depending on the location of the restaurant. For example, a higher GST rate would be applicable for restaurants located within hotels where the room tariff exceeds a specific amount.
+
+The GST rate on restaurant food services is determined based on the type of establishment and other factors.
+
+Type of Service
+GST Rate
+GST on standalone restaurants, including takeaway (Non-AC)	5% with No Input Tax Credit
+GST on standalone restaurants, including takeaway (AC)	5% with No Input Tax Credit
+GST on restaurants within hotels (room tariff < Rs. 7500)	5% with No Input Tax Credit
+GST on restaurants within hotels (room tariff ≥ Rs. 7500)	18% with Input Tax Credit
+GST on outdoor catering services	18% with Input Tax Credit
+GST on Quick Service Restaurants (QSR)	5% with No Input Tax Credit
+Meals/food services provided by Indian Railways/IRCTC or their licensees both in trains or at platforms.	5% with No Input Tax Credit
+Any food/drink served at cafeteria/canteen/mess operating on a contract basis in the office, industrial unit, or by any school, college, etc on basis of a contractual agreement that is not event-based or occasional	5% with No Input Tax Credit
+Food services provided on a premise arranged for organizing function along with renting of such premises	18%
+Other Accommodation, food, and beverage services	18%
+GST on Food Items
+Food Items
+GST Rate
+GST on fresh, chilled, frozen vegetables	Nil
+GST on dried vegetables that are packaged and labelled	5%
+GST on dried leguminous vegetables other than pre-packaged and labelled	Nil
+GST on dried leguminous vegetables that are pre-packaged and labelled	5%
+GST on fresh/dried coconuts, grapes, apples, bananas, and pears, among others	Nil
+GST on fruits like citrus fruits, grapes, pear, apples, bananas, papaya, melons, pears, mangoes, and berries, among others	Nil
+GST on vegetables, fruits, nuts, and edible plant parts that are preserved using sugar	12%
+GST on fruits, nuts, and edible plant parts that are preserved and/or prepared using vinegar and/or acetic acid.	12%
+GST on rye other than pre-packaged and labelled	Nil
+GST on rye, pre-packaged and labelled	5%
+GST on pasteurized milk (excluding UHT milk) fresh milk, and milk and cream (not concentrated nor contains added sugar or sweeteners)	Nil
+GST on milk and cream that is concentrated or contains added sugar or sweeteners	5%
+GST on curd, buttermilk, and lassi, other than pre-packaged and pre-labelled	Nil
+GST on curd, buttermilk, and lassi that is pre-packaged and pre-labelled	5%
+GST on yoghurt and cream, whether containing sugar/flavouring or not	5%
+GST on fresh or chilled meat and fish	Nil
+GST on meat that is packaged and labelled	5%
+GST on pre-packaged and labelled cereal flours other than of wheat or meslin, rye, etc.	5%
+GST on chocolate and food preparations containing cocoa	18%
+GST on birds’ eggs in shells	Nil
+GST on birds’ eggs which are not in a shell	5%
+GST on rice other than pre-packaged and labelled	Nil
+GST on rice, pre-packaged and labelled	5%
+GST on wheat or meslin (i.e. maize flour) other than pre-packaged or labelled	Nil
+GST on pre-packaged and labelled wheat or meslin	5%
+ 
+
+Related Read: GST HSN Code List
+Related Read: GST on Sugar in India: Updated HSN Code & Tax Rates
+
+Understanding GST Rules for Restaurants
+Restaurants in India fall under two broad categories for GST purposes:
+
+1. Standalone Restaurants
+Standalone restaurants, which are not located within hotels and do not provide accommodation services, are generally subject to a 5% GST rate on their services. However, they do not have the option to claim Input Tax Credit (ITC) on the GST paid for their inputs.
+
+This 5% GST rate applies to both food and beverages served by standalone restaurants.
+
+2. Restaurants within Hotels
+Restaurants that are part of hotels where the room tariff is Rs. 7,500 or more per day fall under a different GST category. These restaurants are subject to an 18% GST rate on their services, including food and beverages served. The key difference here is that they can claim Input Tax Credit (ITC) for the GST paid on their inputs, such as raw materials, services, and other supplies used in providing the restaurant services.
+
+Note: GST rates are subject to periodic changes.
+
+Food Bill Pre and Post GST Era with Example
+In the below example, the total amount payable to the tax authorities under the current regime sums up to Rs.950. However, under GST, net outflow from the pocket will be Rs.250, thanks to the reduced rates.
+
+Particulars
+Billing under VAT regime
+Billing under GST regime
+Total Bill	5000	5000
+Output Tax		
+VAT @14.5%	725	
+Service tax@6%	300	
+GST @5%		250
+Total output tax liability	1025	250
+Input credit		
+VAT ITC (no ITC on ST)	75	
+GST ITC		–
+Final Output tax liability		
+VAT	650	
+Service Tax	300	
+GST		250
+Impact of GST on Food Items and Restaurants
+The Goods and Services Tax (GST) has significantly impacted the Indian restaurant industry and the taxation of food items.
+
+1. Decrease in Effective Tax
+Before GST, customers had to deal with various taxes like VAT and Service Tax. With GST, these taxes were combined into a single rate, which led to a slight decrease in the overall cost of dining out. However, this reduction wasn’t very significant, and the service charge at restaurants stayed the same.
+
+2. Input Tax Credit on Food and Restaurant Services
+For restaurant owners, GST was expected to improve their cash flow by allowing them to get back the Input tax credit they paid on things like raw materials and rent. Initially, they couldn’t claim ITC. Although there have been changes since then, restaurants that charge 5% GST on their food services still can’t get these tax credits, unlike those charging 18% GST.
+
+3. Exemption for Fresh and Frozen Food
+As for food items, most fresh and frozen products, like vegetables and meat, are not taxed under GST. Only packaged foods with brand names are taxed. GST Rate on restaurants within five-star hotels was subject to a 28% GST. So, there haven’t been any major price changes in food GST rate..
+
+4. Tax Slabs for Food Items
+Food items and food services are categorized under various GST tax slabs, primarily 5% and 12%. This ensures that essential food items are not subjected to high taxation, with a maximum GST rate of 18% applicable to food services provided by restaurants.
+
+Related Reads:
+
+Understand what CGST, SGST, IGST, and UTGST are
+GST on Insurance Premium
+Frequently Asked Questions
+1. How Much GST Tax on Food in Restaurant?
+GST Rate on restaurants without AC is charged at a GST of 12%. GST Rate on restaurants with AC or liquor licenses is charged at an 18% GST.
+
+2. What is the rate of GST applicable on chocolate and cocoa products?
+Chocolates and cocoa products have a GST rate of 18%.
+
+3. Is there GST on takeaway food?
+Yes, takeaway food does have GST. The GST rate on takeaway food can be either 5% or 18%, depending on where the restaurant is located.
+
+4. What are the GST Rates on Catering Services?
+GST rates on outdoor catering services is 18% (with ITC).
+
+5. Is there a different GST rate for air-conditioned and non-air-conditioned restaurants?
+No, there is no difference in GST rates for air-conditioned and non-air-conditioned restaurants under the current GST structure. Both are generally taxed at 5%.
+
+6. Is GST applicable to packaged and processed food items?
+Yes, GST on food items is applicable to packaged and processed food items, with rates generally ranging from 5% to 18%, depending on the type of product.
+
+7. What is the GST rate on food served in trains?
+The GST rate on food served in trains is 5%, irrespective of whether the food is cooked on board or supplied from outside.
+
+8. What is the highest GST rate applicable on food items?
+The Highest GST rate on food items is 40% GST. This applies to aerated waters with sugar, caffeinated beverages, and fruit-based carbonated drinks
+
+9. Are there any food items exempt from GST?
+Yes, most fresh and frozen foods like vegetables, fresh fruits, meat, fish, etc. are exempt from GST.
+
+10. Can restaurants claim input tax credit (ITC) on GST paid?
+Restaurants can claim ITC if they charge 18% GST, but not if they charge 5% GST.
+
+11. Is GST mandatory for customers to pay on food?
+Yes, GST is generally applicable to food items and restaurant services in India.
+
+While some fresh and unprocessed food items are exempt, most packaged food products and restaurant meals are subject to food GST rate. The specific GST rate depends on factors like the type of food, restaurant location, and whether the food is served for consumption or sold as a packaged product.

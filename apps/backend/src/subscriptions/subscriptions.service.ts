@@ -42,6 +42,45 @@ export class SubscriptionsService {
     private readonly planCacheService: PlanCacheService,
   ) {}
 
+  private parseFeatures(featuresString: string): any {
+    try {
+      // Try to parse as JSON first
+      const parsed = JSON.parse(featuresString);
+      return parsed;
+    } catch (error) {
+      // If JSON parsing fails, treat as comma-separated string or single string
+      if (featuresString.includes(',')) {
+        return featuresString.split(',').reduce((acc, feature) => {
+          acc[feature.trim()] = true;
+          return acc;
+        }, {});
+      }
+      // Single feature string - return as object
+      return { [featuresString]: true };
+    }
+  }
+
+  private mapTierAndPeriodToEnum(tier: string = 'professional', period: string = 'monthly'): string {
+    // For test plans or unrecognized periods, default to monthly
+    const normalizedPeriod = ['monthly', 'yearly'].includes(period) ? period : 'monthly';
+
+    switch (tier) {
+      case 'starter':
+        return normalizedPeriod === 'yearly' ? 'starter_yearly' : 'starter_monthly';
+      case 'professional':
+        return normalizedPeriod === 'yearly' ? 'professional_yearly' : 'professional_monthly';
+      case 'enterprise':
+        return normalizedPeriod === 'yearly' ? 'enterprise_yearly' : 'enterprise_monthly';
+      case 'founding_member':
+        return 'founding_member';
+      case 'early_adopter':
+        return 'early_adopter';
+      default:
+        // Fallback to professional monthly for unknown tiers
+        return 'professional_monthly';
+    }
+  }
+
   /**
    * Convert Razorpay plan to our internal format
    */
@@ -273,6 +312,20 @@ export class SubscriptionsService {
       throw new BadRequestException('Invalid restaurant ID');
     }
 
+    // First try to find an active subscription
+    const activeSubscription = await this.subscriptionModel
+      .findOne({
+        restaurantId: new Types.ObjectId(restaurantId),
+        status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED] }
+      })
+      .sort({ createdAt: -1 })
+      .exec();
+
+    if (activeSubscription) {
+      return activeSubscription;
+    }
+
+    // If no active subscription, return the most recent one (for status display)
     return this.subscriptionModel
       .findOne({ restaurantId: new Types.ObjectId(restaurantId) })
       .sort({ createdAt: -1 })
@@ -300,7 +353,7 @@ export class SubscriptionsService {
 
     const now = new Date();
     const isTrialActive = subscription.isTrialActive && subscription.trialEnd && subscription.trialEnd > now;
-    const isSubscriptionActive = [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED].includes(subscription.status);
+    const isSubscriptionActive = [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED, SubscriptionStatus.CREATED].includes(subscription.status);
 
     // Get latest Razorpay data if subscription exists
     let razorpayData = null;
@@ -343,6 +396,12 @@ export class SubscriptionsService {
         totalCount: subscription.totalCount,
         paidCount: subscription.paidCount,
         remainingCount: subscription.remainingCount,
+        authAttempts: subscription.authAttempts,
+        expireBy: subscription.expireBy,
+        shortUrl: subscription.shortUrl, // CRITICAL: Include payment URL in status
+        hasScheduledChanges: subscription.hasScheduledChanges,
+        scheduleChangeAt: subscription.scheduleChangeAt,
+        customerNotify: subscription.customerNotify,
         billingHistory: subscription.billingHistory || [],
         lastWebhookAt: subscription.lastWebhookAt,
         lastWebhookEvent: subscription.lastWebhookEvent,
@@ -471,7 +530,7 @@ export class SubscriptionsService {
    * Create subscription from DTO (called from controller)
    */
   private async createSubscriptionFromDto(dto: CreateSubscriptionDto): Promise<any> {
-    const { restaurantId, planType, totalCount, startAt, customerNotify, notes } = dto;
+    const { restaurantId, planId, totalCount, startAt, customerNotify, notes } = dto;
 
     // Validate restaurant exists
     const restaurant = await this.restaurantModel.findById(restaurantId);
@@ -489,29 +548,10 @@ export class SubscriptionsService {
       throw new BadRequestException('Restaurant already has an active subscription');
     }
 
-    // Get plan config for the specified plan type
-    const planConfig = await this.getPlanConfig(planType);
-
-    // Get or use test plan if in development
-    let razorpayPlanId: string;
-    if (planConfig.isTestPlan || process.env.NODE_ENV !== 'production') {
-      // Extract tier from planType for test plan lookup
-      const tierMap = {
-        [SubscriptionPlan.STARTER_MONTHLY]: 'starter',
-        [SubscriptionPlan.STARTER_YEARLY]: 'starter',
-        [SubscriptionPlan.PROFESSIONAL_MONTHLY]: 'professional',
-        [SubscriptionPlan.PROFESSIONAL_YEARLY]: 'professional',
-        [SubscriptionPlan.ENTERPRISE_MONTHLY]: 'enterprise',
-        [SubscriptionPlan.ENTERPRISE_YEARLY]: 'enterprise',
-        [SubscriptionPlan.FOUNDING_MEMBER]: 'professional',
-        [SubscriptionPlan.EARLY_ADOPTER]: 'professional',
-      };
-
-      const tier = tierMap[planType] as 'starter' | 'professional' | 'enterprise';
-      razorpayPlanId = await this.getOrCreateRazorpayPlan(tier);
-    } else {
-      // Use the actual Razorpay plan ID for this plan type
-      razorpayPlanId = planConfig.razorpayPlanId || await this.getOrCreateRazorpayPlan('professional');
+    // Validate the plan exists in Razorpay
+    const plan = await this.planCacheService.getPlan(planId);
+    if (!plan) {
+      throw new BadRequestException(`Plan with ID ${planId} not found`);
     }
 
     try {
@@ -532,14 +572,15 @@ export class SubscriptionsService {
 
       // Create subscription in Razorpay
       const subscriptionData = {
-        plan_id: razorpayPlanId,
+        plan_id: planId,
         customer_id: customer.id,
-        total_count: totalCount,
+        total_count: totalCount || 12, // Default to 12 billing cycles if not specified
         start_at: startAt,
         customer_notify: customerNotify ?? false,
         notes: {
           restaurant_id: restaurantId,
-          plan_type: planType,
+          plan_id: planId,
+          tier: plan.notes?.tier || 'unknown',
           created_from: 'subscription_page',
           ...notes,
         },
@@ -554,25 +595,32 @@ export class SubscriptionsService {
         razorpaySubscriptionId: razorpaySubscription.id,
         razorpayCustomerId: customer.id,
         plan: {
-          razorpayPlanId,
-          planType,
-          name: planConfig.name,
-          amount: planConfig.amount,
-          currency: planConfig.currency,
-          period: planConfig.period,
-          interval: planConfig.interval,
-          features: planConfig.features,
+          razorpayPlanId: planId,
+          planType: this.mapTierAndPeriodToEnum(plan.notes?.tier, plan.period), // Map to valid enum
+          name: plan.item.name,
+          amount: plan.item.amount,
+          currency: plan.item.currency,
+          period: plan.period,
+          interval: plan.interval,
+          features: plan.notes?.features ? this.parseFeatures(plan.notes.features) : {},
         },
         status: razorpaySubscription.status as SubscriptionStatus,
         quantity: razorpaySubscription.quantity || 1,
         totalCount: razorpaySubscription.total_count,
         paidCount: razorpaySubscription.paid_count || 0,
         remainingCount: razorpaySubscription.remaining_count,
+        authAttempts: razorpaySubscription.auth_attempts || 0,
         currentStart: razorpaySubscription.current_start ? new Date(razorpaySubscription.current_start * 1000) : undefined,
         currentEnd: razorpaySubscription.current_end ? new Date(razorpaySubscription.current_end * 1000) : undefined,
         chargeAt: razorpaySubscription.charge_at ? new Date(razorpaySubscription.charge_at * 1000) : undefined,
         startAt: razorpaySubscription.start_at ? new Date(razorpaySubscription.start_at * 1000) : undefined,
         endAt: razorpaySubscription.end_at ? new Date(razorpaySubscription.end_at * 1000) : undefined,
+        endedAt: razorpaySubscription.ended_at ? new Date(razorpaySubscription.ended_at * 1000) : undefined,
+        expireBy: razorpaySubscription.expire_by ? new Date(razorpaySubscription.expire_by * 1000) : undefined,
+        shortUrl: razorpaySubscription.short_url, // CRITICAL: Store the payment URL
+        hasScheduledChanges: razorpaySubscription.has_scheduled_changes || false,
+        scheduleChangeAt: razorpaySubscription.schedule_change_at,
+        customerNotify: razorpaySubscription.customer_notify || false,
         notes: razorpaySubscription.notes || {},
       });
 
@@ -581,10 +629,10 @@ export class SubscriptionsService {
       // Update restaurant's SaaS config
       await this.restaurantModel.findByIdAndUpdate(restaurantId, {
         'saasConfig.subscriptionStatus': 'active',
-        'saasConfig.currentPlan': planType,
+        'saasConfig.currentPlan': plan.notes?.tier || 'professional',
         'saasConfig.subscriptionId': savedSubscription._id,
         'saasConfig.lastUpdated': new Date(),
-        'saasConfig.features': planConfig.features,
+        'saasConfig.features': plan.notes?.features ? this.parseFeatures(plan.notes.features) : {},
       });
 
       this.logger.log(`Subscription created successfully for restaurant ${restaurantId}`);
@@ -603,6 +651,195 @@ export class SubscriptionsService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to create subscription for restaurant ${restaurantId}: ${errorMessage}`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Cancel a subscription
+   */
+  async cancelSubscription(subscriptionId: string, cancelAtCycleEnd: boolean = true): Promise<any> {
+    try {
+      // First, find the subscription in our database to get the Razorpay subscription ID
+      const subscription = await this.subscriptionModel.findById(subscriptionId);
+      if (!subscription) {
+        throw new BadRequestException(`Subscription with ID ${subscriptionId} not found`);
+      }
+
+      const razorpaySubscriptionId = subscription.razorpaySubscriptionId;
+      if (!razorpaySubscriptionId) {
+        throw new BadRequestException(`No Razorpay subscription ID found for subscription ${subscriptionId}`);
+      }
+
+      // Cancel the subscription in Razorpay
+      let cancelledSubscription;
+      try {
+        // Try to cancel at cycle end first (if requested)
+        cancelledSubscription = await this.razorpayService.cancelSubscription(
+          razorpaySubscriptionId,
+          { cancel_at_cycle_end: cancelAtCycleEnd }
+        );
+      } catch (error: any) {
+        // If "no billing cycle" error and user requested cycle end cancellation, try immediate
+        if (cancelAtCycleEnd && error?.error?.description?.includes('no billing cycle is going on')) {
+          this.logger.warn(`Cannot cancel at cycle end (no active cycle), trying immediate cancellation for ${razorpaySubscriptionId}`);
+          cancelledSubscription = await this.razorpayService.cancelSubscription(
+            razorpaySubscriptionId,
+            { cancel_at_cycle_end: false }
+          );
+        }
+        // If subscription is already cancelled in Razorpay, just sync our database
+        else if (error?.error?.description?.includes('not cancellable in cancelled status')) {
+          this.logger.warn(`Subscription ${razorpaySubscriptionId} already cancelled in Razorpay, syncing database`);
+          await this.subscriptionModel.findByIdAndUpdate(subscriptionId, {
+            status: SubscriptionStatus.CANCELLED,
+            endAt: new Date(),
+          });
+          return {
+            message: 'Subscription was already cancelled, database updated',
+            localSubscriptionId: subscriptionId,
+            razorpaySubscriptionId,
+            alreadyCancelled: true,
+          };
+        } else {
+          throw error;
+        }
+      }
+
+      // Update subscription status in our database
+      await this.subscriptionModel.findByIdAndUpdate(subscriptionId, {
+        status: SubscriptionStatus.CANCELLED,
+        endAt: cancelAtCycleEnd ? undefined : new Date(), // If immediate cancellation, set endAt to now
+      });
+
+      this.logger.log(`Subscription ${subscriptionId} (Razorpay: ${razorpaySubscriptionId}) cancelled successfully`);
+      return {
+        ...cancelledSubscription,
+        localSubscriptionId: subscriptionId,
+        razorpaySubscriptionId,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to cancel subscription ${subscriptionId}: ${errorMessage}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle subscription webhook events from Razorpay
+   */
+  async handleSubscriptionWebhook(event: string, payload: any): Promise<void> {
+    try {
+      const subscription = payload?.subscription || payload;
+      const subscriptionId = subscription?.id;
+
+      if (!subscriptionId) {
+        this.logger.warn('Subscription webhook received without subscription ID', { event, payload });
+        return;
+      }
+
+      this.logger.log(`Processing subscription webhook: ${event} for ${subscriptionId}`);
+
+      // Find subscription in our database
+      const localSubscription = await this.subscriptionModel.findOne({
+        razorpaySubscriptionId: subscriptionId
+      });
+
+      if (!localSubscription) {
+        this.logger.warn(`Local subscription not found for Razorpay ID: ${subscriptionId}`);
+        return;
+      }
+
+      // Handle different subscription events
+      switch (event) {
+        case 'subscription.cancelled':
+          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
+            status: SubscriptionStatus.CANCELLED,
+            endAt: new Date(),
+          });
+          this.logger.log(`Subscription ${subscriptionId} marked as cancelled via webhook`);
+          break;
+
+        case 'subscription.authenticated':
+          // Customer completed payment authorization - update status
+          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
+            status: SubscriptionStatus.AUTHENTICATED,
+            authAttempts: subscription?.auth_attempts || 0,
+            lastWebhookAt: new Date(),
+            lastWebhookEvent: event,
+          });
+          this.logger.log(`Subscription ${subscriptionId} authenticated - payment method added via webhook`);
+          break;
+
+        case 'subscription.activated':
+          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
+            status: SubscriptionStatus.ACTIVE,
+            currentStart: subscription?.current_start ? new Date(subscription.current_start * 1000) : undefined,
+            currentEnd: subscription?.current_end ? new Date(subscription.current_end * 1000) : undefined,
+            chargeAt: subscription?.charge_at ? new Date(subscription.charge_at * 1000) : undefined,
+            lastWebhookAt: new Date(),
+            lastWebhookEvent: event,
+          });
+          this.logger.log(`Subscription ${subscriptionId} marked as active via webhook`);
+          break;
+
+        case 'subscription.completed':
+          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
+            status: SubscriptionStatus.COMPLETED,
+            endAt: new Date(),
+          });
+          this.logger.log(`Subscription ${subscriptionId} marked as completed via webhook`);
+          break;
+
+        case 'subscription.paused':
+          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
+            status: SubscriptionStatus.PAUSED,
+          });
+          this.logger.log(`Subscription ${subscriptionId} marked as paused via webhook`);
+          break;
+
+        case 'subscription.resumed':
+          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
+            status: SubscriptionStatus.ACTIVE,
+            lastWebhookAt: new Date(),
+            lastWebhookEvent: event,
+          });
+          this.logger.log(`Subscription ${subscriptionId} marked as resumed via webhook`);
+          break;
+
+        case 'subscription.charged':
+          // Payment successful - update billing history and payment count
+          const paymentData = payload?.payment;
+          if (paymentData) {
+            const billingEntry = {
+              invoiceId: paymentData.invoice_id || `inv_${Date.now()}`,
+              amount: paymentData.amount || 0,
+              paidAt: new Date(paymentData.created_at * 1000 || Date.now()),
+              status: paymentData.status || 'captured',
+            };
+
+            await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
+              paidCount: subscription?.paid_count || localSubscription.paidCount + 1,
+              remainingCount: subscription?.remaining_count,
+              chargeAt: subscription?.charge_at ? new Date(subscription.charge_at * 1000) : undefined,
+              currentStart: subscription?.current_start ? new Date(subscription.current_start * 1000) : undefined,
+              currentEnd: subscription?.current_end ? new Date(subscription.current_end * 1000) : undefined,
+              lastWebhookAt: new Date(),
+              lastWebhookEvent: event,
+              $push: { billingHistory: billingEntry } as any,
+            });
+
+            this.logger.log(`Payment recorded for subscription ${subscriptionId}: ₹${paymentData.amount / 100}`);
+          }
+          break;
+
+        default:
+          this.logger.log(`Unhandled subscription webhook event: ${event}`);
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to process subscription webhook ${event}: ${errorMessage}`, error);
+      // Don't throw error to avoid webhook retries for our internal issues
     }
   }
 
