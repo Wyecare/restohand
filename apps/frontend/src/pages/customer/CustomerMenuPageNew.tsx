@@ -94,12 +94,14 @@ export default function CustomerMenuPageNew() {
   // Removed session storage - activeOrder comes directly from API
 
   // Local cart for new items before placing order
-  const [cart, setCart] = useState<Array<{
-    menuItemId: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }>>([]);
+  const [cart, setCart] = useState<
+    Array<{
+      menuItemId: string;
+      name: string;
+      quantity: number;
+      price: number;
+    }>
+  >([]);
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,7 +113,8 @@ export default function CustomerMenuPageNew() {
   );
 
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
-  const [addItemsToOrder, { isLoading: isAddingItems }] = useAddItemsToOrderMutation();
+  const [addItemsToOrder, { isLoading: isAddingItems }] =
+    useAddItemsToOrderMutation();
 
   // Extract data from the API response
   const restaurant = data?.restaurant;
@@ -224,11 +227,15 @@ export default function CustomerMenuPageNew() {
   // Check if we have an existing order from API only
   const hasActiveOrder = !!activeOrderFromAPI;
 
-  const handleAddToCart = (id: string, name: string, pricing: MenuItemPricing) => {
-    const existingIndex = cart.findIndex(item => item.menuItemId === id);
+  const handleAddToCart = (
+    id: string,
+    name: string,
+    pricing: MenuItemPricing
+  ) => {
+    const existingIndex = cart.findIndex((item) => item.menuItemId === id);
 
     if (existingIndex >= 0) {
-      setCart(prev =>
+      setCart((prev) =>
         prev.map((item, index) =>
           index === existingIndex
             ? { ...item, quantity: item.quantity + 1 }
@@ -236,24 +243,27 @@ export default function CustomerMenuPageNew() {
         )
       );
     } else {
-      setCart(prev => [...prev, {
-        menuItemId: id,
-        name,
-        quantity: 1,
-        price: pricing.amount,
-      }]);
+      setCart((prev) => [
+        ...prev,
+        {
+          menuItemId: id,
+          name,
+          quantity: 1,
+          price: pricing.amount,
+        },
+      ]);
     }
   };
 
   const handleRemoveFromCart = (id: string) => {
-    const existingIndex = cart.findIndex(item => item.menuItemId === id);
+    const existingIndex = cart.findIndex((item) => item.menuItemId === id);
 
     if (existingIndex >= 0) {
       const item = cart[existingIndex];
       if (item.quantity === 1) {
-        setCart(prev => prev.filter((_, index) => index !== existingIndex));
+        setCart((prev) => prev.filter((_, index) => index !== existingIndex));
       } else {
-        setCart(prev =>
+        setCart((prev) =>
           prev.map((item, index) =>
             index === existingIndex
               ? { ...item, quantity: item.quantity - 1 }
@@ -269,13 +279,16 @@ export default function CustomerMenuPageNew() {
     return item ? item.quantity : 0;
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const cartTotal = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handlePlaceOrder = async () => {
     if (!restaurant || cart.length === 0) return;
 
-    const orderItems = cart.map(item => ({
+    const orderItems = cart.map((item) => ({
       menuItemId: item.menuItemId,
       name: item.name,
       quantity: item.quantity,
@@ -324,7 +337,9 @@ export default function CustomerMenuPageNew() {
         setCart([]);
 
         // Navigate to order status
-        const tableSuffix = tableFromUrl ? `?table=${encodeURIComponent(tableFromUrl)}` : '';
+        const tableSuffix = tableFromUrl
+          ? `?table=${encodeURIComponent(tableFromUrl)}`
+          : '';
         navigate(`/c/${slug}/order/${result.id}${tableSuffix}`);
       }
 
@@ -332,7 +347,6 @@ export default function CustomerMenuPageNew() {
       if (hasActiveOrder) {
         setCart([]);
       }
-
     } catch (error) {
       console.error('Order placement error:', error);
       toast({
@@ -346,7 +360,9 @@ export default function CustomerMenuPageNew() {
   const handleViewOrder = () => {
     const orderId = activeOrderFromAPI?.id;
     if (orderId) {
-      const tableSuffix = tableFromUrl ? `?table=${encodeURIComponent(tableFromUrl)}` : '';
+      const tableSuffix = tableFromUrl
+        ? `?table=${encodeURIComponent(tableFromUrl)}`
+        : '';
       navigate(`/c/${slug}/order/${orderId}${tableSuffix}`);
     }
   };
@@ -380,7 +396,8 @@ export default function CustomerMenuPageNew() {
           />
           <h2 className="text-xl font-bold mb-2">Menu Unavailable</h2>
           <p className="text-muted-foreground mb-4">
-            Unable to load the menu. Please try refreshing or ask for assistance.
+            Unable to load the menu. Please try refreshing or ask for
+            assistance.
           </p>
           <Button
             onClick={() => window.location.reload()}
@@ -474,7 +491,9 @@ export default function CustomerMenuPageNew() {
                     <span className="font-medium text-green-900 dark:text-green-100 text-sm">
                       Order #{activeOrderFromAPI?.orderNumber}
                     </span>
-                    <span className="text-green-600 dark:text-green-400 text-xs">• In Progress</span>
+                    <span className="text-green-600 dark:text-green-400 text-xs">
+                      • In Progress
+                    </span>
                   </div>
                   <Button
                     variant="ghost"
@@ -517,13 +536,22 @@ export default function CustomerMenuPageNew() {
                     }
                     size="sm"
                     onClick={() => setActiveCategory(category.id)}
-                    className="shrink-0 h-9 px-4 rounded-full"
+                    className="shrink-0 h-12 px-4"
                   >
-                    <AccessibleEmoji
-                      symbol={category.icon.symbol}
-                      label={category.icon.label}
-                      className="mr-1.5"
-                    />
+                    {category.imageUrl ? (
+                      <img
+                        src={category.imageUrl}
+                        alt={category.name}
+                        className="h-11 w-5 mr-2 flex-shrink-0 object-cover rounded-full"
+                      />
+                    ) : (
+                      <AccessibleEmoji
+                        symbol={category.icon.symbol}
+                        label={category.icon.label}
+                        className="mr-1.5"
+                      />
+                    )}
+
                     {category.name}
                   </Button>
                 ))}
@@ -539,7 +567,7 @@ export default function CustomerMenuPageNew() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="p-4 max-w-2xl mx-auto"
+        className="p-0 max-w-2xl mx-auto"
       >
         {displayItems.length === 0 ? (
           <div className="text-center py-16">
@@ -656,7 +684,11 @@ export default function CustomerMenuPageNew() {
                               size="icon"
                               className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
                               onClick={() =>
-                                handleAddToCart(item.id, item.name, item.pricing)
+                                handleAddToCart(
+                                  item.id,
+                                  item.name,
+                                  item.pricing
+                                )
                               }
                             >
                               <Plus className="h-3.5 w-3.5" />

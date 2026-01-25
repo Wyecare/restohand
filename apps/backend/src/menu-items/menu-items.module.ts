@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MulterModule } from '@nestjs/platform-express';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
+import { GstModule } from '../gst/gst.module';
 import { MenuItemsController } from './menu-items.controller';
 import { MenuItemsService } from './menu-items.service';
 import { MenuItem, MenuItemSchema } from './schemas/menu-item.schema';
@@ -15,6 +16,7 @@ import { Recipe, RecipeSchema } from '../recipes/schemas/recipe.schema';
   imports: [
     AuthModule,
     UsersModule,
+    GstModule,
     MongooseModule.forFeature([
       { name: MenuItem.name, schema: MenuItemSchema },
       { name: GstRate.name, schema: GstRateSchema },

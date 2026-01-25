@@ -33,10 +33,11 @@ import {
   OrderCounterDocument,
 } from './schemas/order-counter.schema';
 import {
-  GstService,
-  OrderItemWithTax,
-  TaxCalculation,
-} from '../gst/gst.service';
+  SmartGstService,
+  OrderItemGstData,
+  OrderItemWithGst,
+  OrderGstSummary,
+} from '../gst/smart-gst.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { TableStatusService } from '../restaurant-tables/table-status.service';
 import { TableStatusType } from '../restaurant-tables/schemas/table-status.schema';
@@ -57,7 +58,7 @@ export class OrdersService {
     @InjectModel(OrderCounter.name)
     private readonly orderCounterModel: Model<OrderCounterDocument>,
     private readonly ordersGateway: OrdersGateway,
-    private readonly gstService: GstService,
+    private readonly smartGstService: SmartGstService,
     private readonly razorpayService: RazorpayService,
     private readonly tableStatusService: TableStatusService
   ) {}
@@ -76,32 +77,50 @@ export class OrdersService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const customerState =
-      dto.customerState?.trim() || restaurant.address?.state || 'Kerala';
+    const customerState = dto.customerState?.trim() || restaurant.address?.state;
 
-    let defaultGstRateId: string | undefined;
-    if (restaurant.applyDefaultGstToMenuItems) {
-      const defaultRate = await this.gstService.getDefaultGstRate(restaurantId);
-      if (!defaultRate) {
-        throw new BadRequestException(
-          'Default GST rate is required when automatic GST is enabled'
-        );
-      }
-      defaultGstRateId = defaultRate.id;
-    }
+    // Prepare order items for GST calculation
+    const orderItems: OrderItemGstData[] = dto.items.map(item => ({
+      menuItemId: item.menuItemId,
+      name: item.name || '', // Use provided name, fallback to empty
+      quantity: item.quantity || 1,
+      unitPrice: item.pricing?.unitAmount || 0,
+      discountAmount: item.pricing?.discountAmount || 0
+    }));
 
-    const { items, summary } = await this.prepareOrderPricing(
+    // Calculate GST using our smart service
+    const { items, summary } = await this.smartGstService.calculateOrderGst(
       restaurantId,
-      dto,
-      customerState,
-      restaurant.applyDefaultGstToMenuItems ?? false,
-      defaultGstRateId
+      orderItems,
+      customerState
     );
 
     const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
     const finalTotalAmount = this.roundToTwo(
       summary.totalAmount + roundOffAmount
     );
+
+    // Map GST calculation results to order schema format
+    const formattedOrderItems = items.map(item => ({
+      menuItemId: item.menuItemId,
+      name: item.name,
+      quantity: item.quantity,
+      pricing: {
+        unitAmount: item.unitPrice,
+        currency: 'INR',
+        taxAmount: item.totalTaxAmount,
+        discountAmount: item.discountAmount,
+      },
+      gst: {
+        hsnCode: item.hsnCode,
+        gstRate: item.gstRate,
+        cgstAmount: item.cgstAmount,
+        sgstAmount: item.sgstAmount,
+        igstAmount: item.igstAmount,
+        totalTaxAmount: item.totalTaxAmount,
+        exemptFromGst: item.exemptFromGst,
+      },
+    }));
 
     const created = await this.orderModel.create({
       restaurantId,
@@ -116,13 +135,13 @@ export class OrdersService {
       customerGstin: dto.customerGstin?.trim().toUpperCase(),
       customerState,
       notes: dto.notes,
-      items,
+      items: formattedOrderItems,
       status: OrderStatus.Pending,
       paymentStatus: PaymentStatus.Pending,
       progress: OrderProgressStage.NotStarted,
       paymentMethod,
       subTotalAmount: summary.subtotal,
-      grossAmount: summary.grossAmount,
+      grossAmount: summary.subtotal, // In new system, subtotal = gross amount
       discountAmount: summary.discountAmount,
       taxAmount: summary.totalTaxAmount,
       cgstAmount: summary.cgstAmount,
@@ -219,17 +238,23 @@ export class OrdersService {
 
     const defaultGstRateId = restaurant.defaultGstRateId;
 
-    // For customer state, we'll use the restaurant's state or default to same-state
-    // This can be enhanced later to accept customer state in the request
-    const customerState = 'SAME_STATE'; // Default assumption for simplicity
+    // Use restaurant's state for customer state
+    const customerState = restaurant.address?.state;
 
-    // Reuse the existing pricing logic
-    const { items, summary } = await this.prepareOrderPricing(
+    // Prepare order items for GST calculation
+    const orderItems: OrderItemGstData[] = dto.items.map(item => ({
+      menuItemId: item.menuItemId,
+      name: '', // Will be filled from menu item
+      quantity: item.quantity,
+      unitPrice: item.pricing?.unitAmount || 0,
+      discountAmount: item.pricing?.discountAmount || 0
+    }));
+
+    // Calculate GST using smart service
+    const { items, summary } = await this.smartGstService.calculateOrderGst(
       restaurantId,
-      dto,
-      customerState,
-      restaurant.applyDefaultGstToMenuItems ?? false,
-      defaultGstRateId
+      orderItems,
+      customerState
     );
 
     const roundOffAmount = this.calculateRoundOff(summary.totalAmount);

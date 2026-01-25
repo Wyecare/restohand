@@ -81,32 +81,25 @@ export class CreateMenuItemDto {
   @IsUrl(undefined, { each: true })
   imageUrls?: string[];
 
+  // Smart GST Configuration (optional overrides)
   @ApiProperty({
-    example: '996331',
+    example: 'cooked_food',
     required: false,
-    description: '4-8 digit HSN code used for GST classification',
+    description: 'Override auto-detected food category',
+    enum: ['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream']
   })
   @IsOptional()
-  @Matches(/^\d{4,8}$/)
-  hsnCode?: string;
+  @IsString()
+  foodCategory?: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
 
   @ApiProperty({
-    example: '66f0e5ec2ed1f1a1c4f9c7e3',
+    example: 12,
     required: false,
-    description: 'GST rate identifier defined via GST settings',
-  })
-  @IsOptional()
-  @IsMongoId()
-  gstRateId?: string;
-
-  @ApiProperty({
-    example: 5,
-    required: false,
-    description: 'Total GST percentage for quick lookups (falls back to linked GST rate).',
+    description: 'Manual GST rate override (only for special cases)',
   })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Max(100)
-  gstRate?: number;
+  overrideGstRate?: number;
 }

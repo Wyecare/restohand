@@ -201,10 +201,45 @@ class PaymentConfig {
 const PaymentConfigSchema = SchemaFactory.createForClass(PaymentConfig);
 
 @Schema({ _id: false })
-class BusinessDetails {
-  @Prop({ type: String, trim: true })
-  gstNumber?: string;
+class GstConfiguration {
+  @Prop({
+    type: String,
+    enum: ['standalone', 'hotel_under_7500', 'hotel_above_7500', 'catering'],
+    required: true,
+    default: 'standalone'
+  })
+  establishmentType!: 'standalone' | 'hotel_under_7500' | 'hotel_above_7500' | 'catering';
 
+  @Prop({ type: Number, required: true })
+  defaultGstRate!: number; // Auto-calculated: 5 or 18
+
+  @Prop({ type: Boolean, required: true })
+  canClaimITC!: boolean; // Auto-calculated based on establishmentType
+
+  @Prop({ type: String, required: true, trim: true })
+  businessState!: string; // For CGST/SGST vs IGST calculation
+
+  @Prop({
+    type: String,
+    trim: true,
+    uppercase: true,
+  })
+  gstin?: string;
+
+  @Prop({ type: Number, min: 0, max: 100 })
+  customGstRate?: number; // Override default rate if needed
+
+  @Prop({ type: Boolean, default: false })
+  exemptFromGst!: boolean; // For special cases
+
+  @Prop({ type: Boolean, default: true })
+  isGstEnabled!: boolean; // Master switch for GST
+}
+
+const GstConfigurationSchema = SchemaFactory.createForClass(GstConfiguration);
+
+@Schema({ _id: false })
+class BusinessDetails {
   @Prop({ type: String, trim: true })
   panNumber?: string;
 
@@ -214,6 +249,9 @@ class BusinessDetails {
     default: 'sole_proprietorship'
   })
   businessType!: string;
+
+  @Prop({ type: GstConfigurationSchema, required: true })
+  gst!: GstConfiguration;
 }
 
 const BusinessDetailsSchema = SchemaFactory.createForClass(BusinessDetails);
@@ -254,19 +292,8 @@ export class Restaurant {
   @Prop({ type: [String], default: ['en', 'ml'] })
   languages!: string[];
 
-  @Prop({
-    type: String,
-    trim: true,
-    uppercase: true,
-    match: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
-  })
-  gstin?: string;
-
   @Prop({ type: Boolean, default: true })
   isActive!: boolean;
-
-  @Prop({ type: Boolean, default: false })
-  applyDefaultGstToMenuItems!: boolean;
 
   @Prop({ type: Boolean, default: false })
   isMultibranchEnabled!: boolean;

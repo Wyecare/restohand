@@ -1,11 +1,27 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
-import { MenuCategory, MenuCategoryDocument } from '../menu-categories/schemas/menu-category.schema';
-import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../restaurants/schemas/restaurant.schema';
+import {
+  MenuCategory,
+  MenuCategoryDocument,
+} from '../menu-categories/schemas/menu-category.schema';
+import {
+  MenuItem,
+  MenuItemDocument,
+} from '../menu-items/schemas/menu-item.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
-import { RestaurantTable, RestaurantTableDocument } from '../restaurant-tables/schemas/restaurant-table.schema';
+import {
+  RestaurantTable,
+  RestaurantTableDocument,
+} from '../restaurant-tables/schemas/restaurant-table.schema';
 import { OrdersService } from '../orders/orders.service';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
@@ -49,23 +65,33 @@ export class PublicService {
   }
 
   // CRITICAL FIX: Get branch ID from table number for proper branch isolation
-  async getBranchIdFromTable(restaurantId: string, tableNumber: string): Promise<string | undefined> {
-    console.log('🔥 SERVICE DEBUG: Looking up table', { restaurantId, tableNumber: tableNumber.trim() });
-
-    const table = await this.tableModel.findOne({
+  async getBranchIdFromTable(
+    restaurantId: string,
+    tableNumber: string
+  ): Promise<string | undefined> {
+    console.log('🔥 SERVICE DEBUG: Looking up table', {
       restaurantId,
       tableNumber: tableNumber.trim(),
-      isActive: true
-    }).lean();
+    });
+
+    const table = await this.tableModel
+      .findOne({
+        restaurantId,
+        tableNumber: tableNumber.trim(),
+        isActive: true,
+      })
+      .lean();
 
     console.log('🔥 SERVICE DEBUG: Table lookup result', {
       tableFound: !!table,
       tableBranchId: table?.branchId?.toString(),
-      tableDetails: table ? {
-        id: table._id.toString(),
-        tableNumber: table.tableNumber,
-        zone: table.zone
-      } : null
+      tableDetails: table
+        ? {
+            id: table._id.toString(),
+            tableNumber: table.tableNumber,
+            zone: table.zone,
+          }
+        : null,
     });
 
     return table?.branchId?.toString();
@@ -74,31 +100,44 @@ export class PublicService {
   async getBranchIdFromTableId(tableId: string): Promise<string | undefined> {
     console.log('🔥 SERVICE DEBUG: Looking up table by ID', { tableId });
 
-    const table = await this.tableModel.findOne({
-      _id: new Types.ObjectId(tableId),
-      isActive: true
-    }).lean();
+    const table = await this.tableModel
+      .findOne({
+        _id: new Types.ObjectId(tableId),
+        isActive: true,
+      })
+      .lean();
 
     console.log('🔥 SERVICE DEBUG: Table ID lookup result', {
       tableFound: !!table,
       tableBranchId: table?.branchId?.toString(),
-      tableDetails: table ? {
-        id: table._id.toString(),
-        tableNumber: table.tableNumber,
-        restaurantId: table.restaurantId.toString(),
-        zone: table.zone
-      } : null
+      tableDetails: table
+        ? {
+            id: table._id.toString(),
+            tableNumber: table.tableNumber,
+            restaurantId: table.restaurantId.toString(),
+            zone: table.zone,
+          }
+        : null,
     });
 
     return table?.branchId?.toString();
   }
 
   async getMenuForRestaurant(restaurantId: string, branchId?: string) {
-    console.log('🔥 SERVICE DEBUG: getMenuForRestaurant called', { restaurantId, branchId });
+    console.log('🔥 SERVICE DEBUG: getMenuForRestaurant called', {
+      restaurantId,
+      branchId,
+    });
 
     // CRITICAL FIX: Add branch filtering to prevent cross-branch menu contamination
-    const categoryQuery: any = { restaurantId: new Types.ObjectId(restaurantId), isActive: true };
-    const itemQuery: any = { restaurantId: new Types.ObjectId(restaurantId), isAvailable: true };
+    const categoryQuery: any = {
+      restaurantId: new Types.ObjectId(restaurantId),
+      isActive: true,
+    };
+    const itemQuery: any = {
+      restaurantId: new Types.ObjectId(restaurantId),
+      isAvailable: true,
+    };
 
     // If branchId is provided, only show items/categories from that branch
     if (branchId) {
@@ -108,7 +147,7 @@ export class PublicService {
 
     console.log('🔥 SERVICE DEBUG: Queries prepared', {
       categoryQuery: categoryQuery,
-      itemQuery: itemQuery
+      itemQuery: itemQuery,
     });
 
     const [categories, items] = await Promise.all([
@@ -116,25 +155,25 @@ export class PublicService {
         .find(categoryQuery)
         .sort({ displayOrder: 1, createdAt: 1 })
         .lean(),
-      this.itemModel
-        .find(itemQuery)
-        .sort({ displayOrder: 1, name: 1 })
-        .lean(),
+      this.itemModel.find(itemQuery).sort({ displayOrder: 1, name: 1 }).lean(),
     ]);
 
     console.log('🔥 SERVICE DEBUG: Database results', {
       categoriesFound: categories.length,
       itemsFound: items.length,
       firstCategoryName: categories[0]?.name,
-      firstItemName: items[0]?.name
+      firstItemName: items[0]?.name,
     });
 
     const grouped = categories.map((category) => ({
       id: category._id.toString(),
       name: category.name,
       description: category.description,
+      imageUrl: category.imageUrl,
       items: items
-        .filter((item) => item.categoryId?.toString() === category._id.toString())
+        .filter(
+          (item) => item.categoryId?.toString() === category._id.toString()
+        )
         .map((item) => ({
           id: item._id.toString(),
           name: item.name,
@@ -163,15 +202,21 @@ export class PublicService {
   }
 
   // CRITICAL FIX: Validate that ordered items belong to the correct branch
-  async validateItemsBelongToBranch(restaurantId: string, itemIds: string[], branchId: string): Promise<boolean> {
+  async validateItemsBelongToBranch(
+    restaurantId: string,
+    itemIds: string[],
+    branchId: string
+  ): Promise<boolean> {
     if (!branchId || itemIds.length === 0) return true;
 
-    const items = await this.itemModel.find({
-      _id: { $in: itemIds },
-      restaurantId,
-      branchId,
-      isAvailable: true
-    }).lean();
+    const items = await this.itemModel
+      .find({
+        _id: { $in: itemIds },
+        restaurantId,
+        branchId,
+        isAvailable: true,
+      })
+      .lean();
 
     // All items must belong to the specified branch
     return items.length === itemIds.length;
@@ -223,20 +268,24 @@ export class PublicService {
     };
   }
 
-  async getActiveOrderForTableId(restaurantId: string, tableId: string, restaurantSlug: string) {
+  async getActiveOrderForTableId(
+    restaurantId: string,
+    tableId: string,
+    restaurantSlug: string
+  ) {
     // Find the most recent order for this table that is still active (using tableId)
     const activeStatuses = [
       OrderStatus.Pending,
       OrderStatus.Accepted,
       OrderStatus.InProgress,
-      OrderStatus.Ready
+      OrderStatus.Ready,
     ];
 
     const order = await this.orderModel
       .findOne({
         restaurantId: new Types.ObjectId(restaurantId),
         tableId: new Types.ObjectId(tableId),
-        status: { $in: activeStatuses }
+        status: { $in: activeStatuses },
       })
       .sort({ createdAt: -1 }) // Get the most recent order
       .lean();
@@ -315,23 +364,23 @@ export class PublicService {
       );
     }
 
-    return this.ordersService.updateStatus(
-      restaurant._id.toString(),
-      orderId,
-      {
-        status: OrderStatus.Cancelled,
-        statusNote: 'Cancelled by customer',
-      }
-    );
+    return this.ordersService.updateStatus(restaurant._id.toString(), orderId, {
+      status: OrderStatus.Cancelled,
+      statusNote: 'Cancelled by customer',
+    });
   }
 
-  async getActiveOrderForTable(restaurantId: string, tableNumber: string, restaurantSlug: string) {
+  async getActiveOrderForTable(
+    restaurantId: string,
+    tableNumber: string,
+    restaurantSlug: string
+  ) {
     // Find the most recent order for this table that is still active
     const activeStatuses = [
       OrderStatus.Pending,
       OrderStatus.Accepted,
       OrderStatus.InProgress,
-      OrderStatus.Ready
+      OrderStatus.Ready,
     ];
 
     // CRITICAL FIX: Get branchId from table to filter orders correctly
@@ -342,7 +391,7 @@ export class PublicService {
         restaurantId: new Types.ObjectId(restaurantId),
         branchId: branchId ? new Types.ObjectId(branchId) : { $exists: false },
         tableNumber,
-        status: { $in: activeStatuses }
+        status: { $in: activeStatuses },
       })
       .sort({ createdAt: -1 }) // Get the most recent order
       .lean();

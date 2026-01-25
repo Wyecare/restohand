@@ -174,24 +174,25 @@ export class RestaurantsService {
   }
 
   private toDto(doc: RestaurantDocument): RestaurantResponseDto {
-    const json = doc.toJSON<Restaurant>();
+    const restaurant = doc.toObject();
     return {
       id: doc._id.toString(),
-      name: json.name,
-      legalName: json.legalName,
-      slug: json.slug,
-      contactEmail: json.contactEmail,
-      contactPhone: json.contactPhone,
-      timezone: json.timezone,
-      address: json.address,
-      upi: json.upi,
-      settings: json.settings,
-      languages: json.languages,
-      gstin: json.gstin,
-      applyDefaultGstToMenuItems: json.applyDefaultGstToMenuItems ?? false,
-      isActive: json.isActive,
-      createdAt: doc.createdAt.toISOString(),
-      updatedAt: doc.updatedAt.toISOString(),
+      name: restaurant.name,
+      legalName: restaurant.legalName,
+      slug: restaurant.slug,
+      contactEmail: restaurant.contactEmail,
+      contactPhone: restaurant.contactPhone,
+      timezone: restaurant.timezone,
+      address: restaurant.address,
+      upi: restaurant.upi,
+      settings: restaurant.settings,
+      languages: restaurant.languages,
+      gstin: restaurant.gstin,
+      applyDefaultGstToMenuItems: restaurant.applyDefaultGstToMenuItems ?? false,
+      isActive: restaurant.isActive,
+      createdAt: restaurant.createdAt?.toISOString(),
+      updatedAt: restaurant.updatedAt?.toISOString(),
+      businessDetails: restaurant.businessDetails,
     };
   }
 }

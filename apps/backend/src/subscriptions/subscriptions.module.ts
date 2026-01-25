@@ -3,7 +3,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from '../auth/auth.module';
 import { SubscriptionsService } from './subscriptions.service';
-import { PlanCacheService } from './plan-cache.service';
 import { SubscriptionsController, AdminSubscriptionsController } from './subscriptions.controller';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { Subscription, SubscriptionSchema } from './schemas/subscription.schema';
@@ -19,7 +18,7 @@ import { RazorpayService } from '../payments/razorpay.service';
     ]),
   ],
   controllers: [SubscriptionsController, AdminSubscriptionsController],
-  providers: [SubscriptionsService, PlanCacheService, RazorpayService],
-  exports: [SubscriptionsService, PlanCacheService],
+  providers: [SubscriptionsService, RazorpayService],
+  exports: [SubscriptionsService],
 })
 export class SubscriptionsModule {}

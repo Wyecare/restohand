@@ -52,14 +52,31 @@ export class MenuItem {
   @Prop({ type: [String], default: [] })
   imageUrls!: string[];
 
-  @Prop({ type: String, trim: true })
-  hsnCode?: string; // HSN code for GST calculation
+  // Smart GST Configuration
+  @Prop({
+    type: String,
+    enum: ['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream'],
+    default: 'cooked_food'
+  })
+  foodCategory!: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
 
   @Prop({ type: String, trim: true })
-  gstRateId?: string; // Predefined GST rate identifier (e.g., "food-5", "beverages-12")
+  hsnCode!: string; // Auto-assigned based on foodCategory
 
   @Prop({ type: Number, min: 0, max: 100 })
-  gstRate?: number; // Cached GST rate for quick calculation
+  gstRate!: number; // Auto-calculated based on category + restaurant config
+
+  @Prop({ type: Number, min: 0, max: 100 })
+  overrideGstRate?: number; // Manual override for special cases
+
+  @Prop({ type: Boolean, default: false })
+  exemptFromGst!: boolean; // Auto-set for fresh items, alcohol
+
+  @Prop({ type: Boolean, default: false })
+  useStateVat!: boolean; // Auto-set for alcohol
+
+  @Prop({ type: Number, min: 0, max: 1, default: 1 })
+  categoryConfidence!: number; // How confident the auto-detection was
 }
 
 export const MenuItemSchema = SchemaFactory.createForClass(MenuItem);

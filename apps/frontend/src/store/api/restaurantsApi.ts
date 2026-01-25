@@ -889,6 +889,39 @@ export const restaurantsApi = baseApi.injectEndpoints({
               },
             ],
     }),
+
+    // Image Upload endpoints
+    uploadMenuCategoryImage: builder.mutation<
+      any,
+      { restaurantId: string; categoryId: string; file: File }
+    >({
+      query: ({ restaurantId, categoryId, file }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return {
+          url: `/restaurants/${restaurantId}/menu/categories/${categoryId}/upload-image`,
+          method: 'POST',
+          body: formData,
+        };
+      },
+      invalidatesTags: ['MenuCategory'],
+    }),
+
+    uploadMenuItemImage: builder.mutation<
+      any,
+      { restaurantId: string; itemId: string; file: File }
+    >({
+      query: ({ restaurantId, itemId, file }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return {
+          url: `/restaurants/${restaurantId}/menu/items/${itemId}/upload-image`,
+          method: 'POST',
+          body: formData,
+        };
+      },
+      invalidatesTags: ['MenuItem'],
+    }),
   }),
   overrideExisting: false,
 });
@@ -913,6 +946,7 @@ export const {
   useCreateMenuItemForBranchMutation,
   useUpdateMenuItemMutation,
   useDeleteMenuItemMutation,
+  useUploadMenuCategoryImageMutation,
   useUploadMenuItemImageMutation,
   useRemoveMenuItemImageMutation,
   useListRestaurantTablesQuery,

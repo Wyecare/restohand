@@ -6,6 +6,7 @@ import { Branch, BranchDocument } from '../branches/schemas/branch.schema';
 import { RazorpayService } from '../payments/razorpay.service';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../common/enums/user-role.enum';
+import { FoodCategoryService } from '../gst/food-category.service';
 
 export interface RestaurantOnboardingData {
   name: string;
@@ -23,6 +24,7 @@ export interface RestaurantOnboardingData {
     | 'partnership'
     | 'private_limited'
     | 'public_limited';
+  restaurantType?: 'regular' | 'premium';
   gstNumber?: string;
   panNumber?: string;
 }
@@ -35,7 +37,8 @@ export class RestaurantOnboardingService {
     @InjectModel(Restaurant.name) private restaurantModel: Model<Restaurant>,
     @InjectModel(Branch.name) private branchModel: Model<BranchDocument>,
     private readonly razorpayService: RazorpayService,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly foodCategoryService: FoodCategoryService
   ) {}
 
   async onboardRestaurant(
@@ -156,11 +159,17 @@ export class RestaurantOnboardingService {
           approvedAt: canReceivePayments ? new Date() : undefined,
         },
 
-        // Business Details
+        // Business Details with GST Configuration
         businessDetails: {
-          gstNumber: data.gstNumber,
           panNumber: data.panNumber,
           businessType: data.businessType,
+          gst: {
+            establishmentType: data.restaurantType === 'premium' ? 'hotel_above_7500' : 'standalone',
+            defaultGstRate: data.restaurantType === 'premium' ? 18 : 5,
+            canClaimITC: data.restaurantType === 'premium',
+            businessState: data.address.state,
+            gstin: data.gstNumber,
+          },
         },
 
         // Default settings

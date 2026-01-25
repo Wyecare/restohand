@@ -151,8 +151,6 @@ export function CategoriesTab() {
       name: '',
       description: '',
       imageUrl: '',
-      defaultGstRate: 5,
-      gstCategoryType: 'Food',
     },
   });
 
@@ -171,8 +169,6 @@ export function CategoriesTab() {
       name: category.name,
       description: category.description || '',
       imageUrl: category.imageUrl || '',
-      defaultGstRate: category.defaultGstRate || 5,
-      gstCategoryType: category.gstCategoryType || 'Food',
     });
     setIsAddEditDialogOpen(true);
   };
@@ -624,27 +620,6 @@ export function CategoriesTab() {
                   />
                 </div>
               )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Default GST Rate (%)</Label>
-                <Input
-                  type="number"
-                  {...form.register('defaultGstRate', { valueAsNumber: true })}
-                  min="0"
-                  max="100"
-                  step="0.1"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>GST Category Type</Label>
-                <Input
-                  {...form.register('gstCategoryType')}
-                  placeholder="e.g., Food, Beverages"
-                />
-              </div>
             </div>
 
             <DialogFooter>

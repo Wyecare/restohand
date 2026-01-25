@@ -31,8 +31,8 @@ export class SubscriptionPlanDetails {
   @Prop({ required: true, type: String })
   razorpayPlanId!: string;
 
-  @Prop({ required: true, type: String, enum: SubscriptionPlan })
-  planType!: SubscriptionPlan;
+  @Prop({ required: true, type: String })
+  planType!: string;
 
   @Prop({ required: true, type: String })
   name!: string;

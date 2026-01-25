@@ -50,6 +50,7 @@ const OnboardingPage = () => {
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [businessType, setBusinessType] = useState<'sole_proprietorship' | 'partnership' | 'private_limited' | 'public_limited'>('sole_proprietorship');
+  const [restaurantType, setRestaurantType] = useState<'regular' | 'premium'>('regular');
   const [gstNumber, setGstNumber] = useState('');
   const [panNumber, setPanNumber] = useState('');
 
@@ -100,6 +101,7 @@ const OnboardingPage = () => {
           country: 'IN',
         },
         businessType,
+        restaurantType,
         gstNumber: gstNumber || undefined,
         panNumber: panNumber || undefined,
       };
@@ -237,6 +239,29 @@ const OnboardingPage = () => {
                       <SelectItem value="partnership">Partnership</SelectItem>
                       <SelectItem value="private_limited">Private Limited</SelectItem>
                       <SelectItem value="public_limited">Public Limited</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="restaurantType">Restaurant Type *</Label>
+                  <Select value={restaurantType} onValueChange={(value: 'regular' | 'premium') => setRestaurantType(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select restaurant type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="regular">
+                        <div className="flex flex-col">
+                          <div className="font-medium">Regular Restaurant</div>
+                          <div className="text-xs text-muted-foreground">5% GST - Most restaurants, dhabas, cafes</div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="premium">
+                        <div className="flex flex-col">
+                          <div className="font-medium">Premium Restaurant</div>
+                          <div className="text-xs text-muted-foreground">18% GST - Fine dining, luxury establishments</div>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

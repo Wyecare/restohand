@@ -1,13 +1,21 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Restaurant } from '../restaurants/schemas/restaurant.schema';
 import { RazorpayService } from '../payments/razorpay.service';
-import { Subscription, SubscriptionDocument, SubscriptionPlan, SubscriptionStatus, SubscriptionPlanDetails } from './schemas/subscription.schema';
+import {
+  Subscription,
+  SubscriptionDocument,
+  SubscriptionStatus,
+  SubscriptionPlanDetails,
+} from './schemas/subscription.schema';
 import { CreateSubscriptionDto, UpdateSubscriptionDto } from './dto';
 import { ConfigService } from '@nestjs/config';
-import { PlanCacheService } from './plan-cache.service';
-
 
 // Legacy interface for backward compatibility
 export interface PlanConfig {
@@ -27,7 +35,7 @@ export interface PlanConfig {
     dedicatedManager?: boolean;
   };
   razorpayPlanId?: string; // NEW: Link to actual Razorpay plan
-  isTestPlan?: boolean;    // NEW: Indicate if this is a test plan
+  isTestPlan?: boolean; // NEW: Indicate if this is a test plan
 }
 
 @Injectable()
@@ -36,10 +44,10 @@ export class SubscriptionsService {
 
   constructor(
     @InjectModel(Restaurant.name) private restaurantModel: Model<Restaurant>,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
+    @InjectModel(Subscription.name)
+    private subscriptionModel: Model<SubscriptionDocument>,
     private readonly razorpayService: RazorpayService,
     private readonly configService: ConfigService,
-    private readonly planCacheService: PlanCacheService,
   ) {}
 
   private parseFeatures(featuresString: string): any {
@@ -60,17 +68,28 @@ export class SubscriptionsService {
     }
   }
 
-  private mapTierAndPeriodToEnum(tier: string = 'professional', period: string = 'monthly'): string {
+  private mapTierAndPeriodToEnum(
+    tier: string = 'professional',
+    period: string = 'monthly'
+  ): string {
     // For test plans or unrecognized periods, default to monthly
-    const normalizedPeriod = ['monthly', 'yearly'].includes(period) ? period : 'monthly';
+    const normalizedPeriod = ['monthly', 'yearly'].includes(period)
+      ? period
+      : 'monthly';
 
     switch (tier) {
       case 'starter':
-        return normalizedPeriod === 'yearly' ? 'starter_yearly' : 'starter_monthly';
+        return normalizedPeriod === 'yearly'
+          ? 'starter_yearly'
+          : 'starter_monthly';
       case 'professional':
-        return normalizedPeriod === 'yearly' ? 'professional_yearly' : 'professional_monthly';
+        return normalizedPeriod === 'yearly'
+          ? 'professional_yearly'
+          : 'professional_monthly';
       case 'enterprise':
-        return normalizedPeriod === 'yearly' ? 'enterprise_yearly' : 'enterprise_monthly';
+        return normalizedPeriod === 'yearly'
+          ? 'enterprise_yearly'
+          : 'enterprise_monthly';
       case 'founding_member':
         return 'founding_member';
       case 'early_adopter':
@@ -84,7 +103,9 @@ export class SubscriptionsService {
   /**
    * Convert Razorpay plan to our internal format
    */
-  private convertRazorpayPlanToInternal(razorpayPlan: any): PlanConfig & { razorpayPlanId: string } {
+  private convertRazorpayPlanToInternal(
+    razorpayPlan: any
+  ): PlanConfig & { razorpayPlanId: string } {
     const notes = razorpayPlan.notes || {};
     const tier = notes.tier || 'unknown';
     const features = this.getFeaturesForTier(tier);
@@ -167,27 +188,39 @@ export class SubscriptionsService {
    */
   async getAllPlans(includeTestPlans = false) {
     try {
-      const razorpayPlans = await this.planCacheService.getAllPlans();
+      console.log(
+        'Fetching all plans from Razorpay, includeTestPlans:',
+        includeTestPlans
+      );
+      const response = await this.razorpayService.getAllPlans({ count: 100 });
+      const razorpayPlans = response.items || [];
 
       const plans = razorpayPlans
-        .filter(plan => {
+        .filter((plan) => {
           const isTestPlan = plan.notes?.test_mode === 'true';
           return includeTestPlans ? true : !isTestPlan;
         })
-        .map(plan => {
+        .map((plan) => {
           const converted = this.convertRazorpayPlanToInternal(plan);
           const tier = plan.notes?.tier || 'unknown';
 
           return {
             razorpayPlanId: plan.id,
-            planType: this.mapTierToPlanType(tier, plan.period, converted.isTestPlan),
+            planType: this.mapTierToPlanType(
+              tier,
+              plan.period,
+              converted.isTestPlan
+            ),
             name: converted.name,
             amount: converted.amount,
             currency: converted.currency,
             period: converted.period,
             interval: converted.interval,
             features: converted.features,
-            monthlyEquivalent: converted.period === 'yearly' ? Math.round(converted.amount / 12) : converted.amount,
+            monthlyEquivalent:
+              converted.period === 'yearly'
+                ? Math.round(converted.amount / 12)
+                : converted.amount,
             isPopular: tier === 'professional',
             isLegacy: tier === 'founding_member' || tier === 'early_adopter',
             isTestPlan: converted.isTestPlan,
@@ -198,7 +231,13 @@ export class SubscriptionsService {
         })
         .sort((a, b) => {
           // Sort by tier priority, then by period
-          const tierOrder = { starter: 1, professional: 2, enterprise: 3, founding_member: 4, early_adopter: 5 };
+          const tierOrder = {
+            starter: 1,
+            professional: 2,
+            enterprise: 3,
+            founding_member: 4,
+            early_adopter: 5,
+          };
           const aTierOrder = tierOrder[a.tier] || 999;
           const bTierOrder = tierOrder[b.tier] || 999;
 
@@ -207,10 +246,14 @@ export class SubscriptionsService {
           }
 
           const periodOrder = { daily: 1, weekly: 2, monthly: 3, yearly: 4 };
-          return (periodOrder[a.period] || 999) - (periodOrder[b.period] || 999);
+          return (
+            (periodOrder[a.period] || 999) - (periodOrder[b.period] || 999)
+          );
         });
 
-      this.logger.log(`Retrieved ${plans.length} plans from Razorpay (includeTestPlans: ${includeTestPlans})`);
+      this.logger.log(
+        `Retrieved ${plans.length} plans from Razorpay (includeTestPlans: ${includeTestPlans})`
+      );
       return plans;
     } catch (error) {
       this.logger.error(`Failed to get plans: ${error.message}`);
@@ -222,54 +265,55 @@ export class SubscriptionsService {
    * Map tier and period to internal SubscriptionPlan enum
    * Handles both production plans and test plans
    */
-  private mapTierToPlanType(tier: string, period: string, isTestPlan = false): SubscriptionPlan | null {
-    // For test plans, map to the closest production equivalent
-    if (isTestPlan) {
-      const testMapping: Record<string, SubscriptionPlan> = {
-        'starter': SubscriptionPlan.STARTER_MONTHLY,
-        'professional': SubscriptionPlan.PROFESSIONAL_MONTHLY,
-        'enterprise': SubscriptionPlan.ENTERPRISE_MONTHLY,
-        'founding_member': SubscriptionPlan.FOUNDING_MEMBER,
-        'early_adopter': SubscriptionPlan.EARLY_ADOPTER,
-      };
-      return testMapping[tier] || null;
-    }
-
-    // Production plan mapping
-    const mapping: Record<string, SubscriptionPlan> = {
-      'starter-monthly': SubscriptionPlan.STARTER_MONTHLY,
-      'starter-yearly': SubscriptionPlan.STARTER_YEARLY,
-      'professional-monthly': SubscriptionPlan.PROFESSIONAL_MONTHLY,
-      'professional-yearly': SubscriptionPlan.PROFESSIONAL_YEARLY,
-      'enterprise-monthly': SubscriptionPlan.ENTERPRISE_MONTHLY,
-      'enterprise-yearly': SubscriptionPlan.ENTERPRISE_YEARLY,
-      'founding_member-monthly': SubscriptionPlan.FOUNDING_MEMBER,
-      'early_adopter-monthly': SubscriptionPlan.EARLY_ADOPTER,
-    };
-
-    return mapping[`${tier}-${period}`] || null;
+  private mapTierToPlanType(
+    tier: string,
+    period: string,
+    isTestPlan = false
+  ): string | null {
+    // Return dynamic plan identifier based on tier and period
+    return `${tier}_${period}`;
   }
 
-  async getPlanConfig(planType: SubscriptionPlan): Promise<PlanConfig> {
+  async getPlanConfig(planType: string): Promise<PlanConfig> {
     try {
       // Get the actual Razorpay plan ID for this plan type
-      const razorpayPlanId = await this.planCacheService.mapLegacyPlanToRazorpayId(planType);
+      // Get plans directly from Razorpay based on plan type
+      const response = await this.razorpayService.getAllPlans({ count: 100 });
+      const plans = response.items || [];
+
+      // Find plan matching the requested type (e.g., "starter_monthly")
+      const [tier, period] = planType.split('_');
+      const matchingPlan = plans.find((p: any) =>
+        p.notes?.tier === tier &&
+        p.period === period
+      );
+      if (!matchingPlan) {
+        throw new BadRequestException(`No plan found for type: ${planType}`);
+      }
+      const razorpayPlanId = matchingPlan.id;
       if (!razorpayPlanId) {
-        throw new BadRequestException(`No Razorpay plan found for plan type: ${planType}`);
+        throw new BadRequestException(
+          `No Razorpay plan found for plan type: ${planType}`
+        );
       }
 
       // Fetch the plan details from Razorpay
-      const razorpayPlan = await this.planCacheService.getPlan(razorpayPlanId);
+      const razorpayPlan = await this.razorpayService.getPlan(razorpayPlanId);
       if (!razorpayPlan) {
-        throw new BadRequestException(`Razorpay plan ${razorpayPlanId} not found`);
+        throw new BadRequestException(
+          `Razorpay plan ${razorpayPlanId} not found`
+        );
       }
 
       // Convert to internal format
       const config = this.convertRazorpayPlanToInternal(razorpayPlan);
       return config;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to get plan config for ${planType}: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to get plan config for ${planType}: ${errorMessage}`
+      );
       throw error;
     }
   }
@@ -277,17 +321,39 @@ export class SubscriptionsService {
   /**
    * Get test plan for a specific tier (for development/testing)
    */
-  async getTestPlan(tier: 'starter' | 'professional' | 'enterprise'): Promise<PlanConfig | null> {
+  async getTestPlan(
+    tier: 'starter' | 'professional' | 'enterprise'
+  ): Promise<any | null> {
     try {
-      const testPlan = await this.planCacheService.getTestPlan(tier);
-      if (!testPlan) {
+      // Fetch all plans and filter for test plans
+      const response = await this.razorpayService.getAllPlans({ count: 100 });
+      const plans = response.items || [];
+
+      const testPlans = plans.filter(p =>
+        p.notes?.tier === tier &&
+        p.notes?.test_mode === 'true'
+      );
+
+      if (testPlans.length === 0) {
         this.logger.warn(`No test plan found for tier: ${tier}`);
         return null;
       }
 
-      return this.convertRazorpayPlanToInternal(testPlan);
+      // Prefer ultra-fast plans (7-day intervals) for testing
+      const ultraFastPlan = testPlans.find(p =>
+        p.period === 'daily' &&
+        p.interval === 7 &&
+        p.notes?.billing_cycle === 'ultra_fast'
+      );
+      if (ultraFastPlan) {
+        return ultraFastPlan;
+      }
+
+      // Return first available test plan
+      return testPlans[0];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to get test plan for ${tier}: ${errorMessage}`);
       throw error;
     }
@@ -298,16 +364,19 @@ export class SubscriptionsService {
    */
   async syncPlansFromRazorpay(): Promise<void> {
     try {
-      await this.planCacheService.syncPlansFromRazorpay();
+      // No need to sync - we fetch directly from Razorpay now
       this.logger.log('Successfully synced plans from Razorpay');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to sync plans from Razorpay: ${errorMessage}`);
       throw error;
     }
   }
 
-  async getSubscriptionByRestaurant(restaurantId: string): Promise<SubscriptionDocument | null> {
+  async getSubscriptionByRestaurant(
+    restaurantId: string
+  ): Promise<SubscriptionDocument | null> {
     if (!Types.ObjectId.isValid(restaurantId)) {
       throw new BadRequestException('Invalid restaurant ID');
     }
@@ -316,7 +385,9 @@ export class SubscriptionsService {
     const activeSubscription = await this.subscriptionModel
       .findOne({
         restaurantId: new Types.ObjectId(restaurantId),
-        status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED] }
+        status: {
+          $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED],
+        },
       })
       .sort({ createdAt: -1 })
       .exec();
@@ -352,26 +423,43 @@ export class SubscriptionsService {
     }
 
     const now = new Date();
-    const isTrialActive = subscription.isTrialActive && subscription.trialEnd && subscription.trialEnd > now;
-    const isSubscriptionActive = [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED, SubscriptionStatus.CREATED].includes(subscription.status);
+    const isTrialActive =
+      subscription.isTrialActive &&
+      subscription.trialEnd &&
+      subscription.trialEnd > now;
+    const isSubscriptionActive = [
+      SubscriptionStatus.ACTIVE,
+      SubscriptionStatus.AUTHENTICATED,
+      SubscriptionStatus.CREATED,
+    ].includes(subscription.status);
 
     // Get latest Razorpay data if subscription exists
     let razorpayData = null;
     if (subscription.razorpaySubscriptionId) {
       try {
-        const razorpaySubscription = await this.razorpayService.getSubscription(subscription.razorpaySubscriptionId);
+        const razorpaySubscription = await this.razorpayService.getSubscription(
+          subscription.razorpaySubscriptionId
+        );
         razorpayData = {
           id: razorpaySubscription.id,
           status: razorpaySubscription.status,
-          currentStart: razorpaySubscription.current_start ? new Date(razorpaySubscription.current_start * 1000) : null,
-          currentEnd: razorpaySubscription.current_end ? new Date(razorpaySubscription.current_end * 1000) : null,
-          chargeAt: razorpaySubscription.charge_at ? new Date(razorpaySubscription.charge_at * 1000) : null,
+          currentStart: razorpaySubscription.current_start
+            ? new Date(razorpaySubscription.current_start * 1000)
+            : null,
+          currentEnd: razorpaySubscription.current_end
+            ? new Date(razorpaySubscription.current_end * 1000)
+            : null,
+          chargeAt: razorpaySubscription.charge_at
+            ? new Date(razorpaySubscription.charge_at * 1000)
+            : null,
           totalCount: razorpaySubscription.total_count,
           paidCount: razorpaySubscription.paid_count,
           remainingCount: razorpaySubscription.remaining_count,
         };
       } catch (error) {
-        this.logger.error(`Failed to fetch Razorpay subscription ${subscription.razorpaySubscriptionId}: ${error.message}`);
+        this.logger.error(
+          `Failed to fetch Razorpay subscription ${subscription.razorpaySubscriptionId}: ${error.message}`
+        );
       }
     }
 
@@ -421,35 +509,33 @@ export class SubscriptionsService {
     };
   }
 
-  async upgradePlan(restaurantId: string, newPlan: 'starter' | 'pro' | 'enterprise', billingCycle: 'hourly' | 'daily' | 'monthly' | 'yearly' = 'monthly') {
-    const planPricing = {
-      // Test pricing for different billing cycles
-      hourly: {
-        starter: 100,    // ₹1 per hour for testing
-        pro: 200,        // ₹2 per hour for testing
-        enterprise: 500, // ₹5 per hour for testing
-      },
-      daily: {
-        starter: 1000,   // ₹10 per day for testing
-        pro: 2000,       // ₹20 per day for testing
-        enterprise: 5000, // ₹50 per day for testing
-      },
-      monthly: {
-        starter: 29900,   // ₹299 per month
-        pro: 59900,       // ₹599 per month
-        enterprise: 99900, // ₹999 per month
-      },
-      yearly: {
-        starter: 299000,  // ₹2,990 per year (10 months pricing)
-        pro: 599000,      // ₹5,990 per year (10 months pricing)
-        enterprise: 999000, // ₹9,990 per year (10 months pricing)
-      }
-    };
+  async upgradePlan(
+    restaurantId: string,
+    newPlan: 'starter' | 'pro' | 'enterprise',
+    billingCycle: 'hourly' | 'daily' | 'monthly' | 'yearly' = 'monthly'
+  ) {
+    // Get plan pricing directly from Razorpay
+    const response = await this.razorpayService.getAllPlans({ count: 100 });
+    const plans = response.items || [];
+
+    // Map legacy 'pro' to 'professional'
+    const planMapping: Record<string, string> = { pro: 'professional' };
+    const targetPlan = planMapping[newPlan] || newPlan;
+
+    const matchingPlan = plans.find((p: any) =>
+      p.notes?.tier === targetPlan &&
+      p.period === billingCycle &&
+      p.notes?.test_mode !== 'true'
+    );
+
+    if (!matchingPlan) {
+      throw new Error(`No matching plan found for ${newPlan} with ${billingCycle} billing`);
+    }
 
     await this.restaurantModel.findByIdAndUpdate(restaurantId, {
       'saasConfig.plan': newPlan,
       'saasConfig.billingCycle': billingCycle,
-      'saasConfig.monthlyPrice': planPricing[billingCycle][newPlan],
+      'saasConfig.monthlyPrice': matchingPlan.item.amount,
       'saasConfig.lastUpdated': new Date(),
     });
 
@@ -462,7 +548,9 @@ export class SubscriptionsService {
       'saasConfig.lastUpdated': new Date(),
     });
 
-    this.logger.warn(`Restaurant ${restaurantId} subscription suspended: ${reason}`);
+    this.logger.warn(
+      `Restaurant ${restaurantId} subscription suspended: ${reason}`
+    );
   }
 
   async reactivateSubscription(restaurantId: string) {
@@ -482,30 +570,40 @@ export class SubscriptionsService {
    * Get or create a Razorpay plan for subscription creation
    * Now uses existing plans from Razorpay instead of creating new ones
    */
-  private async getOrCreateRazorpayPlan(tier: 'starter' | 'professional' | 'enterprise' = 'professional'): Promise<string> {
+  private async getOrCreateRazorpayPlan(
+    tier: 'starter' | 'professional' | 'enterprise' = 'professional'
+  ): Promise<string> {
     try {
       // Try to get existing plan from Razorpay
-      const existingPlan = await this.planCacheService.getTestPlan(tier);
+      const existingPlan = await this.getTestPlan(tier);
       if (existingPlan) {
-        this.logger.log(`Using existing Razorpay plan: ${existingPlan.id} for tier: ${tier}`);
+        this.logger.log(
+          `Using existing Razorpay plan: ${existingPlan.id} for tier: ${tier}`
+        );
         return existingPlan.id;
       }
 
       // Fallback: Get any professional monthly plan
       const plans = await this.getAllPlans(true); // Include test plans
-      const fallbackPlan = plans.find(p =>
-        p.tier === 'professional' &&
-        (p.period === 'monthly' || p.period === 'daily')
+      const fallbackPlan = plans.find(
+        (p) =>
+          p.tier === 'professional' &&
+          (p.period === 'monthly' || p.period === 'daily')
       );
 
       if (fallbackPlan) {
-        this.logger.log(`Using fallback Razorpay plan: ${fallbackPlan.razorpayPlanId}`);
+        this.logger.log(
+          `Using fallback Razorpay plan: ${fallbackPlan.razorpayPlanId}`
+        );
         return fallbackPlan.razorpayPlanId;
       }
 
-      throw new Error('No suitable plans found in Razorpay. Please create plans first.');
+      throw new Error(
+        'No suitable plans found in Razorpay. Please create plans first.'
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to get Razorpay plan: ${errorMessage}`, error);
       throw error;
     }
@@ -516,7 +614,9 @@ export class SubscriptionsService {
   // Existing method signature
   async createSubscription(restaurantId: string): Promise<any>;
   // Implementation
-  async createSubscription(restaurantIdOrDto: string | CreateSubscriptionDto): Promise<any> {
+  async createSubscription(
+    restaurantIdOrDto: string | CreateSubscriptionDto
+  ): Promise<any> {
     // Handle DTO object
     if (typeof restaurantIdOrDto === 'object') {
       return this.createSubscriptionFromDto(restaurantIdOrDto);
@@ -529,27 +629,36 @@ export class SubscriptionsService {
   /**
    * Create subscription from DTO (called from controller)
    */
-  private async createSubscriptionFromDto(dto: CreateSubscriptionDto): Promise<any> {
-    const { restaurantId, planId, totalCount, startAt, customerNotify, notes } = dto;
+  private async createSubscriptionFromDto(
+    dto: CreateSubscriptionDto
+  ): Promise<any> {
+    const { restaurantId, planId, totalCount, startAt, customerNotify, notes } =
+      dto;
 
     // Validate restaurant exists
     const restaurant = await this.restaurantModel.findById(restaurantId);
     if (!restaurant) {
-      throw new BadRequestException(`Restaurant with ID ${restaurantId} not found`);
+      throw new BadRequestException(
+        `Restaurant with ID ${restaurantId} not found`
+      );
     }
 
     // Check if restaurant already has an active subscription
     const existingSubscription = await this.subscriptionModel.findOne({
       restaurantId: new Types.ObjectId(restaurantId),
-      status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED] },
+      status: {
+        $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED],
+      },
     });
 
     if (existingSubscription) {
-      throw new BadRequestException('Restaurant already has an active subscription');
+      throw new BadRequestException(
+        'Restaurant already has an active subscription'
+      );
     }
 
     // Validate the plan exists in Razorpay
-    const plan = await this.planCacheService.getPlan(planId);
+    const plan = await this.razorpayService.getPlan(planId);
     if (!plan) {
       throw new BadRequestException(`Plan with ID ${planId} not found`);
     }
@@ -559,7 +668,8 @@ export class SubscriptionsService {
       const customerData = {
         name: restaurant.name,
         email: restaurant.email || 'no-email@restohand.com',
-        contact: restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
+        contact:
+          restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
         fail_existing: 0 as const,
         notes: {
           restaurant_id: restaurantId,
@@ -586,8 +696,11 @@ export class SubscriptionsService {
         },
       };
 
-      const razorpaySubscription = await this.razorpayService.createSubscription(subscriptionData);
-      this.logger.log(`Created Razorpay subscription: ${razorpaySubscription.id}`);
+      const razorpaySubscription =
+        await this.razorpayService.createSubscription(subscriptionData);
+      this.logger.log(
+        `Created Razorpay subscription: ${razorpaySubscription.id}`
+      );
 
       // Create subscription in our database
       const subscription = new this.subscriptionModel({
@@ -602,7 +715,9 @@ export class SubscriptionsService {
           currency: plan.item.currency,
           period: plan.period,
           interval: plan.interval,
-          features: plan.notes?.features ? this.parseFeatures(plan.notes.features) : {},
+          features: plan.notes?.features
+            ? this.parseFeatures(plan.notes.features)
+            : {},
         },
         status: razorpaySubscription.status as SubscriptionStatus,
         quantity: razorpaySubscription.quantity || 1,
@@ -610,15 +725,30 @@ export class SubscriptionsService {
         paidCount: razorpaySubscription.paid_count || 0,
         remainingCount: razorpaySubscription.remaining_count,
         authAttempts: razorpaySubscription.auth_attempts || 0,
-        currentStart: razorpaySubscription.current_start ? new Date(razorpaySubscription.current_start * 1000) : undefined,
-        currentEnd: razorpaySubscription.current_end ? new Date(razorpaySubscription.current_end * 1000) : undefined,
-        chargeAt: razorpaySubscription.charge_at ? new Date(razorpaySubscription.charge_at * 1000) : undefined,
-        startAt: razorpaySubscription.start_at ? new Date(razorpaySubscription.start_at * 1000) : undefined,
-        endAt: razorpaySubscription.end_at ? new Date(razorpaySubscription.end_at * 1000) : undefined,
-        endedAt: razorpaySubscription.ended_at ? new Date(razorpaySubscription.ended_at * 1000) : undefined,
-        expireBy: razorpaySubscription.expire_by ? new Date(razorpaySubscription.expire_by * 1000) : undefined,
+        currentStart: razorpaySubscription.current_start
+          ? new Date(razorpaySubscription.current_start * 1000)
+          : undefined,
+        currentEnd: razorpaySubscription.current_end
+          ? new Date(razorpaySubscription.current_end * 1000)
+          : undefined,
+        chargeAt: razorpaySubscription.charge_at
+          ? new Date(razorpaySubscription.charge_at * 1000)
+          : undefined,
+        startAt: razorpaySubscription.start_at
+          ? new Date(razorpaySubscription.start_at * 1000)
+          : undefined,
+        endAt: razorpaySubscription.end_at
+          ? new Date(razorpaySubscription.end_at * 1000)
+          : undefined,
+        endedAt: razorpaySubscription.ended_at
+          ? new Date(razorpaySubscription.ended_at * 1000)
+          : undefined,
+        expireBy: razorpaySubscription.expire_by
+          ? new Date(razorpaySubscription.expire_by * 1000)
+          : undefined,
         shortUrl: razorpaySubscription.short_url, // CRITICAL: Store the payment URL
-        hasScheduledChanges: razorpaySubscription.has_scheduled_changes || false,
+        hasScheduledChanges:
+          razorpaySubscription.has_scheduled_changes || false,
         scheduleChangeAt: razorpaySubscription.schedule_change_at,
         customerNotify: razorpaySubscription.customer_notify || false,
         notes: razorpaySubscription.notes || {},
@@ -632,10 +762,14 @@ export class SubscriptionsService {
         'saasConfig.currentPlan': plan.notes?.tier || 'professional',
         'saasConfig.subscriptionId': savedSubscription._id,
         'saasConfig.lastUpdated': new Date(),
-        'saasConfig.features': plan.notes?.features ? this.parseFeatures(plan.notes.features) : {},
+        'saasConfig.features': plan.notes?.features
+          ? this.parseFeatures(plan.notes.features)
+          : {},
       });
 
-      this.logger.log(`Subscription created successfully for restaurant ${restaurantId}`);
+      this.logger.log(
+        `Subscription created successfully for restaurant ${restaurantId}`
+      );
 
       return {
         id: savedSubscription._id,
@@ -648,8 +782,12 @@ export class SubscriptionsService {
         trialEnd: null,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to create subscription for restaurant ${restaurantId}: ${errorMessage}`, error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to create subscription for restaurant ${restaurantId}: ${errorMessage}`,
+        error
+      );
       throw error;
     }
   }
@@ -657,17 +795,26 @@ export class SubscriptionsService {
   /**
    * Cancel a subscription
    */
-  async cancelSubscription(subscriptionId: string, cancelAtCycleEnd: boolean = true): Promise<any> {
+  async cancelSubscription(
+    subscriptionId: string,
+    cancelAtCycleEnd: boolean = true
+  ): Promise<any> {
     try {
       // First, find the subscription in our database to get the Razorpay subscription ID
-      const subscription = await this.subscriptionModel.findById(subscriptionId);
+      const subscription = await this.subscriptionModel.findById(
+        subscriptionId
+      );
       if (!subscription) {
-        throw new BadRequestException(`Subscription with ID ${subscriptionId} not found`);
+        throw new BadRequestException(
+          `Subscription with ID ${subscriptionId} not found`
+        );
       }
 
       const razorpaySubscriptionId = subscription.razorpaySubscriptionId;
       if (!razorpaySubscriptionId) {
-        throw new BadRequestException(`No Razorpay subscription ID found for subscription ${subscriptionId}`);
+        throw new BadRequestException(
+          `No Razorpay subscription ID found for subscription ${subscriptionId}`
+        );
       }
 
       // Cancel the subscription in Razorpay
@@ -680,16 +827,27 @@ export class SubscriptionsService {
         );
       } catch (error: any) {
         // If "no billing cycle" error and user requested cycle end cancellation, try immediate
-        if (cancelAtCycleEnd && error?.error?.description?.includes('no billing cycle is going on')) {
-          this.logger.warn(`Cannot cancel at cycle end (no active cycle), trying immediate cancellation for ${razorpaySubscriptionId}`);
+        if (
+          cancelAtCycleEnd &&
+          error?.error?.description?.includes('no billing cycle is going on')
+        ) {
+          this.logger.warn(
+            `Cannot cancel at cycle end (no active cycle), trying immediate cancellation for ${razorpaySubscriptionId}`
+          );
           cancelledSubscription = await this.razorpayService.cancelSubscription(
             razorpaySubscriptionId,
             { cancel_at_cycle_end: false }
           );
         }
         // If subscription is already cancelled in Razorpay, just sync our database
-        else if (error?.error?.description?.includes('not cancellable in cancelled status')) {
-          this.logger.warn(`Subscription ${razorpaySubscriptionId} already cancelled in Razorpay, syncing database`);
+        else if (
+          error?.error?.description?.includes(
+            'not cancellable in cancelled status'
+          )
+        ) {
+          this.logger.warn(
+            `Subscription ${razorpaySubscriptionId} already cancelled in Razorpay, syncing database`
+          );
           await this.subscriptionModel.findByIdAndUpdate(subscriptionId, {
             status: SubscriptionStatus.CANCELLED,
             endAt: new Date(),
@@ -711,15 +869,21 @@ export class SubscriptionsService {
         endAt: cancelAtCycleEnd ? undefined : new Date(), // If immediate cancellation, set endAt to now
       });
 
-      this.logger.log(`Subscription ${subscriptionId} (Razorpay: ${razorpaySubscriptionId}) cancelled successfully`);
+      this.logger.log(
+        `Subscription ${subscriptionId} (Razorpay: ${razorpaySubscriptionId}) cancelled successfully`
+      );
       return {
         ...cancelledSubscription,
         localSubscriptionId: subscriptionId,
         razorpaySubscriptionId,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to cancel subscription ${subscriptionId}: ${errorMessage}`, error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to cancel subscription ${subscriptionId}: ${errorMessage}`,
+        error
+      );
       throw error;
     }
   }
@@ -733,77 +897,120 @@ export class SubscriptionsService {
       const subscriptionId = subscription?.id;
 
       if (!subscriptionId) {
-        this.logger.warn('Subscription webhook received without subscription ID', { event, payload });
+        this.logger.warn(
+          'Subscription webhook received without subscription ID',
+          { event, payload }
+        );
         return;
       }
 
-      this.logger.log(`Processing subscription webhook: ${event} for ${subscriptionId}`);
+      this.logger.log(
+        `Processing subscription webhook: ${event} for ${subscriptionId}`
+      );
 
       // Find subscription in our database
       const localSubscription = await this.subscriptionModel.findOne({
-        razorpaySubscriptionId: subscriptionId
+        razorpaySubscriptionId: subscriptionId,
       });
 
       if (!localSubscription) {
-        this.logger.warn(`Local subscription not found for Razorpay ID: ${subscriptionId}`);
+        this.logger.warn(
+          `Local subscription not found for Razorpay ID: ${subscriptionId}`
+        );
         return;
       }
 
       // Handle different subscription events
       switch (event) {
         case 'subscription.cancelled':
-          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
-            status: SubscriptionStatus.CANCELLED,
-            endAt: new Date(),
-          });
-          this.logger.log(`Subscription ${subscriptionId} marked as cancelled via webhook`);
+          await this.subscriptionModel.findByIdAndUpdate(
+            localSubscription._id,
+            {
+              status: SubscriptionStatus.CANCELLED,
+              endAt: new Date(),
+            }
+          );
+          this.logger.log(
+            `Subscription ${subscriptionId} marked as cancelled via webhook`
+          );
           break;
 
         case 'subscription.authenticated':
           // Customer completed payment authorization - update status
-          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
-            status: SubscriptionStatus.AUTHENTICATED,
-            authAttempts: subscription?.auth_attempts || 0,
-            lastWebhookAt: new Date(),
-            lastWebhookEvent: event,
-          });
-          this.logger.log(`Subscription ${subscriptionId} authenticated - payment method added via webhook`);
+          await this.subscriptionModel.findByIdAndUpdate(
+            localSubscription._id,
+            {
+              status: SubscriptionStatus.AUTHENTICATED,
+              authAttempts: subscription?.auth_attempts || 0,
+              lastWebhookAt: new Date(),
+              lastWebhookEvent: event,
+            }
+          );
+          this.logger.log(
+            `Subscription ${subscriptionId} authenticated - payment method added via webhook`
+          );
           break;
 
         case 'subscription.activated':
-          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
-            status: SubscriptionStatus.ACTIVE,
-            currentStart: subscription?.current_start ? new Date(subscription.current_start * 1000) : undefined,
-            currentEnd: subscription?.current_end ? new Date(subscription.current_end * 1000) : undefined,
-            chargeAt: subscription?.charge_at ? new Date(subscription.charge_at * 1000) : undefined,
-            lastWebhookAt: new Date(),
-            lastWebhookEvent: event,
-          });
-          this.logger.log(`Subscription ${subscriptionId} marked as active via webhook`);
+          await this.subscriptionModel.findByIdAndUpdate(
+            localSubscription._id,
+            {
+              status: SubscriptionStatus.ACTIVE,
+              currentStart: subscription?.current_start
+                ? new Date(subscription.current_start * 1000)
+                : undefined,
+              currentEnd: subscription?.current_end
+                ? new Date(subscription.current_end * 1000)
+                : undefined,
+              chargeAt: subscription?.charge_at
+                ? new Date(subscription.charge_at * 1000)
+                : undefined,
+              lastWebhookAt: new Date(),
+              lastWebhookEvent: event,
+            }
+          );
+          this.logger.log(
+            `Subscription ${subscriptionId} marked as active via webhook`
+          );
           break;
 
         case 'subscription.completed':
-          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
-            status: SubscriptionStatus.COMPLETED,
-            endAt: new Date(),
-          });
-          this.logger.log(`Subscription ${subscriptionId} marked as completed via webhook`);
+          await this.subscriptionModel.findByIdAndUpdate(
+            localSubscription._id,
+            {
+              status: SubscriptionStatus.COMPLETED,
+              endAt: new Date(),
+            }
+          );
+          this.logger.log(
+            `Subscription ${subscriptionId} marked as completed via webhook`
+          );
           break;
 
         case 'subscription.paused':
-          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
-            status: SubscriptionStatus.PAUSED,
-          });
-          this.logger.log(`Subscription ${subscriptionId} marked as paused via webhook`);
+          await this.subscriptionModel.findByIdAndUpdate(
+            localSubscription._id,
+            {
+              status: SubscriptionStatus.PAUSED,
+            }
+          );
+          this.logger.log(
+            `Subscription ${subscriptionId} marked as paused via webhook`
+          );
           break;
 
         case 'subscription.resumed':
-          await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
-            status: SubscriptionStatus.ACTIVE,
-            lastWebhookAt: new Date(),
-            lastWebhookEvent: event,
-          });
-          this.logger.log(`Subscription ${subscriptionId} marked as resumed via webhook`);
+          await this.subscriptionModel.findByIdAndUpdate(
+            localSubscription._id,
+            {
+              status: SubscriptionStatus.ACTIVE,
+              lastWebhookAt: new Date(),
+              lastWebhookEvent: event,
+            }
+          );
+          this.logger.log(
+            `Subscription ${subscriptionId} marked as resumed via webhook`
+          );
           break;
 
         case 'subscription.charged':
@@ -817,28 +1024,45 @@ export class SubscriptionsService {
               status: paymentData.status || 'captured',
             };
 
-            await this.subscriptionModel.findByIdAndUpdate(localSubscription._id, {
-              paidCount: subscription?.paid_count || localSubscription.paidCount + 1,
-              remainingCount: subscription?.remaining_count,
-              chargeAt: subscription?.charge_at ? new Date(subscription.charge_at * 1000) : undefined,
-              currentStart: subscription?.current_start ? new Date(subscription.current_start * 1000) : undefined,
-              currentEnd: subscription?.current_end ? new Date(subscription.current_end * 1000) : undefined,
-              lastWebhookAt: new Date(),
-              lastWebhookEvent: event,
-              $push: { billingHistory: billingEntry } as any,
-            });
+            await this.subscriptionModel.findByIdAndUpdate(
+              localSubscription._id,
+              {
+                paidCount:
+                  subscription?.paid_count || localSubscription.paidCount + 1,
+                remainingCount: subscription?.remaining_count,
+                chargeAt: subscription?.charge_at
+                  ? new Date(subscription.charge_at * 1000)
+                  : undefined,
+                currentStart: subscription?.current_start
+                  ? new Date(subscription.current_start * 1000)
+                  : undefined,
+                currentEnd: subscription?.current_end
+                  ? new Date(subscription.current_end * 1000)
+                  : undefined,
+                lastWebhookAt: new Date(),
+                lastWebhookEvent: event,
+                $push: { billingHistory: billingEntry } as any,
+              }
+            );
 
-            this.logger.log(`Payment recorded for subscription ${subscriptionId}: ₹${paymentData.amount / 100}`);
+            this.logger.log(
+              `Payment recorded for subscription ${subscriptionId}: ₹${
+                paymentData.amount / 100
+              }`
+            );
           }
           break;
 
         default:
           this.logger.log(`Unhandled subscription webhook event: ${event}`);
       }
-
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to process subscription webhook ${event}: ${errorMessage}`, error);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to process subscription webhook ${event}: ${errorMessage}`,
+        error
+      );
       // Don't throw error to avoid webhook retries for our internal issues
     }
   }
@@ -863,7 +1087,8 @@ export class SubscriptionsService {
       const customerData = {
         name: restaurant.name,
         email: restaurant.email || 'no-email@restohand.com',
-        contact: restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
+        contact:
+          restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
         fail_existing: 0 as const,
         notes: {
           restaurant_id: restaurantId,
@@ -920,9 +1145,11 @@ export class SubscriptionsService {
         amount: SUBSCRIPTION_AMOUNT,
         nextBillingDate: nextBilling,
       };
-
     } catch (error) {
-      this.logger.error(`Failed to create subscription for ${restaurantId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to create subscription for ${restaurantId}: ${error.message}`,
+        error
+      );
       throw new Error(`Failed to create subscription: ${error.message}`);
     }
   }
@@ -990,7 +1217,11 @@ export class SubscriptionsService {
         'saasConfig.lastUpdated': new Date(),
       });
 
-      this.logger.log(`Payment successful for restaurant ${restaurantId}, amount: ₹${payment.amount / 100}`);
+      this.logger.log(
+        `Payment successful for restaurant ${restaurantId}, amount: ₹${
+          payment.amount / 100
+        }`
+      );
     }
   }
 
@@ -1057,7 +1288,9 @@ export class SubscriptionsService {
 
     try {
       // Get subscription to fetch payment history
-      const subscription = await this.razorpayService.getSubscription(restaurant.saasConfig.razorpaySubscriptionId);
+      const subscription = await this.razorpayService.getSubscription(
+        restaurant.saasConfig.razorpaySubscriptionId
+      );
 
       // In a real implementation, you'd fetch actual payment history from Razorpay
       // For now, return basic subscription info
@@ -1071,10 +1304,12 @@ export class SubscriptionsService {
           current_end: subscription.current_end,
         },
         // TODO: Implement actual payment history fetching
-        payments: []
+        payments: [],
       };
     } catch (error) {
-      this.logger.error(`Failed to fetch payment history for ${restaurantId}: ${error.message}`);
+      this.logger.error(
+        `Failed to fetch payment history for ${restaurantId}: ${error.message}`
+      );
       return { payments: [] };
     }
   }
@@ -1095,7 +1330,9 @@ export class SubscriptionsService {
 
     const totalSubscriptions = await this.subscriptionModel.countDocuments();
     const activeSubscriptions = await this.subscriptionModel.countDocuments({
-      status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED] },
+      status: {
+        $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.AUTHENTICATED],
+      },
     });
 
     const trialSubscriptions = await this.subscriptionModel.countDocuments({
@@ -1104,13 +1341,13 @@ export class SubscriptionsService {
     });
 
     const monthlyRecurringRevenue = analytics
-      .filter(item => item._id.status === 'active')
+      .filter((item) => item._id.status === 'active')
       .reduce((total, item) => {
         // Convert yearly to monthly equivalent
         const monthlyAmount = item._id.planType.includes('yearly')
           ? Math.round(item.totalRevenue / 12)
           : item.totalRevenue;
-        return total + (monthlyAmount * item.count);
+        return total + monthlyAmount * item.count;
       }, 0);
 
     const planDistribution = analytics.reduce((acc, item) => {
@@ -1130,15 +1367,20 @@ export class SubscriptionsService {
       monthlyRecurringRevenue,
       planDistribution,
       statusDistribution: analytics,
-      churnRate: totalSubscriptions > 0
-        ? ((totalSubscriptions - activeSubscriptions) / totalSubscriptions * 100).toFixed(2)
-        : '0',
+      churnRate:
+        totalSubscriptions > 0
+          ? (
+              ((totalSubscriptions - activeSubscriptions) /
+                totalSubscriptions) *
+              100
+            ).toFixed(2)
+          : '0',
     };
   }
 
   async createGrandfatheredSubscription(
     restaurantId: string,
-    planType: SubscriptionPlan.FOUNDING_MEMBER | SubscriptionPlan.EARLY_ADOPTER,
+    planType: 'founding_member' | 'early_adopter',
     reason: string
   ): Promise<SubscriptionDocument> {
     const subscription = await this.createSubscription({
@@ -1157,38 +1399,59 @@ export class SubscriptionsService {
     subscription.grandfatheredAt = new Date();
     await subscription.save();
 
-    this.logger.log(`Created grandfathered subscription for restaurant ${restaurantId}: ${reason}`);
+    this.logger.log(
+      `Created grandfathered subscription for restaurant ${restaurantId}: ${reason}`
+    );
     return subscription;
   }
 
   // Legacy support methods for gradual migration
-  async migrateLegacySubscription(restaurantId: string): Promise<SubscriptionDocument | null> {
+  async migrateLegacySubscription(
+    restaurantId: string
+  ): Promise<SubscriptionDocument | null> {
     const restaurant = await this.restaurantModel.findById(restaurantId);
     if (!restaurant?.saasConfig) {
       return null;
     }
 
     // Check if already migrated
-    const existingSubscription = await this.getSubscriptionByRestaurant(restaurantId);
+    const existingSubscription = await this.getSubscriptionByRestaurant(
+      restaurantId
+    );
     if (existingSubscription) {
       return existingSubscription;
     }
 
-    // Map legacy plan to new plan type
-    const legacyToNewPlan = {
-      starter: SubscriptionPlan.STARTER_MONTHLY,
-      pro: SubscriptionPlan.PROFESSIONAL_MONTHLY,
-      enterprise: SubscriptionPlan.ENTERPRISE_MONTHLY,
-      standard: SubscriptionPlan.PROFESSIONAL_MONTHLY, // Default mapping
+    // Get plans directly from Razorpay based on legacy plan name
+    const response = await this.razorpayService.getAllPlans({ count: 100 });
+    const plans = response.items || [];
+
+    // Find plan matching the legacy plan type (starter -> starter, pro -> professional, etc.)
+    const legacyPlanMappings = {
+      starter: 'starter',
+      pro: 'professional',
+      enterprise: 'enterprise',
+      standard: 'professional',
     };
 
-    const planType = legacyToNewPlan[restaurant.saasConfig.plan] || SubscriptionPlan.PROFESSIONAL_MONTHLY;
+    const targetTier = legacyPlanMappings[restaurant.saasConfig.plan] || 'professional';
+    const matchingPlan = plans.find((p: any) =>
+      p.notes?.tier === targetTier &&
+      p.period === 'monthly' &&
+      p.notes?.test_mode !== 'true'
+    );
+
+    if (!matchingPlan) {
+      throw new Error(`No matching plan found for legacy plan: ${restaurant.saasConfig.plan}`);
+    }
+
+    const planType = `${targetTier}_monthly`;
 
     try {
       // Create new subscription record from legacy data
       const planConfig = await this.getPlanConfig(planType);
       const subscriptionPlanDetails: SubscriptionPlanDetails = {
-        razorpayPlanId: restaurant.saasConfig.razorpayPlanId || '',
+        razorpayPlanId: matchingPlan.id,
         planType,
         name: planConfig.name,
         amount: restaurant.saasConfig.monthlyPrice || planConfig.amount,
@@ -1200,7 +1463,8 @@ export class SubscriptionsService {
 
       const subscription = new this.subscriptionModel({
         restaurantId: new Types.ObjectId(restaurantId),
-        razorpaySubscriptionId: restaurant.saasConfig.razorpaySubscriptionId || '',
+        razorpaySubscriptionId:
+          restaurant.saasConfig.razorpaySubscriptionId || '',
         razorpayCustomerId: restaurant.saasConfig.razorpayCustomerId || '',
         plan: subscriptionPlanDetails,
         status: this.mapLegacyStatus(restaurant.saasConfig.subscriptionStatus),
@@ -1208,7 +1472,9 @@ export class SubscriptionsService {
         currentEnd: restaurant.saasConfig.nextBillingDate,
         trialStart: restaurant.saasConfig.trialStartedAt,
         trialEnd: restaurant.saasConfig.trialEndsAt,
-        isTrialActive: restaurant.saasConfig.trialEndsAt ? restaurant.saasConfig.trialEndsAt > new Date() : false,
+        isTrialActive: restaurant.saasConfig.trialEndsAt
+          ? restaurant.saasConfig.trialEndsAt > new Date()
+          : false,
         chargeAt: restaurant.saasConfig.nextBillingDate,
         quantity: 1,
         lastWebhookAt: restaurant.saasConfig.lastUpdated,
@@ -1220,11 +1486,15 @@ export class SubscriptionsService {
       });
 
       await subscription.save();
-      this.logger.log(`Migrated legacy subscription for restaurant ${restaurantId}`);
+      this.logger.log(
+        `Migrated legacy subscription for restaurant ${restaurantId}`
+      );
 
       return subscription;
     } catch (error) {
-      this.logger.error(`Failed to migrate legacy subscription for ${restaurantId}: ${error.message}`);
+      this.logger.error(
+        `Failed to migrate legacy subscription for ${restaurantId}: ${error.message}`
+      );
       throw error;
     }
   }

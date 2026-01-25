@@ -143,6 +143,21 @@ export class MenuCategoriesService {
     return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
 
+  async findOne(restaurantId: string, id: string): Promise<MenuCategoryResponseDto> {
+    const category = await this.menuCategoryModel.findOne({
+      _id: id,
+      restaurantId,
+    });
+
+    if (!category) {
+      throw new NotFoundException(
+        `Menu category ${id} not found for restaurant ${restaurantId}`
+      );
+    }
+
+    return this.toDto(category);
+  }
+
   async update(
     restaurantId: string,
     id: string,
@@ -182,6 +197,7 @@ export class MenuCategoriesService {
       description: doc.description,
       displayOrder: doc.displayOrder,
       isActive: doc.isActive,
+      imageUrl: doc.imageUrl,
       defaultGstRateId: doc.defaultGstRateId,
       defaultGstRate: doc.defaultGstRate,
       gstCategoryType: doc.gstCategoryType,
