@@ -56,7 +56,7 @@ export class SubscriptionsController {
     },
   })
   async getAllPlans() {
-    const isTestMode = process.env.NODE_ENV !== 'production';
+    const isTestMode = process.env.NODE_ENV === 'local';
     return this.subscriptionsService.getAllPlans(isTestMode);
   }
 
