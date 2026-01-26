@@ -69,7 +69,7 @@ export class MenuExtractionService {
    * Bulk import extracted menu data into the database
    * Uses upsert logic - updates existing categories/items or creates new ones
    */
-  async bulkImportMenu(restaurantId: string, menu: ExtractedMenu): Promise<BulkImportResult> {
+  async bulkImportMenu(restaurantId: string, menu: ExtractedMenu, branchId?: string): Promise<BulkImportResult> {
     const result: BulkImportResult = {
       success: true,
       categoriesCreated: 0,
@@ -87,6 +87,7 @@ export class MenuExtractionService {
         const categoryResult = await this.categoryModel.findOneAndUpdate(
           {
             restaurantId: new Types.ObjectId(restaurantId),
+            branchId: branchId ? new Types.ObjectId(branchId) : null,
             name: extractedCategory.name,
           },
           {
@@ -95,6 +96,7 @@ export class MenuExtractionService {
             },
             $setOnInsert: {
               restaurantId: new Types.ObjectId(restaurantId),
+              branchId: branchId ? new Types.ObjectId(branchId) : null,
               name: extractedCategory.name,
               displayOrder: 0,
               isActive: true,
@@ -125,6 +127,7 @@ export class MenuExtractionService {
             const itemResult = await this.menuItemModel.findOneAndUpdate(
               {
                 restaurantId: new Types.ObjectId(restaurantId),
+                branchId: branchId ? new Types.ObjectId(branchId) : null,
                 categoryId: category._id,
                 name: extractedItem.name,
               },
@@ -138,6 +141,7 @@ export class MenuExtractionService {
                 },
                 $setOnInsert: {
                   restaurantId: new Types.ObjectId(restaurantId),
+                  branchId: branchId ? new Types.ObjectId(branchId) : null,
                   categoryId: category._id,
                   name: extractedItem.name,
                   isAvailable: true,

@@ -11,14 +11,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import {
@@ -27,38 +19,23 @@ import {
   Phone,
   Mail,
   CreditCard,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  XCircle,
-  Settings,
 } from 'lucide-react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import {
   useGetRestaurantQuery,
   useUpdateRestaurantMutation,
-  useSetupLinkedAccountMutation,
-  useGetPaymentStatusQuery,
 } from '@/store/api/restaurantsApi';
 
 const RestaurantSettingsPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
 
-  if (!restaurantId) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
   const { data: restaurant, isLoading } = useGetRestaurantQuery(
     restaurantId ?? skipToken
   );
   const [updateRestaurant, { isLoading: isUpdating }] =
     useUpdateRestaurantMutation();
-  const [setupLinkedAccount, { isLoading: isSettingUpPayment }] =
-    useSetupLinkedAccountMutation();
-  const { data: paymentStatus, refetch: refetchPaymentStatus } =
-    useGetPaymentStatusQuery(restaurantId ?? '');
 
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
@@ -70,10 +47,6 @@ const RestaurantSettingsPage = () => {
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [gstin, setGstin] = useState('');
-  const [upiVpa, setUpiVpa] = useState('');
-  const [upiDisplayName, setUpiDisplayName] = useState('');
-  const [upiMode, setUpiMode] = useState<'static' | 'dynamic'>('static');
-  const [selfOrderingEnabled, setSelfOrderingEnabled] = useState(false);
 
   useEffect(() => {
     if (!restaurant) return;
@@ -87,11 +60,11 @@ const RestaurantSettingsPage = () => {
     setState(restaurant.address.state);
     setPostalCode(restaurant.address.postalCode);
     setGstin(restaurant.gstin ?? '');
-    setUpiVpa(restaurant.upi.vpa);
-    setUpiDisplayName(restaurant.upi.displayName);
-    setUpiMode(restaurant.upi.mode ?? 'static');
-    setSelfOrderingEnabled(restaurant.settings?.selfOrderingEnabled ?? false);
   }, [restaurant]);
+
+  if (!restaurantId) {
+    return <Navigate to="/onboarding" replace />;
+  }
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -128,14 +101,6 @@ const RestaurantSettingsPage = () => {
             country: restaurant?.address.country ?? 'IN',
           },
           gstin: trimmedGstin || undefined,
-          upi: {
-            vpa: upiVpa.trim(),
-            displayName: upiDisplayName.trim() || name,
-            mode: upiMode,
-          },
-          settings: {
-            selfOrderingEnabled,
-          },
         },
       }).unwrap();
       toast({ title: 'Restaurant settings updated successfully' });
@@ -149,70 +114,6 @@ const RestaurantSettingsPage = () => {
     }
   };
 
-  const handleSetupPayment = async () => {
-    if (!restaurantId) return;
-
-    try {
-      const result = await setupLinkedAccount({ restaurantId }).unwrap();
-
-      if (result.success) {
-        toast({
-          title: 'Payment setup initiated',
-          description:
-            'Your linked account has been created. It may take a few minutes to be approved by Razorpay.',
-        });
-        refetchPaymentStatus();
-      } else {
-        toast({
-          title: 'Setup failed',
-          description: result.error || 'Failed to setup payment account',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Setup failed',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const getPaymentStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'pending_approval':
-        return <Clock className="h-4 w-4 text-yellow-600" />;
-      case 'route_not_available':
-        return <AlertCircle className="h-4 w-4 " />;
-      case 'rejected':
-      case 'suspended':
-        return <XCircle className="h-4 w-4 text-red-600" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-600" />;
-    }
-  };
-
-  const getPaymentStatusText = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'Direct Payments Enabled';
-      case 'pending_approval':
-        return 'Pending Approval';
-      case 'pending_setup':
-        return 'Setup Required';
-      case 'route_not_available':
-        return 'Standard Payments Only';
-      case 'rejected':
-        return 'Rejected';
-      case 'suspended':
-        return 'Suspended';
-      default:
-        return 'Unknown Status';
-    }
-  };
 
   if (isLoading || !restaurant) {
     return (
@@ -231,9 +132,9 @@ const RestaurantSettingsPage = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6">
         {/* Basic Information */}
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -335,105 +236,6 @@ const RestaurantSettingsPage = () => {
             </form>
           </CardContent>
         </Card>
-
-        {/* Payment Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Payment Settings
-            </CardTitle>
-            <CardDescription>UPI and payment configuration</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Direct Payment Status */}
-
-            {/* UPI Settings */}
-            <div className="border-t pt-4">
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="upi-vpa">UPI Handle *</Label>
-                  <Input
-                    id="upi-vpa"
-                    value={upiVpa}
-                    onChange={(event) => setUpiVpa(event.target.value)}
-                    placeholder="example@upi"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Fallback payment method for manual transactions
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="upi-display-name">Display Name</Label>
-                  <Input
-                    id="upi-display-name"
-                    value={upiDisplayName}
-                    onChange={(event) => setUpiDisplayName(event.target.value)}
-                    placeholder="Name shown in payment apps"
-                  />
-                </div>
-                <Button type="submit" disabled={isUpdating} className="w-full">
-                  {isUpdating ? (
-                    <>
-                      <LoadingSpinner size="sm" className="mr-2" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save UPI Settings'
-                  )}
-                </Button>
-              </form>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Restaurant Features */}
-        {/* <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Restaurant Features
-            </CardTitle>
-            <CardDescription>
-              Configure customer-facing features and services
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label
-                  htmlFor="self-ordering-toggle"
-                  className="text-base font-medium"
-                >
-                  Customer Self-Ordering
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Allow customers to place orders by scanning table QR codes
-                </p>
-              </div>
-              <Switch
-                id="self-ordering-toggle"
-                checked={selfOrderingEnabled}
-                onCheckedChange={setSelfOrderingEnabled}
-              />
-            </div>
-            <Button
-              onClick={handleSubmit}
-              disabled={isUpdating}
-              className="w-full"
-            >
-              {isUpdating ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  Saving...
-                </>
-              ) : (
-                'Save Settings'
-              )}
-            </Button>
-          </CardContent>
-        </Card> */}
       </div>
 
       {/* Address Information */}

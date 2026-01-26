@@ -32,9 +32,13 @@ export class RestaurantOnboardingController {
           type: 'object',
           properties: {
             plan: { type: 'string' },
-            subscriptionStatus: { type: 'string' },
-            trialEndsAt: { type: 'string', format: 'date-time' },
-            monthlyPrice: { type: 'number' },
+            billingCycle: { type: 'string' },
+            razorpaySubscriptionStatus: { type: 'string' },
+            razorpaySubscriptionId: { type: 'string' },
+            isActive: { type: 'boolean' },
+            currentPeriodStart: { type: 'string', format: 'date-time' },
+            currentPeriodEnd: { type: 'string', format: 'date-time' },
+            nextChargeAt: { type: 'string', format: 'date-time' },
           },
         },
         paymentConfig: {

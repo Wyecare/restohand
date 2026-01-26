@@ -59,6 +59,15 @@ resource "google_firebase_hosting_site" "customer" {
   depends_on = [google_firebase_project.default]
 }
 
+# API Firebase Hosting Site
+resource "google_firebase_hosting_site" "api" {
+  count    = var.api_hosting_site_id != null ? 1 : 0
+  provider = google-beta
+  project  = var.project_id
+  site_id  = var.api_hosting_site_id  
+  depends_on = [google_firebase_project.default]
+} 
+
 # Legacy site for backwards compatibility
 resource "google_firebase_hosting_site" "default" {
   count    = var.hosting_site_id != null ? 1 : 0

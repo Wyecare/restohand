@@ -1,0 +1,133 @@
+Fetch a Plan With ID
+GET
+https://api.razorpay.com/v1/plans/:id
+
+Available in
+
+IN
+India
+
+MY
+Malaysia
+
+SG
+Singapore
+
+US
+United States
+
+Use this endpoint to retrieve the details of a plan using its unique identifier.
+
+
+Is this page helpful?
+
+
+
+
+Path Parameters
+
+1
+
+
+Response Parameters
+
+7
+
+
+Errors
+
+1
+
+Path Parameters
+id
+*
+
+string
+The unique identifier of the plan. For example, plan_00000000000001.
+
+Response Parameters
+id
+string
+The unique identifier linked to a plan. For example, plan_00000000000001. This ID is used when creating a subscription for a customer.
+
+entity
+string
+The entity being created. Here, it is plan.
+
+interval
+integer
+Used together with period to define how often the customer should be charged.
+
+period
+string
+Used together with interval to define how often the customer should be charged. Possible values:
+daily
+weekly
+monthly
+yearly
+
+item
+array
+Details of the plan.
+
+Show child parameters (5)
+
+notes
+object
+Notes you can enter of the contact for future reference. This is a key-value pair. You can enter a maximum of 15 key-value pairs. For example, "note_key": "Monthly Gym".
+
+created_at
+integer
+The Unix timestamp at which the plan was created.
+
+Errors
+an_id%7D is not a valid id
+
+Error Status: 400
+
+This error occurs when you are not passing the plan_id in the API endpoint to fetch a plan based on the id.
+
+
+curl -u [YOUR_KEY_ID]:[YOUR_KEY_SECRET] \
+-X GET https://api.razorpay.com/v1/plans/plan_00000000000001 \
+
+successful
+{
+  "id":"plan_00000000000001",
+  "entity":"plan",
+  "interval":1,
+  "period":"weekly",
+  "item":{
+    "id":"item_00000000000001",
+    "active":true,
+    "name":"Test plan - Weekly",
+    "description":"Description for the test plan - Weekly",
+    "amount":69900,
+    "unit_amount":69900,
+    "currency":"<currency>",
+    "type":"plan",
+    "unit":null,
+    "tax_inclusive":false,
+    "hsn_code":null,
+    "sac_code":null,
+    "tax_rate":null,
+    "tax_id":null,
+    "tax_group_id":null,
+    "created_at":1580220492,
+    "updated_at":1580220492
+  },
+  "notes":{
+    "notes_key_1":"Tea, Earl Grey, Hot",
+    "notes_key_2":"Tea, Earl Grey… decaf."
+  },
+  "created_at":1580220492
+}
+
+failure
+
+{
+  "error": {
+    "code": "BAD_REQUEST_ERROR",
+    "description": "an_id%7D is not a valid id"
+  }
+}

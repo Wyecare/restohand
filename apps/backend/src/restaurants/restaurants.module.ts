@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
+import { GstModule } from '../gst/gst.module';
 import { Restaurant, RestaurantSchema } from './schemas/restaurant.schema';
 import { Branch, BranchSchema } from '../branches/schemas/branch.schema';
 import { KitchenStation, KitchenStationSchema } from './schemas/kitchen-station.schema';
@@ -20,6 +21,7 @@ import { RazorpayService } from '../payments/razorpay.service';
   imports: [
     AuthModule,
     UsersModule,
+    GstModule,
     MongooseModule.forFeature([
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: Branch.name, schema: BranchSchema },

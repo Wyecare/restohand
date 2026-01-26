@@ -33,10 +33,11 @@ import {
   OrderCounterDocument,
 } from './schemas/order-counter.schema';
 import {
-  GstService,
-  OrderItemWithTax,
-  TaxCalculation,
-} from '../gst/gst.service';
+  SmartGstService,
+  OrderItemGstData,
+  OrderItemWithGst,
+  OrderGstSummary,
+} from '../gst/smart-gst.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { TableStatusService } from '../restaurant-tables/table-status.service';
 import { TableStatusType } from '../restaurant-tables/schemas/table-status.schema';
@@ -57,7 +58,7 @@ export class OrdersService {
     @InjectModel(OrderCounter.name)
     private readonly orderCounterModel: Model<OrderCounterDocument>,
     private readonly ordersGateway: OrdersGateway,
-    private readonly gstService: GstService,
+    private readonly smartGstService: SmartGstService,
     private readonly razorpayService: RazorpayService,
     private readonly tableStatusService: TableStatusService
   ) {}
@@ -76,32 +77,50 @@ export class OrdersService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const customerState =
-      dto.customerState?.trim() || restaurant.address?.state || 'Kerala';
+    const customerState = dto.customerState?.trim() || restaurant.address?.state;
 
-    let defaultGstRateId: string | undefined;
-    if (restaurant.applyDefaultGstToMenuItems) {
-      const defaultRate = await this.gstService.getDefaultGstRate(restaurantId);
-      if (!defaultRate) {
-        throw new BadRequestException(
-          'Default GST rate is required when automatic GST is enabled'
-        );
-      }
-      defaultGstRateId = defaultRate.id;
-    }
+    // Prepare order items for GST calculation
+    const orderItems: OrderItemGstData[] = dto.items.map(item => ({
+      menuItemId: item.menuItemId,
+      name: item.name || '', // Use provided name, fallback to empty
+      quantity: item.quantity || 1,
+      unitPrice: item.pricing?.unitAmount || 0,
+      discountAmount: item.pricing?.discountAmount || 0
+    }));
 
-    const { items, summary } = await this.prepareOrderPricing(
+    // Calculate GST using our smart service
+    const { items, summary } = await this.smartGstService.calculateOrderGst(
       restaurantId,
-      dto,
-      customerState,
-      restaurant.applyDefaultGstToMenuItems ?? false,
-      defaultGstRateId
+      orderItems,
+      customerState
     );
 
     const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
     const finalTotalAmount = this.roundToTwo(
       summary.totalAmount + roundOffAmount
     );
+
+    // Map GST calculation results to order schema format
+    const formattedOrderItems = items.map(item => ({
+      menuItemId: item.menuItemId,
+      name: item.name,
+      quantity: item.quantity,
+      pricing: {
+        unitAmount: item.unitPrice,
+        currency: 'INR',
+        taxAmount: item.totalTaxAmount,
+        discountAmount: item.discountAmount,
+      },
+      gst: {
+        hsnCode: item.hsnCode,
+        gstRate: item.gstRate,
+        cgstAmount: item.cgstAmount,
+        sgstAmount: item.sgstAmount,
+        igstAmount: item.igstAmount,
+        totalTaxAmount: item.totalTaxAmount,
+        exemptFromGst: item.exemptFromGst,
+      },
+    }));
 
     const created = await this.orderModel.create({
       restaurantId,
@@ -116,13 +135,13 @@ export class OrdersService {
       customerGstin: dto.customerGstin?.trim().toUpperCase(),
       customerState,
       notes: dto.notes,
-      items,
+      items: formattedOrderItems,
       status: OrderStatus.Pending,
       paymentStatus: PaymentStatus.Pending,
       progress: OrderProgressStage.NotStarted,
       paymentMethod,
       subTotalAmount: summary.subtotal,
-      grossAmount: summary.grossAmount,
+      grossAmount: summary.subtotal, // In new system, subtotal = gross amount
       discountAmount: summary.discountAmount,
       taxAmount: summary.totalTaxAmount,
       cgstAmount: summary.cgstAmount,
@@ -219,17 +238,23 @@ export class OrdersService {
 
     const defaultGstRateId = restaurant.defaultGstRateId;
 
-    // For customer state, we'll use the restaurant's state or default to same-state
-    // This can be enhanced later to accept customer state in the request
-    const customerState = 'SAME_STATE'; // Default assumption for simplicity
+    // Use restaurant's state for customer state
+    const customerState = restaurant.address?.state;
 
-    // Reuse the existing pricing logic
-    const { items, summary } = await this.prepareOrderPricing(
+    // Prepare order items for GST calculation
+    const orderItems: OrderItemGstData[] = dto.items.map(item => ({
+      menuItemId: item.menuItemId,
+      name: '', // Will be filled from menu item
+      quantity: item.quantity,
+      unitPrice: item.pricing?.unitAmount || 0,
+      discountAmount: item.pricing?.discountAmount || 0
+    }));
+
+    // Calculate GST using smart service
+    const { items, summary } = await this.smartGstService.calculateOrderGst(
       restaurantId,
-      dto,
-      customerState,
-      restaurant.applyDefaultGstToMenuItems ?? false,
-      defaultGstRateId
+      orderItems,
+      customerState
     );
 
     const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
@@ -1418,5 +1443,301 @@ export class OrdersService {
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };
+  }
+
+  // Webhook handler methods for Razorpay payment events
+  async handlePaymentCaptured(orderId: string, paymentId: string, paymentData: any) {
+    this.logger.log(`Handling payment captured for order ${orderId}: ${paymentId}`);
+
+    try {
+      // Find the order by our internal order ID
+      const order = await this.orderModel.findById(orderId);
+
+      if (!order) {
+        this.logger.warn(`Order ${orderId} not found for payment ${paymentId}`);
+        return;
+      }
+
+      // Update order payment status
+      await this.updatePayment(
+        order.restaurantId.toString(),
+        orderId,
+        {
+          paymentStatus: PaymentStatus.Paid,
+          transactionId: paymentId,
+          provider: 'razorpay',
+        }
+      );
+
+      // Record payment captured event
+      await this.recordEvent(
+        orderId,
+        order.restaurantId.toString(),
+        'payment.captured',
+        {
+          paymentId,
+          amount: paymentData.amount,
+          currency: paymentData.currency,
+          method: paymentData.method,
+          capturedAt: paymentData.captured_at,
+        }
+      );
+
+      this.logger.log(`Payment ${paymentId} processed successfully for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle payment captured for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async handlePaymentFailed(orderId: string, paymentId: string, failureData: any) {
+    this.logger.log(`Handling payment failure for order ${orderId}: ${paymentId}`);
+
+    try {
+      // Find the order by our internal order ID
+      const order = await this.orderModel.findById(orderId);
+
+      if (!order) {
+        this.logger.warn(`Order ${orderId} not found for failed payment ${paymentId}`);
+        return;
+      }
+
+      // Record payment failure event
+      await this.recordEvent(
+        orderId,
+        order.restaurantId.toString(),
+        'payment.failed',
+        {
+          paymentId,
+          errorCode: failureData.error_code,
+          errorDescription: failureData.error_description,
+          amount: failureData.amount,
+          currency: failureData.currency,
+          method: failureData.method,
+          failedAt: failureData.failed_at,
+        }
+      );
+
+      this.logger.log(`Payment failure ${paymentId} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle payment failure for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async handleOrderFullyPaid(orderId: string, orderData: any) {
+    this.logger.log(`Handling order fully paid: ${orderId}`);
+
+    try {
+      // Find the order by our internal order ID
+      const order = await this.orderModel.findById(orderId);
+
+      if (!order) {
+        this.logger.warn(`Order ${orderId} not found for fully paid event`);
+        return;
+      }
+
+      // Ensure order is marked as fully paid
+      if (order.paymentStatus !== PaymentStatus.Paid) {
+        await this.updatePayment(
+          order.restaurantId.toString(),
+          orderId,
+          {
+            paymentStatus: PaymentStatus.Paid,
+            provider: 'razorpay',
+          }
+        );
+      }
+
+      // Record order fully paid event
+      await this.recordEvent(
+        orderId,
+        order.restaurantId.toString(),
+        'order.fully_paid',
+        {
+          razorpayOrderId: orderData.razorpay_order_id,
+          totalAmountPaid: orderData.total_amount_paid,
+          amountDue: orderData.amount_due,
+          paidAt: orderData.paid_at,
+        }
+      );
+
+      this.logger.log(`Order ${orderId} marked as fully paid`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle order fully paid for ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  // Refund webhook handlers
+  async handleRefundCreated(orderId: string, refundData: any) {
+    this.logger.log(`Handling refund created for order ${orderId}: ${refundData.refund_id}`);
+
+    try {
+      await this.recordEvent(
+        orderId,
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        'refund.created',
+        refundData
+      );
+
+      this.logger.log(`Refund created ${refundData.refund_id} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle refund created for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async handleRefundProcessed(orderId: string, refundData: any) {
+    this.logger.log(`Handling refund processed for order ${orderId}: ${refundData.refund_id}`);
+
+    try {
+      await this.recordEvent(
+        orderId,
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        'refund.processed',
+        refundData
+      );
+
+      this.logger.log(`Refund processed ${refundData.refund_id} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle refund processed for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async handleRefundFailed(orderId: string, refundData: any) {
+    this.logger.log(`Handling refund failed for order ${orderId}: ${refundData.refund_id}`);
+
+    try {
+      await this.recordEvent(
+        orderId,
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        'refund.failed',
+        refundData
+      );
+
+      this.logger.log(`Refund failed ${refundData.refund_id} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle refund failed for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  // Transfer webhook handlers
+  async handleTransferProcessed(orderId: string, transferData: any) {
+    this.logger.log(`Handling transfer processed for order ${orderId}: ${transferData.transfer_id}`);
+
+    try {
+      await this.recordEvent(
+        orderId,
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        'transfer.processed',
+        transferData
+      );
+
+      this.logger.log(`Transfer processed ${transferData.transfer_id} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle transfer processed for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async handleTransferFailed(orderId: string, transferData: any) {
+    this.logger.log(`Handling transfer failed for order ${orderId}: ${transferData.transfer_id}`);
+
+    try {
+      await this.recordEvent(
+        orderId,
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        'transfer.failed',
+        transferData
+      );
+
+      this.logger.log(`Transfer failed ${transferData.transfer_id} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle transfer failed for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  // Invoice webhook handlers
+  async handleInvoicePaid(orderId: string, invoiceData: any) {
+    this.logger.log(`Handling invoice paid for order ${orderId}: ${invoiceData.invoice_id}`);
+
+    try {
+      // Mark order as paid if it's not already
+      const order = await this.orderModel.findById(orderId);
+      if (order && order.paymentStatus !== PaymentStatus.Paid) {
+        await this.updatePayment(
+          order.restaurantId.toString(),
+          orderId,
+          {
+            paymentStatus: PaymentStatus.Paid,
+            transactionId: invoiceData.payment_id,
+            provider: 'razorpay',
+          }
+        );
+      }
+
+      await this.recordEvent(
+        orderId,
+        order?.restaurantId?.toString() || '',
+        'invoice.paid',
+        invoiceData
+      );
+
+      this.logger.log(`Invoice paid ${invoiceData.invoice_id} processed for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle invoice paid for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async handleInvoicePartiallyPaid(orderId: string, invoiceData: any) {
+    this.logger.log(`Handling invoice partially paid for order ${orderId}: ${invoiceData.invoice_id}`);
+
+    try {
+      await this.recordEvent(
+        orderId,
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        'invoice.partially_paid',
+        invoiceData
+      );
+
+      this.logger.log(`Invoice partially paid ${invoiceData.invoice_id} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle invoice partially paid for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  async handleInvoiceExpired(orderId: string, invoiceData: any) {
+    this.logger.log(`Handling invoice expired for order ${orderId}: ${invoiceData.invoice_id}`);
+
+    try {
+      await this.recordEvent(
+        orderId,
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        'invoice.expired',
+        invoiceData
+      );
+
+      this.logger.log(`Invoice expired ${invoiceData.invoice_id} recorded for order ${orderId}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle invoice expired for order ${orderId}: ${error.message}`, error);
+      throw error;
+    }
   }
 }

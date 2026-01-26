@@ -18,7 +18,7 @@ import { OrderModificationService } from './order-modification.service';
 import { GstModule } from '../gst/gst.module';
 import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -26,6 +26,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
     GstModule,
     RestaurantsModule,
     RestaurantTablesModule,
+    SubscriptionsModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Restaurant.name, schema: RestaurantSchema },
@@ -37,7 +38,7 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
     ]),
   ],
   controllers: [OrdersController, OrderModificationController, WebhooksController],
-  providers: [OrdersService, OrderModificationService, OrdersGateway, RazorpayService, SubscriptionsService],
+  providers: [OrdersService, OrderModificationService, OrdersGateway, RazorpayService],
   exports: [OrdersService, OrderModificationService],
 })
 export class OrdersModule {}

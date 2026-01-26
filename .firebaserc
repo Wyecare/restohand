@@ -16,6 +16,9 @@
         ],
         "main": [
           "restohand-d"
+        ],
+        "api": [
+          "restohand-d-api"
         ]
       }
     },
@@ -32,6 +35,9 @@
         ],
         "main": [
           "restohand-p"
+        ],
+        "api": [
+          "restohand-api"
         ]
       }
     },

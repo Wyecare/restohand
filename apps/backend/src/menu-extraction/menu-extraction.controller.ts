@@ -70,6 +70,7 @@ export class MenuExtractionController {
     @Body() dto: BulkImportMenuDto,
   ) {
     const restaurantId = user.restaurantId;
+    const branchId = user.branchId; // Use current branch from user context
     if (!restaurantId) {
       throw new BadRequestException('Restaurant ID not found in user context');
     }
@@ -78,6 +79,6 @@ export class MenuExtractionController {
       categories: dto.categories,
       currency: dto.currency || 'INR',
       extractedAt: new Date().toISOString(),
-    });
+    }, branchId);
   }
 }

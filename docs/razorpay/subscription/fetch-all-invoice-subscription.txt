@@ -1,0 +1,388 @@
+Fetch All Invoices of a Subscription
+GET
+/v1/invoices?subscription_id=:sub_id
+Click to copy
+
+Available in
+
+IN
+India
+
+MY
+Malaysia
+
+SG
+Singapore
+
+US
+United States
+
+Use this endpoint to retrieve all invoices of a Subscription. The count in the response indicates the number of invoices generated for a Subscription.
+
+
+Is this page helpful?
+
+
+
+
+Query Parameters
+
+1
+
+
+Response Parameters
+
+28
+
+
+Errors
+
+1
+
+Query Parameters
+subscription_id
+*
+
+string
+The unique identifier linked to the Subscription. For example, sub_00000000000001.
+
+Response Parameters
+count
+integer
+The number of invoices generated for the Subscription.
+
+item
+array
+List of invoices generated for the Subscription.
+
+Show child parameters (6)
+
+order_id
+string
+The unique identifier of the order associated with the invoice.
+
+subscription_id
+string
+The unique identifier of the Subscription. For example, sub_00000000000001.
+
+line_items
+array
+Details of the line item that is billed in the invoice. Number of arrays = number of line items billed in the invoice. For example, if the Subscription starts immediately and has an upfront fee attached to it, the number of line items = 2. One for the Subscription charge and one for the upfront fee.
+
+Show child parameters (8)
+
+payment_id
+string
+Unique identifier of the payment made by the customer using this invoice. For example, pay_00000000000001.
+
+status
+string
+The status of the invoice. Possible values:
+draft
+issued
+partially_paid
+paid
+expired
+cancelled
+deleted
+
+expire_by
+integer
+The Unix timestamp, indicates at which the invoice will expire. For example, 1593411509
+
+issued_at
+integer
+The Unix timestamp, indicates at which the invoice was issued to the customer. For example, 1593411209
+
+paid_at
+integer
+The Unix timestamp, indicates at which the payment was made. For example, 1593411325
+
+cancelled_at
+integer
+The Unix timestamp, indicates at which the invoice was canceled by you. For example, 1593411209
+
+expired_at
+integer
+The Unix timestamp, indicates at which the invoice has expired. For example, 1593411209
+
+sms_status
+string
+Indicates whether the SMS notification for the invoice was sent to the customer. Possible values:
+pending
+sent
+
+email_status
+string
+Indicates whether the email notification for the invoice was sent to the customer. Possible values:
+pending
+sent
+
+date
+integer
+The Unix timestamp, that indicates the date of the invoice.
+
+terms
+string
+Any terms to be included in the invoice. Here, it is null.
+
+partial_payment
+boolean
+Indicates whether the customer can make a partial payment on the invoice.
+true: Customer can make partial payments.
+false: Customer cannot make partial payments.
+
+amount
+integer
+Amount to be paid using the invoice. This should be in the smallest unit of the currency. For example, 29995.
+
+amount_paid
+integer
+Amount paid by the customer using the invoice. For example, 29995.
+
+amount_due
+integer
+The remaining amount to be paid by the customer for the issued invoice.
+
+currency
+string
+The currency associated with the item.
+
+description
+string
+A brief description of the invoice. Here, it is null.
+
+notes
+object
+Key-value pair that can be used to store additional information about the entity. Maximum 15 key-value pairs, 256 characters (maximum) each. For example, "note_key": "Beam me up Scotty”.
+
+comment
+string
+Any comments to be added in the invoice. Here, it is null.
+
+short_url
+string
+The short URL that is generated. This is the link that can be shared with customers to accept payments. Once canceled, no payments can be accepted using the link. For example, https://rzp.io/i/gb5827Hh.
+
+view_less
+boolean
+Used when the link description is lengthy and you want to make the text collapsible. The text can be expanded by the customer using the Show More link.
+true (default): Link description appears collapsed, with a Show More link.
+false: Link description appears expanded.
+
+type
+string
+Here, it is invoice.
+
+created_at
+integer
+The Unix timestamp, that indicates when this invoice entity was created. For example, 1593411943.
+
+Errors
+The API key/secret provided is invalid.
+
+Error Status: 4xx
+
+This error occurs due to a mismatch between the API credentials passed in the API call and those generated on the Dashboard.
+
+
+curl -u [YOUR_KEY_ID]:[YOUR_KEY_SECRET] \
+-X GET https://api.razorpay.com/v1/invoices?subscription_id=sub_00000000000001 \
+
+{
+  "entity": "collection",
+  "count": 2,
+  "items": [
+    {
+      "id": "inv_00000000000003",
+      "entity": "invoice",
+      "receipt": null,
+      "invoice_number": null,
+      "customer_id": "cust_00000000000001",
+      "customer_details": {
+        "id": "cust_00000000000001",
+        "name": null,
+        "email": "<email>",
+        "contact": "<phone>",
+        "gstin": null,
+        "billing_address": null,
+        "shipping_address": null,
+        "customer_name": null,
+        "customer_email": "<email>",
+        "customer_contact": "<phone>"
+      },
+      "order_id": "order_00000000000002",
+      "subscription_id": "sub_00000000000001",
+      "line_items": [
+        {
+          "id": "li_00000000000003",
+          "item_id": null,
+          "ref_id": null,
+          "ref_type": null,
+          "name": "Monthly Plan",
+          "description": null,
+          "amount": 99900,
+          "unit_amount": 99900,
+          "gross_amount": 99900,
+          "tax_amount": 0,
+          "taxable_amount": 99900,
+          "net_amount": 99900,
+          "currency": "<currency>",
+          "type": "plan",
+          "tax_inclusive": false,
+          "hsn_code": null,
+          "sac_code": null,
+          "tax_rate": null,
+          "unit": null,
+          "quantity": 1,
+          "taxes": []
+        }
+      ],
+      "payment_id": "pay_00000000000002",
+      "status": "paid",
+      "expire_by": null,
+      "issued_at": 1593344888,
+      "paid_at": 1593344889,
+      "cancelled_at": null,
+      "expired_at": null,
+      "sms_status": null,
+      "email_status": null,
+      "date": 1593344888,
+      "terms": null,
+      "partial_payment": false,
+      "gross_amount": 99900,
+      "tax_amount": 0,
+      "taxable_amount": 99900,
+      "amount": 99900,
+      "amount_paid": 99900,
+      "amount_due": 0,
+      "currency": "<currency>",
+      "currency_symbol": "₹",
+      "description": null,
+      "notes": [],
+      "comment": null,
+      "short_url": "https://rzp.io/i/Ys4feGqEp",
+      "view_less": true,
+      "billing_start": 1594405800,
+      "billing_end": 1597084200,
+      "type": "invoice",
+      "group_taxes_discounts": false,
+      "created_at": 1593344888,
+      "idempotency_key": null
+    },
+    {
+      "id": "inv_00000000000001",
+      "entity": "invoice",
+      "receipt": null,
+      "invoice_number": null,
+      "customer_id": "cust_00000000000001",
+      "customer_details": {
+        "id": "cust_00000000000001",
+        "name": null,
+        "email": "<email>",
+        "contact": "<phone>",
+        "gstin": null,
+        "billing_address": null,
+        "shipping_address": null,
+        "customer_name": null,
+        "customer_email": "<email>",
+        "customer_contact": "<phone>"
+      },
+      "order_id": "order_00000000000001",
+      "subscription_id": "sub_00000000000001",
+      "line_items": [
+        {
+          "id": "li_00000000000001",
+          "item_id": null,
+          "ref_id": null,
+          "ref_type": null,
+          "name": "Monthly Plan",
+          "description": null,
+          "amount": 99900,
+          "unit_amount": 99900,
+          "gross_amount": 99900,
+          "tax_amount": 0,
+          "taxable_amount": 99900,
+          "net_amount": 99900,
+          "currency": "<currency>",
+          "type": "plan",
+          "tax_inclusive": false,
+          "hsn_code": null,
+          "sac_code": null,
+          "tax_rate": null,
+          "unit": null,
+          "quantity": 1,
+          "taxes": []
+        },
+        {
+          "id": "li_00000000000002",
+          "item_id": null,
+          "ref_id": null,
+          "ref_type": null,
+          "name": "Delivery charges",
+          "description": null,
+          "amount": 30000,
+          "unit_amount": 30000,
+          "gross_amount": 30000,
+          "tax_amount": 0,
+          "taxable_amount": 30000,
+          "net_amount": 30000,
+          "currency": "<currency>",
+          "type": "addon",
+          "tax_inclusive": false,
+          "hsn_code": null,
+          "sac_code": null,
+          "tax_rate": null,
+          "unit": null,
+          "quantity": 1,
+          "taxes": []
+        }
+      ],
+      "payment_id": "pay_00000000000001",
+      "status": "paid",
+      "expire_by": null,
+      "issued_at": 1591878130,
+      "paid_at": 1591878210,
+      "cancelled_at": null,
+      "expired_at": null,
+      "sms_status": null,
+      "email_status": null,
+      "date": 1591878130,
+      "terms": null,
+      "partial_payment": false,
+      "gross_amount": 129900,
+      "tax_amount": 0,
+      "taxable_amount": 129900,
+      "amount": 129900,
+      "amount_paid": 129900,
+      "amount_due": 0,
+      "currency": "<currency>",
+      "currency_symbol": "₹",
+      "description": null,
+      "notes": [],
+      "comment": null,
+      "short_url": "https://rzp.io/i/nt5k3df",
+      "view_less": true,
+      "billing_start": 1591878205,
+      "billing_end": 1594405800,
+      "type": "invoice",
+      "group_taxes_discounts": false,
+      "created_at": 1591878130,
+      "idempotency_key": null
+    }
+  ]
+}
+
+error 
+
+{
+  "error": {
+    "code": "BAD_REQUEST_ERROR",
+    "description": "The api key provided is invalid",
+    "source": "NA",
+    "step": "NA",
+    "reason": "NA",
+    "metadata": {}
+  }
+}
+

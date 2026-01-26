@@ -3,6 +3,34 @@ import { RestaurantAddressDto } from './address.dto';
 import { RestaurantUpiConfigDto } from './upi-config.dto';
 import { RestaurantSettingsDto } from './restaurant-settings.dto';
 
+class GstConfigResponseDto {
+  @ApiProperty()
+  establishmentType!: string;
+
+  @ApiProperty()
+  defaultGstRate!: number;
+
+  @ApiProperty()
+  canClaimITC!: boolean;
+
+  @ApiProperty()
+  businessState!: string;
+
+  @ApiProperty({ required: false })
+  gstin?: string;
+}
+
+class BusinessDetailsResponseDto {
+  @ApiProperty({ required: false })
+  panNumber?: string;
+
+  @ApiProperty({ required: false })
+  businessType?: string;
+
+  @ApiProperty({ type: GstConfigResponseDto })
+  gst!: GstConfigResponseDto;
+}
+
 export class RestaurantResponseDto {
   @ApiProperty()
   id!: string;
@@ -54,4 +82,7 @@ export class RestaurantResponseDto {
 
   @ApiProperty()
   updatedAt!: string;
+
+  @ApiProperty({ type: BusinessDetailsResponseDto, required: false })
+  businessDetails?: BusinessDetailsResponseDto;
 }

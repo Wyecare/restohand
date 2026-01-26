@@ -1,0 +1,97 @@
+Integrate With Subscriptions
+Step-by-step guide on how to integrate Razorpay Subscriptions.
+
+Available in
+
+IN
+India
+
+MY
+Malaysia
+
+SG
+Singapore
+
+US
+United States
+
+Check the prerequisites and steps to integrate Razorpay Subscriptions:
+
+Prerequisites
+Create a Razorpay account.
+Log in to the Dashboard and generate the API keys. You need to use these keys while using our APIs and Checkout.
+Integration Steps
+Follow these steps to integrate Razorpay Subscriptions:
+
+1. Build Integration
+
+Create Plan, Subscription and integrate with Standard Checkout.
+
+2. Test Integration
+
+Test the integration by making a test payment.
+
+3. Go-live Checklist
+
+Check the go-live checklist.
+
+1. Build Integration
+Follow these steps to create plans, subscriptions and accept payments from customers.
+
+Step 1.1 Create a Plan
+A Plan is a foundation on which a Subscription is built. It acts as a reusable template and contains details of the goods or services offered with the amount to be charged and the frequency at which the customer should be charged (billing cycle). Depending on your business, you can create multiple Plans with different billing cycles and pricing.
+
+Create a Plan before creating a Subscription using your checkout.
+Create Plans from the Dashboard or using APIs.
+Step 1.2 Create a Subscription
+A Subscription contains details like the Plan, the start date, total number of billing cycles, free trial period (if any) and upfront amount to be collected.
+
+Subscriptions can be created from the Dashboard or using APIs.
+
+Step 1.3 Integrate With Standard Checkout
+After you create a Subscription, you need the customer's permission to charge their card at periodic intervals. For this, the customer has to complete an authentication/authorisation transaction.
+
+Authentication Transaction
+You can collect the authorisation transaction by passing the subscription_id along with the other options to the Razorpay Standard Checkout.
+
+Once the authorisation transaction is successful, Razorpay returns the razorpay_payment_id, razorpay_subscription_id and the razorpay_signature.
+
+Code to Add Pay Button
+
+
+copy
+
+Failure Reasons and Next Steps
+Payment Verification
+
+
+
+
+
+copy
+
+
+2. Test Integration
+You can test the integration by making a test payment using our cards:
+
+Type	Card Network	Card Type	Card Number	CVV	Expiry Date
+Domestic	Mastercard	Debit Card	5104 0600 0000 0008	Random CVV	Any future date.
+Domestic	Visa	Credit Card	4718 6091 0820 4366	Random CVV	Any future date.
+International	Mastercard	Credit Card	5104 0155 5555 5558	Random CVV	Any future date.
+3. Follow Go-live Checklist
+Consider the following steps before taking your integration live.
+
+Switch Test API Keys With Live API Keys
+After confirming if your integration is working successfully, you can take the integration live by switching the Test Mode API Keys with the Live Mode Keys.
+
+Watch this video to know how to generate Live API keys:
+
+
+Subscribe to Webhooks
+Set up Razorpay Webhooks to configure and receive notifications when a specific event occurs. When one of these events is triggered, we send an HTTP POST payload in JSON to the webhook's configured URL. Subscribe to these Subscriptions webhook events.
+
+Best Practices
+Follow the best practices for a smooth Subscriptions integration.
+
+Verify Payments: Verify the received payments to confirm the authenticity of the mandate details returned to the Checkout form for successful payments.
+Implement Webhooks: Implement Razorpay Webhooks to receive notifications on various events of Subscriptions.

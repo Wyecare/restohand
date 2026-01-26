@@ -22,6 +22,9 @@ export class MenuCategoryResponseDto {
   @ApiProperty()
   isActive!: boolean;
 
+  @ApiProperty({ required: false })
+  imageUrl?: string;
+
   // GST Configuration fields
   @ApiProperty({ required: false })
   defaultGstRateId?: string;

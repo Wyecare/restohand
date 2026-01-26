@@ -11,6 +11,7 @@ import { PaginationUtil } from '../common/utils/pagination.util';
 import { GstRate, GstRateDocument } from '../gst/schemas/gst-rate.schema';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 import { Recipe, RecipeDocument } from '../recipes/schemas/recipe.schema';
+import { SmartGstService } from '../gst/smart-gst.service';
 
 @Injectable()
 export class MenuItemsService {
@@ -22,7 +23,8 @@ export class MenuItemsService {
     @InjectModel(Restaurant.name)
     private readonly restaurantModel: Model<RestaurantDocument>,
     @InjectModel(Recipe.name)
-    private readonly recipeModel: Model<RecipeDocument>
+    private readonly recipeModel: Model<RecipeDocument>,
+    private readonly smartGstService: SmartGstService
   ) {}
 
   async create(
@@ -36,28 +38,32 @@ export class MenuItemsService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const useDefaultGst = restaurant.applyDefaultGstToMenuItems ?? false;
-    let gstRateId = dto.gstRateId;
-    let gstRate = dto.gstRate;
+    // Use smart GST auto-configuration
+    const gstConfig = await this.smartGstService.autoConfigureMenuItemGst({
+      name: dto.name,
+      description: dto.description,
+      restaurantId
+    });
 
-    if (useDefaultGst) {
-      const defaultGst = await this.getDefaultGstRateOrThrow(restaurantId);
-      gstRateId = defaultGst.gstRateId;
-      gstRate = defaultGst.gstRate;
-    } else if (gstRateId) {
-      const gstMetadata = await this.resolveGstRate(restaurantId, gstRateId);
-      gstRateId = gstMetadata?.gstRateId;
-      if (gstRate === undefined && gstMetadata?.gstRate !== undefined) {
-        gstRate = gstMetadata.gstRate;
-      }
-    }
+    // Allow manual overrides from DTO
+    const finalGstConfig = {
+      ...gstConfig,
+      foodCategory: dto.foodCategory || gstConfig.foodCategory,
+      gstRate: dto.overrideGstRate !== undefined ? dto.overrideGstRate : gstConfig.gstRate,
+      overrideGstRate: dto.overrideGstRate,
+    };
 
     const created = await this.menuItemModel.create({
       ...dto,
-      hsnCode: dto.hsnCode?.trim(),
-      gstRateId,
-      gstRate,
       restaurantId,
+      // Smart GST fields
+      foodCategory: finalGstConfig.foodCategory,
+      hsnCode: finalGstConfig.hsnCode,
+      gstRate: finalGstConfig.gstRate,
+      overrideGstRate: finalGstConfig.overrideGstRate,
+      exemptFromGst: finalGstConfig.exemptFromGst,
+      useStateVat: finalGstConfig.useStateVat,
+      categoryConfidence: finalGstConfig.categoryConfidence,
     });
     return this.toDto(created);
   }
@@ -111,28 +117,32 @@ export class MenuItemsService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const useDefaultGst = restaurant.applyDefaultGstToMenuItems ?? false;
-    let gstRateId = dto.gstRateId;
-    let gstRate = dto.gstRate;
+    // Use smart GST auto-configuration
+    const gstConfig = await this.smartGstService.autoConfigureMenuItemGst({
+      name: dto.name,
+      description: dto.description,
+      restaurantId
+    });
 
-    if (useDefaultGst) {
-      const defaultGst = await this.getDefaultGstRateOrThrow(restaurantId);
-      gstRateId = defaultGst.gstRateId;
-      gstRate = defaultGst.gstRate;
-    } else if (gstRateId) {
-      const gstMetadata = await this.resolveGstRate(restaurantId, gstRateId);
-      gstRateId = gstMetadata?.gstRateId;
-      if (gstRate === undefined && gstMetadata?.gstRate !== undefined) {
-        gstRate = gstMetadata.gstRate;
-      }
-    }
+    // Allow manual overrides from DTO
+    const finalGstConfig = {
+      ...gstConfig,
+      foodCategory: dto.foodCategory || gstConfig.foodCategory,
+      gstRate: dto.overrideGstRate !== undefined ? dto.overrideGstRate : gstConfig.gstRate,
+      overrideGstRate: dto.overrideGstRate,
+    };
 
     const created = await this.menuItemModel.create({
       ...dto,
-      hsnCode: dto.hsnCode?.trim(),
-      gstRateId,
-      gstRate,
       restaurantId,
+      // Smart GST fields
+      foodCategory: finalGstConfig.foodCategory,
+      hsnCode: finalGstConfig.hsnCode,
+      gstRate: finalGstConfig.gstRate,
+      overrideGstRate: finalGstConfig.overrideGstRate,
+      exemptFromGst: finalGstConfig.exemptFromGst,
+      useStateVat: finalGstConfig.useStateVat,
+      categoryConfidence: finalGstConfig.categoryConfidence,
       branchId,
     });
     return this.toDto(created);

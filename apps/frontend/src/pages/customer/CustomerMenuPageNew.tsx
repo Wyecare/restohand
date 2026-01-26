@@ -10,6 +10,7 @@ import {
   useCreateOrderMutation,
   useAddItemsToOrderMutation,
 } from '@/store/api/ordersApi';
+import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
   Plus,
@@ -44,22 +45,7 @@ type AugmentedMenuItem = PublicMenuCategory['items'][number] & {
   _isQuick: boolean;
 };
 
-// Session storage key for current order
-const CURRENT_ORDER_KEY = 'restohand:current-order';
-
-interface CurrentOrder {
-  id: string;
-  orderNumber: string;
-  restaurantId: string;
-  items: Array<{
-    menuItemId: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }>;
-  totalAmount: number;
-  createdAt: string;
-}
+// Removed session storage - using real-time API data only
 
 const AccessibleEmoji = ({
   symbol,
@@ -105,36 +91,46 @@ export default function CustomerMenuPageNew() {
   const tableFromUrl = searchParams.get('table');
   const tableIdFromUrl = searchParams.get('tableId');
 
-  // Get current order from storage
-  const [currentOrder, setCurrentOrder] = useState<CurrentOrder | null>(() => {
-    const stored = sessionStorage.getItem(CURRENT_ORDER_KEY);
-    return stored ? JSON.parse(stored) : null;
-  });
+  // Removed session storage - activeOrder comes directly from API
 
   // Local cart for new items before placing order
-  const [cart, setCart] = useState<Array<{
-    menuItemId: string;
-    name: string;
-    quantity: number;
-    price: number;
-  }>>([]);
+  const [cart, setCart] = useState<
+    Array<{
+      menuItemId: string;
+      name: string;
+      quantity: number;
+      price: number;
+    }>
+  >([]);
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
-  const { data, isLoading, isError } = useGetPublicMenuQuery(
+  const { data, isLoading, isError, refetch } = useGetPublicMenuQuery(
     { slug, table: tableFromUrl, tableId: tableIdFromUrl },
     { skip: !slug }
   );
 
   const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
-  const [addItemsToOrder, { isLoading: isAddingItems }] = useAddItemsToOrderMutation();
+  const [addItemsToOrder, { isLoading: isAddingItems }] =
+    useAddItemsToOrderMutation();
 
   // Extract data from the API response
   const restaurant = data?.restaurant;
   const menu = data?.menu;
   const activeOrderFromAPI = data?.activeOrder;
+
+  // Setup WebSocket for real-time order updates
+  useOrdersSocket({
+    onEvent: (order) => {
+      // Refetch menu data to get updated activeOrder when our order is updated
+      if (activeOrderFromAPI && order.id === activeOrderFromAPI.id) {
+        refetch();
+      }
+    },
+    enabled: !!activeOrderFromAPI, // Only listen when we have an active order
+  });
 
   const categories = useMemo(() => menu?.categories ?? [], [menu]);
   const uncategorised = useMemo(() => menu?.uncategorised ?? [], [menu]);
@@ -228,14 +224,18 @@ export default function CustomerMenuPageNew() {
     return displayCategories;
   }, [categories, filteredProducts]);
 
-  // Check if we have an existing order (from API or storage)
-  const hasActiveOrder = currentOrder || activeOrderFromAPI;
+  // Check if we have an existing order from API only
+  const hasActiveOrder = !!activeOrderFromAPI;
 
-  const handleAddToCart = (id: string, name: string, pricing: MenuItemPricing) => {
-    const existingIndex = cart.findIndex(item => item.menuItemId === id);
+  const handleAddToCart = (
+    id: string,
+    name: string,
+    pricing: MenuItemPricing
+  ) => {
+    const existingIndex = cart.findIndex((item) => item.menuItemId === id);
 
     if (existingIndex >= 0) {
-      setCart(prev =>
+      setCart((prev) =>
         prev.map((item, index) =>
           index === existingIndex
             ? { ...item, quantity: item.quantity + 1 }
@@ -243,24 +243,27 @@ export default function CustomerMenuPageNew() {
         )
       );
     } else {
-      setCart(prev => [...prev, {
-        menuItemId: id,
-        name,
-        quantity: 1,
-        price: pricing.amount,
-      }]);
+      setCart((prev) => [
+        ...prev,
+        {
+          menuItemId: id,
+          name,
+          quantity: 1,
+          price: pricing.amount,
+        },
+      ]);
     }
   };
 
   const handleRemoveFromCart = (id: string) => {
-    const existingIndex = cart.findIndex(item => item.menuItemId === id);
+    const existingIndex = cart.findIndex((item) => item.menuItemId === id);
 
     if (existingIndex >= 0) {
       const item = cart[existingIndex];
       if (item.quantity === 1) {
-        setCart(prev => prev.filter((_, index) => index !== existingIndex));
+        setCart((prev) => prev.filter((_, index) => index !== existingIndex));
       } else {
-        setCart(prev =>
+        setCart((prev) =>
           prev.map((item, index) =>
             index === existingIndex
               ? { ...item, quantity: item.quantity - 1 }
@@ -276,13 +279,16 @@ export default function CustomerMenuPageNew() {
     return item ? item.quantity : 0;
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const cartTotal = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handlePlaceOrder = async () => {
     if (!restaurant || cart.length === 0) return;
 
-    const orderItems = cart.map(item => ({
+    const orderItems = cart.map((item) => ({
       menuItemId: item.menuItemId,
       name: item.name,
       quantity: item.quantity,
@@ -293,63 +299,54 @@ export default function CustomerMenuPageNew() {
     }));
 
     try {
-      // Customer info for first order
+      // Customer info for first order - include tableId for proper branch isolation
       const customerInfo = {
         customerName: 'Guest Customer', // We'll add a form for this later
         tableNumber: tableFromUrl || undefined,
+        tableId: tableIdFromUrl || undefined, // CRITICAL: Include tableId for branch lookup
       };
 
-      if (hasActiveOrder && currentOrder) {
+      if (hasActiveOrder && activeOrderFromAPI) {
         // Add to existing order
         await addItemsToOrder({
           restaurantId: restaurant.id,
-          orderId: currentOrder.id,
+          orderId: activeOrderFromAPI.id,
           items: orderItems,
           notes: `Additional items ordered at ${new Date().toLocaleTimeString()}`,
         }).unwrap();
 
         toast({
           title: 'Items added to your order! 🎉',
-          description: `${cartItemCount} items added to order #${currentOrder.orderNumber}`,
+          description: `${cartItemCount} items added to order #${activeOrderFromAPI.orderNumber}`,
         });
       } else {
-        // Create new order
+        // Create new order with tableId for proper branch isolation
         const result = await createOrder({
           restaurantId: restaurant.id,
           items: orderItems,
           ...customerInfo,
-          paymentMethod: 'pending', // Order first, pay later
+          paymentMethod: 'upi', // Default to UPI for customer orders
         }).unwrap();
-
-        // Store current order info
-        const newCurrentOrder: CurrentOrder = {
-          id: result.id,
-          orderNumber: result.orderNumber,
-          restaurantId: restaurant.id,
-          items: cart,
-          totalAmount: cartTotal,
-          createdAt: new Date().toISOString(),
-        };
-
-        setCurrentOrder(newCurrentOrder);
-        sessionStorage.setItem(CURRENT_ORDER_KEY, JSON.stringify(newCurrentOrder));
 
         toast({
           title: 'Order placed! 🎉',
           description: `Order #${result.orderNumber} sent to kitchen`,
         });
+
+        // Clear cart after successful order
+        setCart([]);
+
+        // Navigate to order status
+        const tableSuffix = tableFromUrl
+          ? `?table=${encodeURIComponent(tableFromUrl)}`
+          : '';
+        navigate(`/c/${slug}/order/${result.id}${tableSuffix}`);
       }
 
-      // Clear cart after successful order
-      setCart([]);
-
-      // Navigate to order status
-      const orderId = currentOrder?.id || hasActiveOrder ? activeOrderFromAPI?.id : undefined;
-      if (orderId) {
-        const tableSuffix = tableFromUrl ? `?table=${encodeURIComponent(tableFromUrl)}` : '';
-        navigate(`/c/${slug}/order/${orderId}${tableSuffix}`);
+      // Clear cart after successful order if adding to existing
+      if (hasActiveOrder) {
+        setCart([]);
       }
-
     } catch (error) {
       console.error('Order placement error:', error);
       toast({
@@ -361,9 +358,11 @@ export default function CustomerMenuPageNew() {
   };
 
   const handleViewOrder = () => {
-    const orderId = currentOrder?.id || activeOrderFromAPI?.id;
+    const orderId = activeOrderFromAPI?.id;
     if (orderId) {
-      const tableSuffix = tableFromUrl ? `?table=${encodeURIComponent(tableFromUrl)}` : '';
+      const tableSuffix = tableFromUrl
+        ? `?table=${encodeURIComponent(tableFromUrl)}`
+        : '';
       navigate(`/c/${slug}/order/${orderId}${tableSuffix}`);
     }
   };
@@ -397,7 +396,8 @@ export default function CustomerMenuPageNew() {
           />
           <h2 className="text-xl font-bold mb-2">Menu Unavailable</h2>
           <p className="text-muted-foreground mb-4">
-            Unable to load the menu. Please try refreshing or ask for assistance.
+            Unable to load the menu. Please try refreshing or ask for
+            assistance.
           </p>
           <Button
             onClick={() => window.location.reload()}
@@ -489,9 +489,11 @@ export default function CustomerMenuPageNew() {
                   <div className="flex items-center gap-2">
                     <div className="bg-green-500 rounded-full w-2 h-2 animate-pulse"></div>
                     <span className="font-medium text-green-900 dark:text-green-100 text-sm">
-                      Order #{currentOrder?.orderNumber || activeOrderFromAPI?.orderNumber}
+                      Order #{activeOrderFromAPI?.orderNumber}
                     </span>
-                    <span className="text-green-600 dark:text-green-400 text-xs">• In Progress</span>
+                    <span className="text-green-600 dark:text-green-400 text-xs">
+                      • In Progress
+                    </span>
                   </div>
                   <Button
                     variant="ghost"
@@ -516,7 +518,7 @@ export default function CustomerMenuPageNew() {
                 <CallWaiterButton
                   tableId={tableFromUrl}
                   restaurantId={restaurant.id}
-                  orderId={currentOrder?.id || activeOrderFromAPI?.id}
+                  orderId={activeOrderFromAPI?.id}
                 />
               </motion.div>
             )}
@@ -534,13 +536,22 @@ export default function CustomerMenuPageNew() {
                     }
                     size="sm"
                     onClick={() => setActiveCategory(category.id)}
-                    className="shrink-0 h-9 px-4 rounded-full"
+                    className="shrink-0 h-12 px-4"
                   >
-                    <AccessibleEmoji
-                      symbol={category.icon.symbol}
-                      label={category.icon.label}
-                      className="mr-1.5"
-                    />
+                    {category.imageUrl ? (
+                      <img
+                        src={category.imageUrl}
+                        alt={category.name}
+                        className="h-11 w-5 mr-2 flex-shrink-0 object-cover rounded-full"
+                      />
+                    ) : (
+                      <AccessibleEmoji
+                        symbol={category.icon.symbol}
+                        label={category.icon.label}
+                        className="mr-1.5"
+                      />
+                    )}
+
                     {category.name}
                   </Button>
                 ))}
@@ -556,7 +567,7 @@ export default function CustomerMenuPageNew() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="p-4 max-w-2xl mx-auto"
+        className="p-0 max-w-2xl mx-auto"
       >
         {displayItems.length === 0 ? (
           <div className="text-center py-16">
@@ -673,7 +684,11 @@ export default function CustomerMenuPageNew() {
                               size="icon"
                               className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
                               onClick={() =>
-                                handleAddToCart(item.id, item.name, item.pricing)
+                                handleAddToCart(
+                                  item.id,
+                                  item.name,
+                                  item.pricing
+                                )
                               }
                             >
                               <Plus className="h-3.5 w-3.5" />

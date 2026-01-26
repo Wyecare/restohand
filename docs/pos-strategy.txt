@@ -1,0 +1,57 @@
+POS System Go-To-Market Strategy
+
+1. SUBSCRIPTION TIERS
+STARTER - ₹699/month
+Target: New cloud kitchens, small cafes (single location) Includes: • Single location • Up to 10 tables • Basic analytics dashboard • Email support (24hr response) • AI PDF menu extraction • QR ordering + payments • First month FREE
+
+PROFESSIONAL - ₹1,299/month (RECOMMENDED)
+Target: Growing QSRs, established cafes (2-3 locations) Includes: • Multiple locations (up to 3) • Unlimited tables • Advanced analytics & reports • Priority WhatsApp support • Custom branding on receipts • Inventory alerts • All Starter features • First month FREE
+
+ENTERPRISE - ₹2,499/month
+Target: Restaurant chains, franchises (4+ locations) Includes: • Unlimited locations • Dedicated account manager • Phone support • Custom integrations on request • Advanced inventory management • Multi-branch analytics • All Professional features • First month FREE
+
+2. PRICING ROLLOUT STRATEGY
+Phase 1: First 20 Customers (Months 1-4)
+Price: ₹699/month • Lock them at this price FOREVER ("founding member rate") • Get testimonials and case studies • Goal: Prove product works
+Phase 2: Next 30 Customers (Months 5-7)
+Price: ₹999/month • Market as "early adopter pricing" • Say: "Normal price is ₹1,299, you get ₹999" • Test higher price acceptance • Goal: 50 total customers
+Phase 3: Scale (Month 8+)
+Launch Full Tiered Pricing • Starter: ₹699 (basic features only) • Professional: ₹1,299 (main offering) • Enterprise: ₹2,499 (custom) • Grandfather existing customers at their rate • Goal: 100+ customers by Month 12
+
+3. BEATING EXISTING POS SYSTEMS
+Your Competitive Advantages:
+1. ZERO HARDWARE COST    Competitors: ₹15,000-50,000 upfront    You: ₹0  2. AI PDF MENU EXTRACTION    Competitors: Manual entry (2-3 hours)    You: Upload PDF, done in 2 minutes  3. FASTEST SETUP    Competitors: 2-5 days    You: 30 minutes  4. LOWEST PRICE    Petpooja: ₹833/month + hardware    POSist: ₹2,083/month + hardware    DotPe: 2-3% commission    You: ₹699-1,299/month, no hardware
+Against "We Already Have a POS":
+The Pitch: "That's great - means you understand the value. Quick question: How much did the hardware cost? And monthly fees?  Most of our customers switched because: • No hardware lock-in - use any phone/tablet • Lower monthly cost • AI menu setup (2 min vs 2 hours) • First month free to compare side-by-side  If you're happy with what you have, that's fine. But try us free for 30 days - worst case, you switch back."
+Against "Too Expensive":
+Break Down the Math: "₹699/month is ₹23/day - less than one order mistake or wasted dish.  Current losses: • Manual order errors: ₹50-100/day • Printer paper: ₹15-25/day • Printer maintenance: ₹500/month  Plus regular POS costs ₹15,000-30,000 upfront. You save that entire cost. First month is free anyway - let's just try it?"
+
+4. TARGET CUSTOMERS (WHO TO APPROACH)
+PRIMARY TARGETS (Highest Success Rate):
+✓ NEW cloud kitchens (launched in last 6 months)   Why: No existing system, need cheap solution  ✓ Small cafes (20-50 orders/day, 1-2 locations)   Why: Can't afford Petpooja hardware  ✓ Co-working space cafeterias   Why: Tech-savvy customers, QR-friendly  ✓ Food courts (multiple vendors)   Why: Shared seating, QR makes sense  ✓ College/office canteens   Why: Young crowd, high volume, budget-conscious
+AVOID (Waste of Time):
+✗ Established restaurants with existing POS (happy with it) ✗ Fine dining (need printed bills, formal service) ✗ Very high volume QSRs (need proven reliability) ✗ Restaurants with owners 50+ years old (tech resistance)
+
+5. WEEK-BY-WEEK ACTION PLAN
+Week 1-2: Get 3 Pilot Restaurants
+• Contact personal network (friends/family restaurants) • Offer: FREE for 3 months, no commitment • Set up system personally • Visit weekly to fix issues • Record video testimonials
+Week 3-4: Expand to 10 Pilots
+• Walk into 20 cloud kitchens in your area • Visit during off-hours (3-5 PM) • Give 5-minute live demo on your phone • Same offer: FREE for 3 months
+Week 5-8: First Paying Customers
+• Start charging ₹699/month (first month free) • Use pilot testimonials in pitch • Visit 5 restaurants per day • WhatsApp outreach: 50 messages/day • Goal: 5 paying customers by Week 8
+Month 3-6: Scale to 50 Customers
+• Increase to ₹999/month for new customers • Launch Facebook/Instagram ads (₹500/day) • Hire commission-based salesperson • Create YouTube demo videos • Join restaurant owner WhatsApp groups • Goal: 50 total customers
+Month 6-12: Launch Full Tiers
+• Launch Starter/Professional/Enterprise pricing • Most customers choose Professional (₹1,299) • Hire 2nd salesperson • Hire support person • Goal: 100+ customers by Month 12
+
+6. SUCCESS METRICS TO TRACK
+Weekly Tracking: • Restaurants contacted: ___ • Demos given: ___ • Trials started: ___ • Paying conversions: ___ • Active restaurants: ___ • Monthly Recurring Revenue: ₹___ • Churn rate: ____%  Key Milestones: ✓ Month 2: 10 pilot restaurants ✓ Month 4: 20 paying customers (₹14,000 MRR) ✓ Month 6: 50 paying customers (₹35,000+ MRR) ✓ Month 9: 80 paying customers (₹56,000+ MRR) ✓ Month 12: 100 paying customers (₹100,000+ MRR)  
+⚠ WARNING: If you're not at 20 paying customers by Month 5, something is wrong. Pivot your approach or reconsider.
+
+7. REVENUE PROJECTIONS
+Flat ₹699/month Pricing:
+• 50 customers = ₹34,950/month (₹4.2L/year) • 100 customers = ₹69,900/month (₹8.4L/year) • 200 customers = ₹1,39,800/month (₹16.8L/year)
+Tiered Pricing (₹1,239 average):
+• 50 customers = ₹61,950/month (₹7.4L/year) • 100 customers = ₹1,23,900/month (₹14.8L/year) • 200 customers = ₹2,47,800/month (₹29.7L/year)  Difference: 77% more revenue at same customer count
+8. CRITICAL REMINDERS
+1. DEMO MUST BE FLAWLESS    Practice 20 times before first pitch  2. SUPPORT IS EVERYTHING    First 30 customers = over-support them    Any downtime = immediate churn  3. SALES IS A NUMBERS GAME    100 conversations → 10 trials → 1 customer    Must talk to 10 restaurants per day  4. GET TESTIMONIALS EARLY    Video > Text    Record on phone, no editing needed  5. DON'T BUILD MORE FEATURES    Fix offline mode, polish demo, then SELL    Features don't matter until you have customers

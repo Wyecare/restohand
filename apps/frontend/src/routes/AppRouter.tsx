@@ -23,7 +23,7 @@ import ForbiddenPage from '@/pages/ForbiddenPage';
 import ReportsPage from '@/pages/ReportsPage';
 import ReceiptPage from '@/pages/ReceiptPage';
 import ReceiptLookupPage from '@/pages/ReceiptLookupPage';
-import GstSettingsPage from '@/pages/GstSettingsPage';
+import GstSetupWizard from '@/pages/GstSetupWizard';
 import CustomerQrPage from '@/pages/CustomerQrPage';
 import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
 import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
@@ -90,7 +90,8 @@ const AppRouter = () => {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="orders" element={<OrdersPage />} />
-          <Route path="menu" element={<MenuManagementPage />} />
+          {/* CHANGED: Added /* to enable nested routing */}
+          <Route path="menu/*" element={<MenuManagementPage />} />
           <Route path="menu-advanced" element={<ImprovedMenuPage />} />
           <Route path="menu-simple" element={<SimpleMenuPage />} />
           <Route path="menu-old" element={<MenuPage />} />
@@ -104,10 +105,11 @@ const AppRouter = () => {
           <Route path="reports" element={<ReportsPage />} />
           <Route path="subscription" element={<SubscriptionPage />} />
           <Route path="settings" element={<SettingsPageNew />} />
+          <Route path="settings/gst" element={<SettingsPageNew />} />
+          <Route path="settings/gst/setup" element={<GstSetupWizard />} />
           {/* floor plan */}
           {/* <Route path="floor-plan" element={<FloorPlanDashboardPage />} />
           <Route path="floor-plan/config" element={<FloorPlanConfigPage />} /> */}
-          <Route path="settings/gst" element={<SettingsPageNew />} />
         </Route>
 
         {/* Staff routes removed from admin - handled by StaffRouter */}

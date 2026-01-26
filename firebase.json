@@ -96,6 +96,21 @@
     },
 
     {
+      "target": "api",
+      "public": "public-api",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "dev-api",
+            "region": "asia-south1"
+          }
+        }
+      ]
+    },
+
+    {
       "target": "main",
       "public": "apps/frontend/dist",
       "rewrites": [

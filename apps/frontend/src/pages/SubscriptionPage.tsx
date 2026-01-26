@@ -1,496 +1,763 @@
-import React, { useState } from 'react';
-import {
-  useGetSubscriptionStatusQuery,
-  useCreateSubscriptionMutation,
-  useReactivateSubscriptionMutation,
-  useGetPaymentHistoryQuery,
-} from '../store/api/subscriptionsApi';
-import { useAppSelector } from '../store/hooks';
-import {
-  selectActiveRestaurantId,
-  selectAuthSession,
-} from '../store/slices/authSlice';
+import { useState, useMemo } from 'react';
+import { Navigate } from 'react-router-dom';
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-} from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/components/ui/use-toast';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '../components/ui/tabs';
-import {
+  Check,
+  Crown,
+  Zap,
+  Building2,
   CreditCard,
   Calendar,
-  CheckCircle,
-  AlertCircle,
-  Crown,
-  Clock,
-  Receipt,
-  Zap,
-  Shield,
   Users,
+  BarChart3,
+  HeadphonesIcon,
+  Settings,
+  Star,
+  Sparkles,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  X,
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { useToast } from '@/components/ui/use-toast';
+import { useAppSelector } from '@/store/hooks';
+import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import {
+  useGetAllPlansQuery,
+  useGetSubscriptionStatusQuery,
+  useCreateSubscriptionMutation,
+  useUpdateSubscriptionMutation,
+  usePauseSubscriptionMutation,
+  useResumeSubscriptionMutation,
+  useCancelSubscriptionMutation,
+  useGetPaymentHistoryQuery,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  PlanOption,
+} from '@/store/api/subscriptionsApi';
+import { subscribe } from 'diagnostics_channel';
 
-const SubscriptionPage: React.FC = () => {
+const SubscriptionPage = () => {
+  const [isYearly, setIsYearly] = useState(false);
+  const [selectedPlanType, setSelectedPlanType] =
+    useState<SubscriptionPlan | null>(null);
   const { toast } = useToast();
-  const restaurantId = useAppSelector(selectActiveRestaurantId);
-  const session = useAppSelector(selectAuthSession);
-  const [isCreating, setIsCreating] = useState(false);
+  const activeRestaurantId = useAppSelector(selectActiveRestaurantId);
+
+  // API queries
+  const {
+    data: plansResponse,
+    isLoading: plansLoading,
+    error: plansError,
+  } = useGetAllPlansQuery();
+
+  const plans = plansResponse?.plans || [];
 
   const {
-    data: subscriptionData,
-    isLoading: isLoadingStatus,
+    data: subscriptionStatus,
+    isLoading: statusLoading,
+    error: statusError,
     refetch: refetchStatus,
-  } = useGetSubscriptionStatusQuery(restaurantId || '', {
-    skip: !restaurantId,
+  } = useGetSubscriptionStatusQuery(activeRestaurantId || '', {
+    skip: !activeRestaurantId,
   });
 
-  const { data: paymentHistory } = useGetPaymentHistoryQuery(
-    restaurantId || '',
-    {
-      skip: !restaurantId,
-    }
-  );
+  const { data: paymentHistory, isLoading: historyLoading } =
+    useGetPaymentHistoryQuery(activeRestaurantId || '', {
+      skip: !activeRestaurantId,
+    });
 
-  const [createSubscription] = useCreateSubscriptionMutation();
-  const [reactivateSubscription] = useReactivateSubscriptionMutation();
+  // Mutations
+  const [createSubscription, { isLoading: creating }] =
+    useCreateSubscriptionMutation();
+  const [updateSubscription, { isLoading: updating }] =
+    useUpdateSubscriptionMutation();
+  const [pauseSubscription, { isLoading: pausing }] =
+    usePauseSubscriptionMutation();
+  const [resumeSubscription, { isLoading: resuming }] =
+    useResumeSubscriptionMutation();
+  const [cancelSubscription, { isLoading: cancelling }] =
+    useCancelSubscriptionMutation();
 
-  const handleCreateSubscription = async () => {
-    if (!restaurantId) {
-      toast({
-        title: 'Error',
-        description: 'Restaurant ID not found',
-        variant: 'destructive',
-      });
-      return;
-    }
+  // Filter plans based on billing cycle and exclude founding/early adopter plans
+  const filteredPlans = useMemo(() => {
+    const period = isYearly ? 'yearly' : 'monthly';
+    return plans.filter((plan) => {
+      // Exclude founding member and early adopter tiers
+      if (plan.tier === 'founding_member' || plan.tier === 'early_adopter') {
+        return false;
+      }
 
-    setIsCreating(true);
-    try {
-      await createSubscription(restaurantId).unwrap();
-      toast({
-        title: 'Success',
-        description: 'Subscription created successfully!',
-      });
-      refetchStatus();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error?.data?.message || 'Failed to create subscription',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  };
+      // Include production plans based on selected period
+      if (plan.period === period && !plan.isTestPlan) {
+        return true;
+      }
 
-  const handleReactivate = async () => {
-    if (!restaurantId) return;
+      // Include all test plans regardless of period (for development)
+      if (plan.isTestPlan) {
+        return true;
+      }
 
-    try {
-      await reactivateSubscription(restaurantId).unwrap();
-      toast({
-        title: 'Success',
-        description: 'Subscription reactivated successfully!',
-      });
-      refetchStatus();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description:
-          error?.data?.message || 'Failed to reactivate subscription',
-        variant: 'destructive',
-      });
-    }
-  };
+      return false;
+    });
+  }, [plans, isYearly]);
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'default';
-      case 'suspended':
-      case 'cancelled':
-        return 'destructive';
-      case 'pending':
-        return 'secondary';
-      case 'trial':
-        return 'outline';
-      default:
-        return 'secondary';
-    }
-  };
+  if (!activeRestaurantId) {
+    return <Navigate to="/auth/login" replace />;
+  }
 
-  if (isLoadingStatus) {
+  if (plansLoading || statusLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner />
       </div>
     );
   }
 
-  const isSubscribed = subscriptionData?.isActive;
-  const nextBillingDate = subscriptionData?.nextBillingDate
-    ? new Date(subscriptionData.nextBillingDate)
-    : null;
+  if (plansError || statusError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Error Loading Subscription Data
+            </CardTitle>
+            <CardDescription>
+              Failed to load subscription plans and status. Please try again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => window.location.reload()} className="w-full">
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            RestoHand Subscription
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Powerful restaurant management made simple
-          </p>
-        </div>
+  const handleCreateSubscription = async (planId: string) => {
+    if (!activeRestaurantId) return;
 
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[400px] mx-auto">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
-            <TabsTrigger value="features">Features</TabsTrigger>
-          </TabsList>
+    try {
+      await createSubscription({
+        restaurantId: activeRestaurantId,
+        planId,
+        customerNotify: true,
+        notes: { source: 'subscription_page' },
+      }).unwrap();
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Current Plan */}
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Crown className="h-5 w-5 text-primary" />
-                    Current Plan
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {isSubscribed ? (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-2xl font-bold text-foreground">
-                            RestoHand Standard
-                          </h3>
-                          <p className="text-muted-foreground">
-                            Full-featured restaurant management
-                          </p>
-                        </div>
-                        <Badge
-                          variant={getStatusVariant(
-                            subscriptionData?.status || ''
-                          )}
-                        >
-                          {subscriptionData?.status?.toUpperCase()}
-                        </Badge>
-                      </div>
+      toast({
+        title: 'Subscription Created',
+        description: 'Your subscription has been created successfully!',
+      });
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            Monthly Price
-                          </p>
-                          <p className="text-2xl font-bold text-foreground">
-                            ₹799
-                          </p>
-                        </div>
-                        {nextBillingDate && (
-                          <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">
-                              Next Billing
-                            </p>
-                            <p className="text-lg font-semibold text-foreground">
-                              {format(nextBillingDate, 'MMM d, yyyy')}
-                            </p>
-                          </div>
-                        )}
-                      </div>
+      refetchStatus();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.data?.message || 'Failed to create subscription',
+        variant: 'destructive',
+      });
+    }
+  };
 
-                      {subscriptionData?.razorpaySubscription && (
-                        <div className="mt-4 p-4 bg-muted border border-border rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                            <span className="font-medium text-foreground">
-                              Razorpay Subscription Active
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            ID: {subscriptionData.razorpaySubscription.id}
-                          </p>
-                        </div>
-                      )}
+  const handleUpdateSubscription = async (planType: SubscriptionPlan) => {
+    if (!subscriptionStatus?.subscription?.id) return;
 
-                      {(subscriptionData?.status === 'suspended' ||
-                        subscriptionData?.status === 'cancelled') && (
-                        <Button
-                          onClick={handleReactivate}
-                          className="w-full"
-                          variant="default"
-                        >
-                          Reactivate Subscription
-                        </Button>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center py-8">
-                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-foreground mb-2">
-                        No Active Subscription
-                      </h3>
-                      <p className="text-muted-foreground mb-6">
-                        Subscribe to RestoHand to unlock powerful restaurant
-                        management features
-                      </p>
-                      <Button
-                        onClick={handleCreateSubscription}
-                        disabled={isCreating}
-                        className="bg-primary hover:bg-primary/90"
-                        size="lg"
-                      >
-                        {isCreating
-                          ? 'Creating...'
-                          : 'Subscribe Now - ₹799/month'}
-                      </Button>
-                    </div>
+    try {
+      await updateSubscription({
+        subscriptionId: subscriptionStatus.subscription.id,
+        data: {
+          planType,
+          customerNotify: true,
+          notes: { upgrade_reason: 'user_requested' },
+        },
+      }).unwrap();
+
+      toast({
+        title: 'Plan Updated',
+        description: 'Your subscription plan has been updated successfully!',
+      });
+
+      refetchStatus();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.data?.message || 'Failed to update subscription',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handlePauseSubscription = async () => {
+    if (!subscriptionStatus?.subscription?.id) return;
+
+    try {
+      await pauseSubscription(subscriptionStatus.subscription.id).unwrap();
+      toast({
+        title: 'Subscription Paused',
+        description: 'Your subscription has been paused.',
+      });
+      refetchStatus();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.data?.message || 'Failed to pause subscription',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleResumeSubscription = async () => {
+    if (!subscriptionStatus?.subscription?.id) return;
+
+    try {
+      await resumeSubscription(subscriptionStatus.subscription.id).unwrap();
+      toast({
+        title: 'Subscription Resumed',
+        description: 'Your subscription has been resumed.',
+      });
+      refetchStatus();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.data?.message || 'Failed to resume subscription',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCancelSubscription = async (cancelAtCycleEnd = true) => {
+    if (!subscriptionStatus?.subscription?.id) return;
+
+    try {
+      await cancelSubscription({
+        subscriptionId: subscriptionStatus.subscription.id,
+        cancelAtCycleEnd,
+      }).unwrap();
+
+      toast({
+        title: 'Subscription Cancelled',
+        description: cancelAtCycleEnd
+          ? 'Your subscription will be cancelled at the end of the billing cycle.'
+          : 'Your subscription has been cancelled immediately.',
+      });
+
+      refetchStatus();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.data?.message || 'Failed to cancel subscription',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getFeatureIcon = (featureKey: string) => {
+    const iconMap: Record<
+      string,
+      React.ComponentType<{ className?: string }>
+    > = {
+      locations: Building2,
+      tables: Users,
+      analytics: BarChart3,
+      support: HeadphonesIcon,
+      customBranding: Settings,
+      inventoryAlerts: Star,
+      customIntegrations: CreditCard,
+      dedicatedManager: Crown,
+    };
+    return iconMap[featureKey] || CheckCircle;
+  };
+
+  const formatPrice = (amount: number) => {
+    return `₹${(amount / 100).toLocaleString('en-IN')}`;
+  };
+
+  const formatFeatureValue = (value: number | string) => {
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+    return value === 'unlimited' ? 'Unlimited' : value;
+  };
+
+  const getStatusColor = (status: SubscriptionStatus) => {
+    switch (status) {
+      case SubscriptionStatus.ACTIVE:
+      case SubscriptionStatus.AUTHENTICATED:
+        return 'text-green-600';
+      case SubscriptionStatus.PAUSED:
+      case SubscriptionStatus.PENDING:
+        return 'text-yellow-600';
+      case SubscriptionStatus.CANCELLED:
+      case SubscriptionStatus.HALTED:
+      case SubscriptionStatus.EXPIRED:
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  const getPlanIcon = (tier: string) => {
+    if (tier === 'starter') return Zap;
+    if (tier === 'professional') return Crown;
+    if (tier === 'enterprise') return Building2;
+    return Star;
+  };
+
+  const renderCurrentSubscription = () => {
+    if (
+      !subscriptionStatus?.hasSubscription ||
+      !subscriptionStatus.subscription
+    ) {
+      return (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              No Active Subscription
+            </CardTitle>
+            <CardDescription>
+              You don't have an active subscription. Choose a plan below to get
+              started.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      );
+    }
+
+    const { subscription, isInTrialPeriod } = subscriptionStatus;
+    const Icon = getPlanIcon(subscription.plan.planType || 'professional');
+
+    // Check if payment authorization is required
+    const requiresPaymentAuth = subscription.status === 'created' && subscription.shortUrl;
+
+    return (
+      <Card className="mb-8">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Icon className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {subscription.plan.name}
+                  <Badge
+                    variant={
+                      subscription.status === SubscriptionStatus.ACTIVE
+                        ? 'default'
+                        : 'secondary'
+                    }
+                    className={getStatusColor(subscription.status)}
+                  >
+                    {isInTrialPeriod ? 'Trial Period' : subscription.status}
+                  </Badge>
+                  {subscription.isGrandfathered && (
+                    <Badge variant="outline" className="text-purple-600">
+                      Grandfathered
+                    </Badge>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Quick Stats */}
-              <div className="space-y-4">
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-muted rounded-lg">
-                        <Calendar className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Days Until Billing
-                        </p>
-                        <p className="text-2xl font-bold text-foreground">
-                          {subscriptionData?.daysUntilBilling || 0}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-muted rounded-lg">
-                        <Zap className="h-6 w-6 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Plan Type
-                        </p>
-                        <p className="text-lg font-semibold text-foreground">
-                          Standard
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                </CardTitle>
+                <CardDescription>
+                  {formatPrice(subscription.plan.amount)} /{' '}
+                  {subscription.plan.period}
+                  {isInTrialPeriod && subscriptionStatus.trialEndsAt && (
+                    <span className="block text-green-600 font-medium">
+                      Trial ends:{' '}
+                      {new Date(subscriptionStatus.trialEndsAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </CardDescription>
               </div>
             </div>
-          </TabsContent>
+            <div className="flex gap-2">
+              {subscription.status === SubscriptionStatus.PAUSED ? (
+                <Button
+                  onClick={handleResumeSubscription}
+                  disabled={resuming}
+                  size="sm"
+                >
+                  {resuming ? 'Resuming...' : 'Resume'}
+                </Button>
+              ) : (
+                subscription.status === SubscriptionStatus.ACTIVE && (
+                  <Button
+                    variant="outline"
+                    onClick={handlePauseSubscription}
+                    disabled={pausing}
+                    size="sm"
+                  >
+                    {pausing ? 'Pausing...' : 'Pause'}
+                  </Button>
+                )
+              )}
+              {subscription.status !== SubscriptionStatus.CANCELLED && (
+                <Button
+                  variant="destructive"
+                  onClick={() => handleCancelSubscription()}
+                  disabled={cancelling}
+                  size="sm"
+                >
+                  {cancelling ? 'Cancelling...' : 'Cancel'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
 
-          {/* Billing Tab */}
-          <TabsContent value="billing" className="space-y-6">
-            <Card>
+        {/* Payment Authorization Required Section */}
+        {requiresPaymentAuth && (
+          <CardContent>
+            <Card className="border-2 border-orange-200 bg-orange-50">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Receipt className="h-5 w-5" />
-                  Payment History
+                <CardTitle className="flex items-center gap-2 text-orange-700">
+                  <CreditCard className="h-5 w-5" />
+                  Payment Authorization Required
                 </CardTitle>
+                <CardDescription className="text-orange-600">
+                  Complete your subscription setup by adding a payment method
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                {paymentHistory?.subscription ? (
-                  <div className="space-y-4">
-                    <div className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">Subscription</span>
-                        <Badge
-                          variant={getStatusVariant(
-                            paymentHistory.subscription.status
-                          )}
-                        >
-                          {paymentHistory.subscription.status.toUpperCase()}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p>ID: {paymentHistory.subscription.id}</p>
-                        <p>Plan: {paymentHistory.subscription.plan_id}</p>
-                        <p>
-                          Created:{' '}
-                          {format(
-                            new Date(
-                              paymentHistory.subscription.created_at * 1000
-                            ),
-                            'PPP'
-                          )}
+              <CardContent className="space-y-4">
+                <div className="bg-white p-4 rounded-lg border border-orange-200">
+                  <p className="text-sm text-gray-700 mb-3">
+                    Your subscription has been created but requires payment authorization to activate.
+                    Click the button below to add your payment method (Credit Card, Debit Card, UPI, etc.).
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      className="flex-1"
+                      onClick={() => window.open(subscription.shortUrl, '_blank')}
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Add Payment Method
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(subscription.shortUrl || '');
+                        toast({
+                          title: 'Payment Link Copied! 📋',
+                          description: 'Open the link to complete payment setup',
+                        });
+                      }}
+                    >
+                      Copy Link
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="text-xs text-orange-600">
+                  <p>• Your subscription will activate automatically after payment authorization</p>
+                  <p>• Recurring billing will start according to your selected plan</p>
+                  <p>• You can use Credit Card, Debit Card, UPI, or Net Banking</p>
+                </div>
+              </CardContent>
+            </Card>
+          </CardContent>
+        )}
+        {subscription.currentStart && subscription.currentEnd && (
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-gray-500" />
+                <div>
+                  <p className="text-sm font-medium">Current Period</p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(subscription.currentStart).toLocaleDateString()} -{' '}
+                    {new Date(subscription.currentEnd).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              {subscription.chargeAt && (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-gray-500" />
+                  <div>
+                    <p className="text-sm font-medium">Next Billing</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(subscription.chargeAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-gray-500" />
+                <div>
+                  <p className="text-sm font-medium">Billing Cycle</p>
+                  <p className="text-xs text-gray-500">
+                    {subscription.paidCount}/{subscription.totalCount || '∞'}{' '}
+                    payments
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    );
+  };
+
+  const renderPlanCard = (plan: PlanOption) => {
+    const Icon = getPlanIcon(plan.tier);
+    const isCurrentPlan =
+      subscriptionStatus?.subscription?.plan.razorpayPlanId === plan.id;
+
+    // Check if subscription is active (includes 'created' state for new subscriptions)
+    const isSubscriptionActive =
+      subscriptionStatus?.hasSubscription &&
+      [
+        'ACTIVE',
+        'CREATED',
+        'AUTHENTICATED',
+        'active',
+        'created',
+        'authenticated',
+      ].includes(subscriptionStatus?.subscription?.status || '');
+
+    const canUpgrade = isSubscriptionActive && !isCurrentPlan;
+    const canSubscribe =
+      !subscriptionStatus?.hasSubscription || !isSubscriptionActive; // Can subscribe if no subscription or cancelled
+
+    return (
+      <Card
+        key={plan.id}
+        className={`relative ${plan.popular ? 'ring-2 ring-purple-500' : ''}`}
+      >
+        {plan.popular && !plan.isTestPlan && (
+          <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-purple-500">
+            Most Popular
+          </Badge>
+        )}
+        {plan.isTestPlan && (
+          <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500">
+            <span role="img" aria-label="test tube">
+              🧪
+            </span>{' '}
+            Test Plan
+          </Badge>
+        )}
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className={`p-2 bg-blue-100 rounded-lg`}>
+              <Icon className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {plan.name}
+                {isCurrentPlan && (
+                  <Badge variant="outline" className="text-green-600">
+                    Current Plan
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-lg font-semibold">
+                {formatPrice(plan.amount)}
+                <span className="text-sm font-normal text-gray-500">
+                  /
+                  {plan.isTestPlan
+                    ? plan.period === 'daily'
+                      ? `${plan.interval} days`
+                      : plan.period
+                    : plan.period}
+                </span>
+                {plan.isTestPlan && (
+                  <span className="block text-xs text-blue-600">
+                    <span role="img" aria-label="test tube">
+                      🧪
+                    </span>{' '}
+                    Test Plan - Fast Billing
+                  </span>
+                )}
+                {isYearly && !plan.isTestPlan && (
+                  <span className="block text-xs text-green-600">
+                    Save annually!
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <h4 className="font-medium">Features included:</h4>
+              {plan.features.map((feature, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">{feature}</span>
+                </div>
+              ))}
+            </div>
+
+            <Separator />
+            <div className="space-y-2">
+              <Button
+                className="w-full"
+                disabled={
+                  creating ||
+                  updating ||
+                  (isCurrentPlan && isSubscriptionActive)
+                }
+                onClick={() => {
+                  if (canUpgrade) {
+                    // handleUpdateSubscription(plan.id); // TODO: Update when implementing plan updates
+                  } else if (canSubscribe) {
+                    handleCreateSubscription(plan.id);
+                  }
+                }}
+              >
+                {creating || updating
+                  ? 'Processing...'
+                  : isCurrentPlan && isSubscriptionActive
+                  ? 'Current Plan'
+                  : isCurrentPlan && !isSubscriptionActive
+                  ? 'Subscribe Again'
+                  : canUpgrade
+                  ? 'Upgrade to This Plan'
+                  : 'Subscribe Now'}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Subscription Plans</h1>
+        <p className="text-gray-600 mt-2">
+          Choose the perfect plan for your restaurant business
+        </p>
+      </div>
+
+      {renderCurrentSubscription()}
+
+      <div className="mb-8">
+        <div className="flex items-center justify-center gap-4">
+          <Button
+            variant={!isYearly ? 'default' : 'outline'}
+            onClick={() => setIsYearly(false)}
+            className="flex items-center gap-2"
+          >
+            Monthly
+          </Button>
+          <Button
+            variant={isYearly ? 'default' : 'outline'}
+            onClick={() => setIsYearly(true)}
+            className="flex items-center gap-2"
+          >
+            <Badge variant="secondary" className="text-xs">
+              17% OFF
+            </Badge>
+            Yearly
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {filteredPlans.map(renderPlanCard)}
+      </div>
+
+      {/* Payment History Section */}
+      {subscriptionStatus?.hasSubscription && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Payment History</CardTitle>
+            <CardDescription>
+              Your recent subscription payments and invoices
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <LoadingSpinner />
+              </div>
+            ) : paymentHistory?.payments.length ? (
+              <div className="space-y-3">
+                {paymentHistory.payments.map((payment, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="h-5 w-5 text-gray-500" />
+                      <div>
+                        <p className="font-medium">
+                          {formatPrice(payment.amount)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(payment.paidAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
-
-                    {paymentHistory.payments.length === 0 && (
-                      <p className="text-center text-muted-foreground py-4">
-                        No payment history available yet
-                      </p>
-                    )}
+                    <Badge
+                      variant={
+                        payment.status === 'captured' ? 'default' : 'secondary'
+                      }
+                    >
+                      {payment.status}
+                    </Badge>
                   </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">
-                    No billing information available
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Features Tab */}
-          <TabsContent value="features" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Core Features */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 " />
-                    Staff Management
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Staff roles & permissions</li>
-                    <li>• Invitation management</li>
-                    <li>• Activity tracking</li>
-                    <li>• Performance analytics</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Receipt className="h-5 w-5 text-green-600" />
-                    Order Management
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Real-time order tracking</li>
-                    <li>• Kitchen display system</li>
-                    <li>• Order history & analytics</li>
-                    <li>• Customer communication</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-purple-600" />
-                    Security & Reports
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Advanced security features</li>
-                    <li>• Detailed reporting</li>
-                    <li>• Data export capabilities</li>
-                    <li>• Compliance tools</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-yellow-600" />
-                    Payment Processing
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Multiple payment methods</li>
-                    <li>• Secure transactions</li>
-                    <li>• Automated billing</li>
-                    <li>• Financial reporting</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-red-600" />
-                    24/7 Support
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Round-the-clock assistance</li>
-                    <li>• Technical support</li>
-                    <li>• Feature training</li>
-                    <li>• Priority response</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5 text-orange-600" />
-                    Performance
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>• Lightning-fast interface</li>
-                    <li>• Real-time updates</li>
-                    <li>• Cloud-based reliability</li>
-                    <li>• Automatic backups</li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Bottom CTA */}
-        {!isSubscribed && (
-          <Card className="mt-8 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground">
-            <CardContent className="p-8 text-center">
-              <h2 className="text-2xl font-bold mb-2">Ready to get started?</h2>
-              <p className="text-primary-foreground/80 mb-6">
-                Join thousands of restaurants using RestoHand to streamline
-                their operations
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">
+                No payment history available
               </p>
-              <Button
-                onClick={handleCreateSubscription}
-                disabled={isCreating}
-                size="lg"
-                variant="secondary"
-                className="bg-background text-foreground hover:bg-muted"
-              >
-                {isCreating
-                  ? 'Creating Subscription...'
-                  : 'Start Your Subscription - ₹799/month'}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* FAQ Section */}
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Frequently Asked Questions</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h4 className="font-medium mb-2">Can I change my plan anytime?</h4>
+            <p className="text-sm text-gray-600">
+              Yes, you can upgrade or downgrade your plan at any time. Changes
+              will be prorated and reflected in your next billing cycle.
+            </p>
+          </div>
+          <Separator />
+          <div>
+            <h4 className="font-medium mb-2">
+              What happens during the free trial?
+            </h4>
+            <p className="text-sm text-gray-600">
+              New customers get 30 days free trial with full access to all
+              features. No credit card required.
+            </p>
+          </div>
+          <Separator />
+          <div>
+            <h4 className="font-medium mb-2">Can I pause my subscription?</h4>
+            <p className="text-sm text-gray-600">
+              Yes, you can pause your subscription temporarily. Your data will
+              be preserved and you can resume anytime.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

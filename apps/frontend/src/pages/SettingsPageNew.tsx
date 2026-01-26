@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import RestaurantSettingsPage from './RestaurantSettingsPage';
-import GstSettingsPage from './GstSettingsPage';
+import SimpleGstSettingsPage from './SimpleGstSettingsPage';
 import { Building2, Receipt } from 'lucide-react';
 
 const SettingsPageNew = () => {
@@ -64,7 +64,7 @@ const SettingsPageNew = () => {
         </TabsContent>
 
         <TabsContent value="gst" className="space-y-0">
-          <GstSettingsPage />
+          <SimpleGstSettingsPage />
         </TabsContent>
       </Tabs>
     </div>
