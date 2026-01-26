@@ -459,6 +459,28 @@ export class SubscriptionsService {
       }
     }
 
+    // Get restaurant details for checkout data
+    const restaurant = await this.restaurantModel.findById(restaurantId);
+
+    // Reconstruct checkout data if subscription is in 'created' status
+    let checkoutData = null;
+    if (subscription.status === SubscriptionStatus.CREATED && restaurant) {
+      const isTrialDisabled = this.configService.get('DISABLE_TRIAL_PERIOD') === 'true';
+
+      checkoutData = {
+        subscriptionId: subscription.razorpaySubscriptionId,
+        customerId: subscription.razorpayCustomerId,
+        planId: subscription.plan.razorpayPlanId,
+        customerDetails: {
+          name: restaurant.name,
+          email: restaurant.email || 'no-email@restohand.com',
+          contact: restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
+        },
+        authenticationAmount: isTrialDisabled ? subscription.plan.amount : 500, // ₹5 for trial, full amount for immediate
+        trialMode: !isTrialDisabled
+      };
+    }
+
     return {
       restaurantId,
       hasSubscription: true,
@@ -481,7 +503,7 @@ export class SubscriptionsService {
         remainingCount: subscription.remainingCount,
         authAttempts: subscription.authAttempts,
         expireBy: subscription.expireBy,
-        shortUrl: subscription.shortUrl, // CRITICAL: Include payment URL in status
+        shortUrl: subscription.shortUrl, // DEPRECATED: Use checkout instead
         hasScheduledChanges: subscription.hasScheduledChanges,
         scheduleChangeAt: subscription.scheduleChangeAt,
         customerNotify: subscription.customerNotify,
@@ -490,6 +512,9 @@ export class SubscriptionsService {
         lastWebhookEvent: subscription.lastWebhookEvent,
         createdAt: subscription.createdAt,
         updatedAt: subscription.updatedAt,
+
+        // NEW: Add checkout data for 'created' subscriptions
+        checkout: checkoutData,
       },
       plan: subscription.plan,
       status: subscription.status,
@@ -791,13 +816,29 @@ export class SubscriptionsService {
         id: savedSubscription._id,
         restaurantId,
         razorpaySubscriptionId: razorpaySubscription.id,
+        razorpayCustomerId: customer.id,
         plan: savedSubscription.plan,
         status: savedSubscription.status,
-        shortUrl: razorpaySubscription.short_url,
+        // Remove shortUrl since we'll use Checkout instead
+        // shortUrl: razorpaySubscription.short_url,
         startAt: razorpaySubscription.start_at
           ? new Date(razorpaySubscription.start_at * 1000)
           : undefined,
         trialPeriodDays: isTrialDisabled ? 0 : (startAt ? 0 : 30), // Indicate if trial was applied
+
+        // Add checkout-specific data
+        checkout: {
+          subscriptionId: razorpaySubscription.id,
+          customerId: customer.id,
+          planId: planId,
+          customerDetails: {
+            name: restaurant.name,
+            email: restaurant.email || 'no-email@restohand.com',
+            contact: restaurant.phone?.replace(/\D/g, '').substring(0, 10) || '9999999999',
+          },
+          authenticationAmount: isTrialDisabled ? plan.item.amount : 500, // ₹5 for trial, full amount for immediate
+          trialMode: !isTrialDisabled
+        }
       };
     } catch (error) {
       const errorMessage =

@@ -64,7 +64,7 @@ export interface SubscriptionData {
   remainingCount?: number;
   authAttempts?: number;
   expireBy?: string;
-  shortUrl?: string; // CRITICAL: Payment authorization URL
+  shortUrl?: string; // DEPRECATED: Use checkout instead
   hasScheduledChanges?: boolean;
   scheduleChangeAt?: string;
   customerNotify?: boolean;
@@ -78,6 +78,20 @@ export interface SubscriptionData {
   lastWebhookEvent?: string;
   createdAt: string;
   updatedAt: string;
+
+  // NEW: Checkout-specific data for Razorpay integration
+  checkout?: {
+    subscriptionId: string;
+    customerId: string;
+    planId: string;
+    customerDetails: {
+      name: string;
+      email: string;
+      contact: string;
+    };
+    authenticationAmount: number;
+    trialMode: boolean;
+  };
 }
 
 export interface SubscriptionStatusResponse {
