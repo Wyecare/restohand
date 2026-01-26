@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useSubscriptionCheckout } from '@/hooks/useSubscriptionCheckout';
+import type { RazorpayResponse } from '@/utils/razorpay';
 import {
   Check,
   Crown,
@@ -89,6 +91,26 @@ const SubscriptionPage = () => {
   const [cancelSubscription, { isLoading: cancelling }] =
     useCancelSubscriptionMutation();
 
+  // Initialize checkout hook
+  const { openCheckout, isProcessing: isCheckoutProcessing } = useSubscriptionCheckout({
+    onSuccess: (response: RazorpayResponse) => {
+      console.log('Payment successful:', response);
+      // Subscription is now authenticated, refresh status
+      refetchStatus();
+    },
+    onError: (error) => {
+      console.error('Payment error:', error);
+      // Error is already shown in the hook
+    },
+    onDismiss: () => {
+      console.log('Payment dismissed by user');
+      // Dismissal message is already shown in the hook
+    },
+  });
+
+  // Combined loading state for subscription actions
+  const isSubscriptionActionLoading = creating || isCheckoutProcessing;
+
   // Filter plans based on billing cycle and exclude founding/early adopter plans
   const filteredPlans = useMemo(() => {
     const period = isYearly ? 'yearly' : 'monthly';
@@ -151,25 +173,68 @@ const SubscriptionPage = () => {
     if (!activeRestaurantId) return;
 
     try {
-      await createSubscription({
+      // Create subscription in backend
+      const result = await createSubscription({
         restaurantId: activeRestaurantId,
         planId,
-        customerNotify: true,
+        customerNotify: false, // We'll handle checkout ourselves
         notes: { source: 'subscription_page' },
       }).unwrap();
 
       toast({
         title: 'Subscription Created',
-        description: 'Your subscription has been created successfully!',
+        description: 'Please complete the payment to activate your subscription.',
       });
 
-      refetchStatus();
+      // Open Razorpay checkout if we have checkout data
+      if (result.subscription.checkout) {
+        await openCheckout({
+          subscriptionId: result.subscription.checkout.subscriptionId,
+          customerId: result.subscription.checkout.customerId,
+          planId: result.subscription.checkout.planId,
+          customerDetails: result.subscription.checkout.customerDetails,
+          authenticationAmount: result.subscription.checkout.authenticationAmount,
+          trialMode: result.subscription.checkout.trialMode,
+        });
+      } else {
+        // Fallback: refresh status to show the new subscription
+        refetchStatus();
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
         description: error.data?.message || 'Failed to create subscription',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleExistingSubscriptionPayment = async () => {
+    if (!subscriptionStatus?.subscription) return;
+
+    const { subscription } = subscriptionStatus;
+
+    // If we have checkout data, use it
+    if (subscription.checkout) {
+      await openCheckout({
+        subscriptionId: subscription.checkout.subscriptionId,
+        customerId: subscription.checkout.customerId,
+        planId: subscription.checkout.planId,
+        customerDetails: subscription.checkout.customerDetails,
+        authenticationAmount: subscription.checkout.authenticationAmount,
+        trialMode: subscription.checkout.trialMode,
+      });
+    } else {
+      // Fallback to the old method if checkout data is not available
+      if (subscription.shortUrl) {
+        window.open(subscription.shortUrl, '_blank');
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Payment link not available. Please contact support.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -342,7 +407,7 @@ const SubscriptionPage = () => {
     const Icon = getPlanIcon(subscription.plan.planType || 'professional');
 
     // Check if payment authorization is required
-    const requiresPaymentAuth = subscription.status === 'created' && subscription.shortUrl;
+    const requiresPaymentAuth = subscription.status === 'created' && (subscription.checkout || subscription.shortUrl);
 
     return (
       <Card className="mb-8">
@@ -428,36 +493,39 @@ const SubscriptionPage = () => {
                   Payment Authorization Required
                 </CardTitle>
                 <CardDescription className="text-orange-600">
-                  Complete your subscription setup by adding a payment method
+                  Complete your subscription setup by authorizing payments
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-white p-4 rounded-lg border border-orange-200">
                   <p className="text-sm text-gray-700 mb-3">
                     Your subscription has been created but requires payment authorization to activate.
-                    Click the button below to add your payment method (Credit Card, Debit Card, UPI, etc.).
+                    Click "Add Payment Method" to securely set up your payment (Credit Card, Debit Card, UPI, etc.).
                   </p>
 
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button
                       className="flex-1"
-                      onClick={() => window.open(subscription.shortUrl, '_blank')}
+                      onClick={handleExistingSubscriptionPayment}
+                      disabled={isCheckoutProcessing}
                     >
                       <CreditCard className="mr-2 h-4 w-4" />
-                      Add Payment Method
+                      {isCheckoutProcessing ? 'Opening Payment...' : 'Add Payment Method'}
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(subscription.shortUrl || '');
-                        toast({
-                          title: 'Payment Link Copied! 📋',
-                          description: 'Open the link to complete payment setup',
-                        });
-                      }}
-                    >
-                      Copy Link
-                    </Button>
+                    {subscription.shortUrl && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(subscription.shortUrl || '');
+                          toast({
+                            title: 'Payment Link Copied! 📋',
+                            description: 'Open the link to complete payment setup',
+                          });
+                        }}
+                      >
+                        Copy Link
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -608,7 +676,7 @@ const SubscriptionPage = () => {
               <Button
                 className="w-full"
                 disabled={
-                  creating ||
+                  isSubscriptionActionLoading ||
                   updating ||
                   (isCurrentPlan && isSubscriptionActive)
                 }
@@ -620,7 +688,7 @@ const SubscriptionPage = () => {
                   }
                 }}
               >
-                {creating || updating
+                {isSubscriptionActionLoading || updating
                   ? 'Processing...'
                   : isCurrentPlan && isSubscriptionActive
                   ? 'Current Plan'

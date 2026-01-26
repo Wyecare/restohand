@@ -132,12 +132,49 @@ export class WebhooksController {
         this.logger.error('Invalid payment.authorized payload structure');
         return;
       }
-      // For now, log this - we might want to handle late authorization differently
-      this.logger.log('Payment authorized (not yet captured)', {
-        paymentId: payload.payment.entity.id,
-        orderId: payload.payment.entity.order_id,
-        amount: payload.payment.entity.amount
-      });
+
+      const payment = payload.payment.entity;
+
+      this.logger.log(`Processing payment.authorized: ${payment.id}, description: "${payment.description}", customer_id: ${payment.customer_id}`);
+
+      // Check if this is a subscription authentication payment
+      if (payment.description === 'Subscription Authentication Payment' && payment.customer_id) {
+        this.logger.log(`Detected subscription authentication payment: ${payment.id}`);
+
+        try {
+          // Find subscription by customer ID
+          const subscriptions = await this.subscriptionsService.getSubscriptionsByCustomerId(payment.customer_id);
+          this.logger.log(`Found ${subscriptions.length} subscriptions for customer ${payment.customer_id}`);
+
+          if (subscriptions && subscriptions.length > 0) {
+            // Update the most recent 'created' subscription to 'authenticated'
+            const createdSubscription = subscriptions.find(sub => sub.status === 'created');
+            this.logger.log(`Found created subscription:`, createdSubscription ? createdSubscription.razorpaySubscriptionId : 'none');
+
+            if (createdSubscription) {
+              await this.subscriptionsService.updateSubscriptionStatus(
+                createdSubscription.id,
+                'authenticated'
+              );
+
+              this.logger.log(`✅ Subscription ${createdSubscription.razorpaySubscriptionId} authenticated via payment ${payment.id}`);
+            } else {
+              this.logger.warn(`No 'created' subscription found for customer ${payment.customer_id}`);
+            }
+          } else {
+            this.logger.warn(`No subscriptions found for customer ${payment.customer_id}`);
+          }
+        } catch (error) {
+          this.logger.error(`Error updating subscription status for payment ${payment.id}:`, error);
+        }
+      } else {
+        // For regular payments, log this - we might want to handle late authorization differently
+        this.logger.log('Payment authorized (not yet captured)', {
+          paymentId: payment.id,
+          orderId: payment.order_id,
+          amount: payment.amount
+        });
+      }
     }
   }
 
