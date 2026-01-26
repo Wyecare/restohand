@@ -1373,6 +1373,26 @@ export class SubscriptionsService {
     }
   }
 
+  /**
+   * Get subscriptions by Razorpay customer ID (for webhook processing)
+   */
+  async getSubscriptionsByCustomerId(customerId: string) {
+    return this.subscriptionModel.find({
+      razorpayCustomerId: customerId,
+    }).exec();
+  }
+
+  /**
+   * Update subscription status (for webhook processing)
+   */
+  async updateSubscriptionStatus(subscriptionId: string, status: string) {
+    return this.subscriptionModel.findByIdAndUpdate(
+      subscriptionId,
+      { status: status as SubscriptionStatus },
+      { new: true }
+    );
+  }
+
   async getSubscriptionAnalytics() {
     const analytics = await this.subscriptionModel.aggregate([
       {

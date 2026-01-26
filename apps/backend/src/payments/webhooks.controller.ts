@@ -81,9 +81,41 @@ export class WebhooksController {
         paymentStatus
       );
     } else {
-      console.log('Processing order payment');
-      // Handle order payment
-      await this.ordersService.handleRazorpayWebhook(event);
+      // Check if this is a subscription authentication payment
+      if (event.event === 'payment.authorized' && paymentEntity?.description === 'Subscription Authentication Payment' && paymentEntity?.customer_id) {
+        console.log(`🎯 Detected subscription authentication payment: ${paymentEntity.id}`);
+
+        try {
+          // Find subscription by customer ID
+          const subscriptions = await this.subscriptionsService.getSubscriptionsByCustomerId(paymentEntity.customer_id);
+          console.log(`Found ${subscriptions.length} subscriptions for customer ${paymentEntity.customer_id}`);
+
+          if (subscriptions && subscriptions.length > 0) {
+            // Update the most recent 'created' subscription to 'authenticated'
+            const createdSubscription = subscriptions.find(sub => sub.status === 'created');
+            console.log(`Found created subscription:`, createdSubscription ? createdSubscription.razorpaySubscriptionId : 'none');
+
+            if (createdSubscription) {
+              await this.subscriptionsService.updateSubscriptionStatus(
+                createdSubscription.id,
+                'authenticated'
+              );
+
+              console.log(`✅ Subscription ${createdSubscription.razorpaySubscriptionId} authenticated via payment ${paymentEntity.id}`);
+            } else {
+              console.warn(`No 'created' subscription found for customer ${paymentEntity.customer_id}`);
+            }
+          } else {
+            console.warn(`No subscriptions found for customer ${paymentEntity.customer_id}`);
+          }
+        } catch (error) {
+          console.error(`Error updating subscription status for payment ${paymentEntity.id}:`, error);
+        }
+      } else {
+        console.log('Processing order payment');
+        // Handle order payment
+        await this.ordersService.handleRazorpayWebhook(event);
+      }
     }
 
     console.log('=== WEBHOOK DEBUG END ===');
