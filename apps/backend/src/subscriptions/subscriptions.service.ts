@@ -413,7 +413,7 @@ export class SubscriptionsService {
         plan: null,
         status: null,
         isActive: false,
-        isTrialActive: false,
+        isInTrialPeriod: false,
         trialEndsAt: null,
         currentStart: null,
         currentEnd: null,
@@ -423,10 +423,6 @@ export class SubscriptionsService {
     }
 
     const now = new Date();
-    const isTrialActive =
-      subscription.isTrialActive &&
-      subscription.trialEnd &&
-      subscription.trialEnd > now;
     const isSubscriptionActive = [
       SubscriptionStatus.ACTIVE,
       SubscriptionStatus.AUTHENTICATED,
@@ -476,9 +472,8 @@ export class SubscriptionsService {
         grandfatherReason: subscription.grandfatherReason,
         currentStart: subscription.currentStart,
         currentEnd: subscription.currentEnd,
-        trialStart: subscription.trialStart,
-        trialEnd: subscription.trialEnd,
-        isTrialActive: subscription.isTrialActive,
+        // Trial period handled by Razorpay start_at date
+        startAt: subscription.startAt,
         chargeAt: subscription.chargeAt,
         quantity: subscription.quantity,
         totalCount: subscription.totalCount,
@@ -498,9 +493,10 @@ export class SubscriptionsService {
       },
       plan: subscription.plan,
       status: subscription.status,
-      isActive: isTrialActive || isSubscriptionActive,
-      isTrialActive,
-      trialEndsAt: subscription.trialEnd,
+      isActive: isSubscriptionActive,
+      // For Razorpay native trials, check if subscription hasn't started yet
+      isInTrialPeriod: subscription.startAt && subscription.startAt > now,
+      trialEndsAt: subscription.startAt, // When actual billing begins
       currentStart: razorpayData?.currentStart || subscription.currentStart,
       currentEnd: razorpayData?.currentEnd || subscription.currentEnd,
       nextChargeAt: razorpayData?.chargeAt || subscription.chargeAt,
@@ -680,18 +676,26 @@ export class SubscriptionsService {
       const customer = await this.razorpayService.createCustomer(customerData);
       this.logger.log(`Created/fetched Razorpay customer: ${customer.id}`);
 
-      // Create subscription in Razorpay
+      // Create subscription in Razorpay - check if trial is disabled
+      const isTrialDisabled = this.configService.get('DISABLE_TRIAL_PERIOD') === 'true';
+
+      // If trial is disabled or start_at is provided, start immediately
+      // If trial is enabled and no start_at provided, set to 30 days from now
+      const trialStartDate = isTrialDisabled ? undefined : (startAt || Math.floor((Date.now() + 30 * 24 * 60 * 60 * 1000) / 1000));
+
       const subscriptionData = {
         plan_id: planId,
         customer_id: customer.id,
         total_count: totalCount || 12, // Default to 12 billing cycles if not specified
-        start_at: startAt,
+        start_at: trialStartDate,
         customer_notify: customerNotify ?? false,
         notes: {
           restaurant_id: restaurantId,
           plan_id: planId,
           tier: plan.notes?.tier || 'unknown',
           created_from: 'subscription_page',
+          trial_period_days: isTrialDisabled ? '0' : (startAt ? '0' : '30'), // Track if trial was applied
+          trial_disabled: isTrialDisabled ? 'true' : 'false',
           ...notes,
         },
       };
@@ -756,15 +760,27 @@ export class SubscriptionsService {
 
       const savedSubscription = await subscription.save();
 
-      // Update restaurant's SaaS config
+      // Update restaurant's SaaS config with Razorpay subscription data
       await this.restaurantModel.findByIdAndUpdate(restaurantId, {
-        'saasConfig.subscriptionStatus': 'active',
-        'saasConfig.currentPlan': plan.notes?.tier || 'professional',
-        'saasConfig.subscriptionId': savedSubscription._id,
+        'saasConfig.plan': plan.notes?.tier || 'professional',
+        'saasConfig.billingCycle': plan.period === 'yearly' ? 'yearly' : 'monthly',
+        'saasConfig.razorpaySubscriptionId': razorpaySubscription.id,
+        'saasConfig.razorpaySubscriptionStatus': razorpaySubscription.status,
+        'saasConfig.razorpayCustomerId': customer.id,
+        'saasConfig.razorpayPlanId': planId,
+        'saasConfig.razorpaySubscriptionStartedAt': razorpaySubscription.start_at
+          ? new Date(razorpaySubscription.start_at * 1000)
+          : undefined,
+        'saasConfig.razorpayCurrentPeriodStart': razorpaySubscription.current_start
+          ? new Date(razorpaySubscription.current_start * 1000)
+          : undefined,
+        'saasConfig.razorpayCurrentPeriodEnd': razorpaySubscription.current_end
+          ? new Date(razorpaySubscription.current_end * 1000)
+          : undefined,
+        'saasConfig.razorpayNextChargeAt': razorpaySubscription.charge_at
+          ? new Date(razorpaySubscription.charge_at * 1000)
+          : undefined,
         'saasConfig.lastUpdated': new Date(),
-        'saasConfig.features': plan.notes?.features
-          ? this.parseFeatures(plan.notes.features)
-          : {},
       });
 
       this.logger.log(
@@ -778,8 +794,10 @@ export class SubscriptionsService {
         plan: savedSubscription.plan,
         status: savedSubscription.status,
         shortUrl: razorpaySubscription.short_url,
-        isTrialActive: false, // Implement trial logic if needed
-        trialEnd: null,
+        startAt: razorpaySubscription.start_at
+          ? new Date(razorpaySubscription.start_at * 1000)
+          : undefined,
+        trialPeriodDays: isTrialDisabled ? 0 : (startAt ? 0 : 30), // Indicate if trial was applied
       };
     } catch (error) {
       const errorMessage =

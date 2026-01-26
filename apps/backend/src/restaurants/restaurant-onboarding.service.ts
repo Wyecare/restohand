@@ -134,14 +134,11 @@ export class RestaurantOnboardingService {
         },
         ownerId,
 
-        // SaaS Configuration
+        // SaaS Configuration - Razorpay subscription will be created separately
         saasConfig: {
           plan: 'starter', // Default plan
           billingCycle: 'monthly',
-          subscriptionStatus: 'trial', // 30-day free trial
-          trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-          nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          monthlyPrice: 99900, // ₹999 in paise
+          razorpaySubscriptionStatus: 'created', // Will be updated when Razorpay subscription is created
         },
 
         // Payment Configuration
@@ -260,11 +257,8 @@ export class RestaurantOnboardingService {
         `User ${ownerId} attached to restaurant ${savedRestaurant.id} and main branch ${savedBranch.id}`
       );
 
-      // 4. Schedule first subscription billing (after trial)
-      await this.scheduleTrialEnd(
-        savedRestaurant.id,
-        savedRestaurant.saasConfig.trialEndsAt
-      );
+      // 4. Razorpay subscription will be created when user selects a plan
+      // Trial period is handled natively by Razorpay with future start_at date
 
       return savedRestaurant;
     } catch (error) {
@@ -296,18 +290,20 @@ export class RestaurantOnboardingService {
       throw new BadRequestException('Restaurant not found');
     }
 
-    const now = new Date();
-    const isTrialActive = restaurant.saasConfig.trialEndsAt > now;
-    const isSubscriptionActive =
-      restaurant.saasConfig.subscriptionStatus === 'active';
+    // For Razorpay native subscriptions, check subscription status
+    const isSubscriptionActive = ['authenticated', 'active'].includes(
+      restaurant.saasConfig.razorpaySubscriptionStatus
+    );
 
     return {
       plan: restaurant.saasConfig.plan,
-      status: restaurant.saasConfig.subscriptionStatus,
-      isActive: isTrialActive || isSubscriptionActive,
-      trialEndsAt: restaurant.saasConfig.trialEndsAt,
-      nextBillingDate: restaurant.saasConfig.nextBillingDate,
-      monthlyPrice: restaurant.saasConfig.monthlyPrice,
+      billingCycle: restaurant.saasConfig.billingCycle,
+      razorpaySubscriptionStatus: restaurant.saasConfig.razorpaySubscriptionStatus,
+      razorpaySubscriptionId: restaurant.saasConfig.razorpaySubscriptionId,
+      isActive: isSubscriptionActive,
+      currentPeriodStart: restaurant.saasConfig.razorpayCurrentPeriodStart,
+      currentPeriodEnd: restaurant.saasConfig.razorpayCurrentPeriodEnd,
+      nextChargeAt: restaurant.saasConfig.razorpayNextChargeAt,
     };
   }
 
@@ -431,11 +427,4 @@ export class RestaurantOnboardingService {
       .substring(0, 50);
   }
 
-  private async scheduleTrialEnd(restaurantId: string, trialEndDate: Date) {
-    // This would integrate with a job queue like Bull or Agenda
-    // For now, we'll handle this in the subscription service
-    this.logger.log(
-      `Trial scheduled to end for restaurant ${restaurantId} on ${trialEndDate}`
-    );
-  }
 }

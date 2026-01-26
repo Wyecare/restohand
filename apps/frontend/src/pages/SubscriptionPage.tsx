@@ -338,7 +338,7 @@ const SubscriptionPage = () => {
       );
     }
 
-    const { subscription, isTrialActive } = subscriptionStatus;
+    const { subscription, isInTrialPeriod } = subscriptionStatus;
     const Icon = getPlanIcon(subscription.plan.planType || 'professional');
 
     // Check if payment authorization is required
@@ -363,7 +363,7 @@ const SubscriptionPage = () => {
                     }
                     className={getStatusColor(subscription.status)}
                   >
-                    {isTrialActive ? 'Trial Active' : subscription.status}
+                    {isInTrialPeriod ? 'Trial Period' : subscription.status}
                   </Badge>
                   {subscription.isGrandfathered && (
                     <Badge variant="outline" className="text-purple-600">
@@ -374,10 +374,10 @@ const SubscriptionPage = () => {
                 <CardDescription>
                   {formatPrice(subscription.plan.amount)} /{' '}
                   {subscription.plan.period}
-                  {isTrialActive && subscription.trialEnd && (
+                  {isInTrialPeriod && subscriptionStatus.trialEndsAt && (
                     <span className="block text-green-600 font-medium">
                       Trial ends:{' '}
-                      {new Date(subscription.trialEnd).toLocaleDateString()}
+                      {new Date(subscriptionStatus.trialEndsAt).toLocaleDateString()}
                     </span>
                   )}
                 </CardDescription>

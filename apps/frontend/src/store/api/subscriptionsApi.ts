@@ -55,9 +55,8 @@ export interface SubscriptionData {
   grandfatherReason?: string;
   currentStart?: string;
   currentEnd?: string;
-  trialStart?: string;
-  trialEnd?: string;
-  isTrialActive: boolean;
+  // Trial period handled by Razorpay start_at date
+  startAt?: string;
   chargeAt?: string;
   quantity: number;
   totalCount?: number;
@@ -88,7 +87,7 @@ export interface SubscriptionStatusResponse {
   plan?: SubscriptionPlanDetails;
   status?: SubscriptionStatus;
   isActive: boolean;
-  isTrialActive: boolean;
+  isInTrialPeriod: boolean;
   trialEndsAt?: string;
   currentStart?: string;
   currentEnd?: string;

@@ -97,38 +97,22 @@ const RazorpayLinkedAccountSchema = SchemaFactory.createForClass(RazorpayLinkedA
 class SaasConfig {
   @Prop({
     type: String,
-    enum: ['starter', 'pro', 'enterprise'],
+    enum: ['starter', 'professional', 'enterprise'],
     default: 'starter'
   })
-  plan!: 'starter' | 'pro' | 'enterprise';
+  plan!: 'starter' | 'professional' | 'enterprise';
 
   @Prop({
     type: String,
-    enum: ['monthly'],
+    enum: ['monthly', 'yearly'],
     default: 'monthly'
   })
-  billingCycle!: 'monthly';
-
-  @Prop({
-    type: String,
-    enum: ['trial', 'active', 'suspended', 'cancelled'],
-    default: 'active'
-  })
-  subscriptionStatus!: 'trial' | 'active' | 'suspended' | 'cancelled';
-
-  @Prop({ type: Date, required: true })
-  trialEndsAt!: Date;
-
-  @Prop({ type: Date, required: true })
-  nextBillingDate!: Date;
-
-  @Prop({ type: Number, required: true, default: 79900 }) // ₹799 in paise (standard monthly plan)
-  monthlyPrice!: number;
+  billingCycle!: 'monthly' | 'yearly';
 
   @Prop({ type: Date, default: Date.now })
   lastUpdated!: Date;
 
-  // Razorpay subscription data
+  // Razorpay subscription data (primary source of truth)
   @Prop({ type: String })
   razorpayCustomerId?: string;
 
@@ -140,15 +124,25 @@ class SaasConfig {
 
   @Prop({
     type: String,
-    enum: ['created', 'authenticated', 'active', 'pending', 'halted', 'cancelled', 'completed', 'expired']
+    enum: ['created', 'authenticated', 'active', 'pending', 'halted', 'cancelled', 'completed', 'expired'],
+    default: 'created'
   })
-  razorpaySubscriptionStatus?: string;
+  razorpaySubscriptionStatus!: 'created' | 'authenticated' | 'active' | 'pending' | 'halted' | 'cancelled' | 'completed' | 'expired';
 
   @Prop({ type: Date })
   razorpaySubscriptionStartedAt?: Date;
 
   @Prop({ type: Date })
   razorpaySubscriptionEndedAt?: Date;
+
+  @Prop({ type: Date })
+  razorpayCurrentPeriodStart?: Date;
+
+  @Prop({ type: Date })
+  razorpayCurrentPeriodEnd?: Date;
+
+  @Prop({ type: Date })
+  razorpayNextChargeAt?: Date;
 }
 
 const SaasConfigSchema = SchemaFactory.createForClass(SaasConfig);
