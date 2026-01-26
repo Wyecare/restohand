@@ -61,7 +61,7 @@ async function bootstrap() {
 
   const port = configService.get<number>('app.port', { infer: true }) ?? 3000;
   await app.listen(port);
-  const projectId = configService.getOrThrow<string>('FIREBASE_PROJECT_ID');
+  const projectId = configService?.get<string>('FIREBASE_PROJECT_ID');
   console.log('Firebase Project ID:', projectId);
   Logger.log(
     `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`

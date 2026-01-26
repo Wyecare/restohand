@@ -92,9 +92,6 @@ const AppRouter = () => {
           <Route path="orders" element={<OrdersPage />} />
           {/* CHANGED: Added /* to enable nested routing */}
           <Route path="menu/*" element={<MenuManagementPage />} />
-          <Route path="menu-advanced" element={<ImprovedMenuPage />} />
-          <Route path="menu-simple" element={<SimpleMenuPage />} />
-          <Route path="menu-old" element={<MenuPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />
           <Route path="command-center" element={<CommandCenterPage />} />

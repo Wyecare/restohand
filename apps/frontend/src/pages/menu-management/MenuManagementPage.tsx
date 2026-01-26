@@ -47,7 +47,7 @@ export function MenuManagementPage() {
               to={
                 categories[0]
                   ? `/menu/categories/${categories[0]._id || categories[0].id}`
-                  : '/menu'
+                  : '/menu/categories/new'
               }
               replace
             />
