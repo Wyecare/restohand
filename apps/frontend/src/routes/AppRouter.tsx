@@ -31,6 +31,7 @@ import InventoryPage from '@/pages/InventoryPage';
 import RecipesPage from '@/pages/RecipesPage';
 import SubscriptionPage from '@/pages/SubscriptionPage';
 import BranchManagementPage from '@/pages/BranchManagementPage';
+import { PdfMenuExtractionTab } from '@/pages/menu-management/tabs/PdfMenuExtractionTab';
 
 const AppRouter = () => {
   return (
@@ -92,6 +93,7 @@ const AppRouter = () => {
           <Route path="orders" element={<OrdersPage />} />
           {/* CHANGED: Added /* to enable nested routing */}
           <Route path="menu/*" element={<MenuManagementPage />} />
+          <Route path="/extract-menu" element={<PdfMenuExtractionTab />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />
           <Route path="command-center" element={<CommandCenterPage />} />

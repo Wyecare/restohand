@@ -25,6 +25,7 @@ import {
   Sparkles,
   Check,
   AlertCircle,
+  ArrowLeftCircle,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -34,17 +35,24 @@ import {
   type ExtractedCategory,
   type BulkImportResult,
 } from '@/store/api/menuExtractionApi';
+import { useNavigate } from 'react-router-dom';
 
 export function PdfMenuExtractionTab() {
   const { toast } = useToast();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [extractedMenu, setExtractedMenu] = useState<ExtractedMenu | null>(null);
+  const [extractedMenu, setExtractedMenu] = useState<ExtractedMenu | null>(
+    null
+  );
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
 
+  const navigate = useNavigate();
+
   // RTK Query hooks
-  const [extractMenuFromFile, { isLoading: isExtracting }] = useExtractMenuFromFileMutation();
-  const [bulkImportMenu, { isLoading: isImporting }] = useBulkImportMenuMutation();
+  const [extractMenuFromFile, { isLoading: isExtracting }] =
+    useExtractMenuFromFileMutation();
+  const [bulkImportMenu, { isLoading: isImporting }] =
+    useBulkImportMenuMutation();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -139,6 +147,7 @@ export function PdfMenuExtractionTab() {
       setIsPreviewDialogOpen(false);
       setExtractedMenu(null);
       setSelectedFile(null);
+      navigate('/menu');
     } catch (error: any) {
       console.error('Import error:', error);
       toast({
@@ -159,6 +168,16 @@ export function PdfMenuExtractionTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              className="cursor-default p-0"
+              onClick={() => {
+                navigate('/menu');
+              }}
+            >
+              <ArrowLeftCircle className="h-8 w-8" />
+              Go Back
+            </Button>
             <Sparkles className="h-5 w-5 text-purple-500" />
             AI-Powered PDF Menu Extraction
           </CardTitle>

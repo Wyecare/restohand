@@ -46,10 +46,17 @@ export function CategoriesSidebar({
   return (
     <div className="w-80 border-r bg-muted/30 flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b flex-shrink-0">
-        <Button onClick={onAddCategory} className="w-full gap-2">
-          <Plus className="h-4 w-4" />
+      <div className="p-2 flex border-b flex-shrink-0 grid-cols-2 justify-between">
+        <Button onClick={onAddCategory} className="gap-2 w-[48%]">
           Add Category
+        </Button>
+        <Button
+          onClick={() => {
+            navigate('/extract-menu');
+          }}
+          className="gap-2 w-[48%]"
+        >
+          Extract from pdf
         </Button>
       </div>
 
