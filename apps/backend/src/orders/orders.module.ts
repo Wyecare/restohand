@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
 import { OrdersController } from './orders.controller';
+import { PublicOrdersController } from './public-orders.controller';
 import { OrdersService } from './orders.service';
 import { Order, OrderSchema } from './schemas/order.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
@@ -37,7 +38,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       { name: OrderModification.name, schema: OrderModificationSchema },
     ]),
   ],
-  controllers: [OrdersController, OrderModificationController, WebhooksController],
+  controllers: [OrdersController, PublicOrdersController, OrderModificationController, WebhooksController],
   providers: [OrdersService, OrderModificationService, OrdersGateway, RazorpayService],
   exports: [OrdersService, OrderModificationService],
 })

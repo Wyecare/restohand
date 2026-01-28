@@ -1406,7 +1406,11 @@ export class OrdersService {
     }
   }
 
-  private toDto(doc: OrderDocument): OrderResponseDto {
+  async findById(orderId: string): Promise<OrderDocument | null> {
+    return this.orderModel.findById(orderId).lean();
+  }
+
+  toDto(doc: OrderDocument): OrderResponseDto {
     return {
       id: doc._id.toString(),
       restaurantId: doc.restaurantId.toString(),

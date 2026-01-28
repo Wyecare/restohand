@@ -802,4 +802,55 @@ export class OrdersController {
       order: updatedOrder,
     };
   }
+
+  @Get(':orderId/receipt-qr')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiOkResponse({ description: 'Receipt QR code generated successfully' })
+  async generateReceiptQr(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string,
+  ) {
+    const order = await this.ordersService.findOne(restaurantId, orderId);
+    if (!order) {
+      throw new BadRequestException('Order not found');
+    }
+
+    // Generate JWT token for receipt access
+    const jwt = require('jsonwebtoken');
+    const QRCode = require('qrcode');
+
+    const token = jwt.sign(
+      {
+        orderId,
+        type: 'receipt',
+        iat: Math.floor(Date.now() / 1000),
+      },
+      process.env.JWT_ACCESS_SECRET!,
+      { expiresIn: '30d' } // Token valid for 30 days
+    );
+
+    // Use customer frontend domain for receipt URL - pass token as URL param
+    const baseUrl = process.env.CUSTOMER_FRONTEND_URL ?? process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
+    const receiptUrl = `${baseUrl.replace(/\/$/, '')}/receipt/${orderId}?t=${token}`;
+
+    // Generate QR code
+    const qrCodeDataUrl = await QRCode.toDataURL(receiptUrl, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      scale: 8,
+      width: 300,
+    });
+
+    return {
+      orderId,
+      orderNumber: order.orderNumber,
+      receiptUrl,
+      qrCodeDataUrl,
+      token,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+    };
+  }
 }

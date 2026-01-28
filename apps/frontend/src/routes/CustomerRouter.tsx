@@ -3,6 +3,7 @@ import { Route, Routes, Navigate } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import CustomerMenuPageNew from '@/pages/customer/CustomerMenuPageNew';
 import CustomerOrderStatusPageNew from '@/pages/customer/CustomerOrderStatusPageNew';
+import CustomerReceiptPage from '@/pages/customer/CustomerReceiptPage';
 import CustomerLayout from '@/components/customer/CustomerLayout';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import TermsConditionsPage from '@/pages/TermsConditionsPage';
@@ -35,6 +36,9 @@ const CustomerRouter = () => {
             element={<CustomerOrderStatusPageNew />}
           />
         </Route>
+
+        {/* Customer receipt page - standalone without layout */}
+        <Route path="/receipt/:orderId" element={<CustomerReceiptPage />} />
 
         {/* Root redirect - if someone visits qr.restohand.com without a restaurant slug */}
         <Route
