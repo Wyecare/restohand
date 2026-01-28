@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { useStaffLoginMutation } from '@/store/api/authApi';
 import { useAppDispatch } from '@/store/hooks';
 import { setCredentials } from '@/store/slices/authSlice';
+import { Image } from 'expo-image';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -29,7 +30,8 @@ export default function LoginScreen() {
     }
 
     try {
-      const { access_token, refresh_token, user, expires_in } = await staffLogin({ email, password }).unwrap();
+      const { access_token, refresh_token, user, expires_in } =
+        await staffLogin({ email, password }).unwrap();
 
       // Create session info from user data
       const sessionInfo = {
@@ -49,20 +51,28 @@ export default function LoginScreen() {
       };
 
       // Store credentials
-      dispatch(setCredentials({
-        idToken: access_token,
-        refreshToken: refresh_token,
-        expiresIn: expires_in,
-        session: sessionInfo,
-      }));
+      dispatch(
+        setCredentials({
+          idToken: access_token,
+          refreshToken: refresh_token,
+          expiresIn: expires_in,
+          session: sessionInfo,
+        })
+      );
 
       // Navigate based on role
       if (user.roles.includes('chef')) {
         router.replace('/(kitchen)');
-      } else if (user.roles.includes('waiter') || user.roles.includes('cashier')) {
+      } else if (
+        user.roles.includes('waiter') ||
+        user.roles.includes('cashier')
+      ) {
         router.replace('/(service)');
       } else {
-        Alert.alert('Access Denied', 'You do not have permission to access this app');
+        Alert.alert(
+          'Access Denied',
+          'You do not have permission to access this app'
+        );
       }
     } catch (error: any) {
       Alert.alert(
@@ -80,8 +90,16 @@ export default function LoginScreen() {
       >
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>Staff Login</Text>
-            <Text style={styles.subtitle}>Sign in to access your workspace</Text>
+            <Image
+              source={require('../../assets/images/logo-min.png')}
+              style={{ width: 200, height: 180 }}
+              contentFit="contain"
+            />
+            <Image
+              source={require('../../assets/images/logo_black.png')}
+              style={{ width: 150, height: 40, top: -30 }}
+              contentFit="contain"
+            />
           </View>
 
           <View style={styles.form}>
@@ -111,7 +129,10 @@ export default function LoginScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+              style={[
+                styles.loginButton,
+                isLoading && styles.loginButtonDisabled,
+              ]}
               onPress={handleLogin}
               disabled={isLoading}
             >
@@ -143,7 +164,6 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
   },
   title: {
     fontSize: 32,

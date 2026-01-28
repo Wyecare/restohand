@@ -32,6 +32,12 @@ import type { Order } from '@/store/api/types';
 import { Image } from 'expo-image';
 import { Audio } from 'expo-av';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const COLUMN_GAP = 16;
+const CONTAINER_PADDING = 24;
+const COLUMN_WIDTH =
+  (SCREEN_WIDTH - CONTAINER_PADDING * 2 - COLUMN_GAP * 2) / 3;
+
 const statusesInKitchen: Order['status'][] = [
   'pending',
   'accepted',
@@ -458,17 +464,24 @@ export default function KitchenOrdersScreen() {
         style={styles.columnsContainer}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.columnsContent}
-        centerContent={true}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {statusesInKitchen.map((status) => {
+        {statusesInKitchen.map((status, index) => {
           const statusOrders = grouped[status] || [];
           const config = statusConfig[status as keyof typeof statusConfig];
 
           return (
-            <View key={status} style={styles.column}>
+            <View
+              key={status}
+              style={[
+                styles.column,
+                index < statusesInKitchen.length - 1 && {
+                  marginRight: COLUMN_GAP,
+                },
+              ]}
+            >
               {/* Column Header */}
               <View
                 style={[
@@ -639,14 +652,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   columnsContent: {
-    paddingHorizontal: 12,
+    paddingHorizontal: CONTAINER_PADDING,
     paddingVertical: 16,
-    gap: 16,
-    minWidth: '100%',
-    justifyContent: 'center',
   },
   column: {
-    marginHorizontal: 4,
+    width: COLUMN_WIDTH,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',

@@ -49,4 +49,10 @@ export class RestaurantTableResponseDto {
 
   @ApiProperty({ required: false, type: () => OrderResponseDto })
   activeOrder?: OrderResponseDto;
+
+  @ApiProperty({ required: false, type: [OrderResponseDto] })
+  activeOrders?: OrderResponseDto[];
+
+  @ApiProperty({ required: false })
+  totalBillAmount?: number;
 }

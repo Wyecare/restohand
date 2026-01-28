@@ -40,6 +40,9 @@ const CustomerRouter = () => {
         {/* Customer receipt page - standalone without layout */}
         <Route path="/receipt/:orderId" element={<CustomerReceiptPage />} />
 
+        {/* Combined receipt page - standalone without layout */}
+        <Route path="/combined-receipt" element={<CustomerReceiptPage />} />
+
         {/* Root redirect - if someone visits qr.restohand.com without a restaurant slug */}
         <Route
           path="/"

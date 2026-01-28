@@ -71,7 +71,11 @@ export const getDomainType = (): InterfaceType => {
       return 'admin';
     }
     // Customer QR paths for localhost
-    if (pathname.startsWith('/c/') || pathname.startsWith('/receipt/')) {
+    if (
+      pathname.startsWith('/c/') ||
+      pathname.startsWith('/receipt/') ||
+      pathname.startsWith('/combined-receipt')
+    ) {
       console.log('🌐 Localhost detected: customer');
       return 'customer';
     }

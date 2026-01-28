@@ -314,6 +314,14 @@ export const ordersApi = baseApi.injectEndpoints({
       // No tags for public endpoint
     }),
 
+    getCombinedReceiptPublic: builder.query<Order[], { token: string }>({
+      query: ({ token }) => ({
+        url: `/orders/combined-receipt/public`,
+        params: { token },
+      }),
+      // No tags for public endpoint
+    }),
+
     createOrder: builder.mutation<Order, CreateOrderPayload>({
       query: ({ restaurantId, ...body }) => ({
         url: `/restaurants/${restaurantId}/orders`,
@@ -508,6 +516,7 @@ export const {
   useListOrdersByBranchQuery,
   useGetOrderQuery,
   useGetOrderPublicQuery,
+  useGetCombinedReceiptPublicQuery,
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,

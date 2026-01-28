@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { Receipt } from '@/components/customer/Receipt';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Download, Eye, Star } from 'lucide-react';
-import { useGetOrderPublicQuery } from '@/store/api/ordersApi';
-import type { Order } from '@/store/api/types';
+import { Download, Star } from 'lucide-react';
+import {
+  useGetOrderPublicQuery,
+  useGetCombinedReceiptPublicQuery,
+} from '@/store/api/ordersApi';
 
 const CustomerReceiptPage = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const token = searchParams.get('t'); // Using 't' for shorter URL
 
   const [feedback, setFeedback] = useState<{
@@ -17,17 +20,32 @@ const CustomerReceiptPage = () => {
     comment?: string;
   }>({});
 
-  // Get order data using public endpoint with token
+  // Check if this is a combined receipt route
+  const isCombinedReceipt = location.pathname === '/combined-receipt';
+
+  // Get order data using public endpoint with token (single order)
   const {
     data: order,
     isLoading: orderLoading,
     error: orderError,
   } = useGetOrderPublicQuery(
     { orderId: orderId!, token: token! },
-    { skip: !orderId || !token }
+    { skip: isCombinedReceipt || !orderId || !token }
   );
 
-  const isLoading = orderLoading;
+  // Get combined receipt data using public endpoint with token (multiple orders)
+  const {
+    data: combinedOrders,
+    isLoading: combinedLoading,
+    error: combinedError,
+  } = useGetCombinedReceiptPublicQuery(
+    { token: token! },
+    { skip: !isCombinedReceipt || !token }
+  );
+
+  const isLoading = isCombinedReceipt ? combinedLoading : orderLoading;
+  const error = isCombinedReceipt ? combinedError : orderError;
+  const orders = isCombinedReceipt ? combinedOrders : order ? [order] : null;
 
   if (isLoading) {
     return (
@@ -40,7 +58,7 @@ const CustomerReceiptPage = () => {
     );
   }
 
-  if (orderError || !order) {
+  if (error || !orders || orders.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-4 p-6">
@@ -59,8 +77,8 @@ const CustomerReceiptPage = () => {
     );
   }
 
-  // Extract restaurant info from order (basic info only)
-  const restaurantInfo = order
+  // Extract restaurant info from first order (basic info only)
+  const restaurantInfo = orders[0]
     ? {
         name: 'Restaurant', // Restaurant name not available in order response
         address: undefined, // Restaurant address not included in order response
@@ -79,14 +97,104 @@ const CustomerReceiptPage = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Receipt Content */}
       <div className="max-w-2xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <Receipt order={order} restaurantInfo={restaurantInfo} />
+        <div className="receipt-content">
+        {orders.length > 1 ? (
+          // Combined receipt for multiple orders
+          <div className="space-y-6">
+            {/* Individual order receipts */}
+            {orders.map((order) => (
+              <div
+                key={order.id}
+                className="bg-white rounded-lg shadow-sm border p-6"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Order #{order.orderNumber}
+                </h3>
+                <Receipt order={order} restaurantInfo={restaurantInfo} />
+              </div>
+            ))}
+
+            {/* Combined totals */}
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                Total Bill
+              </h3>
+              <div className="space-y-2">
+                {(() => {
+                  const combinedSubtotal = orders.reduce((sum, order) => sum + (order.subTotalAmount || 0), 0);
+                  const combinedTax = orders.reduce((sum, order) => sum + (order.taxAmount || 0), 0);
+                  const combinedTotal = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+
+                  return (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span>₹{combinedSubtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tax (GST):</span>
+                        <span>₹{combinedTax.toFixed(2)}</span>
+                      </div>
+                      <div className="border-t pt-2 font-bold text-lg flex justify-between">
+                        <span>Grand Total:</span>
+                        <span>₹{combinedTotal.toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Single order receipt
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <Receipt order={orders[0]} restaurantInfo={restaurantInfo} />
+          </div>
+        )}
         </div>
 
         {/* Download Button */}
         <div className="mb-6">
           <Button
-            onClick={() => window.print()}
+            onClick={async () => {
+              // Import jsPDF dynamically to avoid SSR issues
+              const { jsPDF } = await import('jspdf');
+              const html2canvas = (await import('html2canvas')).default;
+
+              const receiptElement = document.querySelector('.receipt-content');
+              if (!receiptElement) return;
+
+              const canvas = await html2canvas(receiptElement as HTMLElement, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+              });
+
+              const imgData = canvas.toDataURL('image/png');
+              const pdf = new jsPDF();
+              const imgWidth = 210;
+              const pageHeight = 295;
+              const imgHeight = (canvas.height * imgWidth) / canvas.width;
+              let heightLeft = imgHeight;
+
+              let position = 0;
+
+              pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+              heightLeft -= pageHeight;
+
+              while (heightLeft >= 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+              }
+
+              const fileName = isCombinedReceipt
+                ? `combined-receipt-${orders[0]?.tableNumber || 'table'}.pdf`
+                : `receipt-${orders[0]?.orderNumber || 'order'}.pdf`;
+
+              pdf.save(fileName);
+            }}
             className="w-full flex items-center justify-center gap-2"
           >
             <Download className="h-4 w-4" />

@@ -853,4 +853,61 @@ export class OrdersController {
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
     };
   }
+
+  @Post('combined-receipt-qr')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiOkResponse({ description: 'Combined receipt QR code generated successfully' })
+  async generateCombinedReceiptQr(
+    @Param('restaurantId') restaurantId: string,
+    @Body() { orderIds, tableNumber }: { orderIds: string[], tableNumber?: string },
+  ) {
+    // Validate all orders exist and belong to the restaurant
+    const orders = [];
+    for (const orderId of orderIds) {
+      const order = await this.ordersService.findOne(restaurantId, orderId);
+      if (!order) {
+        throw new BadRequestException(`Order ${orderId} not found`);
+      }
+      orders.push(order);
+    }
+
+    // Generate JWT token for combined receipt access
+    const jwt = require('jsonwebtoken');
+    const QRCode = require('qrcode');
+
+    const token = jwt.sign(
+      {
+        orderIds,
+        tableNumber,
+        type: 'combined-receipt',
+        iat: Math.floor(Date.now() / 1000),
+      },
+      process.env.JWT_ACCESS_SECRET!,
+      { expiresIn: '30d' } // Token valid for 30 days
+    );
+
+    // Use customer frontend domain for combined receipt URL
+    const baseUrl = process.env.CUSTOMER_FRONTEND_URL ?? process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
+    const receiptUrl = `${baseUrl.replace(/\/$/, '')}/combined-receipt?t=${token}`;
+
+    // Generate QR code
+    const qrCodeDataUrl = await QRCode.toDataURL(receiptUrl, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      scale: 8,
+      width: 300,
+    });
+
+    return {
+      orderIds,
+      orderNumbers: orders.map(o => o.orderNumber),
+      tableNumber,
+      receiptUrl,
+      qrCodeDataUrl,
+      token,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+    };
+  }
 }

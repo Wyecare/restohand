@@ -119,6 +119,8 @@ export interface RestaurantTable {
 
 export interface EnhancedRestaurantTable extends RestaurantTable {
   activeOrder?: Order;
+  activeOrders?: Order[];
+  totalBillAmount?: number;
   currentStatus?: {
     id: string;
     status: 'available' | 'occupied' | 'cleaning' | 'reserved';

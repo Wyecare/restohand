@@ -2,6 +2,7 @@ import {
   useGetOrderQuery,
   useUpdateOrderPaymentMutation,
   useGenerateReceiptQrQuery,
+  useGenerateCombinedReceiptQrMutation,
 } from '@/store/api/ordersApi';
 import { PaymentRoundingDialog } from '@/components/PaymentRoundingDialog';
 import {
@@ -37,7 +38,7 @@ const formatCurrency = (amount: number, showDecimals: boolean = true) =>
   }).format(amount);
 
 export default function ServicePaymentScreen() {
-  const { orderId, tableId, orderData } = useLocalSearchParams();
+  const { orderId, tableId, orderData, allOrdersData, totalBillAmount } = useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi'>('upi');
@@ -47,9 +48,15 @@ export default function ServicePaymentScreen() {
 
   // State to hold current order data
   const [currentOrder, setCurrentOrder] = useState(null);
+  // State to hold updated orders after payment
+  const [updatedOrdersState, setUpdatedOrdersState] = useState(null);
 
   // Parse order data from route params (fallback to RTK query if not available)
   const orderFromParams = orderData ? JSON.parse(orderData as string) : null;
+
+  // Parse multiple orders data for combined payment
+  const allOrdersFromParams = allOrdersData ? JSON.parse(allOrdersData as string) : null;
+  const combinedBillAmount = totalBillAmount ? parseFloat(totalBillAmount as string) : null;
 
   // Get order details (always fetch to ensure we can refetch after payment)
   const {
@@ -65,6 +72,47 @@ export default function ServicePaymentScreen() {
 
   // Use order priority: updated state > fresh query > params
   const order = currentOrder || orderFromQuery || orderFromParams;
+
+  // Determine if we're handling multiple orders for combined payment
+  const isMultipleOrders = allOrdersFromParams && allOrdersFromParams.length > 1;
+  const ordersToProcess = updatedOrdersState || allOrdersFromParams || (order ? [order] : []);
+
+  // Calculate combined bill details
+  const combinedBillDetails = useMemo(() => {
+    if (!ordersToProcess.length) return null;
+
+    const combined = {
+      subTotalAmount: 0,
+      taxAmount: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: 0,
+      discountAmount: 0,
+      grossAmount: 0,
+      totalAmount: 0,
+      roundOffAmount: 0,
+      orderNumbers: [],
+      orderCount: ordersToProcess.length,
+    };
+
+    ordersToProcess.forEach((ord) => {
+      combined.subTotalAmount += ord.subTotalAmount || 0;
+      combined.taxAmount += ord.taxAmount || 0;
+      combined.cgstAmount += ord.cgstAmount || 0;
+      combined.sgstAmount += ord.sgstAmount || 0;
+      combined.igstAmount += ord.igstAmount || 0;
+      combined.discountAmount += ord.discountAmount || 0;
+      combined.grossAmount += ord.grossAmount || 0;
+      combined.totalAmount += ord.totalAmount || 0;
+      combined.roundOffAmount += ord.roundOffAmount || 0;
+      combined.orderNumbers.push(ord.orderNumber);
+    });
+
+    return combined;
+  }, [ordersToProcess]);
+
+  // Use combined total if available, otherwise fallback to single order
+  const finalTotalAmount = combinedBillAmount || combinedBillDetails?.totalAmount || order?.totalAmount || 0;
 
   // Initialize current order when component loads
   useEffect(() => {
@@ -92,11 +140,26 @@ export default function ServicePaymentScreen() {
     'checking receipt qr fetch'
   );
 
-  // Generate receipt QR (only when order is paid)
-  const { data: receiptQr, refetch: generateQr } = useGenerateReceiptQrQuery(
-    { restaurantId: restaurantId!, orderId: order?._id || order?.id || (orderId as string) },
-    { skip: !restaurantId || !order || order?.paymentStatus !== 'paid' || !(order._id || order.id || orderId) }
+  // Determine if all orders are paid (for multiple orders) or single order is paid
+  const allOrdersPaid = useMemo(() => {
+    if (isMultipleOrders) {
+      return ordersToProcess.every((ord: any) => ord.paymentStatus === 'paid');
+    }
+    return order?.paymentStatus === 'paid';
+  }, [isMultipleOrders, ordersToProcess, order]);
+
+  // Add combined receipt QR mutation
+  const [generateCombinedReceiptQr, { data: combinedReceiptQr, isLoading: isCombinedQrLoading }] = useGenerateCombinedReceiptQrMutation();
+
+  // Generate receipt QR (single order)
+  const primaryOrderForQr = isMultipleOrders ? ordersToProcess[0] : order;
+  const { data: singleReceiptQr, refetch: generateSingleQr } = useGenerateReceiptQrQuery(
+    { restaurantId: restaurantId!, orderId: primaryOrderForQr?._id || primaryOrderForQr?.id || (orderId as string) },
+    { skip: !restaurantId || !primaryOrderForQr || !allOrdersPaid || isMultipleOrders || !(primaryOrderForQr._id || primaryOrderForQr.id || orderId) }
   );
+
+  // Use the appropriate receipt QR based on whether we have multiple orders
+  const receiptQr = isMultipleOrders ? combinedReceiptQr : singleReceiptQr;
 
   const selectedTable = useMemo(() => {
     return enhancedTables?.find((table) => table.id === tableId) ?? null;
@@ -111,24 +174,28 @@ export default function ServicePaymentScreen() {
 
   // Generate UPI payment string
   const upiString = useMemo(() => {
-    if (!restaurant?.upi?.vpa || !order) return '';
+    if (!restaurant?.upi?.vpa || !finalTotalAmount) return '';
 
-    const amount = order.totalAmount.toFixed(2);
+    const amount = finalTotalAmount.toFixed(2);
+    const orderInfo = isMultipleOrders
+      ? `Orders ${combinedBillDetails?.orderNumbers.join(', ')}`
+      : `Order ${order?.orderNumber}`;
+
     const params = new URLSearchParams({
       pa: restaurant.upi.vpa,
       pn: restaurant.upi.displayName || restaurant.name,
       am: amount,
       cu: 'INR',
-      tn: `Order ${order.orderNumber}`,
+      tn: orderInfo,
     });
 
     return `upi://pay?${params.toString()}`;
-  }, [restaurant, order]);
+  }, [restaurant, finalTotalAmount, isMultipleOrders, combinedBillDetails, order]);
 
   const handleMarkAsPaid = async (method: 'cash' | 'upi') => {
     console.log('handleMarkAsPaid called with method:', method);
 
-    if (!order || !restaurantId) {
+    if (!finalTotalAmount || !restaurantId || ordersToProcess.length === 0) {
       Alert.alert('Error', 'Missing order or restaurant data');
       return;
     }
@@ -140,7 +207,7 @@ export default function ServicePaymentScreen() {
     }
 
     // For UPI payments, use exact amount (no rounding)
-    await processPayment(method, order.totalAmount, 0);
+    await processPayment(method, finalTotalAmount, 0);
   };
 
   const processPayment = async (
@@ -154,22 +221,61 @@ export default function ServicePaymentScreen() {
         method,
         finalAmount,
         roundOffAmount,
-        exactAmount: order.totalAmount,
+        orderCount: ordersToProcess.length,
       });
 
-      const result = await updatePayment({
-        restaurantId,
-        orderId: order._id,
-        paymentStatus: 'paid',
-        provider: method === 'upi' ? 'upi' : 'cash',
-        finalAmount,
-        roundOffAmount: roundOffAmount !== 0 ? roundOffAmount : undefined,
-      }).unwrap();
+      if (isMultipleOrders) {
+        // Update multiple orders with proportional amounts
+        const results = [];
+        for (const orderToUpdate of ordersToProcess) {
+          // Calculate proportional amount for this order
+          const proportionalAmount = (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * finalAmount;
+          const proportionalRounding = (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * roundOffAmount;
 
-      console.log('Payment update successful:', result);
+          const result = await updatePayment({
+            restaurantId: restaurantId!,
+            orderId: orderToUpdate.id,
+            paymentStatus: 'paid',
+            provider: method === 'upi' ? 'upi' : 'cash',
+          }).unwrap();
+          results.push(result);
+        }
+        console.log('All payments updated successfully:', results);
 
-      // Update local state with the updated order
-      setCurrentOrder(result);
+        // Update local state for multiple orders - mark all as paid
+        const updatedOrders = ordersToProcess.map((ord: any) => ({
+          ...ord,
+          paymentStatus: 'paid'
+        }));
+
+        // Update both the orders list and current order state
+        setUpdatedOrdersState(updatedOrders);
+        if (updatedOrders.length > 0) {
+          setCurrentOrder(updatedOrders[0]);
+        }
+
+        // Generate combined receipt QR for multiple orders
+        if (isMultipleOrders) {
+          const orderIds = ordersToProcess.map((ord: any) => ord.id || ord._id);
+          const tableNum = selectedTable?.tableNumber || selectedTable?.displayName;
+          await generateCombinedReceiptQr({
+            restaurantId: restaurantId!,
+            orderIds,
+            tableNumber: tableNum,
+          });
+        }
+      } else {
+        // Single order payment
+        const result = await updatePayment({
+          restaurantId: restaurantId!,
+          orderId: order._id,
+          paymentStatus: 'paid',
+          provider: method === 'upi' ? 'upi' : 'cash',
+        }).unwrap();
+
+        console.log('Payment update successful:', result);
+        setCurrentOrder(result);
+      }
 
       // Payment successful - user can now see QR code option or navigate to bill manually
     } catch (error: any) {
@@ -215,10 +321,10 @@ export default function ServicePaymentScreen() {
   const getOrderStatusInfo = () => {
     if (!order) return null;
 
-    if (order.paymentStatus === 'paid') {
+    if (allOrdersPaid) {
       return {
         icon: 'checkmark-circle',
-        text: 'Payment Complete',
+        text: isMultipleOrders ? 'All Payments Complete' : 'Payment Complete',
         color: '#16a34a',
         bgColor: '#f0fdf4',
       };
@@ -226,7 +332,7 @@ export default function ServicePaymentScreen() {
 
     return {
       icon: 'time',
-      text: 'Payment Pending',
+      text: isMultipleOrders ? 'Payment Pending' : 'Payment Pending',
       color: '#ea580c',
       bgColor: '#fff7ed',
     };
@@ -314,7 +420,7 @@ export default function ServicePaymentScreen() {
                   {statusInfo.text}
                 </Text>
                 <Text style={styles.statusSubtext}>
-                  Table {tableNumber} • {formatCurrency(order.totalAmount)}
+                  Table {tableNumber} • {formatCurrency(finalTotalAmount)}
                 </Text>
               </View>
               <View
@@ -322,12 +428,12 @@ export default function ServicePaymentScreen() {
                   styles.statusBadge,
                   {
                     backgroundColor:
-                      order.paymentStatus === 'paid' ? '#16a34a' : '#dc2626',
+                      allOrdersPaid ? '#16a34a' : '#dc2626',
                   },
                 ]}
               >
                 <Text style={styles.statusBadgeText}>
-                  {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                  {allOrdersPaid ? 'Paid' : 'Pending'}
                 </Text>
               </View>
             </View>
@@ -335,7 +441,7 @@ export default function ServicePaymentScreen() {
         )}
 
         {/* Receipt QR Code - Show only if paid */}
-        {order.paymentStatus === 'paid' && (
+        {allOrdersPaid && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Customer Receipt</Text>
             <TouchableOpacity
@@ -380,7 +486,7 @@ export default function ServicePaymentScreen() {
         )}
 
         {/* Payment Methods - Show only if not paid */}
-        {order.paymentStatus !== 'paid' && (
+        {!allOrdersPaid && (
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Choose Payment Method</Text>
@@ -447,7 +553,7 @@ export default function ServicePaymentScreen() {
                   <View style={styles.amountContainer}>
                     <Text style={styles.amountLabel}>Amount to pay</Text>
                     <Text style={styles.amountValue}>
-                      {formatCurrency(order.totalAmount)}
+                      {formatCurrency(finalTotalAmount)}
                     </Text>
                   </View>
 
@@ -481,7 +587,7 @@ export default function ServicePaymentScreen() {
                   <View style={styles.cashAmountContainer}>
                     <Text style={styles.cashIcon}>💵</Text>
                     <Text style={styles.cashAmount}>
-                      {formatCurrency(order.totalAmount)}
+                      {formatCurrency(finalTotalAmount)}
                     </Text>
                     <Text style={styles.cashLabel}>
                       Collect cash from customer
@@ -522,26 +628,68 @@ export default function ServicePaymentScreen() {
 
         {/* Order Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Order Items</Text>
+          <Text style={styles.sectionTitle}>
+            {isMultipleOrders ? `Order Items (${ordersToProcess.length} Orders)` : 'Order Items'}
+          </Text>
           <View style={styles.orderCard}>
-            {order.items.map((item, index) => (
-              <View key={`${item.name}-${index}`} style={styles.orderItem}>
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemDetails}>
-                    ₹{item.pricing.unitAmount} × {item.quantity}
-                  </Text>
-                </View>
-                <Text style={styles.itemTotal}>
-                  ₹{(item.pricing.unitAmount * item.quantity).toFixed(0)}
-                </Text>
+            {/* Show items from all orders */}
+            {ordersToProcess.map((orderData: any, orderIndex: any) => (
+              <View key={`order-${orderIndex}`}>
+                {isMultipleOrders && (
+                  <Text style={styles.orderHeader}>Order #{orderData.orderNumber}</Text>
+                )}
+                {orderData.items.map((item: any, itemIndex: any) => (
+                  <View key={`${orderIndex}-${item.name}-${itemIndex}`} style={styles.orderItem}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemName}>{item.name}</Text>
+                      <Text style={styles.itemDetails}>
+                        ₹{item.pricing.unitAmount} × {item.quantity}
+                      </Text>
+                    </View>
+                    <Text style={styles.itemTotal}>
+                      ₹{(item.pricing.unitAmount * item.quantity).toFixed(0)}
+                    </Text>
+                  </View>
+                ))}
+                {isMultipleOrders && orderIndex < ordersToProcess.length - 1 && (
+                  <View style={styles.orderSeparator} />
+                )}
               </View>
             ))}
+
+            {/* Combined Bill Breakdown */}
+            {isMultipleOrders && combinedBillDetails && (
+              <View style={styles.billBreakdown}>
+                <View style={styles.divider} />
+                <Text style={styles.breakdownTitle}>Bill Summary</Text>
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Subtotal</Text>
+                  <Text style={styles.breakdownAmount}>
+                    {formatCurrency(combinedBillDetails.subTotalAmount)}
+                  </Text>
+                </View>
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Tax (CGST + SGST)</Text>
+                  <Text style={styles.breakdownAmount}>
+                    {formatCurrency(combinedBillDetails.cgstAmount + combinedBillDetails.sgstAmount)}
+                  </Text>
+                </View>
+                {combinedBillDetails.discountAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Discount</Text>
+                    <Text style={styles.breakdownAmount}>
+                      -{formatCurrency(combinedBillDetails.discountAmount)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             <View style={styles.divider} />
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalAmount}>
-                {formatCurrency(order.totalAmount)}
+                {formatCurrency(finalTotalAmount)}
               </Text>
             </View>
           </View>
@@ -550,7 +698,10 @@ export default function ServicePaymentScreen() {
         {/* Help Text */}
         <View style={styles.helpContainer}>
           <Text style={styles.helpText}>
-            Show order #{order.orderNumber} to kitchen staff if needed
+            {isMultipleOrders
+              ? `Show orders ${combinedBillDetails?.orderNumbers.join(', ')} to kitchen staff if needed`
+              : `Show order #${order.orderNumber} to kitchen staff if needed`
+            }
           </Text>
           <Text style={styles.helpText}>
             This screen will update automatically after payment
@@ -562,7 +713,7 @@ export default function ServicePaymentScreen() {
       {order && (
         <PaymentRoundingDialog
           visible={showRoundingDialog}
-          exactAmount={order.totalAmount}
+          exactAmount={finalTotalAmount}
           onClose={() => setShowRoundingDialog(false)}
           onConfirm={handleRoundingConfirm}
         />
@@ -599,7 +750,10 @@ export default function ServicePaymentScreen() {
                   receipt
                 </Text>
                 <Text style={styles.qrOrderInfo}>
-                  Order #{receiptQr.orderNumber}
+                  {isMultipleOrders
+                    ? `Orders #${receiptQr.orderNumbers?.join(', #') || receiptQr.orderNumber}`
+                    : `Order #${receiptQr.orderNumber}`
+                  }
                 </Text>
                 <Text style={styles.qrExpiryInfo}>
                   Valid until{' '}
@@ -1004,5 +1158,44 @@ const styles = StyleSheet.create({
   qrLoadingText: {
     fontSize: 16,
     color: '#6b7280',
+  },
+  orderHeader: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+    marginTop: 12,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  orderSeparator: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 12,
+  },
+  billBreakdown: {
+    marginTop: 8,
+  },
+  breakdownTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  breakdownLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  breakdownAmount: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1f2937',
   },
 });

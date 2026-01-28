@@ -96,21 +96,24 @@ export class RestaurantTablesService {
         .exec();
     }
 
-    const activeOrderMap = new Map<string, OrderDocument>();
+    // Group active orders by table
+    const activeOrdersByTable = new Map<string, OrderDocument[]>();
     activeOrders.forEach((order) => {
       const tableKey = order.tableNumber?.toLowerCase();
       if (!tableKey) {
         return;
       }
-      if (!activeOrderMap.has(tableKey)) {
-        activeOrderMap.set(tableKey, order);
+      if (!activeOrdersByTable.has(tableKey)) {
+        activeOrdersByTable.set(tableKey, []);
       }
+      activeOrdersByTable.get(tableKey)!.push(order);
     });
 
     const tablesDto = tables.map((table) => {
       const key = table.tableNumber.toLowerCase();
-      const activeOrder = activeOrderMap.get(key);
-      return this.toDto(table, activeOrder);
+      const tableOrders = activeOrdersByTable.get(key) || [];
+      const firstOrder = tableOrders.length > 0 ? tableOrders[0] : undefined;
+      return this.toDto(table, firstOrder, tableOrders);
     });
 
     const occupiedTables = tablesDto.filter((table) => !!table.activeOrder).length;
@@ -407,8 +410,12 @@ export class RestaurantTablesService {
 
   private toDto(
     doc: RestaurantTableDocument,
-    activeOrder?: OrderDocument
+    activeOrder?: OrderDocument,
+    activeOrders?: OrderDocument[]
   ): RestaurantTableResponseDto {
+    // Calculate total bill amount from all active orders
+    const totalBillAmount = activeOrders?.reduce((total, order) => total + order.totalAmount, 0) || 0;
+
     return {
       id: doc._id.toString(),
       restaurantId: doc.restaurantId.toString(),
@@ -426,6 +433,8 @@ export class RestaurantTablesService {
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
       activeOrder: activeOrder ? this.mapOrderToDto(activeOrder) : undefined,
+      activeOrders: activeOrders?.map(order => this.mapOrderToDto(order)) || [],
+      totalBillAmount: totalBillAmount > 0 ? totalBillAmount : undefined,
     };
   }
 

@@ -55,8 +55,11 @@ export interface UpdateOrderPaymentPayload {
 }
 
 export interface GenerateReceiptQrResponse {
-  orderId: string;
-  orderNumber: string;
+  orderId?: string;
+  orderNumber?: string;
+  orderIds?: string[];
+  orderNumbers?: string[];
+  tableNumber?: string;
   receiptUrl: string;
   qrCodeDataUrl: string;
   token: string;
@@ -129,6 +132,15 @@ export const ordersApi = baseApi.injectEndpoints({
       query: ({ restaurantId, orderId }) => `/restaurants/${restaurantId}/orders/${orderId}/receipt-qr`,
       // No caching for QR generation
     }),
+
+    generateCombinedReceiptQr: builder.mutation<GenerateReceiptQrResponse, { restaurantId: string; orderIds: string[]; tableNumber?: string }>({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/combined-receipt-qr`,
+        method: 'POST',
+        body,
+      }),
+      // No caching for QR generation
+    }),
   }),
   overrideExisting: false,
 });
@@ -140,4 +152,5 @@ export const {
   useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,
   useGenerateReceiptQrQuery,
+  useGenerateCombinedReceiptQrMutation,
 } = ordersApi;

@@ -11,6 +11,7 @@ import {
   IsUUID
 } from 'class-validator';
 import { TableStatusType } from '../schemas/table-status.schema';
+import { OrderResponseDto } from '../../orders/dtos/order-response.dto';
 
 export class UpdateTableStatusDto {
   @ApiProperty({
@@ -275,4 +276,14 @@ export class EnhancedRestaurantTableResponseDto {
   // Enhanced with status information
   @ApiPropertyOptional({ type: () => TableStatusResponseDto })
   currentStatus?: TableStatusResponseDto;
+
+  // Order information
+  @ApiPropertyOptional({ type: () => OrderResponseDto })
+  activeOrder?: OrderResponseDto;
+
+  @ApiPropertyOptional({ type: [OrderResponseDto] })
+  activeOrders?: OrderResponseDto[];
+
+  @ApiPropertyOptional()
+  totalBillAmount?: number;
 }

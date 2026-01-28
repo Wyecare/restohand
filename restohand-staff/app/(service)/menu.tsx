@@ -76,15 +76,25 @@ export default function ServiceMenuScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
-  // Check for existing active order (from the selected table, not menu query)
+  // Check for existing active orders (multiple orders per table)
+  const activeExistingOrders = useMemo(() => {
+    const existingOrders = selectedTable?.activeOrders || [];
+    return existingOrders.filter(order =>
+      order.paymentStatus !== "paid" &&
+      !["completed", "cancelled"].includes(order.status)
+    );
+  }, [selectedTable?.activeOrders]);
+
+  // For backward compatibility, keep the first order
   const activeExistingOrder = useMemo(() => {
-    const existingOrder = selectedTable?.activeOrder;
-    return existingOrder &&
-      existingOrder.paymentStatus !== "paid" &&
-      !["completed", "cancelled"].includes(existingOrder.status)
-      ? existingOrder
-      : null;
-  }, [selectedTable?.activeOrder]);
+    return activeExistingOrders.length > 0 ? activeExistingOrders[0] : null;
+  }, [activeExistingOrders]);
+
+  // Calculate total bill for all active orders
+  const totalBillAmount = useMemo(() => {
+    return selectedTable?.totalBillAmount ||
+           activeExistingOrders.reduce((total, order) => total + order.totalAmount, 0);
+  }, [selectedTable?.totalBillAmount, activeExistingOrders]);
 
   // Process menu data
   const categories = data?.menu.categories ?? [];
@@ -262,13 +272,16 @@ export default function ServiceMenuScreen() {
   };
 
   const handlePaymentAction = () => {
-    if (activeExistingOrder) {
+    if (activeExistingOrders.length > 0) {
+      // Pass all active orders for combined payment
       router.push({
         pathname: "/(service)/payment",
         params: {
-          orderId: activeExistingOrder.id,
+          orderId: activeExistingOrders[0].id, // Primary order ID for compatibility
           tableId: selectedTable?.id,
-          orderData: JSON.stringify(activeExistingOrder),
+          orderData: JSON.stringify(activeExistingOrders[0]), // Primary order data for compatibility
+          allOrdersData: JSON.stringify(activeExistingOrders), // All orders for combined payment
+          totalBillAmount: totalBillAmount.toString(), // Total amount to pay
         },
       });
     }
@@ -374,31 +387,52 @@ export default function ServiceMenuScreen() {
         </View>
       </View>
 
-      {/* Existing Order Alert */}
-      {activeExistingOrder && (
+      {/* Existing Orders Alert - Show multiple orders */}
+      {activeExistingOrders.length > 0 && (
         <View style={styles.existingOrderAlert}>
           <View style={styles.existingOrderContent}>
-            <View>
+            <View style={styles.orderHeaderContainer}>
               <Text style={styles.existingOrderTitle}>
-                Active Order #{activeExistingOrder.orderNumber}
+                {activeExistingOrders.length === 1
+                  ? `Active Order #${activeExistingOrders[0].orderNumber}`
+                  : `${activeExistingOrders.length} Active Orders`
+                }
               </Text>
-              <View style={styles.existingOrderMeta}>
-                <Ionicons name="time" size={12} color="#1d4ed8" />
-                <Text style={styles.existingOrderStatus}>
-                  {activeExistingOrder.status.replace("_", " ")}
-                </Text>
-                <Text style={styles.existingOrderAmount}>
-                  • ₹{activeExistingOrder.totalAmount.toFixed(0)}
-                </Text>
-              </View>
+              <Text style={styles.totalBillAmount}>
+                Total: ₹{totalBillAmount.toFixed(0)}
+              </Text>
             </View>
-            {activeExistingOrder.status === "ready" && (
+
+            {/* Show all orders */}
+            <View style={styles.ordersContainer}>
+              {activeExistingOrders.map((order, index) => (
+                <View key={order.id} style={styles.orderRow}>
+                  <View style={styles.orderInfo}>
+                    <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
+                    <View style={styles.existingOrderMeta}>
+                      <Ionicons name="time" size={10} color="#1d4ed8" />
+                      <Text style={styles.existingOrderStatus}>
+                        {order.status.replace("_", " ")}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.orderAmount}>
+                    ₹{order.totalAmount.toFixed(0)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Show payment button if any order is ready */}
+            {activeExistingOrders.some(order => order.status === "ready") && (
               <TouchableOpacity
                 style={styles.paymentButton}
                 onPress={handlePaymentAction}
               >
                 <Ionicons name="card" size={16} color="#ffffff" />
-                <Text style={styles.paymentButtonText}>Payment</Text>
+                <Text style={styles.paymentButtonText}>
+                  Pay Total Bill (₹{totalBillAmount.toFixed(0)})
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -695,6 +729,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   existingOrderContent: {
+    flexDirection: "column",
+    gap: 12,
+  },
+  orderHeaderContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -703,6 +741,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1e40af",
+  },
+  totalBillAmount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  ordersContainer: {
+    gap: 8,
+  },
+  orderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: "#f8fafc",
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: "#3b82f6",
+  },
+  orderInfo: {
+    flex: 1,
+  },
+  orderNumber: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  orderAmount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#059669",
   },
   existingOrderMeta: {
     flexDirection: "row",

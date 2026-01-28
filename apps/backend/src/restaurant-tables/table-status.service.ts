@@ -26,6 +26,7 @@ import {
   TableStatusStatsDto,
   EnhancedRestaurantTableResponseDto,
 } from './dtos/table-status.dto';
+import { OrderResponseDto } from '../orders/dtos/order-response.dto';
 
 @Injectable()
 export class TableStatusService {
@@ -319,9 +320,14 @@ export class TableStatusService {
         }
       }
 
-      const activeOrder = activeOrders.find(
+      // Get all orders for this table
+      const tableOrders = activeOrders.filter(
         (order) => order.tableNumber === table.tableNumber
       );
+      const firstOrder = tableOrders.length > 0 ? tableOrders[0] : undefined;
+
+      // Calculate total bill amount for this table
+      const totalBillAmount = tableOrders.reduce((total, order) => total + order.totalAmount, 0);
 
       enhancedTables.push({
         id: table._id.toString(),
@@ -331,7 +337,9 @@ export class TableStatusService {
         capacity: table.capacity,
         zone: table.zone,
         displayOrder: table.displayOrder,
-        activeOrder: activeOrder || undefined,
+        activeOrder: firstOrder ? this.mapOrderToDto(firstOrder) : undefined,
+        activeOrders: tableOrders?.map(order => this.mapOrderToDto(order)) || [],
+        totalBillAmount: totalBillAmount > 0 ? totalBillAmount : undefined,
         isActive: table.isActive,
         layoutX: table.layoutX,
         layoutY: table.layoutY,
@@ -596,5 +604,87 @@ export class TableStatusService {
       console.error(`Error updating table status for table ${tableId}:`, error);
       return null;
     }
+  }
+
+  private mapOrderToDto(order: OrderDocument): OrderResponseDto {
+    return {
+      id: order._id.toString(),
+      restaurantId: order.restaurantId.toString(),
+      sessionId: order.sessionId?.toString(),
+      createdBy: order.createdBy?.toString(),
+      orderNumber: order.orderNumber,
+      tableNumber: order.tableNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail,
+      customerGstin: order.customerGstin,
+      customerState: order.customerState,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      progress: order.progress,
+      items: order.items.map((item) => ({
+        menuItemId: item.menuItemId?.toString(),
+        name: item.name,
+        quantity: item.quantity,
+        pricing: {
+          unitAmount: item.pricing.unitAmount,
+          currency: item.pricing.currency,
+          taxAmount: item.pricing.taxAmount,
+          discountAmount: item.pricing.discountAmount,
+        },
+        gst: item.gst
+          ? {
+              hsnCode: item.gst.hsnCode,
+              gstRateId: item.gst.gstRateId,
+              gstRate: item.gst.gstRate,
+              cgstAmount: item.gst.cgstAmount,
+              sgstAmount: item.gst.sgstAmount,
+              igstAmount: item.gst.igstAmount,
+              totalTaxAmount: item.gst.totalTaxAmount,
+              taxableAmount: item.gst.taxableAmount,
+              totalWithTax: item.gst.totalWithTax,
+              grossAmount:
+                item.gst.grossAmount ??
+                this.roundToTwo(item.pricing.unitAmount * item.quantity),
+              isTaxInclusive: item.gst.isTaxInclusive ?? false,
+            }
+          : undefined,
+        notes: item.notes,
+      })),
+      subTotalAmount: order.subTotalAmount,
+      taxAmount: order.taxAmount,
+      cgstAmount: order.cgstAmount,
+      sgstAmount: order.sgstAmount,
+      igstAmount: order.igstAmount,
+      discountAmount: order.discountAmount,
+      grossAmount:
+        order.grossAmount ??
+        this.roundToTwo(order.subTotalAmount + (order.discountAmount ?? 0)),
+      totalAmount: order.totalAmount,
+      roundOffAmount: order.roundOffAmount,
+      taxType: order.taxType
+        ? (order.taxType as 'intra-state' | 'inter-state')
+        : undefined,
+      notes: order.notes,
+      statusNote: order.statusNote,
+      paidAt: order.paidAt?.toISOString(),
+      paymentProvider: order.paymentProvider,
+      paymentTransactionId: order.paymentTransactionId,
+      razorpayOrderId: order.razorpayOrderId,
+      paymentMeta: order.paymentMeta ?? undefined,
+      readyAt: order.readyAt?.toISOString(),
+      paymentIntentUrl: order.paymentIntentUrl,
+      taxInvoiceNumber: order.taxInvoiceNumber,
+      taxInvoiceGeneratedAt: order.taxInvoiceGeneratedAt?.toISOString(),
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+      billGeneratedAt: undefined,
+      subtotal: undefined,
+    };
+  }
+
+  private roundToTwo(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 }
