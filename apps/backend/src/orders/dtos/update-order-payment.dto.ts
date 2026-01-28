@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength, IsNumber, Min } from 'class-validator';
 import { PaymentStatus } from '../../common/enums/payment-status.enum';
 
 export class UpdateOrderPaymentDto {
@@ -28,4 +28,21 @@ export class UpdateOrderPaymentDto {
   @IsString()
   @MaxLength(20)
   paymentMethod?: string;
+
+  @ApiPropertyOptional({
+    example: 47.26,
+    description: 'Final amount collected from customer (may differ from order total due to rounding)'
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  finalAmount?: number;
+
+  @ApiPropertyOptional({
+    example: -0.26,
+    description: 'Round off amount applied (can be positive or negative)'
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  roundOffAmount?: number;
 }

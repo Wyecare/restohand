@@ -32,12 +32,8 @@ export function Receipt({ order, restaurantInfo }: ReceiptProps) {
           <p className="text-xs mt-1">{restaurantInfo.address}</p>
         )}
         <div className="flex justify-between text-xs mt-2">
-          {restaurantInfo?.phone && (
-            <span>Ph: {restaurantInfo.phone}</span>
-          )}
-          {restaurantInfo?.email && (
-            <span>{restaurantInfo.email}</span>
-          )}
+          {restaurantInfo?.phone && <span>Ph: {restaurantInfo.phone}</span>}
+          {restaurantInfo?.email && <span>{restaurantInfo.email}</span>}
         </div>
         {restaurantInfo?.gstNumber && (
           <p className="text-xs mt-1">GST: {restaurantInfo.gstNumber}</p>
@@ -143,8 +139,10 @@ export function Receipt({ order, restaurantInfo }: ReceiptProps) {
           <span>{formatCurrency(order.totalAmount)}</span>
         </div>
         <div className="text-xs text-center mt-2">
-          {order.taxType === 'inter-state' ? 'Interstate (IGST)' : 'Intrastate (CGST + SGST)'}
-          {' '}• Inclusive of all taxes
+          {order.taxType === 'inter-state'
+            ? 'Interstate (IGST)'
+            : 'Intrastate (CGST + SGST)'}{' '}
+          • Inclusive of all taxes
         </div>
       </div>
 
@@ -152,9 +150,11 @@ export function Receipt({ order, restaurantInfo }: ReceiptProps) {
       <div className="border-b border-dashed border-gray-400 pb-3 mb-4">
         <div className="flex justify-between">
           <span>Payment Status:</span>
-          <span className={`font-bold uppercase ${
-            order.paymentStatus === 'paid' ? 'text-green-600' : 'text-red-600'
-          }`}>
+          <span
+            className={`font-bold uppercase ${
+              order.paymentStatus === 'paid' ? 'text-green-600' : 'text-red-600'
+            }`}
+          >
             {order.paymentStatus}
           </span>
         </div>

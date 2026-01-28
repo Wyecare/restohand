@@ -181,11 +181,14 @@ export class Order {
   @Prop({ type: Number, min: 0, default: 0 })
   grossAmount!: number;
 
-  @Prop({ type: Number, min: 0, default: 0 })
-  roundOffAmount!: number; // Rounding adjustment
+  @Prop({ type: Number, default: 0 })
+  roundOffAmount!: number; // Rounding adjustment (can be positive or negative)
 
   @Prop({ type: Number, min: 0, default: 0 })
   totalAmount!: number;
+
+  @Prop({ type: Number, min: 0 })
+  finalAmount?: number; // Actual amount collected (may differ from totalAmount due to rounding)
 
   @Prop({
     type: String,

@@ -41,6 +41,7 @@ import {
 import { RazorpayService } from '../payments/razorpay.service';
 import { TableStatusService } from '../restaurant-tables/table-status.service';
 import { TableStatusType } from '../restaurant-tables/schemas/table-status.schema';
+import { GstService, TaxCalculation, OrderItemWithTax } from '../gst/gst.service';
 
 @Injectable()
 export class OrdersService {
@@ -59,6 +60,7 @@ export class OrdersService {
     private readonly orderCounterModel: Model<OrderCounterDocument>,
     private readonly ordersGateway: OrdersGateway,
     private readonly smartGstService: SmartGstService,
+    private readonly gstService: GstService,
     private readonly razorpayService: RazorpayService,
     private readonly tableStatusService: TableStatusService
   ) {}
@@ -497,6 +499,20 @@ export class OrdersService {
       updateDoc.paymentMethod = dto.paymentMethod;
     }
 
+    // Handle final amount and rounding
+    if (dto.finalAmount !== undefined) {
+      updateDoc.finalAmount = dto.finalAmount;
+
+      // Calculate roundOffAmount as finalAmount - originalTotal
+      // This ensures proper calculation for TaxInvoice generation
+      const originalOrder = await this.orderModel.findById(orderId).lean();
+      if (originalOrder) {
+        updateDoc.roundOffAmount = dto.finalAmount - originalOrder.totalAmount;
+      }
+    } else if (dto.roundOffAmount !== undefined) {
+      updateDoc.roundOffAmount = dto.roundOffAmount;
+    }
+
     let updated = await this.orderModel.findOneAndUpdate(
       { _id: orderId, restaurantId },
       { $set: updateDoc },
@@ -513,7 +529,10 @@ export class OrdersService {
       // Skip automatic transfer for direct payments (not using Razorpay transfers)
       // await this.transferToRestaurant(updated);
 
-      updated = await this.ensureTaxInvoice(updated);
+      // Only generate tax invoice after all payment details are set
+      if (updated) {
+        updated = await this.ensureTaxInvoice(updated);
+      }
 
       if (
         updated.status !== OrderStatus.Completed &&
@@ -557,7 +576,6 @@ export class OrdersService {
           updated.tableId.toString(),
           'order-completed',
           {
-            createdBy: 'system',
             createdByName: 'Order System'
           }
         );
@@ -1158,12 +1176,30 @@ export class OrdersService {
       return order;
     }
 
+    // Skip tax invoice generation if there's a customer discount (negative roundOff)
+    // This prevents TaxInvoice schema validation error with negative roundOffAmount
+    if (order.roundOffAmount && order.roundOffAmount < 0) {
+      this.logger.warn(
+        `Skipping TaxInvoice generation for order ${order._id} due to customer discount (roundOff: ${order.roundOffAmount})`
+      );
+      return order;
+    }
+
     const restaurantId = order.restaurantId.toString();
     const orderId = order._id.toString();
 
     const preRoundTotal = this.roundToTwo(
       order.subTotalAmount + order.taxAmount
     );
+
+    // Use finalAmount if available, otherwise use calculated total
+    // For TaxInvoice generation, we need to handle rounding correctly
+    const finalInvoiceAmount = order.finalAmount ?? preRoundTotal;
+    const calculatedRoundOff = order.finalAmount ? (order.finalAmount - preRoundTotal) : 0;
+
+    // Ensure roundOffAmount is non-negative for TaxInvoice schema
+    // If the customer got a discount (negative roundOff), we'll handle it differently
+    const finalRoundOffAmount = Math.max(0, calculatedRoundOff);
 
     const items: OrderItemWithTax[] = order.items.map((item) => {
       const grossAmount =
@@ -1214,9 +1250,9 @@ export class OrdersService {
       sgstAmount: order.sgstAmount ?? 0,
       igstAmount: order.igstAmount ?? 0,
       totalTaxAmount: order.taxAmount ?? 0,
-      totalAmount: preRoundTotal,
+      totalAmount: finalInvoiceAmount, // Use final amount collected
       taxType:
-        (order.taxType as 'intra-state' | 'inter-state') ?? 'intra-state',
+        (order.taxType as 'intra-state' | 'inter-state') ?? 'intra-state'
     };
 
     const invoiceNumber = await this.gstService.generateTaxInvoice(

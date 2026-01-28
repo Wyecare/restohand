@@ -10,7 +10,10 @@ import {
   useGetPublicRestaurantQuery,
   useCancelPublicOrderMutation,
 } from '@/store/api/restaurantsApi';
-import { useCreatePaymentIntentMutation, useVerifyPaymentMutation } from '@/store/api/ordersApi';
+import {
+  useCreatePaymentIntentMutation,
+  useVerifyPaymentMutation,
+} from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import type { Order } from '@/store/api/types';
 import { Badge } from '@/components/ui/badge';
@@ -109,7 +112,8 @@ export default function CustomerOrderStatusPage() {
   const [deviceOrders, setDeviceOrders] = useState<DeviceOrder[]>([]);
   const [cancelOrder, { isLoading: isCancelling }] =
     useCancelPublicOrderMutation();
-  const [createPaymentIntent, { isLoading: isCreatingPayment }] = useCreatePaymentIntentMutation();
+  const [createPaymentIntent, { isLoading: isCreatingPayment }] =
+    useCreatePaymentIntentMutation();
   const [verifyPayment] = useVerifyPaymentMutation();
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [showItems, setShowItems] = useState(false);
@@ -137,8 +141,7 @@ export default function CustomerOrderStatusPage() {
 
   // Allow customers to go back to menu if order is ready/completed
   const canReturnToMenu =
-    !!order &&
-    (order.status === 'ready' || order.status === 'completed');
+    !!order && (order.status === 'ready' || order.status === 'completed');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -260,7 +263,8 @@ export default function CustomerOrderStatusPage() {
           } catch (verifyError: any) {
             toast({
               title: 'Payment Verification Failed',
-              description: verifyError?.data?.message || 'Please contact support.',
+              description:
+                verifyError?.data?.message || 'Please contact support.',
               variant: 'destructive',
             });
           }
@@ -286,7 +290,14 @@ export default function CustomerOrderStatusPage() {
         variant: 'destructive',
       });
     }
-  }, [order, createPaymentIntent, verifyPayment, toast, restaurantData, refetch]);
+  }, [
+    order,
+    createPaymentIntent,
+    verifyPayment,
+    toast,
+    restaurantData,
+    refetch,
+  ]);
 
   const handleCancelOrder = useCallback(async () => {
     if (!order || !canCancelOrder) {
@@ -439,9 +450,7 @@ export default function CustomerOrderStatusPage() {
                   animate={{ opacity: 1 }}
                   className="rounded-xl bg-orange-50 text-orange-900 border-2 border-orange-200 p-4 dark:bg-orange-950/20 dark:text-orange-100 dark:border-orange-800"
                 >
-                  <p className="font-medium text-base">
-                    💳 Payment Pending
-                  </p>
+                  <p className="font-medium text-base">💳 Payment Pending</p>
                   <p className="text-sm mt-1 opacity-80">
                     Pay now with UPI or ask staff for assistance
                   </p>
@@ -477,7 +486,9 @@ export default function CustomerOrderStatusPage() {
               className="col-span-2 h-14 text-lg font-bold bg-green-600 hover:bg-green-700"
             >
               <CreditCard className="mr-2 h-5 w-5" />
-              {isCreatingPayment ? 'Processing...' : `Pay ${formatCurrency(order.totalAmount)}`}
+              {isCreatingPayment
+                ? 'Processing...'
+                : `Pay ${formatCurrency(order.totalAmount)}`}
             </Button>
           )}
           <Button
@@ -559,24 +570,24 @@ export default function CustomerOrderStatusPage() {
 
           {/* General Back to Menu button for ongoing orders */}
           {!canStartNewOrder &&
-           !canReturnToMenu &&
-           order.status !== 'cancelled' &&
-           order.status !== 'completed' && (
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => {
-                const tableSuffix = tableFromQuery
-                  ? `?table=${encodeURIComponent(tableFromQuery)}`
-                  : '';
-                navigate(`/c/${slug}${tableSuffix}`);
-              }}
-              className="col-span-2 h-12"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Back to Menu
-            </Button>
-          )}
+            !canReturnToMenu &&
+            order.status !== 'cancelled' &&
+            order.status !== 'completed' && (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  const tableSuffix = tableFromQuery
+                    ? `?table=${encodeURIComponent(tableFromQuery)}`
+                    : '';
+                  navigate(`/c/${slug}${tableSuffix}`);
+                }}
+                className="col-span-2 h-12"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Back to Menu
+              </Button>
+            )}
         </motion.div>
 
         {/* Call Waiter Button - Show when customer is at a table */}
@@ -646,11 +657,10 @@ export default function CustomerOrderStatusPage() {
             className="text-center bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800"
           >
             <div className="text-blue-900 dark:text-blue-100 space-y-2">
-              <p className="font-medium text-sm">
-                💡 After paying with UPI:
-              </p>
+              <p className="font-medium text-sm">💡 After paying with UPI:</p>
               <p className="text-xs">
-                Show your payment confirmation to any staff member. They will mark your order as paid and you'll get a receipt!
+                Show your payment confirmation to any staff member. They will
+                mark your order as paid and you'll get a receipt!
               </p>
             </div>
           </motion.div>

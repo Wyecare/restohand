@@ -524,28 +524,28 @@ export default function CustomerOrderStatusPage() {
             onClick={() => setShowReceiptDialog(true)}
             className="h-12"
           >
-            View Receipt
+            View Receipt---
           </Button>
 
           {/* Add More Items button - show for active orders */}
           {order.status !== 'cancelled' &&
-           order.status !== 'completed' &&
-           order.paymentStatus === 'paid' && (
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => {
-                const tableSuffix = tableFromQuery
-                  ? `?table=${encodeURIComponent(tableFromQuery)}`
-                  : '';
-                navigate(`/c/${slug}${tableSuffix}`);
-              }}
-              className="col-span-2 h-12"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add More Items
-            </Button>
-          )}
+            order.status !== 'completed' &&
+            order.paymentStatus === 'paid' && (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  const tableSuffix = tableFromQuery
+                    ? `?table=${encodeURIComponent(tableFromQuery)}`
+                    : '';
+                  navigate(`/c/${slug}${tableSuffix}`);
+                }}
+                className="col-span-2 h-12"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add More Items
+              </Button>
+            )}
 
           {canCancelOrder && (
             <Button
@@ -590,24 +590,24 @@ export default function CustomerOrderStatusPage() {
 
           {/* General Back to Menu button - always available unless order is completed/cancelled */}
           {!canStartNewOrder &&
-           !canReturnToMenu &&
-           order.status !== 'cancelled' &&
-           order.status !== 'completed' && (
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => {
-                const tableSuffix = tableFromQuery
-                  ? `?table=${encodeURIComponent(tableFromQuery)}`
-                  : '';
-                navigate(`/c/${slug}${tableSuffix}`);
-              }}
-              className="col-span-2 h-12"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Back to Menu
-            </Button>
-          )}
+            !canReturnToMenu &&
+            order.status !== 'cancelled' &&
+            order.status !== 'completed' && (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  const tableSuffix = tableFromQuery
+                    ? `?table=${encodeURIComponent(tableFromQuery)}`
+                    : '';
+                  navigate(`/c/${slug}${tableSuffix}`);
+                }}
+                className="col-span-2 h-12"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Back to Menu
+              </Button>
+            )}
         </motion.div>
 
         {/* Items List (Collapsible) */}

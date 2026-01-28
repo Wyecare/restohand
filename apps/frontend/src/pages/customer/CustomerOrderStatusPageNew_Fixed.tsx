@@ -129,8 +129,7 @@ export default function CustomerOrderStatusPage() {
 
   // Allow customers to go back to menu if order is ready/completed
   const canReturnToMenu =
-    !!order &&
-    (order.status === 'ready' || order.status === 'completed');
+    !!order && (order.status === 'ready' || order.status === 'completed');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -207,7 +206,8 @@ export default function CustomerOrderStatusPage() {
 
         toast({
           title: 'Opening UPI app... 📱',
-          description: 'Complete payment in your UPI app, then show confirmation to staff',
+          description:
+            'Complete payment in your UPI app, then show confirmation to staff',
         });
       } else {
         throw new Error('UPI intent not generated');
@@ -216,7 +216,8 @@ export default function CustomerOrderStatusPage() {
       console.error('UPI payment error:', error);
       toast({
         title: 'Payment setup failed',
-        description: 'Could not open UPI app. Please try again or pay with staff.',
+        description:
+          'Could not open UPI app. Please try again or pay with staff.',
         variant: 'destructive',
       });
     }
@@ -373,9 +374,7 @@ export default function CustomerOrderStatusPage() {
                   animate={{ opacity: 1 }}
                   className="rounded-xl bg-orange-50 text-orange-900 border-2 border-orange-200 p-4 dark:bg-orange-950/20 dark:text-orange-100 dark:border-orange-800"
                 >
-                  <p className="font-medium text-base">
-                    💳 Payment Pending
-                  </p>
+                  <p className="font-medium text-base">💳 Payment Pending</p>
                   <p className="text-sm mt-1 opacity-80">
                     Pay now with UPI or ask staff for assistance
                   </p>
@@ -429,7 +428,7 @@ export default function CustomerOrderStatusPage() {
             onClick={() => setShowReceiptDialog(true)}
             className="h-12"
           >
-            View Receipt
+            View Receipt...
           </Button>
 
           {/* Add More Items button - show for active orders */}
@@ -493,24 +492,24 @@ export default function CustomerOrderStatusPage() {
 
           {/* General Back to Menu button for ongoing orders */}
           {!canStartNewOrder &&
-           !canReturnToMenu &&
-           order.status !== 'cancelled' &&
-           order.status !== 'completed' && (
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => {
-                const tableSuffix = tableFromQuery
-                  ? `?table=${encodeURIComponent(tableFromQuery)}`
-                  : '';
-                navigate(`/c/${slug}${tableSuffix}`);
-              }}
-              className="col-span-2 h-12"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Back to Menu
-            </Button>
-          )}
+            !canReturnToMenu &&
+            order.status !== 'cancelled' &&
+            order.status !== 'completed' && (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => {
+                  const tableSuffix = tableFromQuery
+                    ? `?table=${encodeURIComponent(tableFromQuery)}`
+                    : '';
+                  navigate(`/c/${slug}${tableSuffix}`);
+                }}
+                className="col-span-2 h-12"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Back to Menu
+              </Button>
+            )}
         </motion.div>
 
         {/* Items List (Collapsible) */}
@@ -565,11 +564,10 @@ export default function CustomerOrderStatusPage() {
             className="text-center bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800"
           >
             <div className="text-blue-900 dark:text-blue-100 space-y-2">
-              <p className="font-medium text-sm">
-                💡 After paying with UPI:
-              </p>
+              <p className="font-medium text-sm">💡 After paying with UPI:</p>
               <p className="text-xs">
-                Show your payment confirmation to any staff member. They will mark your order as paid and you'll get a receipt!
+                Show your payment confirmation to any staff member. They will
+                mark your order as paid and you'll get a receipt!
               </p>
             </div>
           </motion.div>
