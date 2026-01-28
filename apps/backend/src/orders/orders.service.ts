@@ -24,6 +24,7 @@ import {
 import { OrderEvent, OrderEventDocument } from './schemas/order-event.schema';
 import { OrderEventResponseDto } from './dtos/order-event-response.dto';
 import { OrdersGateway } from './orders.gateway';
+import { OrdersSSEService } from './orders-sse.service';
 import {
   MenuItem,
   MenuItemDocument,
@@ -59,6 +60,7 @@ export class OrdersService {
     @InjectModel(OrderCounter.name)
     private readonly orderCounterModel: Model<OrderCounterDocument>,
     private readonly ordersGateway: OrdersGateway,
+    private readonly ordersSSEService: OrdersSSEService,
     private readonly smartGstService: SmartGstService,
     private readonly gstService: GstService,
     private readonly razorpayService: RazorpayService,
@@ -209,6 +211,7 @@ export class OrdersService {
       response.paymentIntentUrl = `upi://pay?${params.toString()}`;
     }
     this.ordersGateway.emitOrderCreated(response);
+    this.ordersSSEService.emitOrderCreated(response);
     return response;
   }
 
@@ -461,6 +464,7 @@ export class OrdersService {
     }
 
     this.ordersGateway.emitOrderUpdated(response);
+    this.ordersSSEService.emitOrderUpdated(response);
     return response;
   }
 
@@ -587,6 +591,7 @@ export class OrdersService {
     }
 
     this.ordersGateway.emitOrderUpdated(response);
+    this.ordersSSEService.emitOrderUpdated(response);
     return response;
   }
 
@@ -825,6 +830,7 @@ export class OrdersService {
     // Emit real-time update
     const updatedOrder = await this.findOne(restaurantId, orderId);
     this.ordersGateway.emitOrderUpdated(updatedOrder);
+    this.ordersSSEService.emitOrderUpdated(updatedOrder);
 
     this.logger.log(
       `Added ${newItems.length} items to order ${orderId}. New total: ₹${totalAmount}`

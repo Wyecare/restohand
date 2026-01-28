@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from '../auth/auth.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
@@ -10,6 +11,9 @@ import { Order, OrderSchema } from './schemas/order.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { OrderEvent, OrderEventSchema } from './schemas/order-event.schema';
 import { OrdersGateway } from './orders.gateway';
+import { OrdersSSEController } from './orders-sse.controller';
+import { OrdersSSEService } from './orders-sse.service';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema';
 import { RestaurantTable, RestaurantTableSchema } from '../restaurant-tables/schemas/restaurant-table.schema';
 import { OrderCounter, OrderCounterSchema } from './schemas/order-counter.schema';
@@ -24,6 +28,14 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 @Module({
   imports: [
     AuthModule,
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+        signOptions: {
+          expiresIn: '15m',
+        },
+      }),
+    }),
     GstModule,
     RestaurantsModule,
     RestaurantTablesModule,
@@ -36,10 +48,11 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       { name: RestaurantTable.name, schema: RestaurantTableSchema },
       { name: OrderCounter.name, schema: OrderCounterSchema },
       { name: OrderModification.name, schema: OrderModificationSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
-  controllers: [OrdersController, PublicOrdersController, OrderModificationController, WebhooksController],
-  providers: [OrdersService, OrderModificationService, OrdersGateway, RazorpayService],
+  controllers: [OrdersController, PublicOrdersController, OrderModificationController, WebhooksController, OrdersSSEController],
+  providers: [OrdersService, OrderModificationService, OrdersGateway, OrdersSSEService, RazorpayService],
   exports: [OrdersService, OrderModificationService],
 })
 export class OrdersModule {}
