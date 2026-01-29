@@ -714,6 +714,7 @@ const styles = StyleSheet.create({
     width: 140,
     height: 45,
     resizeMode: 'contain',
+    left: -6,
   },
   restaurantName: {
     fontSize: 16,

@@ -550,16 +550,47 @@ export class OrdersService {
       if (updated) {
         updated = await this.ensureTaxInvoice(updated);
 
-        // Auto-create receipt document for paid orders
+        // Auto-create or update receipt document for paid orders
         try {
-          console.log('=== AUTO-RECEIPT CREATION ===');
-          console.log('Checking existing receipt for order:', updated._id.toString());
+          console.log('=== AUTO-RECEIPT CREATION/UPDATE ===');
+          console.log('Processing paid order:', updated._id.toString());
+          console.log('Table ID:', updated.tableId);
+          console.log('Session ID:', updated.sessionId);
 
-          const existingReceipt = await this.receiptDocumentService.findByOrderId(updated._id.toString());
+          // Check if this order already has a receipt
+          const existingOrderReceipt = await this.receiptDocumentService.findByOrderId(updated._id.toString());
 
-          console.log('Existing receipt found:', !!existingReceipt);
+          if (existingOrderReceipt) {
+            console.log('Order already has receipt:', existingOrderReceipt.receiptNumber);
+            return; // Skip if this order is already in a receipt
+          }
 
-          if (!existingReceipt) {
+          // Find existing receipt for the same table/session to group orders
+          let targetReceipt = null;
+
+          if (updated.tableId) {
+            // Look for existing receipt from the same table that's still active
+            console.log('Searching for existing table receipt...');
+            targetReceipt = await this.receiptDocumentService.findActiveTableReceipt(
+              restaurantId,
+              updated.tableId.toString()
+            );
+            console.log('Found existing table receipt:', !!targetReceipt);
+          }
+
+          if (targetReceipt) {
+            // Add this order to existing receipt
+            console.log('Adding order to existing receipt:', targetReceipt.receiptNumber);
+
+            await this.receiptDocumentService.addOrderToReceipt(
+              targetReceipt._id.toString(),
+              updated._id.toString(),
+              updatedBy
+            );
+
+            this.logger.log(`Added order ${updated._id} to existing receipt ${targetReceipt.receiptNumber}`);
+          } else {
+            // Create new receipt for this table/session
             console.log('Creating new receipt with params:');
             console.log('- Restaurant ID:', restaurantId);
             console.log('- Order IDs:', [updated._id.toString()]);
@@ -567,7 +598,6 @@ export class OrdersService {
             console.log('- Payment Provider:', updated.paymentProvider);
             console.log('- Transaction ID:', updated.paymentTransactionId);
             console.log('- Updated By (User ID):', updatedBy);
-            console.log('=== END RECEIPT CREATION LOG ===');
 
             this.logger.log(`Auto-creating receipt document for paid order ${updated._id} by user: ${updatedBy || 'unknown'}`);
 
@@ -582,9 +612,9 @@ export class OrdersService {
 
             console.log('Receipt creation result:', createdReceipt ? 'SUCCESS' : 'FAILED');
             this.logger.log(`Receipt document created successfully for order ${updated._id}`);
-          } else {
-            console.log('Receipt already exists, skipping creation');
           }
+
+          console.log('=== END RECEIPT CREATION/UPDATE LOG ===');
         } catch (error) {
           console.log('=== RECEIPT CREATION ERROR ===');
           console.log('Error details:', error);

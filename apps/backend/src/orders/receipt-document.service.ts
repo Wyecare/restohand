@@ -229,4 +229,180 @@ export class ReceiptDocumentService {
       totalPages: Math.ceil(total / limit),
     };
   }
+
+  /**
+   * Find active receipt for a table (to group multiple orders)
+   */
+  async findActiveTableReceipt(
+    restaurantId: string,
+    tableId: string
+  ): Promise<ReceiptDocumentDocument | null> {
+    try {
+      // Get all orders from this table that are paid
+      const tableOrders = await this.orderModel
+        .find({
+          restaurantId: new Types.ObjectId(restaurantId),
+          tableId: new Types.ObjectId(tableId),
+          paymentStatus: 'paid',
+        })
+        .select('_id')
+        .lean();
+
+      if (!tableOrders.length) {
+        return null;
+      }
+
+      const orderIds = tableOrders.map(o => o._id.toString());
+
+      // Find receipt that contains any of these orders and was created recently (within last 4 hours)
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+
+      const receipt = await this.receiptDocumentModel
+        .findOne({
+          restaurantId: new Types.ObjectId(restaurantId),
+          orderIds: { $in: orderIds },
+          createdAt: { $gte: fourHoursAgo }, // Only recent receipts
+        })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return receipt;
+    } catch (error) {
+      this.logger.error('Error finding active table receipt:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Add an order to existing receipt
+   */
+  async addOrderToReceipt(
+    receiptId: string,
+    orderId: string,
+    updatedBy?: string
+  ): Promise<ReceiptDocumentDocument | null> {
+    try {
+      console.log('=== ADD ORDER TO RECEIPT DEBUG ===');
+      console.log('Receipt ID:', receiptId);
+      console.log('Order ID:', orderId);
+      console.log('Updated By:', updatedBy);
+
+      // Get the order details
+      const order = await this.orderModel
+        .findById(orderId)
+        .populate('restaurantId')
+        .lean();
+
+      console.log('Order found:', !!order);
+      if (order) {
+        console.log('Order details:', {
+          id: order._id,
+          tableId: order.tableId,
+          items: order.items.length,
+          subTotalAmount: order.subTotalAmount,
+          taxAmount: order.taxAmount,
+          totalAmount: order.totalAmount
+        });
+      }
+
+      if (!order) {
+        throw new Error(`Order ${orderId} not found`);
+      }
+
+      // Get current receipt
+      const receipt = await this.receiptDocumentModel.findById(receiptId);
+
+      console.log('Receipt found:', !!receipt);
+      if (receipt) {
+        console.log('Current receipt details:', {
+          receiptNumber: receipt.receiptNumber,
+          currentOrderIds: receipt.orderIds,
+          currentSubtotal: receipt.subtotal,
+          currentTaxAmount: receipt.taxAmount,
+          currentTotalAmount: receipt.totalAmount,
+          currentItemsCount: receipt.items.length
+        });
+      }
+
+      if (!receipt) {
+        throw new Error(`Receipt ${receiptId} not found`);
+      }
+
+      // Check if order is already in this receipt
+      if (receipt.orderIds.includes(orderId)) {
+        console.log('Order already exists in receipt, skipping');
+        this.logger.warn(`Order ${orderId} already exists in receipt ${receiptId}`);
+        return receipt;
+      }
+
+      // Add order to receipt
+      const orderItems: ReceiptItem[] = order.items.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.pricing.unitAmount,
+        lineTotal: item.pricing.unitAmount * item.quantity,
+      }));
+
+      console.log('Order items to add:', orderItems);
+
+      console.log('Updating receipt with increments:', {
+        newOrderId: orderId,
+        addSubtotal: order.subTotalAmount,
+        addTaxAmount: order.taxAmount,
+        addTotalAmount: order.totalAmount,
+        addItems: orderItems.length
+      });
+
+      // Update receipt with new order
+      const updateQuery = {
+        $push: { orderIds: orderId },
+        $inc: {
+          subtotal: order.subTotalAmount,
+          taxAmount: order.taxAmount,
+          totalAmount: order.totalAmount,
+        },
+        $set: {
+          updatedAt: new Date(),
+          ...(updatedBy && { updatedBy: new Types.ObjectId(updatedBy) }),
+        },
+        $addToSet: {
+          items: { $each: orderItems }
+        }
+      };
+
+      console.log('MongoDB update query:', JSON.stringify(updateQuery, null, 2));
+
+      const updatedReceipt = await this.receiptDocumentModel.findByIdAndUpdate(
+        receiptId,
+        updateQuery,
+        { new: true }
+      );
+
+      console.log('Update result:', !!updatedReceipt);
+      if (updatedReceipt) {
+        console.log('Updated receipt details:', {
+          receiptNumber: updatedReceipt.receiptNumber,
+          finalOrderIds: updatedReceipt.orderIds,
+          finalSubtotal: updatedReceipt.subtotal,
+          finalTaxAmount: updatedReceipt.taxAmount,
+          finalTotalAmount: updatedReceipt.totalAmount,
+          finalItemsCount: updatedReceipt.items.length
+        });
+      }
+
+      console.log('=== END ADD ORDER TO RECEIPT DEBUG ===');
+
+      this.logger.log(`Successfully added order ${orderId} to receipt ${receiptId}`);
+      return updatedReceipt;
+    } catch (error) {
+      console.log('=== ADD ORDER TO RECEIPT ERROR ===');
+      console.log('Error details:', error);
+      console.log('Error message:', error.message);
+      console.log('Error stack:', error.stack);
+      console.log('=== END ADD ORDER ERROR ===');
+
+      this.logger.error(`Error adding order ${orderId} to receipt ${receiptId}:`, error);
+      throw error;
+    }
+  }
 }
