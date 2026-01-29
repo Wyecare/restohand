@@ -43,6 +43,7 @@ import { RazorpayService } from '../payments/razorpay.service';
 import { TableStatusService } from '../restaurant-tables/table-status.service';
 import { TableStatusType } from '../restaurant-tables/schemas/table-status.schema';
 import { GstService, TaxCalculation, OrderItemWithTax } from '../gst/gst.service';
+import { ReceiptDocumentService } from './receipt-document.service';
 
 @Injectable()
 export class OrdersService {
@@ -64,7 +65,8 @@ export class OrdersService {
     private readonly smartGstService: SmartGstService,
     private readonly gstService: GstService,
     private readonly razorpayService: RazorpayService,
-    private readonly tableStatusService: TableStatusService
+    private readonly tableStatusService: TableStatusService,
+    private readonly receiptDocumentService: ReceiptDocumentService
   ) {}
 
   async create(
@@ -471,8 +473,19 @@ export class OrdersService {
   async updatePayment(
     restaurantId: string,
     orderId: string,
-    dto: UpdateOrderPaymentDto
+    dto: UpdateOrderPaymentDto,
+    updatedBy?: string
   ): Promise<OrderResponseDto> {
+    console.log('=== PAYMENT UPDATE SERVICE ===');
+    console.log('Restaurant ID:', restaurantId);
+    console.log('Order ID:', orderId);
+    console.log('Payment DTO:', JSON.stringify(dto, null, 2));
+    console.log('Updated By (user ID):', updatedBy);
+    console.log('Updated By type:', typeof updatedBy);
+    console.log('Updated By is truthy:', !!updatedBy);
+
+    this.logger.log(`Updating payment for order ${orderId} by user: ${updatedBy || 'unknown'}`);
+
     // Validate inputs
     if (!orderId || orderId === 'undefined') {
       throw new BadRequestException('Invalid order ID');
@@ -536,6 +549,52 @@ export class OrdersService {
       // Only generate tax invoice after all payment details are set
       if (updated) {
         updated = await this.ensureTaxInvoice(updated);
+
+        // Auto-create receipt document for paid orders
+        try {
+          console.log('=== AUTO-RECEIPT CREATION ===');
+          console.log('Checking existing receipt for order:', updated._id.toString());
+
+          const existingReceipt = await this.receiptDocumentService.findByOrderId(updated._id.toString());
+
+          console.log('Existing receipt found:', !!existingReceipt);
+
+          if (!existingReceipt) {
+            console.log('Creating new receipt with params:');
+            console.log('- Restaurant ID:', restaurantId);
+            console.log('- Order IDs:', [updated._id.toString()]);
+            console.log('- Payment Method:', updated.paymentMethod || 'cash');
+            console.log('- Payment Provider:', updated.paymentProvider);
+            console.log('- Transaction ID:', updated.paymentTransactionId);
+            console.log('- Updated By (User ID):', updatedBy);
+            console.log('=== END RECEIPT CREATION LOG ===');
+
+            this.logger.log(`Auto-creating receipt document for paid order ${updated._id} by user: ${updatedBy || 'unknown'}`);
+
+            const createdReceipt = await this.receiptDocumentService.createReceiptDocument(
+              restaurantId,
+              [updated._id.toString()],
+              updated.paymentMethod || 'cash',
+              updated.paymentProvider,
+              updated.paymentTransactionId,
+              updatedBy
+            );
+
+            console.log('Receipt creation result:', createdReceipt ? 'SUCCESS' : 'FAILED');
+            this.logger.log(`Receipt document created successfully for order ${updated._id}`);
+          } else {
+            console.log('Receipt already exists, skipping creation');
+          }
+        } catch (error) {
+          console.log('=== RECEIPT CREATION ERROR ===');
+          console.log('Error details:', error);
+          console.log('Error message:', error.message);
+          console.log('Error stack:', error.stack);
+          console.log('=== END ERROR LOG ===');
+
+          this.logger.error(`Failed to auto-create receipt document for order ${updated._id}:`, error);
+          // Don't throw error - payment succeeded, receipt creation failure shouldn't block
+        }
       }
 
       if (
@@ -566,6 +625,7 @@ export class OrdersService {
       paymentMethod: response.paymentMethod,
       paidAt: response.paidAt,
       taxInvoiceNumber: response.taxInvoiceNumber,
+      updatedBy: updatedBy || null,
     });
 
     // DIRECT TABLE STATUS UPDATE: Update table status when payment is completed
@@ -593,6 +653,162 @@ export class OrdersService {
     this.ordersGateway.emitOrderUpdated(response);
     this.ordersSSEService.emitOrderUpdated(response);
     return response;
+  }
+
+  /**
+   * Create receipt document for multiple orders (combined receipt)
+   */
+  async createReceiptDocument(
+    restaurantId: string,
+    orderIds: string[],
+    paymentMethod: 'cash' | 'upi' | 'card' = 'cash',
+    paymentProvider?: string,
+    transactionId?: string,
+    createdBy?: string
+  ): Promise<any> {
+    try {
+      const receiptDoc = await this.receiptDocumentService.createReceiptDocument(
+        restaurantId,
+        orderIds,
+        paymentMethod,
+        paymentProvider,
+        transactionId,
+        createdBy
+      );
+
+      this.logger.log(`Receipt document created: ${receiptDoc.receiptNumber} for orders: ${orderIds.join(', ')}`);
+
+      return {
+        receiptNumber: receiptDoc.receiptNumber,
+        receiptId: receiptDoc._id,
+        orderIds: receiptDoc.orderIds,
+        totalAmount: receiptDoc.totalAmount,
+        issuedAt: receiptDoc.issuedAt,
+      };
+    } catch (error) {
+      this.logger.error('Error creating receipt document:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get receipt details for admin users
+   */
+  async getReceiptDetails(restaurantId: string, receiptNumber: string): Promise<any> {
+    try {
+      const receipt = await this.receiptDocumentService.findByReceiptNumber(receiptNumber);
+
+      if (!receipt) {
+        throw new NotFoundException(`Receipt ${receiptNumber} not found`);
+      }
+
+      // Check if receipt belongs to this restaurant
+      if (receipt.restaurantId._id.toString() !== restaurantId) {
+        throw new NotFoundException(`Receipt ${receiptNumber} not found for this restaurant`);
+      }
+
+      // Get the orders associated with this receipt
+      const orders = await this.orderModel
+        .find({
+          _id: { $in: receipt.orderIds },
+          restaurantId: restaurantId
+        })
+        .populate('createdBy', 'name email role')
+        .lean();
+
+      // Get payment update events to find who marked as paid
+      const paymentEvents = await this.eventModel
+        .find({
+          orderId: { $in: receipt.orderIds },
+          type: 'order.payment.updated',
+          'payload.paymentStatus': 'paid'
+        })
+        .populate('payload.updatedBy', 'name email role')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Get staff info from receipt or events
+      let staffInfo = null;
+      if (receipt.createdBy) {
+        const staff = await this.orderModel.db.collection('users').findOne(
+          { _id: receipt.createdBy },
+          { projection: { name: 1, email: 1, role: 1 } }
+        );
+        staffInfo = staff;
+      } else if (paymentEvents.length > 0 && paymentEvents[0].payload?.updatedBy) {
+        staffInfo = paymentEvents[0].payload.updatedBy;
+      }
+
+      return {
+        receipt: {
+          receiptNumber: receipt.receiptNumber,
+          restaurantId: receipt.restaurantId,
+          orderIds: receipt.orderIds,
+          tableNumber: receipt.tableNumber,
+          customerName: receipt.customerName,
+          customerPhone: receipt.customerPhone,
+          items: receipt.items,
+          subtotal: receipt.subtotal,
+          taxAmount: receipt.taxAmount,
+          totalAmount: receipt.totalAmount,
+          paymentMethod: receipt.paymentMethod,
+          paymentStatus: receipt.paymentStatus,
+          issuedAt: receipt.issuedAt,
+          createdAt: receipt.createdAt,
+        },
+        orders: orders.map(order => ({
+          id: order._id,
+          orderNumber: order.orderNumber,
+          status: order.status,
+          createdBy: order.createdBy,
+          createdAt: order.createdAt,
+          items: order.items,
+          totalAmount: order.totalAmount,
+        })),
+        staffInfo: staffInfo ? {
+          id: staffInfo._id,
+          name: staffInfo.name,
+          email: staffInfo.email,
+          role: staffInfo.role,
+          action: 'Marked payment as paid'
+        } : {
+          action: 'Customer self-payment or system payment'
+        },
+        paymentHistory: paymentEvents.map(event => ({
+          timestamp: event.createdAt,
+          paymentStatus: event.payload?.paymentStatus,
+          paymentMethod: event.payload?.paymentMethod,
+          updatedBy: event.payload?.updatedBy || null,
+        })),
+      };
+    } catch (error) {
+      this.logger.error('Error getting receipt details:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get receipt details by order ID for admin users
+   */
+  async getReceiptDetailsByOrderId(restaurantId: string, orderId: string): Promise<any> {
+    try {
+      // First find the receipt that contains this order
+      const receipt = await this.receiptDocumentService.findByOrderId(orderId);
+      if (!receipt) {
+        throw new NotFoundException(`No receipt found for order ${orderId}`);
+      }
+
+      // Check if receipt belongs to this restaurant
+      if (receipt.restaurantId._id.toString() !== restaurantId) {
+        throw new NotFoundException(`Receipt not found for this restaurant`);
+      }
+
+      // Use the existing method to get full receipt details
+      return this.getReceiptDetails(restaurantId, receipt.receiptNumber);
+    } catch (error) {
+      this.logger.error('Error getting receipt details by order ID:', error);
+      throw error;
+    }
   }
 
   async handleRazorpayWebhook(event: any): Promise<void> {

@@ -73,8 +73,7 @@ export default function ServicePaymentScreen() {
   // Use order priority: updated state > fresh query > params
   const order = currentOrder || orderFromQuery || orderFromParams;
 
-  // Determine if we're handling multiple orders for combined payment
-  const isMultipleOrders = allOrdersFromParams && allOrdersFromParams.length > 1;
+  // Always process orders as array - simplified logic
   const ordersToProcess = updatedOrdersState || allOrdersFromParams || (order ? [order] : []);
 
   // Calculate combined bill details
@@ -140,26 +139,23 @@ export default function ServicePaymentScreen() {
     'checking receipt qr fetch'
   );
 
-  // Determine if all orders are paid (for multiple orders) or single order is paid
+  // Check if all orders in the array are paid
   const allOrdersPaid = useMemo(() => {
-    if (isMultipleOrders) {
-      return ordersToProcess.every((ord: any) => ord.paymentStatus === 'paid');
-    }
-    return order?.paymentStatus === 'paid';
-  }, [isMultipleOrders, ordersToProcess, order]);
+    return ordersToProcess.every((ord: any) => ord.paymentStatus === 'paid');
+  }, [ordersToProcess]);
 
   // Add combined receipt QR mutation
   const [generateCombinedReceiptQr, { data: combinedReceiptQr, isLoading: isCombinedQrLoading }] = useGenerateCombinedReceiptQrMutation();
 
-  // Generate receipt QR (single order)
-  const primaryOrderForQr = isMultipleOrders ? ordersToProcess[0] : order;
+  // Generate receipt QR (single order only - combined receipts handled in processPayment)
+  const primaryOrderForQr = ordersToProcess[0];
   const { data: singleReceiptQr, refetch: generateSingleQr } = useGenerateReceiptQrQuery(
     { restaurantId: restaurantId!, orderId: primaryOrderForQr?._id || primaryOrderForQr?.id || (orderId as string) },
-    { skip: !restaurantId || !primaryOrderForQr || !allOrdersPaid || isMultipleOrders || !(primaryOrderForQr._id || primaryOrderForQr.id || orderId) }
+    { skip: !restaurantId || !primaryOrderForQr || !allOrdersPaid || ordersToProcess.length > 1 || !(primaryOrderForQr._id || primaryOrderForQr.id || orderId) }
   );
 
   // Use the appropriate receipt QR based on whether we have multiple orders
-  const receiptQr = isMultipleOrders ? combinedReceiptQr : singleReceiptQr;
+  const receiptQr = ordersToProcess.length > 1 ? combinedReceiptQr : singleReceiptQr;
 
   const selectedTable = useMemo(() => {
     return enhancedTables?.find((table) => table.id === tableId) ?? null;
@@ -177,9 +173,9 @@ export default function ServicePaymentScreen() {
     if (!restaurant?.upi?.vpa || !finalTotalAmount) return '';
 
     const amount = finalTotalAmount.toFixed(2);
-    const orderInfo = isMultipleOrders
+    const orderInfo = ordersToProcess.length > 1
       ? `Orders ${combinedBillDetails?.orderNumbers.join(', ')}`
-      : `Order ${order?.orderNumber}`;
+      : `Order ${ordersToProcess[0]?.orderNumber}`;
 
     const params = new URLSearchParams({
       pa: restaurant.upi.vpa,
@@ -190,7 +186,7 @@ export default function ServicePaymentScreen() {
     });
 
     return `upi://pay?${params.toString()}`;
-  }, [restaurant, finalTotalAmount, isMultipleOrders, combinedBillDetails, order]);
+  }, [restaurant, finalTotalAmount, ordersToProcess.length, combinedBillDetails, ordersToProcess]);
 
   const handleMarkAsPaid = async (method: 'cash' | 'upi') => {
     console.log('handleMarkAsPaid called with method:', method);
@@ -224,58 +220,52 @@ export default function ServicePaymentScreen() {
         orderCount: ordersToProcess.length,
       });
 
-      if (isMultipleOrders) {
-        // Update multiple orders with proportional amounts
-        const results = [];
-        for (const orderToUpdate of ordersToProcess) {
-          // Calculate proportional amount for this order
-          const proportionalAmount = (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * finalAmount;
-          const proportionalRounding = (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * roundOffAmount;
+      console.log('ordersToProcess:', ordersToProcess);
 
-          const result = await updatePayment({
-            restaurantId: restaurantId!,
-            orderId: orderToUpdate.id,
-            paymentStatus: 'paid',
-            provider: method === 'upi' ? 'upi' : 'cash',
-          }).unwrap();
-          results.push(result);
-        }
-        console.log('All payments updated successfully:', results);
+      // Always process orders as an array (simplified logic)
+      const results = [];
+      for (const orderToUpdate of ordersToProcess) {
+        // Calculate proportional amount for this order
+        const proportionalAmount = ordersToProcess.length > 1
+          ? (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * finalAmount
+          : finalAmount;
+        const proportionalRounding = ordersToProcess.length > 1
+          ? (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * roundOffAmount
+          : roundOffAmount;
 
-        // Update local state for multiple orders - mark all as paid
-        const updatedOrders = ordersToProcess.map((ord: any) => ({
-          ...ord,
-          paymentStatus: 'paid'
-        }));
-
-        // Update both the orders list and current order state
-        setUpdatedOrdersState(updatedOrders);
-        if (updatedOrders.length > 0) {
-          setCurrentOrder(updatedOrders[0]);
-        }
-
-        // Generate combined receipt QR for multiple orders
-        if (isMultipleOrders) {
-          const orderIds = ordersToProcess.map((ord: any) => ord.id || ord._id);
-          const tableNum = selectedTable?.tableNumber || selectedTable?.displayName;
-          await generateCombinedReceiptQr({
-            restaurantId: restaurantId!,
-            orderIds,
-            tableNumber: tableNum,
-          });
-        }
-      } else {
-        // Single order payment
         const result = await updatePayment({
           restaurantId: restaurantId!,
-          orderId: order._id,
+          orderId: orderToUpdate._id || orderToUpdate.id,
           paymentStatus: 'paid',
           provider: method === 'upi' ? 'upi' : 'cash',
         }).unwrap();
-
-        console.log('Payment update successful:', result);
-        setCurrentOrder(result);
+        results.push(result);
       }
+      console.log('All payments updated successfully:', results);
+
+      // Update local state - mark all orders as paid
+      const updatedOrders = ordersToProcess.map((ord: any) => ({
+        ...ord,
+        paymentStatus: 'paid'
+      }));
+
+      // Update both the orders list and current order state
+      setUpdatedOrdersState(updatedOrders);
+      if (updatedOrders.length > 0) {
+        setCurrentOrder(updatedOrders[0]);
+      }
+
+      // Generate receipt QR - combined for multiple orders, single for one order
+      if (ordersToProcess.length > 1) {
+        const orderIds = ordersToProcess.map((ord: any) => ord.id || ord._id);
+        const tableNum = selectedTable?.tableNumber || selectedTable?.displayName;
+        await generateCombinedReceiptQr({
+          restaurantId: restaurantId!,
+          orderIds,
+          tableNumber: tableNum,
+        });
+      }
+      // For single orders, the useGenerateReceiptQrQuery hook will handle it automatically
 
       // Payment successful - user can now see QR code option or navigate to bill manually
     } catch (error: any) {
@@ -324,7 +314,7 @@ export default function ServicePaymentScreen() {
     if (allOrdersPaid) {
       return {
         icon: 'checkmark-circle',
-        text: isMultipleOrders ? 'All Payments Complete' : 'Payment Complete',
+        text: ordersToProcess.length > 1 ? 'All Payments Complete' : 'Payment Complete',
         color: '#16a34a',
         bgColor: '#f0fdf4',
       };
@@ -332,7 +322,7 @@ export default function ServicePaymentScreen() {
 
     return {
       icon: 'time',
-      text: isMultipleOrders ? 'Payment Pending' : 'Payment Pending',
+      text: ordersToProcess.length > 1 ? 'Payments Pending' : 'Payment Pending',
       color: '#ea580c',
       bgColor: '#fff7ed',
     };
@@ -482,8 +472,8 @@ export default function ServicePaymentScreen() {
                 View Bill & Print Receipt
               </Text>
             </TouchableOpacity>
-          </View> */}
-        )}
+          </View>
+        )} */}
 
         {/* Payment Methods - Show only if not paid */}
         {!allOrdersPaid && (
@@ -629,13 +619,13 @@ export default function ServicePaymentScreen() {
         {/* Order Items */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {isMultipleOrders ? `Order Items (${ordersToProcess.length} Orders)` : 'Order Items'}
+            {ordersToProcess.length > 1 ? `Order Items (${ordersToProcess.length} Orders)` : 'Order Items'}
           </Text>
           <View style={styles.orderCard}>
             {/* Show items from all orders */}
             {ordersToProcess.map((orderData: any, orderIndex: any) => (
               <View key={`order-${orderIndex}`}>
-                {isMultipleOrders && (
+                {ordersToProcess.length > 1 && (
                   <Text style={styles.orderHeader}>Order #{orderData.orderNumber}</Text>
                 )}
                 {orderData.items.map((item: any, itemIndex: any) => (
@@ -651,14 +641,14 @@ export default function ServicePaymentScreen() {
                     </Text>
                   </View>
                 ))}
-                {isMultipleOrders && orderIndex < ordersToProcess.length - 1 && (
+                {ordersToProcess.length > 1 && orderIndex < ordersToProcess.length - 1 && (
                   <View style={styles.orderSeparator} />
                 )}
               </View>
             ))}
 
             {/* Combined Bill Breakdown */}
-            {isMultipleOrders && combinedBillDetails && (
+            {ordersToProcess.length > 1 && combinedBillDetails && (
               <View style={styles.billBreakdown}>
                 <View style={styles.divider} />
                 <Text style={styles.breakdownTitle}>Bill Summary</Text>
@@ -698,7 +688,7 @@ export default function ServicePaymentScreen() {
         {/* Help Text */}
         <View style={styles.helpContainer}>
           <Text style={styles.helpText}>
-            {isMultipleOrders
+            {ordersToProcess.length > 1
               ? `Show orders ${combinedBillDetails?.orderNumbers.join(', ')} to kitchen staff if needed`
               : `Show order #${order.orderNumber} to kitchen staff if needed`
             }
@@ -750,7 +740,7 @@ export default function ServicePaymentScreen() {
                   receipt
                 </Text>
                 <Text style={styles.qrOrderInfo}>
-                  {isMultipleOrders
+                  {ordersToProcess.length > 1
                     ? `Orders #${receiptQr.orderNumbers?.join(', #') || receiptQr.orderNumber}`
                     : `Order #${receiptQr.orderNumber}`
                   }

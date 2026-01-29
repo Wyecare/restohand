@@ -314,9 +314,17 @@ export const ordersApi = baseApi.injectEndpoints({
       // No tags for public endpoint
     }),
 
-    getCombinedReceiptPublic: builder.query<Order[], { token: string }>({
+    getCombinedReceiptPublic: builder.query<any, { token: string }>({
       query: ({ token }) => ({
         url: `/orders/combined-receipt/public`,
+        params: { token },
+      }),
+      // No tags for public endpoint
+    }),
+
+    getReceiptByNumberPublic: builder.query<any, { receiptNumber: string; token: string }>({
+      query: ({ receiptNumber, token }) => ({
+        url: `/orders/receipt/${receiptNumber}/public`,
         params: { token },
       }),
       // No tags for public endpoint
@@ -448,6 +456,24 @@ export const ordersApi = baseApi.injectEndpoints({
       ],
     }),
 
+    getReceiptDetails: builder.query<any, { restaurantId: string; receiptNumber: string }>({
+      query: ({ restaurantId, receiptNumber }) => ({
+        url: `/restaurants/${restaurantId}/orders/receipt/${receiptNumber}`,
+      }),
+      providesTags: (_result, _error, { receiptNumber }) => [
+        { type: 'Receipt', id: receiptNumber },
+      ],
+    }),
+
+    getReceiptDetailsByOrderId: builder.query<any, { restaurantId: string; orderId: string }>({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/receipt-details`,
+      }),
+      providesTags: (_result, _error, { orderId }) => [
+        { type: 'Receipt', id: `order-${orderId}` },
+      ],
+    }),
+
     // Order Modification Endpoints
     createOrderModification: builder.mutation<OrderModification, CreateOrderModificationParams>({
       query: ({ restaurantId, body }) => ({
@@ -517,6 +543,7 @@ export const {
   useGetOrderQuery,
   useGetOrderPublicQuery,
   useGetCombinedReceiptPublicQuery,
+  useGetReceiptByNumberPublicQuery,
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,
@@ -528,6 +555,8 @@ export const {
   useVerifyPaymentMutation,
   useAddItemsToOrderMutation,
   useGenerateBillQuery,
+  useGetReceiptDetailsQuery,
+  useGetReceiptDetailsByOrderIdQuery,
   // Order Modification Hooks
   useCreateOrderModificationMutation,
   useListOrderModificationsQuery,

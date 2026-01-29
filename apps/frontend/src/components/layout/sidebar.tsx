@@ -25,15 +25,12 @@ import {
   UtensilsCrossed,
   Users,
   Table,
-  QrCode,
   BarChart3,
   Settings,
   ChefHat,
   Coffee,
   Package,
-  BookOpen,
   CreditCard,
-  Monitor,
   Building2,
 } from 'lucide-react';
 

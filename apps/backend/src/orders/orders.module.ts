@@ -18,8 +18,10 @@ import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema
 import { RestaurantTable, RestaurantTableSchema } from '../restaurant-tables/schemas/restaurant-table.schema';
 import { OrderCounter, OrderCounterSchema } from './schemas/order-counter.schema';
 import { OrderModification, OrderModificationSchema } from './schemas/order-modification.schema';
+import { ReceiptDocument, ReceiptDocumentSchema } from './schemas/receipt-document.schema';
 import { OrderModificationController } from './order-modification.controller';
 import { OrderModificationService } from './order-modification.service';
+import { ReceiptDocumentService } from './receipt-document.service';
 import { GstModule } from '../gst/gst.module';
 import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
@@ -48,11 +50,12 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
       { name: RestaurantTable.name, schema: RestaurantTableSchema },
       { name: OrderCounter.name, schema: OrderCounterSchema },
       { name: OrderModification.name, schema: OrderModificationSchema },
+      { name: ReceiptDocument.name, schema: ReceiptDocumentSchema },
       { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [OrdersController, PublicOrdersController, OrderModificationController, WebhooksController, OrdersSSEController],
-  providers: [OrdersService, OrderModificationService, OrdersGateway, OrdersSSEService, RazorpayService],
-  exports: [OrdersService, OrderModificationService],
+  providers: [OrdersService, OrderModificationService, ReceiptDocumentService, OrdersGateway, OrdersSSEService, RazorpayService],
+  exports: [OrdersService, OrderModificationService, ReceiptDocumentService],
 })
 export class OrdersModule {}

@@ -18,6 +18,7 @@ import {
   CreditCard,
   Utensils,
   Ban,
+  Receipt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,6 +56,7 @@ import { skipToken } from '@reduxjs/toolkit/query';
 import type { Order } from '@/store/api/types';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
+import { ReceiptModal } from '@/components/ReceiptModal';
 
 const statusOptions: Array<{ label: string; value: Order['status'] | 'all' }> =
   [
@@ -92,6 +94,10 @@ export default function OrdersPage() {
   const [status, setStatus] = React.useState<string>('all');
   const [paymentStatus, setPaymentStatus] = React.useState<string>('all');
   const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  // Receipt modal state
+  const [receiptModalOpen, setReceiptModalOpen] = React.useState(false);
+  const [selectedOrderId, setSelectedOrderId] = React.useState<string>('');
 
   console.log(
     'Rendering OrdersPage with status:',
@@ -209,6 +215,11 @@ export default function OrdersPage() {
     }
   };
 
+  const handleViewReceipt = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setReceiptModalOpen(true);
+  };
+
   const orders = data?.data ?? [];
 
   const columns = React.useMemo<ColumnDef<Order>[]>(
@@ -307,6 +318,17 @@ export default function OrdersPage() {
                 Mark Paid
               </Button>
             )}
+            {row.original.paymentStatus === 'paid' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleViewReceipt(row.original.id)}
+                className="flex items-center gap-1"
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                View Receipt
+              </Button>
+            )}
             {row.original.status !== 'cancelled' &&
               row.original.status !== 'completed' &&
               ORDER_CANCELLABLE_STATUSES.includes(row.original.status) && (
@@ -324,7 +346,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [handleStatusUpdate, handleMarkPaid, handleCancelOrder]
+    [handleStatusUpdate, handleMarkPaid, handleCancelOrder, handleViewReceipt]
   );
 
   const table = useReactTable({
@@ -498,6 +520,14 @@ export default function OrdersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Receipt Modal */}
+      <ReceiptModal
+        isOpen={receiptModalOpen}
+        onClose={() => setReceiptModalOpen(false)}
+        orderId={selectedOrderId}
+        restaurantId={restaurantId || ''}
+      />
     </div>
   );
 }

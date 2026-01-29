@@ -74,7 +74,8 @@ export const getDomainType = (): InterfaceType => {
     if (
       pathname.startsWith('/c/') ||
       pathname.startsWith('/receipt/') ||
-      pathname.startsWith('/combined-receipt')
+      pathname.startsWith('/combined-receipt') ||
+      pathname.match(/^\/receipt\/[A-Z0-9]+$/) // Receipt number pattern
     ) {
       console.log('🌐 Localhost detected: customer');
       return 'customer';

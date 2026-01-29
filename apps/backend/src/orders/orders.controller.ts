@@ -481,12 +481,73 @@ export class OrdersController {
   async updatePayment(
     @Param('restaurantId') restaurantId: string,
     @Param('orderId') orderId: string,
-    @Body() dto: UpdateOrderPaymentDto
+    @Body() dto: UpdateOrderPaymentDto,
+    @Req() req: any
   ) {
     if (!restaurantId || !orderId) {
       throw new BadRequestException('Restaurant ID and Order ID are required');
     }
-    return this.ordersService.updatePayment(restaurantId, orderId, dto);
+
+    console.log('=== PAYMENT UPDATE REQUEST ===');
+    console.log('Restaurant ID:', restaurantId);
+    console.log('Order ID:', orderId);
+    console.log('Payment DTO:', JSON.stringify(dto, null, 2));
+    console.log('Request user object:', JSON.stringify(req.user, null, 2));
+
+    const userId = req.user?.uid;
+    console.log('Extracted user ID:', userId);
+    console.log('=== END PAYMENT REQUEST LOG ===');
+
+    return this.ordersService.updatePayment(restaurantId, orderId, dto, userId);
+  }
+
+  @Post('create-receipt')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiOkResponse({ description: 'Receipt document created successfully' })
+  @Roles(UserRole.Manager, UserRole.Cashier, UserRole.Waiter)
+  async createReceiptDocument(
+    @Param('restaurantId') restaurantId: string,
+    @Body() dto: {
+      orderIds: string[];
+      paymentMethod?: 'cash' | 'upi' | 'card';
+      paymentProvider?: string;
+      transactionId?: string;
+    }
+  ) {
+    return this.ordersService.createReceiptDocument(
+      restaurantId,
+      dto.orderIds,
+      dto.paymentMethod || 'cash',
+      dto.paymentProvider,
+      dto.transactionId
+    );
+  }
+
+  @Get('receipt/:receiptNumber')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'receiptNumber' })
+  @ApiOkResponse({ description: 'Receipt document details' })
+  @Roles(UserRole.Manager, UserRole.Cashier, UserRole.Waiter)
+  async getReceiptDetails(
+    @Param('restaurantId') restaurantId: string,
+    @Param('receiptNumber') receiptNumber: string
+  ) {
+    return this.ordersService.getReceiptDetails(restaurantId, receiptNumber);
+  }
+
+  @Get(':orderId/receipt-details')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiOkResponse({ description: 'Receipt details by order ID' })
+  @Roles(UserRole.Manager, UserRole.Cashier, UserRole.Waiter)
+  async getReceiptDetailsByOrderId(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string
+  ) {
+    return this.ordersService.getReceiptDetailsByOrderId(restaurantId, orderId);
   }
 
   @Get(':orderId/events')

@@ -7,13 +7,15 @@ import { Download, Star } from 'lucide-react';
 import {
   useGetOrderPublicQuery,
   useGetCombinedReceiptPublicQuery,
+  useGetReceiptByNumberPublicQuery,
 } from '@/store/api/ordersApi';
+import { generateReceiptPDF } from '@/components/customer/ReceiptPDF';
 
 const CustomerReceiptPage = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const token = searchParams.get('t'); // Using 't' for shorter URL
+  const token = searchParams.get('t') || searchParams.get('token'); // Support both 't' and 'token'
 
   const [feedback, setFeedback] = useState<{
     rating?: number;
@@ -23,6 +25,9 @@ const CustomerReceiptPage = () => {
   // Check if this is a combined receipt route
   const isCombinedReceipt = location.pathname === '/combined-receipt';
 
+  // Detect if orderId is actually a receipt number (contains letters)
+  const isReceiptNumber = orderId && /[A-Z]/.test(orderId);
+
   // Get order data using public endpoint with token (single order)
   const {
     data: order,
@@ -30,12 +35,22 @@ const CustomerReceiptPage = () => {
     error: orderError,
   } = useGetOrderPublicQuery(
     { orderId: orderId!, token: token! },
-    { skip: isCombinedReceipt || !orderId || !token }
+    { skip: isCombinedReceipt || isReceiptNumber || !orderId || !token }
   );
 
-  // Get combined receipt data using public endpoint with token (multiple orders)
+  // Get receipt data using receipt number
   const {
-    data: combinedOrders,
+    data: receipt,
+    isLoading: receiptLoading,
+    error: receiptError,
+  } = useGetReceiptByNumberPublicQuery(
+    { receiptNumber: orderId!, token: token! },
+    { skip: isCombinedReceipt || !isReceiptNumber || !orderId || !token }
+  );
+
+  // Get combined receipt data using public endpoint with token (accumulated receipt)
+  const {
+    data: combinedReceipt,
     isLoading: combinedLoading,
     error: combinedError,
   } = useGetCombinedReceiptPublicQuery(
@@ -43,9 +58,23 @@ const CustomerReceiptPage = () => {
     { skip: !isCombinedReceipt || !token }
   );
 
-  const isLoading = isCombinedReceipt ? combinedLoading : orderLoading;
-  const error = isCombinedReceipt ? combinedError : orderError;
-  const orders = isCombinedReceipt ? combinedOrders : order ? [order] : null;
+  const isLoading = isCombinedReceipt
+    ? combinedLoading
+    : isReceiptNumber
+      ? receiptLoading
+      : orderLoading;
+
+  const error = isCombinedReceipt
+    ? combinedError
+    : isReceiptNumber
+      ? receiptError
+      : orderError;
+
+  const orders = isCombinedReceipt
+    ? (combinedReceipt ? [combinedReceipt] : null)
+    : isReceiptNumber
+      ? (receipt ? [receipt] : null)
+      : (order ? [order] : null);
 
   if (isLoading) {
     return (
@@ -157,43 +186,36 @@ const CustomerReceiptPage = () => {
         <div className="mb-6">
           <Button
             onClick={async () => {
-              // Import jsPDF dynamically to avoid SSR issues
-              const { jsPDF } = await import('jspdf');
-              const html2canvas = (await import('html2canvas')).default;
+              try {
+                // Generate PDF using @react-pdf/renderer
+                const pdfBlob = await generateReceiptPDF({
+                  order: isCombinedReceipt ? undefined : orders?.[0],
+                  orders: isCombinedReceipt ? orders : undefined,
+                  isCombinedReceipt,
+                  restaurantInfo,
+                });
 
-              const receiptElement = document.querySelector('.receipt-content');
-              if (!receiptElement) return;
+                // Create download link
+                const url = URL.createObjectURL(pdfBlob);
+                const link = document.createElement('a');
+                link.href = url;
 
-              const canvas = await html2canvas(receiptElement as HTMLElement, {
-                scale: 2,
-                useCORS: true,
-                allowTaint: true,
-              });
+                // Set filename
+                const fileName = isCombinedReceipt
+                  ? `combined-receipt-${orders?.[0]?.tableNumber || 'table'}.pdf`
+                  : `receipt-${orders?.[0]?.orderNumber || 'order'}.pdf`;
 
-              const imgData = canvas.toDataURL('image/png');
-              const pdf = new jsPDF();
-              const imgWidth = 210;
-              const pageHeight = 295;
-              const imgHeight = (canvas.height * imgWidth) / canvas.width;
-              let heightLeft = imgHeight;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
 
-              let position = 0;
-
-              pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-              heightLeft -= pageHeight;
-
-              while (heightLeft >= 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
+                // Cleanup
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error('Error generating PDF:', error);
+                alert('Failed to generate PDF. Please try again.');
               }
-
-              const fileName = isCombinedReceipt
-                ? `combined-receipt-${orders[0]?.tableNumber || 'table'}.pdf`
-                : `receipt-${orders[0]?.orderNumber || 'order'}.pdf`;
-
-              pdf.save(fileName);
             }}
             className="w-full flex items-center justify-center gap-2"
           >
