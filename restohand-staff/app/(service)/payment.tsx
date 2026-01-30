@@ -19,7 +19,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -41,7 +40,7 @@ export default function ServicePaymentScreen() {
   const { orderId, tableId, orderData, allOrdersData, totalBillAmount } = useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi'>('upi');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showRoundingDialog, setShowRoundingDialog] = useState(false);
   const [showReceiptQr, setShowReceiptQr] = useState(false);
@@ -168,27 +167,8 @@ export default function ServicePaymentScreen() {
     await Promise.all([refetchOrder(), refetchRestaurant(), refetchTables()]);
   };
 
-  // Generate UPI payment string
-  const upiString = useMemo(() => {
-    if (!restaurant?.upi?.vpa || !finalTotalAmount) return '';
 
-    const amount = finalTotalAmount.toFixed(2);
-    const orderInfo = ordersToProcess.length > 1
-      ? `Orders ${combinedBillDetails?.orderNumbers.join(', ')}`
-      : `Order ${ordersToProcess[0]?.orderNumber}`;
-
-    const params = new URLSearchParams({
-      pa: restaurant.upi.vpa,
-      pn: restaurant.upi.displayName || restaurant.name,
-      am: amount,
-      cu: 'INR',
-      tn: orderInfo,
-    });
-
-    return `upi://pay?${params.toString()}`;
-  }, [restaurant, finalTotalAmount, ordersToProcess.length, combinedBillDetails, ordersToProcess]);
-
-  const handleMarkAsPaid = async (method: 'cash' | 'upi') => {
+  const handleMarkAsPaid = async (method: 'cash' | 'card') => {
     console.log('handleMarkAsPaid called with method:', method);
 
     if (!finalTotalAmount || !restaurantId || ordersToProcess.length === 0) {
@@ -202,12 +182,12 @@ export default function ServicePaymentScreen() {
       return;
     }
 
-    // For UPI payments, use exact amount (no rounding)
+    // For card payments, use exact amount (no rounding)
     await processPayment(method, finalTotalAmount, 0);
   };
 
   const processPayment = async (
-    method: 'cash' | 'upi',
+    method: 'cash' | 'card',
     finalAmount: number,
     roundOffAmount: number
   ) => {
@@ -237,7 +217,7 @@ export default function ServicePaymentScreen() {
           restaurantId: restaurantId!,
           orderId: orderToUpdate._id || orderToUpdate.id,
           paymentStatus: 'paid',
-          provider: method === 'upi' ? 'upi' : 'cash',
+          provider: method === 'card' ? 'card' : 'cash',
         }).unwrap();
         results.push(result);
       }
@@ -287,26 +267,6 @@ export default function ServicePaymentScreen() {
     processPayment('cash', finalAmount, roundOffAmount);
   };
 
-  const handleOpenUPI = async () => {
-    if (!upiString) {
-      Alert.alert('Error', 'UPI payment not configured');
-      return;
-    }
-
-    try {
-      const supported = await Linking.canOpenURL(upiString);
-      if (supported) {
-        await Linking.openURL(upiString);
-      } else {
-        Alert.alert(
-          'No UPI Apps Found',
-          'Please install a UPI app like PhonePe, Paytm, or Google Pay'
-        );
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to open UPI app');
-    }
-  };
 
   const getOrderStatusInfo = () => {
     if (!order) return null;
@@ -484,22 +444,22 @@ export default function ServicePaymentScreen() {
                 <TouchableOpacity
                   style={[
                     styles.methodButton,
-                    paymentMethod === 'upi' && styles.activeMethodButton,
+                    paymentMethod === 'card' && styles.activeMethodButton,
                   ]}
-                  onPress={() => setPaymentMethod('upi')}
+                  onPress={() => setPaymentMethod('card')}
                 >
                   <Ionicons
-                    name="phone-portrait"
+                    name="card"
                     size={24}
-                    color={paymentMethod === 'upi' ? '#ffffff' : '#2563eb'}
+                    color={paymentMethod === 'card' ? '#ffffff' : '#2563eb'}
                   />
                   <Text
                     style={[
                       styles.methodText,
-                      paymentMethod === 'upi' && styles.activeMethodText,
+                      paymentMethod === 'card' && styles.activeMethodText,
                     ]}
                   >
-                    UPI Payment
+                    Card Payment
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -526,43 +486,26 @@ export default function ServicePaymentScreen() {
               </View>
             </View>
 
-            {/* UPI Payment Section */}
-            {paymentMethod === 'upi' && restaurant.upi?.vpa && (
+            {/* Card Payment Section */}
+            {paymentMethod === 'card' && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>UPI Payment</Text>
-                <View style={styles.upiCard}>
-                  {/* UPI ID */}
-                  <View style={styles.upiIdContainer}>
-                    <Text style={styles.upiLabel}>UPI ID</Text>
-                    <View style={styles.upiIdCard}>
-                      <Text style={styles.upiId}>{restaurant.upi.vpa}</Text>
-                    </View>
-                  </View>
-
-                  {/* Amount */}
-                  <View style={styles.amountContainer}>
-                    <Text style={styles.amountLabel}>Amount to pay</Text>
-                    <Text style={styles.amountValue}>
+                <Text style={styles.sectionTitle}>Card Payment</Text>
+                <View style={styles.cardCard}>
+                  <View style={styles.cardAmountContainer}>
+                    <Text style={styles.cardIcon}>💳</Text>
+                    <Text style={styles.cardAmount}>
                       {formatCurrency(finalTotalAmount)}
                     </Text>
+                    <Text style={styles.cardLabel}>
+                      Process card payment
+                    </Text>
                   </View>
-
-                  {/* Open UPI App Button */}
-                  <TouchableOpacity
-                    style={styles.upiButton}
-                    onPress={handleOpenUPI}
-                  >
-                    <Ionicons name="phone-portrait" size={20} color="#ffffff" />
-                    <Text style={styles.upiButtonText}>Open UPI App</Text>
-                  </TouchableOpacity>
-
-                  {/* Instructions */}
                   <View style={styles.instructionsContainer}>
                     <Text style={styles.instructionsText}>
-                      Customer will pay the exact amount digitally
+                      Payment is collected outside the system
                     </Text>
                     <Text style={styles.instructionsSubtext}>
-                      UPI/digital payments use precise amounts (no rounding)
+                      Simply mark as paid after collecting payment
                     </Text>
                   </View>
                 </View>
@@ -609,7 +552,7 @@ export default function ServicePaymentScreen() {
                 <Text style={styles.markPaidButtonText}>
                   {isProcessing
                     ? 'Processing...'
-                    : `Mark as Paid (${paymentMethod.toUpperCase()})`}
+                    : `Mark as Paid - ${paymentMethod === 'card' ? 'Card' : 'Cash'}`}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -918,59 +861,30 @@ const styles = StyleSheet.create({
   activeMethodText: {
     color: '#ffffff',
   },
-  upiCard: {
+  cardCard: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
     gap: 16,
   },
-  upiIdContainer: {
+  cardAmountContainer: {
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
     gap: 8,
   },
-  upiLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+  cardIcon: {
+    fontSize: 32,
   },
-  upiIdCard: {
-    backgroundColor: '#f3f4f6',
-    padding: 12,
-    borderRadius: 8,
-  },
-  upiId: {
-    fontSize: 16,
-    fontFamily: 'monospace',
-    color: '#1f2937',
-  },
-  amountContainer: {
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#dbeafe',
-    borderRadius: 8,
-    gap: 4,
-  },
-  amountLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  amountValue: {
+  cardAmount: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2563eb',
+    color: '#1f2937',
   },
-  upiButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-    padding: 16,
-    borderRadius: 8,
-    gap: 8,
-  },
-  upiButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+  cardLabel: {
+    fontSize: 14,
+    color: '#6b7280',
   },
   cashCard: {
     backgroundColor: '#ffffff',

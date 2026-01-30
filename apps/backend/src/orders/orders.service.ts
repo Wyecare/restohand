@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   BadRequestException,
   Injectable,
@@ -42,7 +43,11 @@ import {
 import { RazorpayService } from '../payments/razorpay.service';
 import { TableStatusService } from '../restaurant-tables/table-status.service';
 import { TableStatusType } from '../restaurant-tables/schemas/table-status.schema';
-import { GstService, TaxCalculation, OrderItemWithTax } from '../gst/gst.service';
+import {
+  GstService,
+  TaxCalculation,
+  OrderItemWithTax,
+} from '../gst/gst.service';
 import { ReceiptDocumentService } from './receipt-document.service';
 
 @Injectable()
@@ -83,56 +88,63 @@ export class OrdersService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    const customerState = dto.customerState?.trim() || restaurant.address?.state;
+    const customerState =
+      dto.customerState?.trim() || restaurant.address?.state;
 
     // Prepare order items for GST calculation
-    const orderItems: OrderItemGstData[] = dto.items.map(item => ({
+    const orderItems: OrderItemGstData[] = dto.items.map((item) => ({
       menuItemId: item.menuItemId,
       name: item.name || '', // Use provided name, fallback to empty
       quantity: item.quantity || 1,
       unitPrice: item.pricing?.unitAmount || 0,
-      discountAmount: item.pricing?.discountAmount || 0
+      discountAmount: item.pricing?.discountAmount || 0,
     }));
 
     // Calculate GST using our smart service
-    const { items, summary } = await this.smartGstService.calculateOrderGst(
-      restaurantId,
-      orderItems,
-      customerState
-    );
+    // const { items, summary } = await this.smartGstService.calculateOrderGst(
+    //   restaurantId,
+    //   orderItems,
+    //   customerState
+    // );
 
-    const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
-    const finalTotalAmount = this.roundToTwo(
-      summary.totalAmount + roundOffAmount
-    );
+    // const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
+    // const finalTotalAmount = this.roundToTwo(
+    //   summary.totalAmount + roundOffAmount
+    // );
+
+    let totalAmount = 0;
 
     // Map GST calculation results to order schema format
-    const formattedOrderItems = items.map(item => ({
-      menuItemId: item.menuItemId,
-      name: item.name,
-      quantity: item.quantity,
-      pricing: {
-        unitAmount: item.unitPrice,
-        currency: 'INR',
-        taxAmount: item.totalTaxAmount,
-        discountAmount: item.discountAmount,
-      },
-      gst: {
-        hsnCode: item.hsnCode,
-        gstRate: item.gstRate,
-        cgstAmount: item.cgstAmount,
-        sgstAmount: item.sgstAmount,
-        igstAmount: item.igstAmount,
-        totalTaxAmount: item.totalTaxAmount,
-        exemptFromGst: item.exemptFromGst,
-      },
-    }));
+    const formattedOrderItems = orderItems.map((item) => {
+      totalAmount += item.unitPrice * item.quantity - item.discountAmount;
+      return {
+        menuItemId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
+        pricing: {
+          unitAmount: item.unitPrice,
+          currency: 'INR',
+          taxAmount: 0, // No tax at order level - will be calculated at session payment
+          discountAmount: item.discountAmount,
+        },
+        // gst: {
+        //   hsnCode: item.hsnCode,
+        //   gstRate: item.gstRate,
+        //   cgstAmount: item.cgstAmount,
+        //   sgstAmount: item.sgstAmount,
+        //   igstAmount: item.igstAmount,
+        //   totalTaxAmount: item.totalTaxAmount,
+        //   exemptFromGst: item.exemptFromGst,
+        // },
+      };
+    });
 
     const created = await this.orderModel.create({
       restaurantId,
       branchId,
       orderNumber,
       sessionId: dto.sessionId,
+      customerSessionId: dto.customerSessionId, // Store customer session ID
       tableNumber: dto.tableNumber,
       tableId: dto.tableId,
       customerName: dto.customerName,
@@ -146,16 +158,15 @@ export class OrdersService {
       paymentStatus: PaymentStatus.Pending,
       progress: OrderProgressStage.NotStarted,
       paymentMethod,
-      subTotalAmount: summary.subtotal,
-      grossAmount: summary.subtotal, // In new system, subtotal = gross amount
-      discountAmount: summary.discountAmount,
-      taxAmount: summary.totalTaxAmount,
-      cgstAmount: summary.cgstAmount,
-      sgstAmount: summary.sgstAmount,
-      igstAmount: summary.igstAmount,
-      totalAmount: finalTotalAmount,
-      roundOffAmount,
-      taxType: summary.taxType,
+      subTotalAmount: totalAmount, // Sum of all item prices
+      grossAmount: totalAmount,   // Same as subtotal (no tax at order level)
+      discountAmount: 0,
+      taxAmount: 0,               // No tax at individual order level
+      cgstAmount: 0,              // Tax will be calculated at session payment level
+      sgstAmount: 0,
+      igstAmount: 0,
+      totalAmount: totalAmount,   // Order total without tax
+      roundOffAmount: 0,
     });
 
     console.log('Created Order successfully:', created);
@@ -174,6 +185,8 @@ export class OrdersService {
 
     console.log('Recording order created event completed');
 
+    console.log(created, 'created order');
+
     // DIRECT TABLE STATUS UPDATE: Update table status immediately upon order creation
     if (created.tableId) {
       try {
@@ -182,14 +195,19 @@ export class OrdersService {
           created.tableId.toString(),
           'order-created',
           {
-            totalAmount: finalTotalAmount,
+            totalAmount: totalAmount,
             createdBy: created.createdBy?.toString(),
-            createdByName: 'Order System'
+            createdByName: 'Order System',
           }
         );
-        console.log(`Table status updated for table ${created.tableId} after order creation`);
+        console.log(
+          `Table status updated for table ${created.tableId} after order creation`
+        );
       } catch (error) {
-        console.error(`Failed to update table status for table ${created.tableId}:`, error);
+        console.error(
+          `Failed to update table status for table ${created.tableId}:`,
+          error
+        );
         // Don't fail the order creation if table status update fails
       }
     }
@@ -202,7 +220,7 @@ export class OrdersService {
         );
       }
 
-      const amount = finalTotalAmount.toFixed(2);
+      const amount = totalAmount.toFixed(2);
       const params = new URLSearchParams({
         pa: upiConfig.vpa,
         pn: upiConfig.displayName,
@@ -212,6 +230,29 @@ export class OrdersService {
       });
       response.paymentIntentUrl = `upi://pay?${params.toString()}`;
     }
+
+    console.log(created, 'whats created');
+
+    // Create or update receipt document for this table order
+    // if (created.tableId) {
+    //   try {
+    //     await this.receiptDocumentService.createOrUpdateTableReceipt(
+    //       restaurantId,
+    //       created.tableId.toString(),
+    //       created._id.toString()
+    //     );
+    //     console.log(
+    //       `Receipt created/updated for table ${created.tableId} with order ${created._id}`
+    //     );
+    //   } catch (error) {
+    //     console.error(
+    //       `Failed to create receipt for order ${created._id}:`,
+    //       error
+    //     );
+    //     // Don't fail the order creation if receipt fails
+    //   }
+    // }
+
     this.ordersGateway.emitOrderCreated(response);
     this.ordersSSEService.emitOrderCreated(response);
     return response;
@@ -249,12 +290,12 @@ export class OrdersService {
     const customerState = restaurant.address?.state;
 
     // Prepare order items for GST calculation
-    const orderItems: OrderItemGstData[] = dto.items.map(item => ({
+    const orderItems: OrderItemGstData[] = dto.items.map((item) => ({
       menuItemId: item.menuItemId,
       name: '', // Will be filled from menu item
       quantity: item.quantity,
       unitPrice: item.pricing?.unitAmount || 0,
-      discountAmount: item.pricing?.discountAmount || 0
+      discountAmount: item.pricing?.discountAmount || 0,
     }));
 
     // Calculate GST using smart service
@@ -301,6 +342,10 @@ export class OrdersService {
 
     if (query.paymentStatus) {
       filter.paymentStatus = query.paymentStatus;
+    }
+
+    if (query.customerSessionId) {
+      filter.customerSessionId = query.customerSessionId;
     }
 
     if (query.from || query.to) {
@@ -449,13 +494,17 @@ export class OrdersService {
         await this.tableStatusService.updateTableStatusFromOrder(
           restaurantId,
           updated.tableId.toString(),
-          updated.status === OrderStatus.Completed ? 'order-completed' : 'order-cancelled',
+          updated.status === OrderStatus.Completed
+            ? 'order-completed'
+            : 'order-cancelled',
           {
             createdBy: 'system',
-            createdByName: 'Order System'
+            createdByName: 'Order System',
           }
         );
-        console.log(`Table status updated for table ${updated.tableId} after order ${updated.status}`);
+        console.log(
+          `Table status updated for table ${updated.tableId} after order ${updated.status}`
+        );
       } catch (error) {
         console.error(
           `Failed to update table status for order ${response.orderNumber}:`,
@@ -484,7 +533,9 @@ export class OrdersService {
     console.log('Updated By type:', typeof updatedBy);
     console.log('Updated By is truthy:', !!updatedBy);
 
-    this.logger.log(`Updating payment for order ${orderId} by user: ${updatedBy || 'unknown'}`);
+    this.logger.log(
+      `Updating payment for order ${orderId} by user: ${updatedBy || 'unknown'}`
+    );
 
     // Validate inputs
     if (!orderId || orderId === 'undefined') {
@@ -558,10 +609,16 @@ export class OrdersService {
           console.log('Session ID:', updated.sessionId);
 
           // Check if this order already has a receipt
-          const existingOrderReceipt = await this.receiptDocumentService.findByOrderId(updated._id.toString());
+          const existingOrderReceipt =
+            await this.receiptDocumentService.findByOrderId(
+              updated._id.toString()
+            );
 
           if (existingOrderReceipt) {
-            console.log('Order already has receipt:', existingOrderReceipt.receiptNumber);
+            console.log(
+              'Order already has receipt:',
+              existingOrderReceipt.receiptNumber
+            );
             return; // Skip if this order is already in a receipt
           }
 
@@ -571,16 +628,20 @@ export class OrdersService {
           if (updated.tableId) {
             // Look for existing receipt from the same table that's still active
             console.log('Searching for existing table receipt...');
-            targetReceipt = await this.receiptDocumentService.findActiveTableReceipt(
-              restaurantId,
-              updated.tableId.toString()
-            );
+            targetReceipt =
+              await this.receiptDocumentService.findActiveTableReceipt(
+                restaurantId,
+                updated.tableId.toString()
+              );
             console.log('Found existing table receipt:', !!targetReceipt);
           }
 
           if (targetReceipt) {
             // Add this order to existing receipt
-            console.log('Adding order to existing receipt:', targetReceipt.receiptNumber);
+            console.log(
+              'Adding order to existing receipt:',
+              targetReceipt.receiptNumber
+            );
 
             await this.receiptDocumentService.addOrderToReceipt(
               targetReceipt._id.toString(),
@@ -588,7 +649,9 @@ export class OrdersService {
               updatedBy
             );
 
-            this.logger.log(`Added order ${updated._id} to existing receipt ${targetReceipt.receiptNumber}`);
+            this.logger.log(
+              `Added order ${updated._id} to existing receipt ${targetReceipt.receiptNumber}`
+            );
           } else {
             // Create new receipt for this table/session
             console.log('Creating new receipt with params:');
@@ -599,19 +662,29 @@ export class OrdersService {
             console.log('- Transaction ID:', updated.paymentTransactionId);
             console.log('- Updated By (User ID):', updatedBy);
 
-            this.logger.log(`Auto-creating receipt document for paid order ${updated._id} by user: ${updatedBy || 'unknown'}`);
-
-            const createdReceipt = await this.receiptDocumentService.createReceiptDocument(
-              restaurantId,
-              [updated._id.toString()],
-              updated.paymentMethod || 'cash',
-              updated.paymentProvider,
-              updated.paymentTransactionId,
-              updatedBy
+            this.logger.log(
+              `Auto-creating receipt document for paid order ${
+                updated._id
+              } by user: ${updatedBy || 'unknown'}`
             );
 
-            console.log('Receipt creation result:', createdReceipt ? 'SUCCESS' : 'FAILED');
-            this.logger.log(`Receipt document created successfully for order ${updated._id}`);
+            const createdReceipt =
+              await this.receiptDocumentService.createReceiptDocument(
+                restaurantId,
+                [updated._id.toString()],
+                updated.paymentMethod || 'cash',
+                updated.paymentProvider,
+                updated.paymentTransactionId,
+                updatedBy
+              );
+
+            console.log(
+              'Receipt creation result:',
+              createdReceipt ? 'SUCCESS' : 'FAILED'
+            );
+            this.logger.log(
+              `Receipt document created successfully for order ${updated._id}`
+            );
           }
 
           console.log('=== END RECEIPT CREATION/UPDATE LOG ===');
@@ -622,8 +695,76 @@ export class OrdersService {
           console.log('Error stack:', error.stack);
           console.log('=== END ERROR LOG ===');
 
-          this.logger.error(`Failed to auto-create receipt document for order ${updated._id}:`, error);
+          this.logger.error(
+            `Failed to auto-create receipt document for order ${updated._id}:`,
+            error
+          );
           // Don't throw error - payment succeeded, receipt creation failure shouldn't block
+        }
+
+        // CUSTOMER SESSION AUTO-CLOSE LOGIC
+        if (updated.tableId) {
+          try {
+            console.log('=== AUTO-CLOSE SESSION CHECK ===');
+            console.log(
+              'Checking if all table orders are paid for tableId:',
+              updated.tableId.toString()
+            );
+
+            // Check if all orders for this table are now paid
+            const tableOrders = await this.orderModel
+              .find({
+                restaurantId: updated.restaurantId,
+                tableId: updated.tableId,
+                status: { $ne: OrderStatus.Cancelled }, // Exclude cancelled orders
+              })
+              .lean();
+
+            console.log('Found table orders:', tableOrders.length);
+
+            const unpaidOrders = tableOrders.filter(
+              (order) => order.paymentStatus !== PaymentStatus.Paid
+            );
+
+            console.log('Unpaid orders remaining:', unpaidOrders.length);
+
+            if (unpaidOrders.length === 0 && tableOrders.length > 0) {
+              // All orders are paid - auto-close session for customer
+              console.log(
+                '🎯 All orders paid! Auto-closing customer session for table:',
+                updated.tableId.toString()
+              );
+
+              // We'll handle this by updating a session status field or creating a session closed record
+              // For now, we'll add a field to track session closure in the order
+              await this.orderModel.updateMany(
+                {
+                  restaurantId: updated.restaurantId,
+                  tableId: updated.tableId,
+                },
+                {
+                  $set: { sessionClosed: true, sessionClosedAt: new Date() },
+                }
+              );
+
+              this.logger.log(
+                `Customer session auto-closed for table ${updated.tableId} - all orders paid`
+              );
+              console.log('✅ Session auto-closed successfully');
+            } else {
+              console.log('Session remains active - unpaid orders still exist');
+            }
+
+            console.log('=== END SESSION CHECK ===');
+          } catch (error) {
+            console.log('=== SESSION AUTO-CLOSE ERROR ===');
+            console.log('Error:', error);
+            this.logger.error(
+              `Failed to auto-close session for table ${updated.tableId}:`,
+              error
+            );
+            // Don't throw - this is a nice-to-have feature
+          }
         }
       }
 
@@ -670,12 +811,17 @@ export class OrdersService {
           updated.tableId.toString(),
           'order-completed',
           {
-            createdByName: 'Order System'
+            createdByName: 'Order System',
           }
         );
-        console.log(`Table status updated for table ${updated.tableId} after payment completion`);
+        console.log(
+          `Table status updated for table ${updated.tableId} after payment completion`
+        );
       } catch (error) {
-        console.error(`Failed to update table status for table ${updated.tableId}:`, error);
+        console.error(
+          `Failed to update table status for table ${updated.tableId}:`,
+          error
+        );
         // Don't fail the payment update if table status update fails
       }
     }
@@ -697,16 +843,21 @@ export class OrdersService {
     createdBy?: string
   ): Promise<any> {
     try {
-      const receiptDoc = await this.receiptDocumentService.createReceiptDocument(
-        restaurantId,
-        orderIds,
-        paymentMethod,
-        paymentProvider,
-        transactionId,
-        createdBy
-      );
+      const receiptDoc =
+        await this.receiptDocumentService.createReceiptDocument(
+          restaurantId,
+          orderIds,
+          paymentMethod,
+          paymentProvider,
+          transactionId,
+          createdBy
+        );
 
-      this.logger.log(`Receipt document created: ${receiptDoc.receiptNumber} for orders: ${orderIds.join(', ')}`);
+      this.logger.log(
+        `Receipt document created: ${
+          receiptDoc.receiptNumber
+        } for orders: ${orderIds.join(', ')}`
+      );
 
       return {
         receiptNumber: receiptDoc.receiptNumber,
@@ -724,9 +875,14 @@ export class OrdersService {
   /**
    * Get receipt details for admin users
    */
-  async getReceiptDetails(restaurantId: string, receiptNumber: string): Promise<any> {
+  async getReceiptDetails(
+    restaurantId: string,
+    receiptNumber: string
+  ): Promise<any> {
     try {
-      const receipt = await this.receiptDocumentService.findByReceiptNumber(receiptNumber);
+      const receipt = await this.receiptDocumentService.findByReceiptNumber(
+        receiptNumber
+      );
 
       if (!receipt) {
         throw new NotFoundException(`Receipt ${receiptNumber} not found`);
@@ -734,14 +890,16 @@ export class OrdersService {
 
       // Check if receipt belongs to this restaurant
       if (receipt.restaurantId._id.toString() !== restaurantId) {
-        throw new NotFoundException(`Receipt ${receiptNumber} not found for this restaurant`);
+        throw new NotFoundException(
+          `Receipt ${receiptNumber} not found for this restaurant`
+        );
       }
 
       // Get the orders associated with this receipt
       const orders = await this.orderModel
         .find({
           _id: { $in: receipt.orderIds },
-          restaurantId: restaurantId
+          restaurantId: restaurantId,
         })
         .populate('createdBy', 'name email role')
         .lean();
@@ -751,7 +909,7 @@ export class OrdersService {
         .find({
           orderId: { $in: receipt.orderIds },
           type: 'order.payment.updated',
-          'payload.paymentStatus': 'paid'
+          'payload.paymentStatus': 'paid',
         })
         .populate('payload.updatedBy', 'name email role')
         .sort({ createdAt: -1 })
@@ -760,12 +918,17 @@ export class OrdersService {
       // Get staff info from receipt or events
       let staffInfo = null;
       if (receipt.createdBy) {
-        const staff = await this.orderModel.db.collection('users').findOne(
-          { _id: receipt.createdBy },
-          { projection: { name: 1, email: 1, role: 1 } }
-        );
+        const staff = await this.orderModel.db
+          .collection('users')
+          .findOne(
+            { _id: receipt.createdBy },
+            { projection: { name: 1, email: 1, role: 1 } }
+          );
         staffInfo = staff;
-      } else if (paymentEvents.length > 0 && paymentEvents[0].payload?.updatedBy) {
+      } else if (
+        paymentEvents.length > 0 &&
+        paymentEvents[0].payload?.updatedBy
+      ) {
         staffInfo = paymentEvents[0].payload.updatedBy;
       }
 
@@ -786,7 +949,7 @@ export class OrdersService {
           issuedAt: receipt.issuedAt,
           createdAt: receipt.createdAt,
         },
-        orders: orders.map(order => ({
+        orders: orders.map((order) => ({
           id: order._id,
           orderNumber: order.orderNumber,
           status: order.status,
@@ -795,16 +958,18 @@ export class OrdersService {
           items: order.items,
           totalAmount: order.totalAmount,
         })),
-        staffInfo: staffInfo ? {
-          id: staffInfo._id,
-          name: staffInfo.name,
-          email: staffInfo.email,
-          role: staffInfo.role,
-          action: 'Marked payment as paid'
-        } : {
-          action: 'Customer self-payment or system payment'
-        },
-        paymentHistory: paymentEvents.map(event => ({
+        staffInfo: staffInfo
+          ? {
+              id: staffInfo._id,
+              name: staffInfo.name,
+              email: staffInfo.email,
+              role: staffInfo.role,
+              action: 'Marked payment as paid',
+            }
+          : {
+              action: 'Customer self-payment or system payment',
+            },
+        paymentHistory: paymentEvents.map((event) => ({
           timestamp: event.createdAt,
           paymentStatus: event.payload?.paymentStatus,
           paymentMethod: event.payload?.paymentMethod,
@@ -820,7 +985,10 @@ export class OrdersService {
   /**
    * Get receipt details by order ID for admin users
    */
-  async getReceiptDetailsByOrderId(restaurantId: string, orderId: string): Promise<any> {
+  async getReceiptDetailsByOrderId(
+    restaurantId: string,
+    orderId: string
+  ): Promise<any> {
     try {
       // First find the receipt that contains this order
       const receipt = await this.receiptDocumentService.findByOrderId(orderId);
@@ -1447,7 +1615,9 @@ export class OrdersService {
     // Use finalAmount if available, otherwise use calculated total
     // For TaxInvoice generation, we need to handle rounding correctly
     const finalInvoiceAmount = order.finalAmount ?? preRoundTotal;
-    const calculatedRoundOff = order.finalAmount ? (order.finalAmount - preRoundTotal) : 0;
+    const calculatedRoundOff = order.finalAmount
+      ? order.finalAmount - preRoundTotal
+      : 0;
 
     // Ensure roundOffAmount is non-negative for TaxInvoice schema
     // If the customer got a discount (negative roundOff), we'll handle it differently
@@ -1504,7 +1674,7 @@ export class OrdersService {
       totalTaxAmount: order.taxAmount ?? 0,
       totalAmount: finalInvoiceAmount, // Use final amount collected
       taxType:
-        (order.taxType as 'intra-state' | 'inter-state') ?? 'intra-state'
+        (order.taxType as 'intra-state' | 'inter-state') ?? 'intra-state',
     };
 
     const invoiceNumber = await this.gstService.generateTaxInvoice(
@@ -1738,8 +1908,14 @@ export class OrdersService {
   }
 
   // Webhook handler methods for Razorpay payment events
-  async handlePaymentCaptured(orderId: string, paymentId: string, paymentData: any) {
-    this.logger.log(`Handling payment captured for order ${orderId}: ${paymentId}`);
+  async handlePaymentCaptured(
+    orderId: string,
+    paymentId: string,
+    paymentData: any
+  ) {
+    this.logger.log(
+      `Handling payment captured for order ${orderId}: ${paymentId}`
+    );
 
     try {
       // Find the order by our internal order ID
@@ -1751,15 +1927,11 @@ export class OrdersService {
       }
 
       // Update order payment status
-      await this.updatePayment(
-        order.restaurantId.toString(),
-        orderId,
-        {
-          paymentStatus: PaymentStatus.Paid,
-          transactionId: paymentId,
-          provider: 'razorpay',
-        }
-      );
+      await this.updatePayment(order.restaurantId.toString(), orderId, {
+        paymentStatus: PaymentStatus.Paid,
+        transactionId: paymentId,
+        provider: 'razorpay',
+      });
 
       // Record payment captured event
       await this.recordEvent(
@@ -1775,23 +1947,35 @@ export class OrdersService {
         }
       );
 
-      this.logger.log(`Payment ${paymentId} processed successfully for order ${orderId}`);
-
+      this.logger.log(
+        `Payment ${paymentId} processed successfully for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle payment captured for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle payment captured for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
-  async handlePaymentFailed(orderId: string, paymentId: string, failureData: any) {
-    this.logger.log(`Handling payment failure for order ${orderId}: ${paymentId}`);
+  async handlePaymentFailed(
+    orderId: string,
+    paymentId: string,
+    failureData: any
+  ) {
+    this.logger.log(
+      `Handling payment failure for order ${orderId}: ${paymentId}`
+    );
 
     try {
       // Find the order by our internal order ID
       const order = await this.orderModel.findById(orderId);
 
       if (!order) {
-        this.logger.warn(`Order ${orderId} not found for failed payment ${paymentId}`);
+        this.logger.warn(
+          `Order ${orderId} not found for failed payment ${paymentId}`
+        );
         return;
       }
 
@@ -1811,10 +1995,14 @@ export class OrdersService {
         }
       );
 
-      this.logger.log(`Payment failure ${paymentId} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Payment failure ${paymentId} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle payment failure for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle payment failure for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -1833,14 +2021,10 @@ export class OrdersService {
 
       // Ensure order is marked as fully paid
       if (order.paymentStatus !== PaymentStatus.Paid) {
-        await this.updatePayment(
-          order.restaurantId.toString(),
-          orderId,
-          {
-            paymentStatus: PaymentStatus.Paid,
-            provider: 'razorpay',
-          }
-        );
+        await this.updatePayment(order.restaurantId.toString(), orderId, {
+          paymentStatus: PaymentStatus.Paid,
+          provider: 'razorpay',
+        });
       }
 
       // Record order fully paid event
@@ -1857,127 +2041,162 @@ export class OrdersService {
       );
 
       this.logger.log(`Order ${orderId} marked as fully paid`);
-
     } catch (error) {
-      this.logger.error(`Failed to handle order fully paid for ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle order fully paid for ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   // Refund webhook handlers
   async handleRefundCreated(orderId: string, refundData: any) {
-    this.logger.log(`Handling refund created for order ${orderId}: ${refundData.refund_id}`);
+    this.logger.log(
+      `Handling refund created for order ${orderId}: ${refundData.refund_id}`
+    );
 
     try {
       await this.recordEvent(
         orderId,
-        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() ||
+          '',
         'refund.created',
         refundData
       );
 
-      this.logger.log(`Refund created ${refundData.refund_id} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Refund created ${refundData.refund_id} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle refund created for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle refund created for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   async handleRefundProcessed(orderId: string, refundData: any) {
-    this.logger.log(`Handling refund processed for order ${orderId}: ${refundData.refund_id}`);
+    this.logger.log(
+      `Handling refund processed for order ${orderId}: ${refundData.refund_id}`
+    );
 
     try {
       await this.recordEvent(
         orderId,
-        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() ||
+          '',
         'refund.processed',
         refundData
       );
 
-      this.logger.log(`Refund processed ${refundData.refund_id} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Refund processed ${refundData.refund_id} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle refund processed for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle refund processed for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   async handleRefundFailed(orderId: string, refundData: any) {
-    this.logger.log(`Handling refund failed for order ${orderId}: ${refundData.refund_id}`);
+    this.logger.log(
+      `Handling refund failed for order ${orderId}: ${refundData.refund_id}`
+    );
 
     try {
       await this.recordEvent(
         orderId,
-        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() ||
+          '',
         'refund.failed',
         refundData
       );
 
-      this.logger.log(`Refund failed ${refundData.refund_id} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Refund failed ${refundData.refund_id} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle refund failed for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle refund failed for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   // Transfer webhook handlers
   async handleTransferProcessed(orderId: string, transferData: any) {
-    this.logger.log(`Handling transfer processed for order ${orderId}: ${transferData.transfer_id}`);
+    this.logger.log(
+      `Handling transfer processed for order ${orderId}: ${transferData.transfer_id}`
+    );
 
     try {
       await this.recordEvent(
         orderId,
-        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() ||
+          '',
         'transfer.processed',
         transferData
       );
 
-      this.logger.log(`Transfer processed ${transferData.transfer_id} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Transfer processed ${transferData.transfer_id} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle transfer processed for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle transfer processed for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   async handleTransferFailed(orderId: string, transferData: any) {
-    this.logger.log(`Handling transfer failed for order ${orderId}: ${transferData.transfer_id}`);
+    this.logger.log(
+      `Handling transfer failed for order ${orderId}: ${transferData.transfer_id}`
+    );
 
     try {
       await this.recordEvent(
         orderId,
-        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() ||
+          '',
         'transfer.failed',
         transferData
       );
 
-      this.logger.log(`Transfer failed ${transferData.transfer_id} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Transfer failed ${transferData.transfer_id} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle transfer failed for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle transfer failed for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   // Invoice webhook handlers
   async handleInvoicePaid(orderId: string, invoiceData: any) {
-    this.logger.log(`Handling invoice paid for order ${orderId}: ${invoiceData.invoice_id}`);
+    this.logger.log(
+      `Handling invoice paid for order ${orderId}: ${invoiceData.invoice_id}`
+    );
 
     try {
       // Mark order as paid if it's not already
       const order = await this.orderModel.findById(orderId);
       if (order && order.paymentStatus !== PaymentStatus.Paid) {
-        await this.updatePayment(
-          order.restaurantId.toString(),
-          orderId,
-          {
-            paymentStatus: PaymentStatus.Paid,
-            transactionId: invoiceData.payment_id,
-            provider: 'razorpay',
-          }
-        );
+        await this.updatePayment(order.restaurantId.toString(), orderId, {
+          paymentStatus: PaymentStatus.Paid,
+          transactionId: invoiceData.payment_id,
+          provider: 'razorpay',
+        });
       }
 
       await this.recordEvent(
@@ -1987,48 +2206,66 @@ export class OrdersService {
         invoiceData
       );
 
-      this.logger.log(`Invoice paid ${invoiceData.invoice_id} processed for order ${orderId}`);
-
+      this.logger.log(
+        `Invoice paid ${invoiceData.invoice_id} processed for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle invoice paid for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle invoice paid for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   async handleInvoicePartiallyPaid(orderId: string, invoiceData: any) {
-    this.logger.log(`Handling invoice partially paid for order ${orderId}: ${invoiceData.invoice_id}`);
+    this.logger.log(
+      `Handling invoice partially paid for order ${orderId}: ${invoiceData.invoice_id}`
+    );
 
     try {
       await this.recordEvent(
         orderId,
-        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() ||
+          '',
         'invoice.partially_paid',
         invoiceData
       );
 
-      this.logger.log(`Invoice partially paid ${invoiceData.invoice_id} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Invoice partially paid ${invoiceData.invoice_id} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle invoice partially paid for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle invoice partially paid for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   async handleInvoiceExpired(orderId: string, invoiceData: any) {
-    this.logger.log(`Handling invoice expired for order ${orderId}: ${invoiceData.invoice_id}`);
+    this.logger.log(
+      `Handling invoice expired for order ${orderId}: ${invoiceData.invoice_id}`
+    );
 
     try {
       await this.recordEvent(
         orderId,
-        (await this.orderModel.findById(orderId))?.restaurantId?.toString() || '',
+        (await this.orderModel.findById(orderId))?.restaurantId?.toString() ||
+          '',
         'invoice.expired',
         invoiceData
       );
 
-      this.logger.log(`Invoice expired ${invoiceData.invoice_id} recorded for order ${orderId}`);
-
+      this.logger.log(
+        `Invoice expired ${invoiceData.invoice_id} recorded for order ${orderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to handle invoice expired for order ${orderId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle invoice expired for order ${orderId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }

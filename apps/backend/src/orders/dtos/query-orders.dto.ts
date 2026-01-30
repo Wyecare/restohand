@@ -44,4 +44,12 @@ export class QueryOrdersDto {
   @IsOptional()
   @IsNumberString()
   limit?: string;
+
+  @ApiPropertyOptional({
+    example: 'b5bc55d9-132c-4984-8a96-a1077a96af57',
+    description: 'Filter by customer session ID'
+  })
+  @IsOptional()
+  @IsString()
+  customerSessionId?: string;
 }

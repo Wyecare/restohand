@@ -1,5 +1,5 @@
 import { useGetPublicMenuQuery } from "@/store/api/menuApi";
-import { useCreateOrderMutation } from "@/store/api/ordersApi";
+import { useCreateOrderMutation, useUpdateOrderStatusMutation } from "@/store/api/ordersApi";
 import {
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -66,8 +67,9 @@ export default function ServiceMenuScreen() {
     return enhancedTables?.find((table) => table.id === tableId) ?? null;
   }, [enhancedTables, tableId]);
 
-  // RTK mutation for creating orders
+  // RTK mutation for creating orders and updating status
   const [createOrder] = useCreateOrderMutation();
+  const [updateOrderStatus] = useUpdateOrderStatusMutation();
 
   // Component state
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -75,6 +77,9 @@ export default function ServiceMenuScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedOrderForStatus, setSelectedOrderForStatus] = useState<any>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   // Check for existing active orders (multiple orders per table)
   const activeExistingOrders = useMemo(() => {
@@ -287,6 +292,94 @@ export default function ServiceMenuScreen() {
     }
   };
 
+  const handleUpdateStatusAction = (order: any) => {
+    setSelectedOrderForStatus(order);
+    setShowStatusModal(true);
+  };
+
+  const handleStatusUpdate = async (status: string, progress?: number) => {
+    if (!restaurant || !selectedOrderForStatus) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      await updateOrderStatus({
+        restaurantId: restaurant.id,
+        orderId: selectedOrderForStatus.id,
+        status: status as any,
+        progress,
+      }).unwrap();
+
+      setShowStatusModal(false);
+      setSelectedOrderForStatus(null);
+
+      // Refetch table data to show updated status
+      await refetchTables();
+
+      Alert.alert("Status Updated!", `Order #${selectedOrderForStatus.orderNumber} is now ${status.replace('_', ' ')}`);
+    } catch (error) {
+      Alert.alert("Error", "Failed to update order status");
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const getStatusUpdateOptions = (currentStatus: string) => {
+    const statusOptions = [
+      {
+        status: 'accepted',
+        label: 'Accept Order',
+        icon: 'checkmark-circle',
+        color: '#3B82F6',
+        progress: 20,
+        description: 'Mark order as accepted'
+      },
+      {
+        status: 'in_progress',
+        label: 'Start Cooking',
+        icon: 'flame',
+        color: '#F59E0B',
+        progress: 40,
+        description: 'Begin preparation'
+      },
+      {
+        status: 'in_progress',
+        label: 'Almost Ready',
+        icon: 'hourglass',
+        color: '#10B981',
+        progress: 80,
+        description: 'Order is almost done'
+      },
+      {
+        status: 'ready',
+        label: 'Order Ready',
+        icon: 'restaurant',
+        color: '#059669',
+        progress: 100,
+        description: 'Ready for pickup/serving'
+      }
+    ];
+
+    // Filter based on current status
+    switch (currentStatus) {
+      case 'pending':
+        return statusOptions.filter(opt =>
+          (opt.status === 'accepted') ||
+          (opt.status === 'in_progress' && opt.progress === 40)
+        );
+      case 'accepted':
+        return statusOptions.filter(opt =>
+          (opt.status === 'in_progress' && opt.progress === 40)
+        );
+      case 'in_progress':
+        return statusOptions.filter(opt =>
+          (opt.status === 'in_progress' && opt.progress === 80) ||
+          (opt.status === 'ready')
+        );
+      default:
+        return [];
+    }
+  };
+
   // Refresh function to update menu and table data
   const handleRefresh = async () => {
     await Promise.all([refetchMenu(), refetchTables()]);
@@ -424,7 +517,7 @@ export default function ServiceMenuScreen() {
             </View>
 
             {/* Show payment button if any order is ready */}
-            {activeExistingOrders.some(order => order.status === "ready") && (
+            {activeExistingOrders.some(order => order.status === "ready") ? (
               <TouchableOpacity
                 style={styles.paymentButton}
                 onPress={handlePaymentAction}
@@ -434,6 +527,19 @@ export default function ServiceMenuScreen() {
                   Pay Total Bill (₹{totalBillAmount.toFixed(0)})
                 </Text>
               </TouchableOpacity>
+            ) : (
+              /* Show update status button if orders exist but none are ready */
+              activeExistingOrders.length > 0 && (
+                <TouchableOpacity
+                  style={styles.updateStatusButton}
+                  onPress={() => handleUpdateStatusAction(activeExistingOrders[0])}
+                >
+                  <Ionicons name="refresh" size={16} color="#ffffff" />
+                  <Text style={styles.updateStatusButtonText}>
+                    Update Status
+                  </Text>
+                </TouchableOpacity>
+              )
             )}
           </View>
         </View>
@@ -658,6 +764,64 @@ export default function ServiceMenuScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Status Update Modal */}
+      <Modal
+        visible={showStatusModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowStatusModal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Update Status - #{selectedOrderForStatus?.orderNumber}
+            </Text>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setShowStatusModal(false)}
+            >
+              <Ionicons name="close" size={24} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            <Text style={styles.currentStatusText}>
+              Current Status: <Text style={styles.currentStatusValue}>
+                {selectedOrderForStatus?.status?.replace('_', ' ')}
+              </Text>
+            </Text>
+
+            <View style={styles.statusOptionsContainer}>
+              {selectedOrderForStatus &&
+                getStatusUpdateOptions(selectedOrderForStatus.status).map((option, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.statusOptionButton, { borderColor: option.color }]}
+                  onPress={() => handleStatusUpdate(option.status, option.progress)}
+                  disabled={isUpdatingStatus}
+                >
+                  <View style={[styles.statusOptionIcon, { backgroundColor: option.color }]}>
+                    <Ionicons name={option.icon as any} size={24} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.statusOptionContent}>
+                    <Text style={styles.statusOptionLabel}>{option.label}</Text>
+                    <Text style={styles.statusOptionDescription}>{option.description}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color={option.color} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {isUpdatingStatus && (
+              <View style={styles.updatingContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.updatingText}>Updating status...</Text>
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1112,5 +1276,113 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  updateStatusButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#6B7280",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  updateStatusButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1f2937",
+    flex: 1,
+  },
+  modalCloseButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "#f3f4f6",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  currentStatusText: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  currentStatusValue: {
+    fontWeight: "600",
+    color: "#1f2937",
+    textTransform: "capitalize",
+  },
+  statusOptionsContainer: {
+    gap: 12,
+  },
+  statusOptionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statusOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statusOptionContent: {
+    flex: 1,
+  },
+  statusOptionLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 4,
+  },
+  statusOptionDescription: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  updatingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: "#f0f9ff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  updatingText: {
+    fontSize: 14,
+    color: "#1e40af",
+    fontWeight: "500",
   },
 });

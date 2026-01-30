@@ -22,7 +22,7 @@ export class ReceiptDocumentService {
     @InjectModel(Order.name)
     private orderModel: Model<OrderDocument>,
     @InjectModel(Restaurant.name)
-    private restaurantModel: Model<RestaurantDocument>,
+    private restaurantModel: Model<RestaurantDocument>
   ) {}
 
   /**
@@ -39,7 +39,9 @@ export class ReceiptDocumentService {
       // Generate timestamp-based number (shorter format)
       const now = new Date();
       const timestamp = now.getTime().toString().slice(-6); // Last 6 digits
-      const random = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      const random = Math.floor(Math.random() * 100)
+        .toString()
+        .padStart(2, '0');
 
       const receiptNumber = `${prefix}${timestamp}${random}`;
 
@@ -72,13 +74,13 @@ export class ReceiptDocumentService {
     paymentMethod: string,
     paymentProvider?: string,
     transactionId?: string,
-    createdBy?: string,
+    createdBy?: string
   ): Promise<ReceiptDocumentDocument> {
     try {
       // Get all orders
       const orders = await this.orderModel
         .find({
-          _id: { $in: orderIds.map(id => new Types.ObjectId(id)) },
+          _id: { $in: orderIds.map((id) => new Types.ObjectId(id)) },
           restaurantId: new Types.ObjectId(restaurantId),
         })
         .lean();
@@ -91,7 +93,7 @@ export class ReceiptDocumentService {
       const combinedItems: ReceiptItem[] = [];
       const orderItemsMap = new Map<string, ReceiptItem>();
 
-      orders.forEach(order => {
+      orders.forEach((order) => {
         order.items.forEach((item: any) => {
           const key = `${item.name}-${item.pricing.unitAmount}`;
           const lineTotal = item.pricing.unitAmount * item.quantity;
@@ -126,13 +128,29 @@ export class ReceiptDocumentService {
       combinedItems.push(...Array.from(orderItemsMap.values()));
 
       // Calculate totals
-      const subtotal = combinedItems.reduce((sum, item) => sum + item.lineTotal, 0);
-      const taxAmount = combinedItems.reduce((sum, item) => sum + item.taxAmount, 0);
-      const cgstAmount = combinedItems.reduce((sum, item) => sum + item.cgstAmount, 0);
-      const sgstAmount = combinedItems.reduce((sum, item) => sum + item.sgstAmount, 0);
-      const igstAmount = combinedItems.reduce((sum, item) => sum + item.igstAmount, 0);
+      const subtotal = combinedItems.reduce(
+        (sum, item) => sum + item.lineTotal,
+        0
+      );
+      const taxAmount = combinedItems.reduce(
+        (sum, item) => sum + item.taxAmount,
+        0
+      );
+      const cgstAmount = combinedItems.reduce(
+        (sum, item) => sum + item.cgstAmount,
+        0
+      );
+      const sgstAmount = combinedItems.reduce(
+        (sum, item) => sum + item.sgstAmount,
+        0
+      );
+      const igstAmount = combinedItems.reduce(
+        (sum, item) => sum + item.igstAmount,
+        0
+      );
       const totalBeforeRounding = subtotal + taxAmount;
-      const roundOffAmount = Math.round(totalBeforeRounding) - totalBeforeRounding;
+      const roundOffAmount =
+        Math.round(totalBeforeRounding) - totalBeforeRounding;
       const totalAmount = Math.round(totalBeforeRounding);
 
       // Generate receipt number
@@ -145,7 +163,7 @@ export class ReceiptDocumentService {
       const receiptDoc = new this.receiptDocumentModel({
         receiptNumber,
         restaurantId: new Types.ObjectId(restaurantId),
-        orderIds: orderIds.map(id => new Types.ObjectId(id)),
+        orderIds: orderIds.map((id) => new Types.ObjectId(id)),
         createdBy: createdBy ? new Types.ObjectId(createdBy) : undefined,
         tableNumber: firstOrder.tableNumber,
         customerName: firstOrder.customerName,
@@ -160,7 +178,6 @@ export class ReceiptDocumentService {
         discountAmount: 0,
         roundOffAmount,
         totalAmount,
-        paymentStatus: 'paid',
         paymentMethod,
         paymentProvider,
         transactionId,
@@ -179,7 +196,9 @@ export class ReceiptDocumentService {
   /**
    * Find receipt by receipt number
    */
-  async findByReceiptNumber(receiptNumber: string): Promise<ReceiptDocumentDocument | null> {
+  async findByReceiptNumber(
+    receiptNumber: string
+  ): Promise<ReceiptDocumentDocument | null> {
     return this.receiptDocumentModel
       .findOne({ receiptNumber })
       .populate('restaurantId', 'name address phone email gstin')
@@ -189,7 +208,9 @@ export class ReceiptDocumentService {
   /**
    * Find receipt by order ID
    */
-  async findByOrderId(orderId: string): Promise<ReceiptDocumentDocument | null> {
+  async findByOrderId(
+    orderId: string
+  ): Promise<ReceiptDocumentDocument | null> {
     return this.receiptDocumentModel
       .findOne({ orderIds: new Types.ObjectId(orderId) })
       .populate('restaurantId', 'name address phone email gstin')
@@ -202,7 +223,7 @@ export class ReceiptDocumentService {
   async findByRestaurant(
     restaurantId: string,
     page = 1,
-    limit = 50,
+    limit = 50
   ): Promise<{
     receipts: ReceiptDocumentDocument[];
     total: number;
@@ -252,7 +273,7 @@ export class ReceiptDocumentService {
         return null;
       }
 
-      const orderIds = tableOrders.map(o => o._id.toString());
+      const orderIds = tableOrders.map((o) => o._id.toString());
 
       // Find receipt that contains any of these orders and was created recently (within last 4 hours)
       const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
@@ -301,7 +322,7 @@ export class ReceiptDocumentService {
           items: order.items.length,
           subTotalAmount: order.subTotalAmount,
           taxAmount: order.taxAmount,
-          totalAmount: order.totalAmount
+          totalAmount: order.totalAmount,
         });
       }
 
@@ -320,7 +341,7 @@ export class ReceiptDocumentService {
           currentSubtotal: receipt.subtotal,
           currentTaxAmount: receipt.taxAmount,
           currentTotalAmount: receipt.totalAmount,
-          currentItemsCount: receipt.items.length
+          currentItemsCount: receipt.items.length,
         });
       }
 
@@ -331,12 +352,14 @@ export class ReceiptDocumentService {
       // Check if order is already in this receipt
       if (receipt.orderIds.includes(orderId)) {
         console.log('Order already exists in receipt, skipping');
-        this.logger.warn(`Order ${orderId} already exists in receipt ${receiptId}`);
+        this.logger.warn(
+          `Order ${orderId} already exists in receipt ${receiptId}`
+        );
         return receipt;
       }
 
       // Add order to receipt
-      const orderItems: ReceiptItem[] = order.items.map(item => ({
+      const orderItems: ReceiptItem[] = order.items.map((item) => ({
         name: item.name,
         quantity: item.quantity,
         unitPrice: item.pricing.unitAmount,
@@ -350,7 +373,7 @@ export class ReceiptDocumentService {
         addSubtotal: order.subTotalAmount,
         addTaxAmount: order.taxAmount,
         addTotalAmount: order.totalAmount,
-        addItems: orderItems.length
+        addItems: orderItems.length,
       });
 
       // Update receipt with new order
@@ -366,11 +389,14 @@ export class ReceiptDocumentService {
           ...(updatedBy && { updatedBy: new Types.ObjectId(updatedBy) }),
         },
         $addToSet: {
-          items: { $each: orderItems }
-        }
+          items: { $each: orderItems },
+        },
       };
 
-      console.log('MongoDB update query:', JSON.stringify(updateQuery, null, 2));
+      console.log(
+        'MongoDB update query:',
+        JSON.stringify(updateQuery, null, 2)
+      );
 
       const updatedReceipt = await this.receiptDocumentModel.findByIdAndUpdate(
         receiptId,
@@ -386,13 +412,15 @@ export class ReceiptDocumentService {
           finalSubtotal: updatedReceipt.subtotal,
           finalTaxAmount: updatedReceipt.taxAmount,
           finalTotalAmount: updatedReceipt.totalAmount,
-          finalItemsCount: updatedReceipt.items.length
+          finalItemsCount: updatedReceipt.items.length,
         });
       }
 
       console.log('=== END ADD ORDER TO RECEIPT DEBUG ===');
 
-      this.logger.log(`Successfully added order ${orderId} to receipt ${receiptId}`);
+      this.logger.log(
+        `Successfully added order ${orderId} to receipt ${receiptId}`
+      );
       return updatedReceipt;
     } catch (error) {
       console.log('=== ADD ORDER TO RECEIPT ERROR ===');
@@ -401,7 +429,83 @@ export class ReceiptDocumentService {
       console.log('Error stack:', error.stack);
       console.log('=== END ADD ORDER ERROR ===');
 
-      this.logger.error(`Error adding order ${orderId} to receipt ${receiptId}:`, error);
+      this.logger.error(
+        `Error adding order ${orderId} to receipt ${receiptId}:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Create or update table receipt for a new order
+   * This is the main method called when orders are created
+   */
+  async createOrUpdateTableReceipt(
+    restaurantId: string,
+    tableId: string,
+    orderId: string
+  ): Promise<ReceiptDocumentDocument> {
+    try {
+      console.log('=== RECEIPT CREATION/UPDATE LOG ===');
+      console.log(`Processing order: ${orderId}`);
+      console.log(`Table ID: ${tableId}`);
+
+      // Check if there's already an active receipt for this table
+      console.log('Searching for existing table receipt...');
+      const existingReceipt = await this.findActiveTableReceipt(
+        restaurantId,
+        tableId
+      );
+
+      console.log(`Found existing table receipt: ${!!existingReceipt}`);
+
+      if (existingReceipt) {
+        // Add order to existing receipt
+        console.log(
+          `Adding order to existing receipt: ${existingReceipt.receiptNumber}`
+        );
+        const updatedReceipt = await this.addOrderToReceipt(
+          existingReceipt._id.toString(),
+          orderId
+        );
+
+        if (!updatedReceipt) {
+          throw new Error('Failed to update existing receipt');
+        }
+
+        this.logger.log(
+          `Added order ${orderId} to existing receipt ${existingReceipt.receiptNumber}`
+        );
+        console.log('=== END RECEIPT CREATION/UPDATE LOG ===');
+        return updatedReceipt;
+      } else {
+        // Create new receipt for this order
+        console.log('Creating new receipt for first table order');
+        const newReceipt = await this.createReceiptDocument(
+          restaurantId,
+          [orderId],
+          'pending', // Payment method will be updated when payment is made
+          undefined, // paymentProvider
+          undefined, // transactionId
+          undefined // createdBy
+        );
+
+        this.logger.log(
+          `Created new receipt ${newReceipt.receiptNumber} for order ${orderId}`
+        );
+        console.log('=== END RECEIPT CREATION/UPDATE LOG ===');
+        return newReceipt;
+      }
+    } catch (error) {
+      console.log('=== RECEIPT ERROR ===');
+      console.log('Error details:', error);
+      console.log('=== END RECEIPT ERROR ===');
+
+      this.logger.error(
+        `Error creating/updating receipt for table ${tableId}, order ${orderId}:`,
+        error
+      );
       throw error;
     }
   }

@@ -97,6 +97,9 @@ export class Order {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Session', index: true })
   sessionId?: string;
 
+  @Prop({ type: String, index: true })
+  customerSessionId?: string; // Customer session ID from our session management
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'User', index: true })
   createdBy?: string;
 

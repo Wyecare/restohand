@@ -32,44 +32,18 @@ import type { Order } from '@/store/api/types';
 import { Image } from 'expo-image';
 import { Audio } from 'expo-av';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const COLUMN_GAP = 16;
-const CONTAINER_PADDING = 24;
-const COLUMN_WIDTH =
-  (SCREEN_WIDTH - CONTAINER_PADDING * 2 - COLUMN_GAP * 2) / 3;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const statusesInKitchen: Order['status'][] = [
+const BRAND_COLOR = '#4910bc';
+const BRAND_COLOR_LIGHT = '#6B2FDB';
+const BRAND_COLOR_LIGHTER = '#E9E0FF';
+const BRAND_COLOR_PALE = '#F5F1FF';
+
+const cookingStatuses: Order['status'][] = [
   'pending',
   'accepted',
   'in_progress',
 ];
-
-const statusConfig = {
-  pending: {
-    label: 'New Orders',
-    icon: 'notifications-outline',
-    color: '#DC2626',
-    bgColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
-    accentColor: '#B91C1C',
-  },
-  accepted: {
-    label: 'Preparing',
-    icon: 'checkbox-outline',
-    color: '#D97706',
-    bgColor: '#FED7AA',
-    borderColor: '#FDBA74',
-    accentColor: '#B45309',
-  },
-  in_progress: {
-    label: 'Cooking',
-    icon: 'flame-outline',
-    color: '#059669',
-    bgColor: '#A7F3D0',
-    borderColor: '#6EE7B7',
-    accentColor: '#047857',
-  },
-};
 
 export default function KitchenOrdersScreen() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
@@ -161,24 +135,59 @@ export default function KitchenOrdersScreen() {
 
   useOrdersSSE({ onEvent: handleSSEEvent, enabled: !!restaurantId });
 
-  const filteredOrders = useMemo(() => {
-    if (!data?.data) return [];
-    return data.data.filter((order) =>
-      statusesInKitchen.includes(order.status)
-    );
+  // Split orders into two columns:
+  // LEFT = cooking queue (pending/accepted/in_progress) - stays here until marked "ready"
+  // RIGHT = ready orders - move here when marked ready, can be marked as delivered/complete to remove
+  const { cookingOrders, readyOrders } = useMemo(() => {
+    if (!data?.data) return { cookingOrders: [], readyOrders: [] };
+
+    const cooking: Order[] = [];
+    const ready: Order[] = [];
+
+    data.data.forEach((order) => {
+      // LEFT COLUMN: All orders being worked on
+      if (cookingStatuses.includes(order.status)) {
+        cooking.push(order);
+      }
+      // RIGHT COLUMN: Only ready orders waiting to be picked up
+      else if (order.status === 'ready') {
+        ready.push(order);
+      }
+      // Orders with other statuses (delivered, completed, etc.) are filtered out
+    });
+
+    // Sort cooking orders by time (oldest first - most urgent)
+    cooking.sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return timeA - timeB;
+    });
+
+    // Sort ready orders by time (oldest first)
+    ready.sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      return timeA - timeB;
+    });
+
+    return { cookingOrders: cooking, readyOrders: ready };
   }, [data?.data]);
 
-  const grouped = useMemo(() => {
-    const map: Record<string, Order[]> = {
-      pending: [],
-      accepted: [],
-      in_progress: [],
+  // Status counts for summary
+  const statusCounts = useMemo(() => {
+    const counts = {
+      pending: 0,
+      accepted: 0,
+      in_progress: 0,
+      ready: 0,
     };
-    filteredOrders.forEach((order) => {
-      map[order.status]?.push(order);
+    data?.data?.forEach((order) => {
+      if (counts.hasOwnProperty(order.status)) {
+        counts[order.status as keyof typeof counts]++;
+      }
     });
-    return map;
-  }, [filteredOrders]);
+    return counts;
+  }, [data?.data]);
 
   const handleUpdate = async (
     orderId: string,
@@ -219,51 +228,125 @@ export default function KitchenOrdersScreen() {
     });
   };
 
-  const getUrgencyColor = (dateString: string) => {
+  const getTimeMinutes = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffMins = Math.floor((now.getTime() - date.getTime()) / 60000);
-
-    if (diffMins > 15) return '#DC2626';
-    if (diffMins > 10) return '#F59E0B';
-    return '#6B7280';
+    return Math.floor((now.getTime() - date.getTime()) / 60000);
   };
 
-  const OrderCard = ({ order }: { order: Order }) => {
-    const urgencyColor = getUrgencyColor(order.createdAt || '');
-    const config = statusConfig[order.status as keyof typeof statusConfig];
+  const getUrgencyLevel = (dateString: string) => {
+    const mins = getTimeMinutes(dateString);
+    if (mins > 15) return 'critical';
+    if (mins > 10) return 'warning';
+    if (mins > 5) return 'normal';
+    return 'fresh';
+  };
+
+  const getStatusLabel = (status: Order['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'New';
+      case 'accepted':
+        return 'Accepted';
+      case 'in_progress':
+        return 'Cooking';
+      case 'ready':
+        return 'Ready';
+      default:
+        return status;
+    }
+  };
+
+  const OrderCard = ({
+    order,
+    isReady = false,
+  }: {
+    order: Order;
+    isReady?: boolean;
+  }) => {
+    const urgencyLevel = getUrgencyLevel(order.createdAt || '');
+    const timeMinutes = getTimeMinutes(order.createdAt || '');
+
+    const urgencyStyles = {
+      critical: {
+        borderColor: '#DC2626',
+        timeBg: '#FEE2E2',
+        timeColor: '#DC2626',
+        showPulse: true,
+      },
+      warning: {
+        borderColor: '#F59E0B',
+        timeBg: '#FEF3C7',
+        timeColor: '#D97706',
+        showPulse: false,
+      },
+      normal: {
+        borderColor: '#E5E7EB',
+        timeBg: '#F3F4F6',
+        timeColor: '#6B7280',
+        showPulse: false,
+      },
+      fresh: {
+        borderColor: BRAND_COLOR_LIGHTER,
+        timeBg: BRAND_COLOR_PALE,
+        timeColor: BRAND_COLOR,
+        showPulse: false,
+      },
+    };
+
+    const style = isReady
+      ? {
+          borderColor: '#10B981',
+          timeBg: '#D1FAE5',
+          timeColor: '#059669',
+          showPulse: false,
+        }
+      : urgencyStyles[urgencyLevel];
 
     return (
-      <View style={[styles.orderCard, { borderLeftColor: config.accentColor }]}>
-        {/* Order Header */}
+      <View style={[styles.orderCard, { borderColor: style.borderColor }]}>
+        {/* Urgency Pulse Indicator */}
+        {style.showPulse && (
+          <View style={styles.criticalPulse}>
+            <View style={[styles.pulseRing, { backgroundColor: '#DC2626' }]} />
+          </View>
+        )}
+
+        {/* Header: Order Number, Table, Status */}
         <View style={styles.cardHeader}>
-          <View style={styles.orderMeta}>
+          <View style={styles.orderInfo}>
             <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
+
             {order.tableNumber && (
-              <View
-                style={[styles.tableTag, { backgroundColor: config.bgColor }]}
-              >
-                <Ionicons
-                  name="restaurant-outline"
-                  size={12}
-                  color={config.color}
-                />
-                <Text style={[styles.tableText, { color: config.color }]}>
-                  Table {order.tableNumber}
-                </Text>
+              <View style={styles.tableBadge}>
+                <Ionicons name="restaurant-outline" size={14} color="#374151" />
+                <Text style={styles.tableText}>T{order.tableNumber}</Text>
               </View>
             )}
           </View>
 
-          {order.createdAt && (
-            <View style={styles.timeContainer}>
-              <Ionicons name="time-outline" size={14} color={urgencyColor} />
-              <Text style={[styles.timeText, { color: urgencyColor }]}>
-                {formatTime(order.createdAt)}
-              </Text>
-            </View>
-          )}
+          <View style={styles.statusTag}>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: isReady ? '#10B981' : BRAND_COLOR },
+              ]}
+            />
+            <Text style={styles.statusText}>
+              {getStatusLabel(order.status)}
+            </Text>
+          </View>
         </View>
+
+        {/* Time Badge */}
+        {order.createdAt && (
+          <View style={[styles.timeBadge, { backgroundColor: style.timeBg }]}>
+            <Ionicons name="time-outline" size={16} color={style.timeColor} />
+            <Text style={[styles.timeText, { color: style.timeColor }]}>
+              {formatTime(order.createdAt)}
+            </Text>
+          </View>
+        )}
 
         {/* Customer Name */}
         {order.customerName && (
@@ -274,27 +357,21 @@ export default function KitchenOrdersScreen() {
         )}
 
         {/* Order Items */}
-        <View style={styles.itemsContainer}>
-          {order.items.slice(0, 4).map((item, index) => (
+        <View style={styles.itemsSection}>
+          {order.items.map((item, index) => (
             <View key={index} style={styles.itemRow}>
               <View style={styles.quantityBadge}>
-                <Text style={styles.quantityText}>{item.quantity}</Text>
+                <Text style={styles.quantityText}>{item.quantity}x</Text>
               </View>
-              <Text style={styles.itemName} numberOfLines={1}>
+              <Text style={styles.itemName} numberOfLines={2}>
                 {item.name}
               </Text>
             </View>
           ))}
-          {order.items.length > 4 && (
-            <Text style={styles.moreItems}>
-              + {order.items.length - 4} more item
-              {order.items.length - 4 > 1 ? 's' : ''}
-            </Text>
-          )}
         </View>
 
         {/* Total Amount */}
-        <View style={styles.amountContainer}>
+        <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalAmount}>
             ₹{order.totalAmount.toFixed(0)}
@@ -302,76 +379,75 @@ export default function KitchenOrdersScreen() {
         </View>
 
         {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          {order.status === 'pending' && (
+        <View style={styles.actionsRow}>
+          {/* LEFT COLUMN ACTIONS - Cooking Queue */}
+          {!isReady && (
             <>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.secondaryBtn]}
-                onPress={() =>
-                  handleUpdate(order.id, 'accepted', order.progress ?? 0)
-                }
-                disabled={isUpdating}
-              >
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={18}
-                  color="#F59E0B"
-                />
-                <Text style={[styles.actionBtnText, { color: '#F59E0B' }]}>
-                  Accept
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.primaryBtn]}
-                onPress={() => handleUpdate(order.id, 'in_progress', 40)}
-                disabled={isUpdating}
-              >
-                <Ionicons name="flame" size={18} color="#FFFFFF" />
-                <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>
-                  Start
-                </Text>
-              </TouchableOpacity>
+              {order.status === 'pending' && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.acceptBtn]}
+                    onPress={() =>
+                      handleUpdate(order.id, 'accepted', order.progress ?? 0)
+                    }
+                    disabled={isUpdating}
+                  >
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={18}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.actionBtnText}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.startBtn]}
+                    onPress={() => handleUpdate(order.id, 'in_progress', 40)}
+                    disabled={isUpdating}
+                  >
+                    <Ionicons name="flame" size={18} color="#FFFFFF" />
+                    <Text style={styles.actionBtnText}>Start</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {order.status === 'accepted' && (
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.startBtn, { flex: 1 }]}
+                  onPress={() => handleUpdate(order.id, 'in_progress', 40)}
+                  disabled={isUpdating}
+                >
+                  <Ionicons name="flame" size={18} color="#FFFFFF" />
+                  <Text style={styles.actionBtnText}>Start Cooking</Text>
+                </TouchableOpacity>
+              )}
+
+              {order.status === 'in_progress' && (
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.readyBtn, { flex: 1 }]}
+                  onPress={() => handleUpdate(order.id, 'ready', 100)}
+                  disabled={isUpdating}
+                >
+                  <Ionicons
+                    name="checkmark-done-circle"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.actionBtnText}>Mark Ready</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
 
-          {order.status === 'accepted' && (
-            <>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.primaryBtn]}
-                onPress={() => handleUpdate(order.id, 'in_progress', 40)}
-                disabled={isUpdating}
-              >
-                <Ionicons name="flame" size={18} color="#FFFFFF" />
-                <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>
-                  Start Cooking
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {order.status === 'in_progress' && (
-            <>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.secondaryBtn]}
-                onPress={() => handleUpdate(order.id, 'in_progress', 80)}
-                disabled={isUpdating}
-              >
-                <Ionicons name="hourglass-outline" size={18} color="#10B981" />
-                <Text style={[styles.actionBtnText, { color: '#10B981' }]}>
-                  Almost Done
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.successBtn]}
-                onPress={() => handleUpdate(order.id, 'ready', 100)}
-                disabled={isUpdating}
-              >
-                <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
-                <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>
-                  Ready
-                </Text>
-              </TouchableOpacity>
-            </>
+          {/* RIGHT COLUMN ACTIONS - Ready Orders */}
+          {isReady && (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.completeBtn, { flex: 1 }]}
+              onPress={() => handleUpdate(order.id, 'delivered', 100)}
+              disabled={isUpdating}
+            >
+              <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
+              <Text style={styles.actionBtnText}>Complete</Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -381,7 +457,7 @@ export default function KitchenOrdersScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={BRAND_COLOR} />
         <Text style={styles.loadingText}>Loading orders...</Text>
       </View>
     );
@@ -392,13 +468,11 @@ export default function KitchenOrdersScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View>
-            <View style={styles.headerLeft}>
-              <Image source={logo_white} style={styles.logo} />
-            </View>
+          <Image source={logo_white} style={styles.logo} />
+          <View style={styles.headerInfo}>
             <Text style={styles.subtitle}>
-              {filteredOrders.length} active order
-              {filteredOrders.length !== 1 ? 's' : ''}
+              {cookingOrders.length + readyOrders.length} active order
+              {cookingOrders.length + readyOrders.length !== 1 ? 's' : ''}
             </Text>
           </View>
         </View>
@@ -406,138 +480,125 @@ export default function KitchenOrdersScreen() {
         <View style={styles.headerButtons}>
           <TouchableOpacity
             onPress={playNewOrderSound}
-            style={[styles.refreshBtn, { backgroundColor: '#10B981' }]}
+            style={[styles.headerBtn, styles.soundBtn]}
           >
-            <Ionicons name="volume-high" size={24} color="#FFFFFF" />
+            <Ionicons name="volume-high" size={22} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onRefresh}
-            style={styles.refreshBtn}
+            style={[styles.headerBtn, styles.refreshBtn]}
             disabled={refreshing}
           >
             <Ionicons
               name="refresh"
-              size={24}
-              color="#2563EB"
+              size={22}
+              color={BRAND_COLOR}
               style={refreshing ? styles.rotating : undefined}
             />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Status Summary */}
-      <View style={styles.summaryContainer}>
-        {statusesInKitchen.map((status) => {
-          const config = statusConfig[status as keyof typeof statusConfig];
-          const count = grouped[status]?.length || 0;
+      {/* Status Summary Bar */}
+      <View style={styles.summaryBar}>
+        <View style={styles.summaryItem}>
+          <View style={[styles.summaryDot, { backgroundColor: '#DC2626' }]} />
+          <Text style={styles.summaryLabel}>New</Text>
+          <Text style={styles.summaryCount}>{statusCounts.pending}</Text>
+        </View>
 
-          return (
-            <View
-              key={status}
-              style={[
-                styles.summaryCard,
-                {
-                  backgroundColor: config.bgColor,
-                  borderColor: config.borderColor,
-                },
-              ]}
-            >
-              <Ionicons
-                name={config.icon as any}
-                size={24}
-                color={config.color}
-              />
-              <Text
-                style={[styles.summaryCount, { color: config.accentColor }]}
-              >
-                {count}
-              </Text>
-              <Text style={styles.summaryLabel}>{config.label}</Text>
-            </View>
-          );
-        })}
+        <View style={styles.summaryDivider} />
+
+        <View style={styles.summaryItem}>
+          <View style={[styles.summaryDot, { backgroundColor: '#F59E0B' }]} />
+          <Text style={styles.summaryLabel}>Accepted</Text>
+          <Text style={styles.summaryCount}>{statusCounts.accepted}</Text>
+        </View>
+
+        <View style={styles.summaryDivider} />
+
+        <View style={styles.summaryItem}>
+          <View style={[styles.summaryDot, { backgroundColor: BRAND_COLOR }]} />
+          <Text style={styles.summaryLabel}>Cooking</Text>
+          <Text style={styles.summaryCount}>{statusCounts.in_progress}</Text>
+        </View>
+
+        <View style={styles.summaryDivider} />
+
+        <View style={styles.summaryItem}>
+          <View style={[styles.summaryDot, { backgroundColor: '#10B981' }]} />
+          <Text style={styles.summaryLabel}>Ready</Text>
+          <Text style={styles.summaryCount}>{statusCounts.ready}</Text>
+        </View>
       </View>
 
-      {/* Orders Grid */}
-      <ScrollView
-        horizontal
-        style={styles.columnsContainer}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.columnsContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {statusesInKitchen.map((status, index) => {
-          const statusOrders = grouped[status] || [];
-          const config = statusConfig[status as keyof typeof statusConfig];
-
-          return (
+      {/* Two Column Layout */}
+      <View style={styles.columnsContainer}>
+        {/* LEFT COLUMN: Cooking Queue */}
+        <View style={styles.column}>
+          <View style={styles.columnHeader}>
+            <Ionicons name="flame" size={22} color={BRAND_COLOR} />
+            <Text style={styles.columnTitle}>Cooking Queue</Text>
             <View
-              key={status}
-              style={[
-                styles.column,
-                index < statusesInKitchen.length - 1 && {
-                  marginRight: COLUMN_GAP,
-                },
-              ]}
+              style={[styles.columnBadge, { backgroundColor: BRAND_COLOR }]}
             >
-              {/* Column Header */}
-              <View
-                style={[
-                  styles.columnHeader,
-                  { backgroundColor: config.bgColor },
-                ]}
-              >
-                <View style={styles.columnHeaderLeft}>
-                  <Ionicons
-                    name={config.icon as any}
-                    size={20}
-                    color={config.color}
-                  />
-                  <Text
-                    style={[styles.columnTitle, { color: config.accentColor }]}
-                  >
-                    {config.label}
-                  </Text>
-                </View>
-                <View
-                  style={[styles.countBadge, { backgroundColor: config.color }]}
-                >
-                  <Text style={styles.countBadgeText}>
-                    {statusOrders.length}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Orders List */}
-              <ScrollView
-                style={styles.columnScroll}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.columnContent}
-              >
-                {statusOrders.length > 0 ? (
-                  statusOrders.map((order) => (
-                    <OrderCard key={order.id} order={order} />
-                  ))
-                ) : (
-                  <View style={styles.emptyState}>
-                    <Ionicons
-                      name={config.icon as any}
-                      size={48}
-                      color={config.color}
-                      style={{ opacity: 0.3 }}
-                    />
-                    <Text style={styles.emptyText}>
-                      No {config.label.toLowerCase()}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
+              <Text style={styles.columnBadgeText}>{cookingOrders.length}</Text>
             </View>
-          );
-        })}
-      </ScrollView>
+          </View>
+
+          <ScrollView
+            style={styles.columnScroll}
+            contentContainerStyle={styles.columnContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+          >
+            {cookingOrders.length > 0 ? (
+              cookingOrders.map((order) => (
+                <OrderCard key={order.id} order={order} isReady={false} />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={56}
+                  color="#D1D5DB"
+                />
+                <Text style={styles.emptyText}>No orders cooking</Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+
+        {/* RIGHT COLUMN: Ready to Serve */}
+        <View style={[styles.column, styles.readyColumn]}>
+          <View style={[styles.columnHeader, styles.readyColumnHeader]}>
+            <Ionicons name="checkmark-done-circle" size={22} color="#10B981" />
+            <Text style={styles.columnTitle}>Ready to Serve</Text>
+            <View style={[styles.columnBadge, { backgroundColor: '#10B981' }]}>
+              <Text style={styles.columnBadgeText}>{readyOrders.length}</Text>
+            </View>
+          </View>
+
+          <ScrollView
+            style={styles.columnScroll}
+            contentContainerStyle={styles.columnContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {readyOrders.length > 0 ? (
+              readyOrders.map((order) => (
+                <OrderCard key={order.id} order={order} isReady={true} />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="hourglass-outline" size={56} color="#D1D5DB" />
+                <Text style={styles.emptyText}>Nothing ready yet</Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -545,30 +606,31 @@ export default function KitchenOrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#F3F4F6',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 16,
     color: '#6B7280',
+    fontWeight: '500',
   },
   rotating: {
     // Add rotation animation if needed
   },
 
-  // Header Styles
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
@@ -577,154 +639,166 @@ const styles = StyleSheet.create({
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 3,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
   },
   logo: {
     width: 140,
     height: 45,
     resizeMode: 'contain',
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1F2937',
-    letterSpacing: -0.5,
+  headerInfo: {
+    justifyContent: 'center',
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#6B7280',
-    marginTop: 2,
+    fontWeight: '500',
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
+  },
+  headerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  soundBtn: {
+    backgroundColor: '#10B981',
   },
   refreshBtn: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#DBEAFE',
+    backgroundColor: BRAND_COLOR_PALE,
   },
 
-  // Summary Cards
-  summaryContainer: {
+  // Summary Bar
+  summaryBar: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  summaryCard: {
-    flex: 1,
+  summaryItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    gap: 6,
   },
-  summaryCount: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginTop: 8,
-    marginBottom: 4,
+  summaryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  },
+  summaryCount: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '700',
+  },
+  summaryDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: '#E5E7EB',
   },
 
-  // Columns Container
+  // Two Column Layout
   columnsContainer: {
     flex: 1,
-  },
-  columnsContent: {
-    paddingHorizontal: CONTAINER_PADDING,
-    paddingVertical: 16,
+    flexDirection: 'row',
+    gap: 16,
+    padding: 16,
   },
   column: {
-    width: COLUMN_WIDTH,
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
         shadowRadius: 8,
       },
       android: {
-        elevation: 4,
+        elevation: 3,
       },
     }),
   },
+  readyColumn: {
+    borderWidth: 2,
+    borderColor: '#D1FAE5',
+  },
   columnHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: BRAND_COLOR_PALE,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  columnHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  readyColumnHeader: {
+    backgroundColor: '#D1FAE5',
   },
   columnTitle: {
-    fontSize: 16,
+    flex: 1,
+    fontSize: 17,
     fontWeight: '700',
+    color: '#111827',
   },
-  countBadge: {
-    minWidth: 28,
-    height: 28,
-    borderRadius: 14,
+  columnBadge: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
   },
-  countBadgeText: {
+  columnBadgeText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
   columnScroll: {
     flex: 1,
   },
   columnContent: {
-    padding: 12,
-    gap: 12,
+    padding: 16,
+    gap: 16,
   },
 
-  // Order Card Styles
+  // Order Card
   orderCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 2,
     padding: 16,
-    borderLeftWidth: 4,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    marginBottom: 12,
+    position: 'relative',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
         shadowRadius: 4,
       },
       android: {
@@ -732,119 +806,159 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  criticalPulse: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 12,
+    height: 12,
+    zIndex: 10,
+  },
+  pulseRing: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 12,
   },
-  orderMeta: {
+  orderInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     flex: 1,
   },
   orderNumber: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#111827',
     letterSpacing: -0.3,
   },
-  tableTag: {
+  tableBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    backgroundColor: '#F3F4F6',
     borderRadius: 6,
   },
   tableText: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#374151',
   },
-  timeContainer: {
+  statusTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
   },
   timeText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   customerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 12,
     paddingBottom: 12,
+    marginBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F3F4F6',
   },
   customerName: {
-    fontSize: 14,
-    color: '#4B5563',
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '500',
   },
 
   // Items Section
-  itemsContainer: {
+  itemsSection: {
     marginBottom: 12,
+    gap: 8,
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
-    marginBottom: 8,
   },
   quantityBadge: {
-    width: 28,
-    height: 28,
+    minWidth: 36,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: BRAND_COLOR_PALE,
     borderRadius: 6,
-    backgroundColor: '#E5E7EB',
-    justifyContent: 'center',
     alignItems: 'center',
   },
   quantityText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1F2937',
+    color: BRAND_COLOR,
   },
   itemName: {
     flex: 1,
     fontSize: 14,
     color: '#374151',
     fontWeight: '500',
-  },
-  moreItems: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-    marginLeft: 38,
+    lineHeight: 20,
   },
 
-  // Amount Section
-  amountContainer: {
+  // Total Row
+  totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 12,
-    marginBottom: 16,
+    marginBottom: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#F3F4F6',
   },
   totalLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   totalAmount: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#059669',
+    color: '#111827',
   },
 
   // Action Buttons
-  actionsContainer: {
+  actionsRow: {
     flexDirection: 'row',
     gap: 8,
   },
@@ -857,23 +971,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,
-    borderWidth: 1.5,
+    minHeight: 48,
   },
-  primaryBtn: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
+  acceptBtn: {
+    backgroundColor: '#F59E0B',
   },
-  secondaryBtn: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#D1D5DB',
+  startBtn: {
+    backgroundColor: BRAND_COLOR,
   },
-  successBtn: {
+  readyBtn: {
     backgroundColor: '#10B981',
-    borderColor: '#10B981',
+  },
+  completeBtn: {
+    backgroundColor: '#6B7280',
   },
   actionBtnText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
+    color: '#FFFFFF',
     letterSpacing: 0.2,
   },
 

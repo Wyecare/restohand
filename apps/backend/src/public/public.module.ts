@@ -8,6 +8,9 @@ import { RestaurantTable, RestaurantTableSchema } from '../restaurant-tables/sch
 import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
 import { OrdersModule } from '../orders/orders.module';
+import { RestaurantsModule } from '../restaurants/restaurants.module';
+import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
+import { GstModule } from '../gst/gst.module';
 
 @Module({
   imports: [
@@ -19,6 +22,9 @@ import { OrdersModule } from '../orders/orders.module';
       { name: RestaurantTable.name, schema: RestaurantTableSchema },
     ]),
     OrdersModule,
+    RestaurantsModule,
+    CustomerSessionsModule,
+    GstModule,
   ],
   controllers: [PublicController],
   providers: [PublicService],

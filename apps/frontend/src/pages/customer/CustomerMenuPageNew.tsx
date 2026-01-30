@@ -5,7 +5,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
-import { useGetPublicMenuQuery } from '@/store/api/restaurantsApi';
+import {
+  useGetPublicMenuQuery,
+  useCreateCustomerSessionMutation
+} from '@/store/api/restaurantsApi';
 import {
   useCreateOrderMutation,
   useAddItemsToOrderMutation,
@@ -82,14 +85,111 @@ const determineCategoryIcon = (name: string): DisplayCategory['icon'] => {
 };
 
 export default function CustomerMenuPageNew() {
-  const params = useParams<{ slug: string }>();
+  const params = useParams<{ slug: string; tableId?: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const slug = params.slug ?? '';
+  // Extract parameters
+  const { slug, tableId } = params;
   const tableFromUrl = searchParams.get('table');
-  const tableIdFromUrl = searchParams.get('tableId');
+  const tableIdFromUrl = searchParams.get('tableId') || tableId;
+
+  // Customer session management
+  const [createCustomerSession] = useCreateCustomerSessionMutation();
+
+  // Session storage utilities
+  const STORAGE_KEY = 'customerSession';
+
+  const getStoredSession = () => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const storeSession = (sessionData: {
+    sessionId: string;
+    restaurantId: string;
+    restaurantName: string;
+    restaurantSlug: string;
+    tableId: string;
+    tableNumber: string;
+    expiresAt: string;
+    createdAt: string;
+  }) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+    } catch (error) {
+      console.error('Failed to store session:', error);
+    }
+  };
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.error('Failed to clear session:', error);
+    }
+  };
+
+  // Initialize customer session when tableId is detected
+  useEffect(() => {
+    const initializeSession = async () => {
+      if (!slug || !tableIdFromUrl) return;
+
+      // Check if we already have a valid session for this table
+      const storedSession = getStoredSession();
+      if (storedSession?.tableId === tableIdFromUrl && storedSession?.restaurantSlug === slug) {
+        // Check if session is still valid (not expired)
+        const expiresAt = new Date(storedSession.expiresAt);
+        if (expiresAt > new Date()) {
+          console.log('Using existing session:', storedSession.sessionId);
+          return; // Session is valid, no need to create new one
+        }
+      }
+
+      try {
+        console.log('Creating new customer session for table:', tableIdFromUrl);
+        const sessionResponse = await createCustomerSession({
+          slug: slug!,
+          tableId: tableIdFromUrl
+        }).unwrap();
+
+        // Store session data for persistence
+        const sessionData = {
+          sessionId: sessionResponse.sessionId,
+          restaurantId: sessionResponse.restaurant.id,
+          restaurantName: sessionResponse.restaurant.name,
+          restaurantSlug: sessionResponse.restaurant.slug,
+          tableId: sessionResponse.table.id,
+          tableNumber: sessionResponse.table.tableNumber,
+          expiresAt: sessionResponse.expiresAt,
+          createdAt: new Date().toISOString()
+        };
+
+        storeSession(sessionData);
+
+        toast({
+          title: 'Welcome! 👋',
+          description: `Session created for ${sessionResponse.restaurant.name} - ${sessionResponse.table.tableNumber}`,
+        });
+
+        console.log('Customer session created:', sessionResponse.sessionId);
+      } catch (error) {
+        console.error('Failed to create customer session:', error);
+        toast({
+          title: 'Session Error',
+          description: 'Failed to create customer session. You can still browse the menu.',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    initializeSession();
+  }, [slug, tableIdFromUrl, createCustomerSession, toast]);
 
   // Removed session storage - activeOrder comes directly from API
 
@@ -108,7 +208,7 @@ export default function CustomerMenuPageNew() {
   const [showSearch, setShowSearch] = useState(false);
 
   const { data, isLoading, isError, refetch } = useGetPublicMenuQuery(
-    { slug, table: tableFromUrl, tableId: tableIdFromUrl },
+    { slug: slug!, table: tableFromUrl || undefined, tableId: tableIdFromUrl || undefined },
     { skip: !slug }
   );
 
@@ -119,7 +219,26 @@ export default function CustomerMenuPageNew() {
   // Extract data from the API response
   const restaurant = data?.restaurant;
   const menu = data?.menu;
-  const activeOrderFromAPI = data?.activeOrder;
+  const activeOrderFromAPI = data?.activeOrder; // Legacy fallback
+
+  // Get current session from localStorage
+  const currentSession = getStoredSession();
+
+  // Redirect logic: If customer has active session with unpaid orders, redirect to session page
+  useEffect(() => {
+    if (
+      currentSession &&
+      tableIdFromUrl &&
+      !searchParams.get('addMore') &&
+      !searchParams.get('sessionView') &&
+      activeOrderFromAPI // Has active order
+    ) {
+      // Customer has active session with orders - redirect to session page unless they explicitly want to order more
+      navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`, {
+        replace: true,
+      });
+    }
+  }, [currentSession, tableIdFromUrl, searchParams, navigate, slug, activeOrderFromAPI]);
 
   // Setup WebSocket for real-time order updates
   useOrdersSocket({
@@ -226,6 +345,7 @@ export default function CustomerMenuPageNew() {
 
   // Check if we have an existing order from API only
   const hasActiveOrder = !!activeOrderFromAPI;
+  const hasTableSession = !!currentSession && !!tableIdFromUrl;
 
   const handleAddToCart = (
     id: string,
@@ -321,10 +441,12 @@ export default function CustomerMenuPageNew() {
         });
       } else {
         // Create new order with tableId for proper branch isolation
+        const currentSession = getStoredSession();
         const result = await createOrder({
           restaurantId: restaurant.id,
           items: orderItems,
           ...customerInfo,
+          customerSessionId: currentSession?.sessionId, // Include session ID for proper customer isolation
           paymentMethod: 'upi', // Default to UPI for customer orders
         }).unwrap();
 
@@ -336,11 +458,12 @@ export default function CustomerMenuPageNew() {
         // Clear cart after successful order
         setCart([]);
 
-        // Navigate to order status
-        const tableSuffix = tableFromUrl
-          ? `?table=${encodeURIComponent(tableFromUrl)}`
-          : '';
-        navigate(`/c/${slug}/order/${result.id}${tableSuffix}`);
+        // Navigate to table session page for combined payment
+        const params = new URLSearchParams();
+        if (tableIdFromUrl) params.set('tableId', tableIdFromUrl);
+        if (tableFromUrl) params.set('table', tableFromUrl);
+        const queryString = params.toString() ? `?${params.toString()}` : '';
+        navigate(`/c/${slug}/session${queryString}`);
       }
 
       // Clear cart after successful order if adding to existing
@@ -476,9 +599,41 @@ export default function CustomerMenuPageNew() {
             )}
           </AnimatePresence>
 
-          {/* Active Order Banner - Compact */}
+          {/* Table Session Banner - Show when tableId exists and session active */}
           <AnimatePresence>
-            {hasActiveOrder && (
+            {hasTableSession && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-blue-500 rounded-full w-2 h-2 animate-pulse"></div>
+                    <span className="font-medium text-blue-900 dark:text-blue-100 text-sm">
+                      Table {currentSession?.tableNumber || 'Unknown'}
+                    </span>
+                    <span className="text-blue-600 dark:text-blue-400 text-xs">
+                      Session Active
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-3 text-xs text-blue-700 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                    onClick={() =>
+                      navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`)
+                    }
+                  >
+                    <Receipt className="h-3 w-3 mr-1" />
+                    View Session
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+            {/* Legacy Active Order Banner - Show when only activeOrder exists (no session) */}
+            {hasActiveOrder && !hasTableSession && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}

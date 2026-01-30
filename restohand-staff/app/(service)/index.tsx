@@ -27,8 +27,14 @@ import {
   TouchableOpacity,
   View,
   StatusBar,
+  Dimensions,
+  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const BRAND_COLOR = '#4910bc';
+const BRAND_COLOR_LIGHT = '#6B2FDB';
+const BRAND_COLOR_PALE = '#F5F1FF';
 
 const getTableStatus = (table: EnhancedRestaurantTable) => {
   if (table.currentStatus) {
@@ -43,45 +49,45 @@ const getTableStatus = (table: EnhancedRestaurantTable) => {
   return 'available';
 };
 
-const getStatusColor = (status: string, isAssignedToMe = false) => {
-  const colors = {
-    available: { bg: '#f0fdf4', text: '#16a34a', border: '#22c55e' },
-    occupied: { bg: '#fff7ed', text: '#ea580c', border: '#f97316' },
-    ready: { bg: '#eff6ff', text: '#2563eb', border: '#3b82f6' },
-    cleaning: { bg: '#f8fafc', text: '#64748b', border: '#94a3b8' },
-    reserved: { bg: '#faf5ff', text: '#9333ea', border: '#a855f7' },
+const getStatusConfig = (status: string, isAssignedToMe = false) => {
+  const configs = {
+    available: {
+      color: '#10B981',
+      bg: '#ECFDF5',
+      label: 'Available',
+      icon: 'checkmark-circle',
+    },
+    occupied: {
+      color: '#F59E0B',
+      bg: '#FEF3C7',
+      label: 'Occupied',
+      icon: 'time',
+    },
+    ready: {
+      color: '#3B82F6',
+      bg: '#DBEAFE',
+      label: 'Ready',
+      icon: 'restaurant',
+    },
+    cleaning: {
+      color: '#6B7280',
+      bg: '#F3F4F6',
+      label: 'Cleaning',
+      icon: 'brush',
+    },
+    reserved: {
+      color: '#8B5CF6',
+      bg: '#F3E8FF',
+      label: 'Reserved',
+      icon: 'calendar',
+    },
   };
 
-  const statusColors =
-    colors[status as keyof typeof colors] || colors.available;
-
-  return {
-    ...statusColors,
-    border: isAssignedToMe ? '#2563eb' : statusColors.border,
-    borderWidth: isAssignedToMe ? 2 : 1,
-  };
-};
-
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case 'available':
-      return 'checkmark-circle';
-    case 'occupied':
-      return 'time';
-    case 'ready':
-      return 'restaurant';
-    case 'cleaning':
-      return 'brush';
-    case 'reserved':
-      return 'calendar';
-    default:
-      return 'help-circle';
-  }
+  return configs[status as keyof typeof configs] || configs.available;
 };
 
 export default function ServiceTablesScreen() {
-  // Set status bar style
-  StatusBar.setBarStyle('light-content', true);
+  StatusBar.setBarStyle('dark-content', true);
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const session = useAppSelector(selectAuthSession);
   const [searchTerm, setSearchTerm] = useState('');
@@ -180,7 +186,6 @@ export default function ServiceTablesScreen() {
   const handleViewBill = (table: EnhancedRestaurantTable) => {
     if (table.activeOrder) {
       if (table.activeOrder.paymentStatus === 'paid') {
-        // Go directly to bill if already paid
         router.push({
           pathname: '/(service)/bill',
           params: {
@@ -189,7 +194,6 @@ export default function ServiceTablesScreen() {
           },
         });
       } else {
-        // Go to payment screen if order is ready but not paid
         router.push({
           pathname: '/(service)/payment',
           params: {
@@ -219,14 +223,12 @@ export default function ServiceTablesScreen() {
 
   useOrdersSSE({ onEvent: handleSocketEvent, enabled: !!restaurantId });
 
-  // Refresh data when screen comes into focus (e.g., after payment)
   useFocusEffect(
     useCallback(() => {
       refetchTables();
     }, [refetchTables])
   );
 
-  // Early return after all hooks
   if (!restaurantId) {
     return (
       <SafeAreaView style={styles.container}>
@@ -241,260 +243,223 @@ export default function ServiceTablesScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={BRAND_COLOR} />
+          <Text style={styles.loadingText}>Loading tables...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor="#1e40af" barStyle="light-content" />
+  const TableCard = ({
+    table,
+    isAssigned,
+  }: {
+    table: EnhancedRestaurantTable;
+    isAssigned: boolean;
+  }) => {
+    const status = getTableStatus(table);
+    const statusConfig = getStatusConfig(status, isAssigned);
+    const activeOrder = table.activeOrder;
+    const hasOrder = !!activeOrder;
 
-      {/* Header with Gradient */}
-      <SafeAreaView style={styles.headerContent}>
+    return (
+      <TouchableOpacity
+        style={[styles.tableCard, isAssigned && styles.assignedTableCard]}
+        onPress={() => handleTableClick(table)}
+        activeOpacity={0.7}
+      >
+        {/* Top Section - Always visible */}
+        <View style={styles.tableCardTop}>
+          <View style={styles.tableHeader}>
+            <Text style={styles.tableNumber}>
+              {table.displayName || table.tableNumber}
+            </Text>
+            {isAssigned && (
+              <View style={styles.myTableBadge}>
+                <Ionicons name="person" size={12} color="#FFFFFF" />
+              </View>
+            )}
+          </View>
+
+          <View
+            style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: statusConfig.color },
+              ]}
+            />
+            <Text style={[styles.statusLabel, { color: statusConfig.color }]}>
+              {statusConfig.label}
+            </Text>
+          </View>
+
+          <View style={styles.tableInfo}>
+            {table.capacity && (
+              <View style={styles.infoRow}>
+                <Ionicons name="people-outline" size={14} color="#9CA3AF" />
+                <Text style={styles.infoText}>{table.capacity} seats</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Bottom Section - Only when there's an order */}
+        {hasOrder && (
+          <View style={styles.tableCardBottom}>
+            <View style={styles.orderInfo}>
+              <Text style={styles.orderLabel}>Order Amount</Text>
+              <Text style={styles.orderAmount}>
+                ₹{activeOrder.totalAmount.toFixed(0)}
+              </Text>
+            </View>
+
+            {(activeOrder.status === 'ready' ||
+              activeOrder.paymentStatus === 'paid') && (
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleViewBill(table);
+                }}
+              >
+                <Ionicons name="receipt-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.actionButtonText}>
+                  {activeOrder.paymentStatus === 'paid'
+                    ? 'View Bill'
+                    : 'Payment'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Server name for unassigned tables */}
+        {!isAssigned && table.currentStatus?.assignedServerName && (
+          <View style={styles.serverBadge}>
+            <Ionicons name="person-outline" size={10} color="#6B7280" />
+            <Text style={styles.serverText}>
+              {table.currentStatus.assignedServerName}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+
+      {/* Brand Color Header */}
+      <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
+          <View style={{ flex: 1 }}>
             <Image source={logo_white} style={styles.logo} />
             {restaurant && (
               <Text style={styles.restaurantName}>{restaurant.name}</Text>
             )}
           </View>
           <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
-            <Ionicons name="refresh" size={24} color="#ffffff" />
+            <Ionicons name="refresh" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
-        {/* Enhanced Stats Cards */}
+        {/* Stats Cards */}
         {stats && (
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <View style={styles.statIconContainer}>
-                <Ionicons name="restaurant" size={20} color="#ffffff" />
-              </View>
+          <View style={styles.statsBar}>
+            <View style={styles.statItem}>
               <Text style={styles.statValue}>{stats.totalTables}</Text>
-              <Text style={styles.statLabel}>Total Tables</Text>
+              <Text style={styles.statLabel}>Total</Text>
             </View>
-
-            <View style={styles.statCard}>
-              <View
-                style={[
-                  styles.statIconContainer,
-                  { backgroundColor: '#10b981' },
-                ]}
-              >
-                <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
-              </View>
-              <Text style={[styles.statValue, { color: '#10b981' }]}>
-                {stats.availableTables}
-              </Text>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.availableTables}</Text>
               <Text style={styles.statLabel}>Available</Text>
             </View>
-
-            <View style={styles.statCard}>
-              <View
-                style={[
-                  styles.statIconContainer,
-                  { backgroundColor: '#f59e0b' },
-                ]}
-              >
-                <Ionicons name="time" size={20} color="#ffffff" />
-              </View>
-              <Text style={[styles.statValue, { color: '#f59e0b' }]}>
-                {stats.occupiedTables}
-              </Text>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.occupiedTables}</Text>
               <Text style={styles.statLabel}>Occupied</Text>
             </View>
-
-            <View style={styles.statCard}>
-              <View
-                style={[
-                  styles.statIconContainer,
-                  { backgroundColor: '#3b82f6' },
-                ]}
-              >
-                <Ionicons name="restaurant" size={20} color="#ffffff" />
-              </View>
-              <Text style={[styles.statValue, { color: '#3b82f6' }]}>
-                {stats.readyTables}
-              </Text>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{stats.readyTables}</Text>
               <Text style={styles.statLabel}>Ready</Text>
             </View>
           </View>
         )}
-      </SafeAreaView>
-
-      {/* Enhanced Search */}
-      <View style={styles.searchWrapper}>
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search"
-            size={20}
-            color="#6b7280"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search tables, zones, or servers..."
-            placeholderTextColor="#9ca3af"
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-          />
-          {searchTerm.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchTerm('')}
-              style={styles.clearButton}
-            >
-              <Ionicons name="close-circle" size={20} color="#6b7280" />
-            </TouchableOpacity>
-          )}
-        </View>
       </View>
 
+      {/* Search */}
+      <View style={styles.searchContainer}>
+        <Ionicons
+          name="search"
+          size={18}
+          color="#9CA3AF"
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search tables..."
+          placeholderTextColor="#9CA3AF"
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+        />
+        {searchTerm.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchTerm('')}>
+            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Tables Grid */}
       <ScrollView
-        style={styles.content}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Assigned Tables */}
+        {/* My Tables Section */}
         {assignedTables.length > 0 && (
           <View style={styles.section}>
-            <LinearGradient
-              colors={['#1e40af', '#3b82f6']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.sectionHeaderGradient}
-            >
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleContainer}>
-                  <Ionicons name="person-circle" size={24} color="#ffffff" />
-                  <Text style={styles.sectionTitle}>My Tables</Text>
-                </View>
-                <View style={styles.sectionBadge}>
-                  <Text style={styles.sectionBadgeText}>
-                    {assignedTables.length}
-                  </Text>
-                </View>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={20}
+                  color={BRAND_COLOR}
+                />
+                <Text style={styles.sectionTitle}>My Tables</Text>
               </View>
-            </LinearGradient>
+              <View
+                style={[
+                  styles.sectionBadge,
+                  { backgroundColor: BRAND_COLOR_PALE },
+                ]}
+              >
+                <Text style={[styles.sectionBadgeText, { color: BRAND_COLOR }]}>
+                  {assignedTables.length}
+                </Text>
+              </View>
+            </View>
 
             {Array.from(assignedTablesByZone.entries()).map(
               ([zone, zoneTables]) => (
-                <View key={`assigned-${zone}`} style={styles.zoneContainer}>
+                <View key={`assigned-${zone}`}>
                   {assignedTablesByZone.size > 1 && (
                     <View style={styles.zoneHeader}>
                       <Text style={styles.zoneTitle}>{zone}</Text>
-                      <View style={styles.zoneBadge}>
-                        <Text style={styles.zoneBadgeText}>
-                          {zoneTables.length}
-                        </Text>
-                      </View>
                     </View>
                   )}
-
                   <View style={styles.tablesGrid}>
-                    {zoneTables.map((table) => {
-                      const status = getTableStatus(table);
-                      const statusStyle = getStatusColor(status, true);
-                      const activeOrder = table.activeOrder;
-
-                      return (
-                        <TouchableOpacity
-                          key={table.id}
-                          style={[
-                            styles.tableCard,
-                            styles.assignedTableCard,
-                            {
-                              backgroundColor: statusStyle.bg,
-                              borderColor: statusStyle.border,
-                              borderWidth: statusStyle.borderWidth,
-                            },
-                          ]}
-                          onPress={() => handleTableClick(table)}
-                        >
-                          <View style={styles.tableCardHeader}>
-                            <Text
-                              style={[
-                                styles.tableNumber,
-                                { color: statusStyle.text },
-                              ]}
-                            >
-                              {table.displayName || table.tableNumber}
-                            </Text>
-                            <View style={styles.assignedIndicator}>
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={16}
-                                color="#3b82f6"
-                              />
-                            </View>
-                          </View>
-
-                          <View
-                            style={[
-                              styles.statusBadge,
-                              { backgroundColor: statusStyle.text },
-                            ]}
-                          >
-                            <Ionicons
-                              name={getStatusIcon(status) as any}
-                              size={12}
-                              color="#ffffff"
-                            />
-                            <Text style={styles.statusText}>{status}</Text>
-                          </View>
-
-                          <View style={styles.tableDetails}>
-                            {table.capacity && (
-                              <View style={styles.tableCapacity}>
-                                <Ionicons
-                                  name="people"
-                                  size={14}
-                                  color="#6b7280"
-                                />
-                                <Text style={styles.capacityText}>
-                                  {table.capacity} seats
-                                </Text>
-                              </View>
-                            )}
-
-                            {activeOrder && (
-                              <View style={styles.orderAmountContainer}>
-                                <Text style={styles.orderAmount}>
-                                  ₹{activeOrder.totalAmount.toFixed(0)}
-                                </Text>
-                              </View>
-                            )}
-
-                            {/* Bill Button for Ready/Paid Orders */}
-                            {activeOrder &&
-                              (activeOrder.status === 'ready' ||
-                                activeOrder.paymentStatus === 'paid') && (
-                                <TouchableOpacity
-                                  style={styles.billButton}
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    handleViewBill(table);
-                                  }}
-                                >
-                                  <Ionicons
-                                    name="receipt"
-                                    size={12}
-                                    color="#ffffff"
-                                  />
-                                  <Text style={styles.billButtonText}>
-                                    {activeOrder.paymentStatus === 'paid'
-                                      ? 'View Bill'
-                                      : 'Payment'}
-                                  </Text>
-                                </TouchableOpacity>
-                              )}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
+                    {zoneTables.map((table) => (
+                      <TableCard
+                        key={table.id}
+                        table={table}
+                        isAssigned={true}
+                      />
+                    ))}
                   </View>
                 </View>
               )
@@ -502,154 +467,39 @@ export default function ServiceTablesScreen() {
           </View>
         )}
 
-        {/* Other Tables */}
+        {/* Other Tables Section */}
         {unassignedTables.length > 0 && (
           <View style={styles.section}>
-            <LinearGradient
-              colors={['#6b7280', '#9ca3af']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.sectionHeaderGradient}
-            >
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleContainer}>
-                  <Ionicons name="grid" size={24} color="#ffffff" />
-                  <Text style={styles.sectionTitle}>Other Tables</Text>
-                </View>
-                <View
-                  style={[
-                    styles.sectionBadge,
-                    { backgroundColor: 'rgba(255,255,255,0.2)' },
-                  ]}
-                >
-                  <Text style={styles.sectionBadgeText}>
-                    {unassignedTables.length}
-                  </Text>
-                </View>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="grid-outline" size={20} color="#6B7280" />
+                <Text style={styles.sectionTitle}>Other Tables</Text>
               </View>
-            </LinearGradient>
+              <View
+                style={[styles.sectionBadge, { backgroundColor: '#F3F4F6' }]}
+              >
+                <Text style={[styles.sectionBadgeText, { color: '#6B7280' }]}>
+                  {unassignedTables.length}
+                </Text>
+              </View>
+            </View>
 
             {Array.from(unassignedTablesByZone.entries()).map(
               ([zone, zoneTables]) => (
-                <View key={`unassigned-${zone}`} style={styles.zoneContainer}>
+                <View key={`unassigned-${zone}`}>
                   {unassignedTablesByZone.size > 1 && (
                     <View style={styles.zoneHeader}>
                       <Text style={styles.zoneTitle}>{zone}</Text>
-                      <View style={styles.zoneBadge}>
-                        <Text style={styles.zoneBadgeText}>
-                          {zoneTables.length}
-                        </Text>
-                      </View>
                     </View>
                   )}
-
                   <View style={styles.tablesGrid}>
-                    {zoneTables.map((table) => {
-                      const status = getTableStatus(table);
-                      const statusStyle = getStatusColor(status, false);
-                      const activeOrder = table.activeOrder;
-
-                      return (
-                        <TouchableOpacity
-                          key={table.id}
-                          style={[
-                            styles.tableCard,
-                            styles.unassignedTableCard,
-                            {
-                              backgroundColor: statusStyle.bg,
-                              borderColor: statusStyle.border,
-                              borderWidth: statusStyle.borderWidth,
-                            },
-                          ]}
-                          onPress={() => handleTableClick(table)}
-                        >
-                          <View style={styles.tableCardHeader}>
-                            <Text
-                              style={[
-                                styles.tableNumber,
-                                { color: statusStyle.text },
-                              ]}
-                            >
-                              {table.displayName || table.tableNumber}
-                            </Text>
-                          </View>
-
-                          <View
-                            style={[
-                              styles.statusBadge,
-                              { backgroundColor: statusStyle.text },
-                            ]}
-                          >
-                            <Ionicons
-                              name={getStatusIcon(status) as any}
-                              size={12}
-                              color="#ffffff"
-                            />
-                            <Text style={styles.statusText}>{status}</Text>
-                          </View>
-
-                          <View style={styles.tableDetails}>
-                            {table.capacity && (
-                              <View style={styles.tableCapacity}>
-                                <Ionicons
-                                  name="people"
-                                  size={14}
-                                  color="#6b7280"
-                                />
-                                <Text style={styles.capacityText}>
-                                  {table.capacity} seats
-                                </Text>
-                              </View>
-                            )}
-
-                            {activeOrder && (
-                              <View style={styles.orderAmountContainer}>
-                                <Text style={styles.orderAmount}>
-                                  ₹{activeOrder.totalAmount.toFixed(0)}
-                                </Text>
-                              </View>
-                            )}
-
-                            {table.currentStatus?.assignedServerName && (
-                              <View style={styles.serverContainer}>
-                                <Ionicons
-                                  name="person"
-                                  size={12}
-                                  color="#6b7280"
-                                />
-                                <Text style={styles.serverName}>
-                                  {table.currentStatus.assignedServerName}
-                                </Text>
-                              </View>
-                            )}
-
-                            {/* Bill Button for Ready/Paid Orders */}
-                            {activeOrder &&
-                              (activeOrder.status === 'ready' ||
-                                activeOrder.paymentStatus === 'paid') && (
-                                <TouchableOpacity
-                                  style={styles.billButton}
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    handleViewBill(table);
-                                  }}
-                                >
-                                  <Ionicons
-                                    name="receipt"
-                                    size={12}
-                                    color="#ffffff"
-                                  />
-                                  <Text style={styles.billButtonText}>
-                                    {activeOrder.paymentStatus === 'paid'
-                                      ? 'View Bill'
-                                      : 'Payment'}
-                                  </Text>
-                                </TouchableOpacity>
-                              )}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
+                    {zoneTables.map((table) => (
+                      <TableCard
+                        key={table.id}
+                        table={table}
+                        isAssigned={false}
+                      />
+                    ))}
                   </View>
                 </View>
               )
@@ -657,357 +507,424 @@ export default function ServiceTablesScreen() {
           </View>
         )}
 
+        {/* Empty State */}
         {filteredTables.length === 0 && (
-          <View style={styles.emptyContainer}>
-            <LinearGradient
-              colors={['#f8fafc', '#e2e8f0']}
-              style={styles.emptyContent}
-            >
-              <View style={styles.emptyIconContainer}>
-                <Ionicons name="restaurant" size={48} color="#94a3b8" />
-              </View>
-              <Text style={styles.emptyTitle}>
-                {searchTerm ? 'No tables found' : 'No tables available'}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {searchTerm
-                  ? 'Try adjusting your search terms'
-                  : 'Contact your manager to set up tables for your restaurant'}
-              </Text>
-            </LinearGradient>
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="restaurant-outline" size={40} color="#D1D5DB" />
+            </View>
+            <Text style={styles.emptyTitle}>
+              {searchTerm ? 'No tables found' : 'No tables available'}
+            </Text>
+            <Text style={styles.emptyText}>
+              {searchTerm
+                ? 'Try adjusting your search'
+                : 'Contact your manager to set up tables'}
+            </Text>
           </View>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#F9FAFB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
+    gap: 12,
   },
-  headerGradient: {
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+
+  // Header
+  header: {
+    backgroundColor: BRAND_COLOR,
+    paddingTop: 12,
     paddingBottom: 20,
-  },
-  headerContent: {
-    backgroundColor: '#1e40af',
-    paddingTop: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  headerLeft: {
-    flex: 1,
+    marginBottom: 16,
   },
   logo: {
-    width: 140,
-    height: 45,
+    width: 120,
+    height: 36,
     resizeMode: 'contain',
-    left: -6,
+    left: -4,
   },
   restaurantName: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '500',
+    marginTop: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   refreshButton: {
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    backdropFilter: 'blur(10px)',
-  },
-  statIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+  },
+
+  // Stats Bar
+  statsBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    paddingTop: 0,
+    gap: 10,
+    backgroundColor: BRAND_COLOR,
+  },
+  statItem: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 4,
+    color: '#FFFFFF',
   },
   statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  searchWrapper: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+  statDivider: {
+    display: 'none',
   },
+
+  // Search
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   searchIcon: {
-    marginRight: 12,
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: '#1f2937',
+    fontSize: 15,
+    color: '#111827',
     fontWeight: '500',
   },
-  clearButton: {
-    padding: 4,
-  },
-  content: {
+
+  // Scroll View
+  scrollView: {
     flex: 1,
-    paddingTop: 8,
+    backgroundColor: '#F9FAFB',
   },
+  scrollContent: {
+    paddingBottom: 24,
+  },
+
+  // Section
   section: {
-    marginBottom: 24,
-  },
-  sectionHeaderGradient: {
-    marginHorizontal: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
+    marginBottom: 28,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(73, 16, 188, 0.03)',
+    marginHorizontal: 20,
+    borderRadius: 12,
   },
-  sectionTitleContainer: {
+  sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#111827',
+    letterSpacing: -0.3,
   },
   sectionBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 10,
     minWidth: 32,
     alignItems: 'center',
   },
   sectionBadgeText: {
-    color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
   },
-  zoneContainer: {
-    marginBottom: 20,
-  },
+
+  // Zone Header
   zoneHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 12,
-    gap: 8,
   },
   zoneTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#475569',
+    color: '#6B7280',
   },
-  zoneBadge: {
-    backgroundColor: '#e2e8f0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 24,
-    alignItems: 'center',
-  },
-  zoneBadgeText: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '600',
-  },
+
+  // Tables Grid - Proper 3 Column Layout
   tablesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 20,
-    gap: 16,
+    gap: 14,
   },
+
+  // Table Card - Fixed Height
   tableCard: {
-    width: '30%',
-    minWidth: 110,
+    width: (SCREEN_WIDTH - 40 - 28) / 3, // 3 columns with proper spacing
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#F3F4F6',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   assignedTableCard: {
-    padding: 16,
+    borderColor: BRAND_COLOR,
+    borderWidth: 2.5,
+    ...Platform.select({
+      ios: {
+        shadowColor: BRAND_COLOR,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
-  unassignedTableCard: {
-    padding: 16,
-    opacity: 0.85,
+  tableCardTop: {
+    padding: 14,
   },
-  tableCardHeader: {
+  tableHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   tableNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'left',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
   },
-  assignedIndicator: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  myTableBadge: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    padding: 4,
+    backgroundColor: BRAND_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-    marginBottom: 12,
-    alignSelf: 'flex-start',
-  },
-  statusText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  tableDetails: {
     gap: 6,
-  },
-  tableCapacity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  capacityText: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  orderAmountContainer: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
     alignSelf: 'flex-start',
+    marginBottom: 10,
   },
-  orderAmount: {
-    fontSize: 14,
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  statusLabel: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
+    letterSpacing: 0.3,
   },
-  serverContainer: {
+  tableInfo: {
+    gap: 6,
+  },
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+
+  // Table Card Bottom (for orders)
+  tableCardBottom: {
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    padding: 14,
+    backgroundColor: '#FAFAFA',
+    gap: 10,
+  },
+  orderInfo: {
     gap: 4,
   },
-  serverName: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '500',
+  orderLabel: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  emptyContainer: {
+  orderAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: BRAND_COLOR,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: BRAND_COLOR,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+
+  // Server Badge
+  serverBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#F9FAFB',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  serverText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+
+  // Empty State
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-  },
-  emptyContent: {
-    padding: 32,
-    borderRadius: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    paddingVertical: 80,
+    paddingHorizontal: 40,
   },
   emptyIconContainer: {
-    backgroundColor: '#f1f5f9',
     width: 80,
     height: 80,
     borderRadius: 40,
+    backgroundColor: '#F9FAFB',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  errorText: {
     fontSize: 18,
-    color: '#dc2626',
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
     textAlign: 'center',
-    fontWeight: '600',
   },
-  billButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  billButtonText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '600',
+  emptyText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

@@ -130,6 +130,10 @@ export default function CustomerOrderStatusPage() {
   useOrdersSocket({ onEvent: handleSocketEvent, enabled: !!orderId });
 
   const tableFromQuery = searchParams.get('table') ?? undefined;
+  const tableIdFromQuery = searchParams.get('tableId') ?? undefined;
+
+  // Get tableId from query params or from order data
+  const tableId = tableIdFromQuery || order?.tableId;
   const cancellableStatuses: Array<Order['status']> = [
     'pending',
     'accepted',
@@ -342,12 +346,13 @@ export default function CustomerOrderStatusPage() {
       }
       setDeviceOrders([]);
       setDeviceId(null);
-      const tableSuffix = tableFromQuery
-        ? `?table=${encodeURIComponent(tableFromQuery)}`
-        : '';
-      navigate(`/c/${slug}${tableSuffix}`);
+      const params = new URLSearchParams();
+      if (tableId) params.set('tableId', tableId);
+      if (tableFromQuery) params.set('table', tableFromQuery);
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      navigate(`/c/${slug}${queryString}`);
     },
-    [canStartNewOrder, navigate, slug, tableFromQuery, toast]
+    [canStartNewOrder, navigate, slug, tableFromQuery, tableId, toast]
   );
 
   if (isLoading) {
@@ -379,7 +384,13 @@ export default function CustomerOrderStatusPage() {
             We couldn't find this order. It may have been removed or the link is
             incorrect.
           </p>
-          <Button onClick={() => navigate(`/c/${slug}`)}>Back to Menu</Button>
+          <Button onClick={() => {
+            const params = new URLSearchParams();
+            if (tableId) params.set('tableId', tableId);
+            if (tableFromQuery) params.set('table', tableFromQuery);
+            const queryString = params.toString() ? `?${params.toString()}` : '';
+            navigate(`/c/${slug}${queryString}`);
+          }}>Back to Menu</Button>
         </Card>
       </div>
     );
@@ -515,10 +526,12 @@ export default function CustomerOrderStatusPage() {
               variant="outline"
               size="lg"
               onClick={() => {
-                const tableSuffix = tableFromQuery
-                  ? `?table=${encodeURIComponent(tableFromQuery)}`
-                  : '';
-                navigate(`/c/${slug}${tableSuffix}`);
+                const params = new URLSearchParams();
+                if (tableId) params.set('tableId', tableId);
+                if (tableFromQuery) params.set('table', tableFromQuery);
+                params.set('addMore', 'true');
+                const queryString = params.toString() ? `?${params.toString()}` : '';
+                navigate(`/c/${slug}${queryString}`);
               }}
               className="col-span-2 h-12"
             >
@@ -556,10 +569,11 @@ export default function CustomerOrderStatusPage() {
               variant="default"
               size="lg"
               onClick={() => {
-                const tableSuffix = tableFromQuery
-                  ? `?table=${encodeURIComponent(tableFromQuery)}`
-                  : '';
-                navigate(`/c/${slug}${tableSuffix}`);
+                const params = new URLSearchParams();
+                if (tableId) params.set('tableId', tableId);
+                if (tableFromQuery) params.set('table', tableFromQuery);
+                const queryString = params.toString() ? `?${params.toString()}` : '';
+                navigate(`/c/${slug}${queryString}`);
               }}
               className="col-span-2 h-12"
             >
@@ -577,10 +591,11 @@ export default function CustomerOrderStatusPage() {
                 variant="outline"
                 size="lg"
                 onClick={() => {
-                  const tableSuffix = tableFromQuery
-                    ? `?table=${encodeURIComponent(tableFromQuery)}`
-                    : '';
-                  navigate(`/c/${slug}${tableSuffix}`);
+                  const params = new URLSearchParams();
+                  if (tableId) params.set('tableId', tableId);
+                  if (tableFromQuery) params.set('table', tableFromQuery);
+                  const queryString = params.toString() ? `?${params.toString()}` : '';
+                  navigate(`/c/${slug}${queryString}`);
                 }}
                 className="col-span-2 h-12"
               >

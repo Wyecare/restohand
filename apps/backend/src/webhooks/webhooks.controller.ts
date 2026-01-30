@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Headers, Logger, HttpException, HttpStatus, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Headers,
+  Logger,
+  HttpException,
+  HttpStatus,
+  Req,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { RazorpayService } from '../payments/razorpay.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -12,7 +21,7 @@ export class WebhooksController {
   constructor(
     private readonly razorpayService: RazorpayService,
     private readonly subscriptionsService: SubscriptionsService,
-    private readonly ordersService: OrdersService,
+    private readonly ordersService: OrdersService
   ) {}
 
   @Post('razorpay')
@@ -20,19 +29,23 @@ export class WebhooksController {
   async handleRazorpayWebhook(
     @Body() body: any,
     @Headers('x-razorpay-signature') signature: string,
-    @Req() req: any,
+    @Req() req: any
   ) {
     try {
+      console.log('Razorpay Webhook Received:', JSON.stringify(body));
       // Get raw body for signature verification (critical for security)
       const rawBody = JSON.stringify(body);
 
       // Verify webhook signature
-      const isValid = this.razorpayService.verifyWebhookSignature(rawBody, signature);
+      const isValid = this.razorpayService.verifyWebhookSignature(
+        rawBody,
+        signature
+      );
 
       if (!isValid) {
         this.logger.warn('Invalid Razorpay webhook signature', {
           signature: signature?.substring(0, 10) + '...',
-          bodyLength: rawBody.length
+          bodyLength: rawBody.length,
         });
         return { error: 'Invalid signature' }; // Return 200 with error to avoid retries
       }
@@ -48,32 +61,30 @@ export class WebhooksController {
       this.logger.log(`Received Razorpay webhook: ${event}`, {
         event,
         contains: body.contains,
-        accountId: body.account_id
+        accountId: body.account_id,
       });
+
+      console.log('Processing event:', event);
 
       // Handle different event types
       if (event.startsWith('subscription.')) {
-        await this.subscriptionsService.handleSubscriptionWebhook(event, payload);
-      }
-      else if (event.startsWith('payment.')) {
+        await this.subscriptionsService.handleSubscriptionWebhook(
+          event,
+          payload
+        );
+      } else if (event.startsWith('payment.')) {
         await this.handlePaymentEvent(event, payload);
-      }
-      else if (event.startsWith('order.')) {
+      } else if (event.startsWith('order.')) {
         await this.handleOrderEvent(event, payload);
-      }
-      else if (event.startsWith('refund.')) {
+      } else if (event.startsWith('refund.')) {
         await this.handleRefundEvent(event, payload);
-      }
-      else if (event.startsWith('transfer.')) {
+      } else if (event.startsWith('transfer.')) {
         await this.handleTransferEvent(event, payload);
-      }
-      else if (event.startsWith('settlement.')) {
+      } else if (event.startsWith('settlement.')) {
         await this.handleSettlementEvent(event, payload);
-      }
-      else if (event.startsWith('invoice.')) {
+      } else if (event.startsWith('invoice.')) {
         await this.handleInvoiceEvent(event, payload);
-      }
-      else {
+      } else {
         this.logger.log(`Unhandled webhook event: ${event}`);
       }
 
@@ -81,14 +92,13 @@ export class WebhooksController {
       return {
         status: 'success',
         event,
-        processed_at: new Date().toISOString()
+        processed_at: new Date().toISOString(),
       };
-
     } catch (error) {
       this.logger.error(`Webhook processing failed: ${error.message}`, {
         error: error.message,
         stack: error.stack,
-        event: body?.event
+        event: body?.event,
       });
 
       // Return 200 status to prevent webhook retries for our internal errors
@@ -96,7 +106,7 @@ export class WebhooksController {
       return {
         status: 'error',
         message: 'Internal processing error',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
     }
   }
@@ -105,7 +115,7 @@ export class WebhooksController {
     this.logger.log(`Processing payment event: ${event}`, {
       event,
       paymentId: payload?.payment?.entity?.id,
-      orderId: payload?.payment?.entity?.order_id
+      orderId: payload?.payment?.entity?.order_id,
     });
 
     // Handle payment captured (successful payment)
@@ -135,21 +145,40 @@ export class WebhooksController {
 
       const payment = payload.payment.entity;
 
-      this.logger.log(`Processing payment.authorized: ${payment.id}, description: "${payment.description}", customer_id: ${payment.customer_id}`);
+      this.logger.log(
+        `Processing payment.authorized: ${payment.id}, description: "${payment.description}", customer_id: ${payment.customer_id}`
+      );
 
       // Check if this is a subscription authentication payment
-      if (payment.description === 'Subscription Authentication Payment' && payment.customer_id) {
-        this.logger.log(`Detected subscription authentication payment: ${payment.id}`);
+      if (
+        payment.description === 'Subscription Authentication Payment' &&
+        payment.customer_id
+      ) {
+        this.logger.log(
+          `Detected subscription authentication payment: ${payment.id}`
+        );
 
         try {
           // Find subscription by customer ID
-          const subscriptions = await this.subscriptionsService.getSubscriptionsByCustomerId(payment.customer_id);
-          this.logger.log(`Found ${subscriptions.length} subscriptions for customer ${payment.customer_id}`);
+          const subscriptions =
+            await this.subscriptionsService.getSubscriptionsByCustomerId(
+              payment.customer_id
+            );
+          this.logger.log(
+            `Found ${subscriptions.length} subscriptions for customer ${payment.customer_id}`
+          );
 
           if (subscriptions && subscriptions.length > 0) {
             // Update the most recent 'created' subscription to 'authenticated'
-            const createdSubscription = subscriptions.find(sub => sub.status === 'created');
-            this.logger.log(`Found created subscription:`, createdSubscription ? createdSubscription.razorpaySubscriptionId : 'none');
+            const createdSubscription = subscriptions.find(
+              (sub) => sub.status === 'created'
+            );
+            this.logger.log(
+              `Found created subscription:`,
+              createdSubscription
+                ? createdSubscription.razorpaySubscriptionId
+                : 'none'
+            );
 
             if (createdSubscription) {
               await this.subscriptionsService.updateSubscriptionStatus(
@@ -157,22 +186,31 @@ export class WebhooksController {
                 'authenticated'
               );
 
-              this.logger.log(`✅ Subscription ${createdSubscription.razorpaySubscriptionId} authenticated via payment ${payment.id}`);
+              this.logger.log(
+                `✅ Subscription ${createdSubscription.razorpaySubscriptionId} authenticated via payment ${payment.id}`
+              );
             } else {
-              this.logger.warn(`No 'created' subscription found for customer ${payment.customer_id}`);
+              this.logger.warn(
+                `No 'created' subscription found for customer ${payment.customer_id}`
+              );
             }
           } else {
-            this.logger.warn(`No subscriptions found for customer ${payment.customer_id}`);
+            this.logger.warn(
+              `No subscriptions found for customer ${payment.customer_id}`
+            );
           }
         } catch (error) {
-          this.logger.error(`Error updating subscription status for payment ${payment.id}:`, error);
+          this.logger.error(
+            `Error updating subscription status for payment ${payment.id}:`,
+            error
+          );
         }
       } else {
         // For regular payments, log this - we might want to handle late authorization differently
         this.logger.log('Payment authorized (not yet captured)', {
           paymentId: payment.id,
           orderId: payment.order_id,
-          amount: payment.amount
+          amount: payment.amount,
         });
       }
     }
@@ -182,7 +220,7 @@ export class WebhooksController {
     this.logger.log(`Processing order event: ${event}`, {
       event,
       orderId: payload?.order?.entity?.id,
-      paymentId: payload?.payment?.entity?.id
+      paymentId: payload?.payment?.entity?.id,
     });
 
     // Handle order paid (when all payments for an order are complete)
@@ -198,10 +236,15 @@ export class WebhooksController {
 
   private async handlePaymentCaptured(payment: any) {
     try {
-      this.logger.log(`Payment captured: ${payment.id}, Order: ${payment.order_id}, Amount: ${payment.amount}`);
+      this.logger.log(
+        `Payment captured: ${payment.id}, Order: ${payment.order_id}, Amount: ${payment.amount}`
+      );
 
       // Extract our order ID from payment notes or metadata
-      const ourOrderId = payment.notes?.orderId || payment.notes?.order_id || payment.description?.match(/Order\s+(\w+)/)?.[1];
+      const ourOrderId =
+        payment.notes?.orderId ||
+        payment.notes?.order_id ||
+        payment.description?.match(/Order\s+(\w+)/)?.[1];
 
       if (!ourOrderId) {
         this.logger.warn(`No order ID found in payment ${payment.id}`);
@@ -209,33 +252,36 @@ export class WebhooksController {
       }
 
       // Update order payment status
-      await this.ordersService.handlePaymentCaptured(
-        ourOrderId,
-        payment.id,
-        {
-          amount: payment.amount,
-          currency: payment.currency,
-          method: payment.method,
-          status: payment.status,
-          razorpay_payment_id: payment.id,
-          razorpay_order_id: payment.order_id,
-          captured_at: new Date(payment.captured_at * 1000),
-        }
-      );
+      await this.ordersService.handlePaymentCaptured(ourOrderId, payment.id, {
+        amount: payment.amount,
+        currency: payment.currency,
+        method: payment.method,
+        status: payment.status,
+        razorpay_payment_id: payment.id,
+        razorpay_order_id: payment.order_id,
+        captured_at: new Date(payment.captured_at * 1000),
+      });
 
       this.logger.log(`Order ${ourOrderId} payment updated successfully`);
-
     } catch (error) {
-      this.logger.error(`Failed to handle payment captured: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle payment captured: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   private async handlePaymentFailed(payment: any) {
     try {
-      this.logger.log(`Payment failed: ${payment.id}, Order: ${payment.order_id}, Error: ${payment.error_description}`);
+      this.logger.log(
+        `Payment failed: ${payment.id}, Order: ${payment.order_id}, Error: ${payment.error_description}`
+      );
 
-      const ourOrderId = payment.notes?.orderId || payment.notes?.order_id || payment.description?.match(/Order\s+(\w+)/)?.[1];
+      const ourOrderId =
+        payment.notes?.orderId ||
+        payment.notes?.order_id ||
+        payment.description?.match(/Order\s+(\w+)/)?.[1];
 
       if (!ourOrderId) {
         this.logger.warn(`No order ID found in failed payment ${payment.id}`);
@@ -243,36 +289,37 @@ export class WebhooksController {
       }
 
       // Log payment failure for tracking
-      await this.ordersService.handlePaymentFailed(
-        ourOrderId,
-        payment.id,
-        {
-          error_code: payment.error_code,
-          error_description: payment.error_description,
-          amount: payment.amount,
-          currency: payment.currency,
-          method: payment.method,
-          failed_at: new Date(payment.created_at * 1000),
-        }
-      );
+      await this.ordersService.handlePaymentFailed(ourOrderId, payment.id, {
+        error_code: payment.error_code,
+        error_description: payment.error_description,
+        amount: payment.amount,
+        currency: payment.currency,
+        method: payment.method,
+        failed_at: new Date(payment.created_at * 1000),
+      });
 
       this.logger.log(`Order ${ourOrderId} payment failure recorded`);
-
     } catch (error) {
-      this.logger.error(`Failed to handle payment failure: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle payment failure: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
 
   private async handleOrderPaid(order: any, payment?: any) {
     try {
-      this.logger.log(`Order fully paid: ${order.id}, Amount: ${order.amount}`, {
-        orderId: order.id,
-        amountPaid: order.amount_paid,
-        amountDue: order.amount_due,
-        paymentId: payment?.id,
-        paymentMethod: payment?.method
-      });
+      this.logger.log(
+        `Order fully paid: ${order.id}, Amount: ${order.amount}`,
+        {
+          orderId: order.id,
+          amountPaid: order.amount_paid,
+          amountDue: order.amount_due,
+          paymentId: payment?.id,
+          paymentMethod: payment?.method,
+        }
+      );
 
       // Extract our order ID from order notes
       const ourOrderId = order.notes?.orderId || order.notes?.order_id;
@@ -280,7 +327,7 @@ export class WebhooksController {
       if (!ourOrderId) {
         this.logger.warn(`No order ID found in Razorpay order ${order.id}`, {
           notes: order.notes,
-          receipt: order.receipt
+          receipt: order.receipt,
         });
         return;
       }
@@ -296,7 +343,6 @@ export class WebhooksController {
       });
 
       this.logger.log(`Order ${ourOrderId} marked as fully paid`);
-
     } catch (error) {
       this.logger.error(`Failed to handle order paid: ${error.message}`, error);
       throw error;
@@ -309,26 +355,39 @@ export class WebhooksController {
       event,
       refundId: payload?.refund?.entity?.id,
       paymentId: payload?.refund?.entity?.payment_id,
-      amount: payload?.refund?.entity?.amount
+      amount: payload?.refund?.entity?.amount,
     });
 
     if (event === 'refund.created') {
-      await this.handleRefundCreated(payload.refund?.entity, payload.payment?.entity);
-    }
-    else if (event === 'refund.processed') {
-      await this.handleRefundProcessed(payload.refund?.entity, payload.payment?.entity);
-    }
-    else if (event === 'refund.failed') {
-      await this.handleRefundFailed(payload.refund?.entity, payload.payment?.entity);
-    }
-    else if (event === 'refund.speed_changed') {
-      await this.handleRefundSpeedChanged(payload.refund?.entity, payload.payment?.entity);
+      await this.handleRefundCreated(
+        payload.refund?.entity,
+        payload.payment?.entity
+      );
+    } else if (event === 'refund.processed') {
+      await this.handleRefundProcessed(
+        payload.refund?.entity,
+        payload.payment?.entity
+      );
+    } else if (event === 'refund.failed') {
+      await this.handleRefundFailed(
+        payload.refund?.entity,
+        payload.payment?.entity
+      );
+    } else if (event === 'refund.speed_changed') {
+      await this.handleRefundSpeedChanged(
+        payload.refund?.entity,
+        payload.payment?.entity
+      );
     }
   }
 
   private async handleRefundCreated(refund: any, payment: any) {
     try {
-      this.logger.log(`Refund created: ${refund.id}, Payment: ${refund.payment_id}, Amount: ₹${refund.amount/100}`);
+      this.logger.log(
+        `Refund created: ${refund.id}, Payment: ${
+          refund.payment_id
+        }, Amount: ₹${refund.amount / 100}`
+      );
 
       // Extract order ID from payment notes
       const ourOrderId = payment?.notes?.orderId || payment?.notes?.order_id;
@@ -342,15 +401,19 @@ export class WebhooksController {
           created_at: new Date(refund.created_at * 1000),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle refund created: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle refund created: ${error.message}`,
+        error
+      );
     }
   }
 
   private async handleRefundProcessed(refund: any, payment: any) {
     try {
-      this.logger.log(`Refund processed: ${refund.id}, Amount: ₹${refund.amount/100}`);
+      this.logger.log(
+        `Refund processed: ${refund.id}, Amount: ₹${refund.amount / 100}`
+      );
 
       const ourOrderId = payment?.notes?.orderId || payment?.notes?.order_id;
 
@@ -363,15 +426,19 @@ export class WebhooksController {
           processed_at: new Date(),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle refund processed: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle refund processed: ${error.message}`,
+        error
+      );
     }
   }
 
   private async handleRefundFailed(refund: any, payment: any) {
     try {
-      this.logger.log(`Refund failed: ${refund.id}, Amount: ₹${refund.amount/100}`);
+      this.logger.log(
+        `Refund failed: ${refund.id}, Amount: ₹${refund.amount / 100}`
+      );
 
       const ourOrderId = payment?.notes?.orderId || payment?.notes?.order_id;
 
@@ -384,18 +451,25 @@ export class WebhooksController {
           failed_at: new Date(),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle refund failed: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle refund failed: ${error.message}`,
+        error
+      );
     }
   }
 
   private async handleRefundSpeedChanged(refund: any, payment: any) {
     try {
-      this.logger.log(`Refund speed changed: ${refund.id}, New speed: ${refund.speed_processed}`);
+      this.logger.log(
+        `Refund speed changed: ${refund.id}, New speed: ${refund.speed_processed}`
+      );
       // Log for audit purposes - usually no action needed
     } catch (error) {
-      this.logger.error(`Failed to handle refund speed change: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle refund speed change: ${error.message}`,
+        error
+      );
     }
   }
 
@@ -405,20 +479,23 @@ export class WebhooksController {
       event,
       transferId: payload?.transfer?.entity?.id,
       linkedAccountId: payload?.transfer?.entity?.linked_account,
-      amount: payload?.transfer?.entity?.amount
+      amount: payload?.transfer?.entity?.amount,
     });
 
     if (event === 'transfer.processed') {
       await this.handleTransferProcessed(payload.transfer?.entity);
-    }
-    else if (event === 'transfer.failed') {
+    } else if (event === 'transfer.failed') {
       await this.handleTransferFailed(payload.transfer?.entity);
     }
   }
 
   private async handleTransferProcessed(transfer: any) {
     try {
-      this.logger.log(`Transfer processed: ${transfer.id}, Amount: ₹${transfer.amount/100} to ${transfer.linked_account}`);
+      this.logger.log(
+        `Transfer processed: ${transfer.id}, Amount: ₹${
+          transfer.amount / 100
+        } to ${transfer.linked_account}`
+      );
 
       // Extract order ID from transfer notes
       const ourOrderId = transfer?.notes?.orderId || transfer?.notes?.order_id;
@@ -431,18 +508,23 @@ export class WebhooksController {
           processed_at: new Date(),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle transfer processed: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle transfer processed: ${error.message}`,
+        error
+      );
     }
   }
 
   private async handleTransferFailed(transfer: any) {
     try {
-      this.logger.log(`Transfer failed: ${transfer.id}, Amount: ₹${transfer.amount/100}`, {
-        linkedAccount: transfer.linked_account,
-        reason: transfer.failure_reason
-      });
+      this.logger.log(
+        `Transfer failed: ${transfer.id}, Amount: ₹${transfer.amount / 100}`,
+        {
+          linkedAccount: transfer.linked_account,
+          reason: transfer.failure_reason,
+        }
+      );
 
       const ourOrderId = transfer?.notes?.orderId || transfer?.notes?.order_id;
 
@@ -455,9 +537,11 @@ export class WebhooksController {
           failed_at: new Date(),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle transfer failed: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle transfer failed: ${error.message}`,
+        error
+      );
     }
   }
 
@@ -466,7 +550,7 @@ export class WebhooksController {
     this.logger.log(`Processing settlement event: ${event}`, {
       event,
       settlementId: payload?.settlement?.entity?.id,
-      amount: payload?.settlement?.entity?.amount
+      amount: payload?.settlement?.entity?.amount,
     });
 
     if (event === 'settlement.processed') {
@@ -476,16 +560,23 @@ export class WebhooksController {
 
   private async handleSettlementProcessed(settlement: any) {
     try {
-      this.logger.log(`Settlement processed: ${settlement.id}, Amount: ₹${settlement.amount/100}`, {
-        utr: settlement.utr,
-        processedAt: new Date(settlement.processed_at * 1000)
-      });
+      this.logger.log(
+        `Settlement processed: ${settlement.id}, Amount: ₹${
+          settlement.amount / 100
+        }`,
+        {
+          utr: settlement.utr,
+          processedAt: new Date(settlement.processed_at * 1000),
+        }
+      );
 
       // Record settlement for financial reconciliation
       // This would typically update restaurant financial records
-
     } catch (error) {
-      this.logger.error(`Failed to handle settlement processed: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle settlement processed: ${error.message}`,
+        error
+      );
     }
   }
 
@@ -495,27 +586,36 @@ export class WebhooksController {
       event,
       invoiceId: payload?.invoice?.entity?.id,
       orderId: payload?.invoice?.entity?.order_id,
-      status: payload?.invoice?.entity?.status
+      status: payload?.invoice?.entity?.status,
     });
 
     if (event === 'invoice.paid') {
-      await this.handleInvoicePaid(payload.invoice?.entity, payload.payment?.entity);
-    }
-    else if (event === 'invoice.partially_paid') {
-      await this.handleInvoicePartiallyPaid(payload.invoice?.entity, payload.payment?.entity);
-    }
-    else if (event === 'invoice.expired') {
+      await this.handleInvoicePaid(
+        payload.invoice?.entity,
+        payload.payment?.entity
+      );
+    } else if (event === 'invoice.partially_paid') {
+      await this.handleInvoicePartiallyPaid(
+        payload.invoice?.entity,
+        payload.payment?.entity
+      );
+    } else if (event === 'invoice.expired') {
       await this.handleInvoiceExpired(payload.invoice?.entity);
     }
   }
 
   private async handleInvoicePaid(invoice: any, payment: any) {
     try {
-      this.logger.log(`Invoice paid: ${invoice.id}, Amount: ₹${invoice.amount/100}`);
+      this.logger.log(
+        `Invoice paid: ${invoice.id}, Amount: ₹${invoice.amount / 100}`
+      );
 
       // Extract order ID from invoice notes or payment notes
-      const ourOrderId = payment?.notes?.orderId || payment?.notes?.order_id ||
-                        invoice?.notes?.orderId || invoice?.notes?.order_id;
+      const ourOrderId =
+        payment?.notes?.orderId ||
+        payment?.notes?.order_id ||
+        invoice?.notes?.orderId ||
+        invoice?.notes?.order_id;
 
       if (ourOrderId) {
         await this.ordersService.handleInvoicePaid(ourOrderId, {
@@ -525,18 +625,27 @@ export class WebhooksController {
           paid_at: new Date(invoice.paid_at * 1000),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle invoice paid: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle invoice paid: ${error.message}`,
+        error
+      );
     }
   }
 
   private async handleInvoicePartiallyPaid(invoice: any, payment: any) {
     try {
-      this.logger.log(`Invoice partially paid: ${invoice.id}, Paid: ₹${invoice.amount_paid/100}, Due: ₹${invoice.amount_due/100}`);
+      this.logger.log(
+        `Invoice partially paid: ${invoice.id}, Paid: ₹${
+          invoice.amount_paid / 100
+        }, Due: ₹${invoice.amount_due / 100}`
+      );
 
-      const ourOrderId = payment?.notes?.orderId || payment?.notes?.order_id ||
-                        invoice?.notes?.orderId || invoice?.notes?.order_id;
+      const ourOrderId =
+        payment?.notes?.orderId ||
+        payment?.notes?.order_id ||
+        invoice?.notes?.orderId ||
+        invoice?.notes?.order_id;
 
       if (ourOrderId) {
         await this.ordersService.handleInvoicePartiallyPaid(ourOrderId, {
@@ -547,15 +656,19 @@ export class WebhooksController {
           paid_at: new Date(),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle invoice partially paid: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle invoice partially paid: ${error.message}`,
+        error
+      );
     }
   }
 
   private async handleInvoiceExpired(invoice: any) {
     try {
-      this.logger.log(`Invoice expired: ${invoice.id}, Amount: ₹${invoice.amount/100}`);
+      this.logger.log(
+        `Invoice expired: ${invoice.id}, Amount: ₹${invoice.amount / 100}`
+      );
 
       const ourOrderId = invoice?.notes?.orderId || invoice?.notes?.order_id;
 
@@ -566,9 +679,11 @@ export class WebhooksController {
           expired_at: new Date(invoice.expired_at * 1000),
         });
       }
-
     } catch (error) {
-      this.logger.error(`Failed to handle invoice expired: ${error.message}`, error);
+      this.logger.error(
+        `Failed to handle invoice expired: ${error.message}`,
+        error
+      );
     }
   }
 }

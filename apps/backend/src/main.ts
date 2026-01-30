@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app/app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as express from 'express';
+import session = require('express-session');
+import { createClient } from 'redis';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -12,6 +14,37 @@ async function bootstrap() {
     rawBody: true,
   });
   const configService = app.get(ConfigService);
+
+  // Configure session middleware for customer sessions
+  const redisClient = createClient({
+    url: process.env.REDIS_URL || 'redis://localhost:6379'
+  });
+
+  // For development, use memory store if Redis is not available
+  let sessionStore;
+  try {
+    await redisClient.connect();
+    const RedisStore = require('connect-redis').default;
+    sessionStore = new RedisStore({ client: redisClient });
+    Logger.log('✓ Connected to Redis for session storage');
+  } catch (error) {
+    Logger.warn('Redis not available, using memory store for sessions (dev only)');
+    sessionStore = new session.MemoryStore();
+  }
+
+  app.use(session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    name: 'restohand.sid',
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 4 * 60 * 60 * 1000, // 4 hours
+      sameSite: 'lax'
+    }
+  }));
 
   // Configure Express body parser with webhook support
   app.use('/api/webhooks', express.raw({ type: 'application/json' }));

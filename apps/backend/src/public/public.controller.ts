@@ -1,6 +1,6 @@
-import { Controller, Get, Param, Post, Res, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Res, Query, Body, Req } from '@nestjs/common';
 import { PublicService } from './public.service';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 
 @Controller('public')
 export class PublicController {
@@ -12,54 +12,90 @@ export class PublicController {
   }
 
   @Get('restaurants/:slug/menu')
-  async getMenu(@Param('slug') slug: string, @Query('table') table?: string, @Query('tableId') tableId?: string) {
-    console.log('🔥 PUBLIC MENU DEBUG: Starting request', { slug, table, tableId });
-
+  async getMenu(
+    @Param('slug') slug: string,
+    @Query('table') table?: string,
+    @Query('tableId') tableId?: string
+  ) {
     const restaurant = await this.publicService.getRestaurantBySlug(slug);
-    console.log('🔥 PUBLIC MENU DEBUG: Found restaurant', { restaurantId: restaurant.id, restaurantName: restaurant.name });
 
     // CRITICAL FIX: Determine branch from table to prevent cross-branch menu contamination
     let branchId: string | undefined;
     if (tableId?.trim()) {
       // NEW APPROACH: Direct table ID lookup (globally unique)
-      branchId = await this.publicService.getBranchIdFromTableId(tableId.trim());
-      console.log('🔥 PUBLIC MENU DEBUG: Branch lookup result (by tableId)', { tableId: tableId.trim(), branchId });
+      branchId = await this.publicService.getBranchIdFromTableId(
+        tableId.trim()
+      );
     } else if (table?.trim()) {
       // LEGACY APPROACH: Table number lookup (needs restaurant scope)
-      branchId = await this.publicService.getBranchIdFromTable(restaurant.id, table.trim());
-      console.log('🔥 PUBLIC MENU DEBUG: Branch lookup result (by table)', { table: table.trim(), branchId });
+      branchId = await this.publicService.getBranchIdFromTable(
+        restaurant.id,
+        table.trim()
+      );
     }
 
     // Load menu filtered by branch - this prevents Branch A customers seeing Branch B items
-    const menu = await this.publicService.getMenuForRestaurant(restaurant.id, branchId);
-    console.log('🔥 PUBLIC MENU DEBUG: Menu result', {
-      categoriesCount: menu.categories.length,
-      uncategorisedCount: menu.uncategorised.length,
-      branchIdUsedForFilter: branchId
-    });
+    const menu = await this.publicService.getMenuForRestaurant(
+      restaurant.id,
+      branchId
+    );
 
-    // If table is specified (either by tableId or table), check for active orders on that table
-    let activeOrder = null;
+    // If table is specified, check for table session data
+    let tableSession = null;
     if (tableId?.trim()) {
-      // NEW APPROACH: Look up active order by tableId (preferred)
-      activeOrder = await this.publicService.getActiveOrderForTableId(
+      // NEW APPROACH: Get complete table session data by tableId (preferred)
+      tableSession = await this.publicService.getTableSessionData(
         restaurant.id,
         tableId.trim(),
         restaurant.slug
       );
-      console.log('🔥 PUBLIC MENU DEBUG: Active order result (by tableId)', { tableId: tableId.trim(), activeOrder: !!activeOrder });
     } else if (table?.trim()) {
-      // LEGACY APPROACH: Look up active order by table number
-      activeOrder = await this.publicService.getActiveOrderForTable(
+      // LEGACY APPROACH: Look up active order by table number (fallback)
+      const activeOrder = await this.publicService.getActiveOrderForTable(
         restaurant.id,
         table.trim(),
         restaurant.slug
       );
-      console.log('🔥 PUBLIC MENU DEBUG: Active order result (by table)', { table: table.trim(), activeOrder: !!activeOrder });
+      // Convert single order to session-like structure for compatibility
+      if (activeOrder) {
+        tableSession = {
+          tableId: null,
+          tableNumber: activeOrder.tableNumber,
+          restaurantSlug: restaurant.slug,
+          orders: [activeOrder],
+          totals: {
+            subTotalAmount: activeOrder.subTotalAmount,
+            taxAmount: activeOrder.taxAmount,
+            cgstAmount: activeOrder.cgstAmount,
+            sgstAmount: activeOrder.sgstAmount,
+            igstAmount: activeOrder.igstAmount,
+            discountAmount: activeOrder.discountAmount,
+            roundOffAmount: activeOrder.roundOffAmount,
+            totalAmount: activeOrder.totalAmount,
+          },
+          orderCount: 1,
+          hasUnpaidOrders: activeOrder.paymentStatus !== 'paid',
+          allOrdersPaid: activeOrder.paymentStatus === 'paid',
+        };
+      }
     }
 
-    console.log('🔥 PUBLIC MENU DEBUG: Final response prepared');
-    return { restaurant, menu, activeOrder };
+    return { restaurant, menu, tableSession };
+  }
+
+  @Get('restaurants/:slug/table/:tableId/session')
+  async getTableSession(
+    @Param('slug') slug: string,
+    @Param('tableId') tableId: string
+  ) {
+    const restaurant = await this.publicService.getRestaurantBySlug(slug);
+    const tableSession = await this.publicService.getTableSessionData(
+      restaurant.id,
+      tableId,
+      restaurant.slug
+    );
+
+    return { restaurant, tableSession };
   }
 
   @Get('restaurants/:slug/orders/:orderId')
@@ -92,5 +128,113 @@ export class PublicController {
         `attachment; filename="${invoice.filename}"`
       )
       .send(invoice.html);
+  }
+
+  @Get('restaurants/:slug/table/:tableId/bill')
+  async getCombinedTableBill(
+    @Param('slug') slug: string,
+    @Param('tableId') tableId: string,
+    @Res() res: Response
+  ) {
+    const invoice = await this.publicService.getCombinedTableInvoice(
+      slug,
+      tableId
+    );
+    res
+      .header('Content-Type', 'application/pdf')
+      .header(
+        'Content-Disposition',
+        `attachment; filename="${invoice.filename.replace('.html', '.pdf')}"`
+      )
+      .send(invoice.pdf);
+  }
+
+  @Post('restaurants/:slug/orders')
+  async createOrder(
+    @Param('slug') slug: string,
+    @Body()
+    orderData: {
+      tableId?: string;
+      tableNumber?: string;
+      customerName?: string;
+      customerPhone?: string;
+      notes?: string;
+      paymentMethod?: 'upi' | 'cash';
+      items: Array<{
+        menuItemId: string;
+        name: string;
+        quantity: number;
+        pricing: {
+          unitAmount: number;
+          currency: string;
+          taxAmount?: number;
+          discountAmount?: number;
+        };
+        notes?: string;
+      }>;
+    }
+  ) {
+    return this.publicService.createOrder(slug, orderData);
+  }
+
+  @Post('restaurants/:slug/orders/:orderId/payment-intent')
+  async createPaymentIntent(
+    @Param('slug') slug: string,
+    @Param('orderId') orderId: string
+  ) {
+    return this.publicService.createPaymentIntent(slug, orderId);
+  }
+
+  @Post('restaurants/:slug/orders/:orderId/add-items')
+  async addItemsToOrder(
+    @Param('slug') slug: string,
+    @Param('orderId') orderId: string,
+    @Body()
+    itemsData: {
+      items: Array<{
+        menuItemId: string;
+        name: string;
+        quantity: number;
+        pricing: {
+          unitAmount: number;
+          currency: string;
+          taxAmount?: number;
+          discountAmount?: number;
+        };
+        notes?: string;
+      }>;
+    }
+  ) {
+    return this.publicService.addItemsToOrder(slug, orderId, itemsData);
+  }
+
+  @Post('restaurants/:slug/table/:tableId/session')
+  async createCustomerSession(
+    @Param('slug') slug: string,
+    @Param('tableId') tableId: string,
+    @Req() req: Request
+  ) {
+    return this.publicService.createCustomerSession(
+      slug,
+      tableId,
+      req.headers['user-agent'],
+      req.ip
+    );
+  }
+
+  @Post('restaurants/:slug/table/:tableId/session/payment-intent')
+  async createSessionPaymentIntent(
+    @Param('slug') slug: string,
+    @Param('tableId') tableId: string
+  ) {
+    return this.publicService.createSessionPaymentIntent(slug, tableId);
+  }
+
+  @Get('restaurants/:slug/table/:tableId/consolidated-bill')
+  async getConsolidatedBill(
+    @Param('slug') slug: string,
+    @Param('tableId') tableId: string
+  ) {
+    return this.publicService.getConsolidatedBill(slug, tableId);
   }
 }

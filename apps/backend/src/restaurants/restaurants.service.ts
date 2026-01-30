@@ -104,19 +104,27 @@ export class RestaurantsService {
       throw new NotFoundException(`Restaurant ${restaurantId} not found`);
     }
 
-    // Use customer QR domain for QR code URLs
+    // Use customer QR domain for QR code URLs with session-based routing
     const baseUrl = process.env.CUSTOMER_FRONTEND_URL ?? process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
     const slug = restaurant.slug;
-    const url = new URL(`${baseUrl.replace(/\/$/, '')}/c/${slug}`);
-    // NEW APPROACH: Use tableId for globally unique identification
+
+    let finalUrl: string;
+
+    // SESSION-BASED URL: Clean path params instead of query params
     if (tableId) {
-      url.searchParams.set('tableId', tableId);
+      // Use new session-based URL: /c/{slug}/table/{tableId}
+      finalUrl = `${baseUrl.replace(/\/$/, '')}/c/${slug}/table/${tableId}`;
     } else if (table) {
-      // LEGACY APPROACH: Use table number (for backwards compatibility)
+      // LEGACY FALLBACK: Use old query param approach for backward compatibility
+      const url = new URL(`${baseUrl.replace(/\/$/, '')}/c/${slug}`);
       url.searchParams.set('table', table);
+      finalUrl = url.toString();
+    } else {
+      // Default: Just restaurant page
+      finalUrl = `${baseUrl.replace(/\/$/, '')}/c/${slug}`;
     }
 
-    const dataUrl = await QRCode.toDataURL(url.toString(), {
+    const dataUrl = await QRCode.toDataURL(finalUrl, {
       errorCorrectionLevel: 'M',
       margin: 1,
       scale: 6,
@@ -125,7 +133,7 @@ export class RestaurantsService {
     return {
       restaurant: this.toDto(restaurant),
       table: table ?? null,
-      url: url.toString(),
+      url: finalUrl,
       dataUrl,
     };
   }

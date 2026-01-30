@@ -32,6 +32,6 @@ import { RazorpayService } from '../payments/razorpay.service';
   ],
   controllers: [RestaurantsController, RestaurantOnboardingController, KitchenStationController, PaymentsController],
   providers: [RestaurantsService, RestaurantOnboardingService, KitchenStationService, RazorpayService],
-  exports: [RestaurantsService, RestaurantOnboardingService, KitchenStationService],
+  exports: [RestaurantsService, RestaurantOnboardingService, KitchenStationService, RazorpayService],
 })
 export class RestaurantsModule {}

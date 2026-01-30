@@ -411,6 +411,17 @@ export interface PublicRestaurant {
   upi: Restaurant['upi'];
   languages: string[];
   settings: RestaurantSettings;
+  // Additional fields for consolidated bill
+  address?: {
+    line1: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
+  phone?: string;
+  email?: string;
+  gstin?: string;
 }
 
 export interface PublicOrder {
@@ -590,4 +601,37 @@ export interface AssignOrderToStationRequest {
   menuItemIds: string[];
   estimatedPrepTime?: number;
   notes?: string;
+}
+
+// Customer Session Types
+export interface CustomerSession {
+  sessionId: string;
+  restaurant: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  table: {
+    id: string;
+    tableNumber: string;
+    displayName?: string;
+  };
+  expiresAt: string;
+  message: string;
+}
+
+export interface CreateCustomerSessionRequest {
+  slug: string;
+  tableId: string;
+}
+
+export interface CustomerSessionData {
+  sessionId: string;
+  restaurantId: string;
+  restaurantName: string;
+  restaurantSlug: string;
+  tableId: string;
+  tableNumber: string;
+  expiresAt: string;
+  createdAt?: string;
 }

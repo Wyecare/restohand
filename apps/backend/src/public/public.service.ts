@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import puppeteer from 'puppeteer';
 import {
   Restaurant,
   RestaurantDocument,
@@ -25,6 +26,10 @@ import {
 import { OrdersService } from '../orders/orders.service';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
+import { RazorpayService } from '../payments/razorpay.service';
+import { RestaurantOnboardingService } from '../restaurants/restaurant-onboarding.service';
+import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
+import { SmartGstService } from '../gst/smart-gst.service';
 
 @Injectable()
 export class PublicService {
@@ -39,7 +44,11 @@ export class PublicService {
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(RestaurantTable.name)
     private readonly tableModel: Model<RestaurantTableDocument>,
-    private readonly ordersService: OrdersService
+    private readonly ordersService: OrdersService,
+    private readonly razorpayService: RazorpayService,
+    private readonly restaurantOnboardingService: RestaurantOnboardingService,
+    private readonly customerSessionsService: CustomerSessionsService,
+    private readonly smartGstService: SmartGstService
   ) {}
 
   async getRestaurantBySlug(slug: string) {
@@ -69,11 +78,6 @@ export class PublicService {
     restaurantId: string,
     tableNumber: string
   ): Promise<string | undefined> {
-    console.log('🔥 SERVICE DEBUG: Looking up table', {
-      restaurantId,
-      tableNumber: tableNumber.trim(),
-    });
-
     const table = await this.tableModel
       .findOne({
         restaurantId,
@@ -82,24 +86,10 @@ export class PublicService {
       })
       .lean();
 
-    console.log('🔥 SERVICE DEBUG: Table lookup result', {
-      tableFound: !!table,
-      tableBranchId: table?.branchId?.toString(),
-      tableDetails: table
-        ? {
-            id: table._id.toString(),
-            tableNumber: table.tableNumber,
-            zone: table.zone,
-          }
-        : null,
-    });
-
     return table?.branchId?.toString();
   }
 
   async getBranchIdFromTableId(tableId: string): Promise<string | undefined> {
-    console.log('🔥 SERVICE DEBUG: Looking up table by ID', { tableId });
-
     const table = await this.tableModel
       .findOne({
         _id: new Types.ObjectId(tableId),
@@ -107,28 +97,10 @@ export class PublicService {
       })
       .lean();
 
-    console.log('🔥 SERVICE DEBUG: Table ID lookup result', {
-      tableFound: !!table,
-      tableBranchId: table?.branchId?.toString(),
-      tableDetails: table
-        ? {
-            id: table._id.toString(),
-            tableNumber: table.tableNumber,
-            restaurantId: table.restaurantId.toString(),
-            zone: table.zone,
-          }
-        : null,
-    });
-
     return table?.branchId?.toString();
   }
 
   async getMenuForRestaurant(restaurantId: string, branchId?: string) {
-    console.log('🔥 SERVICE DEBUG: getMenuForRestaurant called', {
-      restaurantId,
-      branchId,
-    });
-
     // CRITICAL FIX: Add branch filtering to prevent cross-branch menu contamination
     const categoryQuery: any = {
       restaurantId: new Types.ObjectId(restaurantId),
@@ -145,11 +117,6 @@ export class PublicService {
       itemQuery.branchId = new Types.ObjectId(branchId);
     }
 
-    console.log('🔥 SERVICE DEBUG: Queries prepared', {
-      categoryQuery: categoryQuery,
-      itemQuery: itemQuery,
-    });
-
     const [categories, items] = await Promise.all([
       this.categoryModel
         .find(categoryQuery)
@@ -157,13 +124,6 @@ export class PublicService {
         .lean(),
       this.itemModel.find(itemQuery).sort({ displayOrder: 1, name: 1 }).lean(),
     ]);
-
-    console.log('🔥 SERVICE DEBUG: Database results', {
-      categoriesFound: categories.length,
-      itemsFound: items.length,
-      firstCategoryName: categories[0]?.name,
-      firstItemName: items[0]?.name,
-    });
 
     const grouped = categories.map((category) => ({
       id: category._id.toString(),
@@ -244,6 +204,7 @@ export class PublicService {
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
       progress: order.progress,
+      tableId: order.tableId?.toString(),
       tableNumber: order.tableNumber,
       customerName: order.customerName,
       subTotalAmount: order.subTotalAmount ?? order.totalAmount,
@@ -431,4 +392,852 @@ export class PublicService {
       })),
     };
   }
+
+  async getTableSessionData(
+    restaurantId: string,
+    tableId: string,
+    restaurantSlug: string
+  ) {
+    // First check if session is closed
+    const sessionClosedOrder = await this.orderModel
+      .findOne({
+        restaurantId: new Types.ObjectId(restaurantId),
+        tableId: new Types.ObjectId(tableId),
+        sessionClosed: true,
+      })
+      .lean();
+
+    const sessionClosed = !!sessionClosedOrder;
+
+    if (sessionClosed) {
+      // Session is closed - return all orders (including completed) for receipt view
+      const orders = await this.orderModel
+        .find({
+          restaurantId: new Types.ObjectId(restaurantId),
+          tableId: new Types.ObjectId(tableId),
+          status: { $ne: OrderStatus.Cancelled }, // Exclude only cancelled orders
+        })
+        .sort({ createdAt: 1 })
+        .lean();
+
+      if (!orders.length) {
+        return null;
+      }
+
+      // Return with session closed flag
+      return await this.formatTableSession(orders, restaurantSlug, true);
+    }
+
+    // Session is active - find only active orders
+    const activeStatuses = [
+      OrderStatus.Pending,
+      OrderStatus.Accepted,
+      OrderStatus.InProgress,
+      OrderStatus.Ready,
+    ];
+
+    const orders = await this.orderModel
+      .find({
+        restaurantId: new Types.ObjectId(restaurantId),
+        tableId: new Types.ObjectId(tableId),
+        status: { $in: activeStatuses },
+        // Include both paid and unpaid orders as they're part of the session
+      })
+      .sort({ createdAt: 1 }) // Oldest first to show order sequence
+      .lean();
+
+    if (!orders.length) {
+      return null;
+    }
+
+    return await this.formatTableSession(orders, restaurantSlug, false);
+  }
+
+  private async formatTableSession(
+    orders: any[],
+    restaurantSlug: string,
+    sessionClosed: boolean = false
+  ) {
+    // Transform orders into public format
+    const sessionOrders = orders.map((order) => ({
+      id: order._id.toString(),
+      restaurantSlug,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      progress: order.progress,
+      tableNumber: order.tableNumber,
+      customerName: order.customerName,
+      subTotalAmount: order.subTotalAmount ?? order.totalAmount,
+      grossAmount: order.grossAmount ?? order.totalAmount,
+      taxAmount: order.taxAmount ?? 0,
+      cgstAmount: order.cgstAmount ?? 0,
+      sgstAmount: order.sgstAmount ?? 0,
+      igstAmount: order.igstAmount ?? 0,
+      discountAmount: order.discountAmount ?? 0,
+      roundOffAmount: order.roundOffAmount ?? 0,
+      totalAmount: order.totalAmount,
+      taxType: order.taxType,
+      createdAt: order.createdAt,
+      readyAt: order.readyAt,
+      paidAt: order.paidAt,
+      items: order.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        pricing: item.pricing,
+        gst: item.gst,
+      })),
+    }));
+
+    // Calculate proper session-level tax using Smart GST
+    let sessionTotals = {
+      subTotalAmount: 0,
+      taxAmount: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: 0,
+      discountAmount: 0,
+      roundOffAmount: 0,
+      totalAmount: 0,
+    };
+
+    try {
+      // Prepare items for tax calculation
+      const consolidatedItems = [];
+      for (const order of orders) {
+        for (const item of order.items) {
+          consolidatedItems.push({
+            menuItemId: item.menuItemId.toString(),
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.pricing.unitAmount,
+            discountAmount: item.pricing.discountAmount || 0,
+          });
+        }
+      }
+
+      if (consolidatedItems.length > 0) {
+        // Calculate tax using Smart GST service
+        const taxCalculation = await this.smartGstService.calculateOrderGst(
+          orders[0].restaurantId.toString(),
+          consolidatedItems,
+          orders[0].customerState
+        );
+
+        sessionTotals = {
+          subTotalAmount: taxCalculation.summary.subtotal,
+          taxAmount: taxCalculation.summary.totalTaxAmount,
+          cgstAmount: taxCalculation.summary.cgstAmount,
+          sgstAmount: taxCalculation.summary.sgstAmount,
+          igstAmount: taxCalculation.summary.igstAmount,
+          discountAmount: 0,
+          roundOffAmount: 0,
+          totalAmount: taxCalculation.summary.totalAmount,
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to calculate session tax, falling back to order totals:', error);
+      // Fallback to summing order totals if tax calculation fails
+      orders.forEach((order) => {
+        sessionTotals.subTotalAmount += order.subTotalAmount ?? order.totalAmount;
+        sessionTotals.taxAmount += order.taxAmount ?? 0;
+        sessionTotals.cgstAmount += order.cgstAmount ?? 0;
+        sessionTotals.sgstAmount += order.sgstAmount ?? 0;
+        sessionTotals.igstAmount += order.igstAmount ?? 0;
+        sessionTotals.discountAmount += order.discountAmount ?? 0;
+        sessionTotals.roundOffAmount += order.roundOffAmount ?? 0;
+        sessionTotals.totalAmount += order.totalAmount;
+      });
+    }
+
+    return {
+      tableId: orders[0].tableId?.toString(),
+      tableNumber: orders[0].tableNumber,
+      restaurantSlug,
+      orders: sessionOrders,
+      totals: sessionTotals,
+      orderCount: sessionOrders.length,
+      hasUnpaidOrders: sessionOrders.some(
+        (order) => order.paymentStatus !== PaymentStatus.Paid
+      ),
+      allOrdersPaid: sessionOrders.every(
+        (order) => order.paymentStatus === PaymentStatus.Paid
+      ),
+      sessionClosed,
+    };
+  }
+
+
+  async createOrder(slug: string, orderData: any) {
+    const restaurant = await this.getRestaurantBySlug(slug);
+
+    // Extract branchId from table
+    let branchId: string | undefined;
+    if (orderData.tableId) {
+      branchId = await this.getBranchIdFromTableId(orderData.tableId);
+    } else if (orderData.tableNumber) {
+      branchId = await this.getBranchIdFromTable(
+        restaurant.id,
+        orderData.tableNumber
+      );
+    }
+
+    // Create order using OrdersService
+    return this.ordersService.create(
+      restaurant.id,
+      {
+        ...orderData,
+        restaurantId: restaurant.id,
+        paymentMethod: orderData.paymentMethod || 'pending',
+      },
+      branchId
+    );
+  }
+
+  async createPaymentIntent(slug: string, orderId: string) {
+    const restaurant = await this.getRestaurantBySlug(slug);
+
+    if (!this.razorpayService.isEnabled() || !this.razorpayService.publicKey) {
+      throw new BadRequestException('Online payments are not configured');
+    }
+
+    const order = await this.ordersService.findOne(restaurant.id, orderId);
+
+    if (order.paymentStatus === PaymentStatus.Paid) {
+      throw new BadRequestException('Order already paid');
+    }
+
+    const amountInPaise = Math.round(order.totalAmount * 100);
+    if (amountInPaise <= 0) {
+      throw new BadRequestException('Order total must be greater than zero');
+    }
+
+    // Check if restaurant has linked account for direct settlement
+    const canReceivePayments =
+      await this.restaurantOnboardingService.canReceivePayments(restaurant.id);
+    const linkedAccountId =
+      await this.restaurantOnboardingService.getLinkedAccountId(restaurant.id);
+
+    let razorpayOrder: any;
+
+    if (canReceivePayments && linkedAccountId) {
+      // Direct settlement - 100% to restaurant (Pure SaaS model)
+      razorpayOrder = await this.razorpayService.createOrder({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `order_${order.orderNumber}`,
+        notes: {
+          restaurantId: restaurant.id,
+          orderId,
+          settlementType: 'direct',
+        },
+        transfers: [
+          {
+            account: linkedAccountId,
+            amount: amountInPaise, // 100% to restaurant
+            currency: 'INR',
+            notes: {
+              orderId,
+              orderNumber: order.orderNumber,
+            },
+          },
+        ],
+      });
+    } else {
+      // Fallback: Traditional payment (money comes to our account first)
+      razorpayOrder = await this.razorpayService.createOrder({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `order_${order.orderNumber}`,
+        notes: {
+          restaurantId: restaurant.id,
+          orderId,
+          settlementType: 'traditional',
+        },
+      });
+    }
+
+    await this.ordersService.registerPaymentIntent(
+      restaurant.id,
+      orderId,
+      'razorpay',
+      razorpayOrder.id,
+      {
+        orderNumber: order.orderNumber,
+        amount: amountInPaise,
+        currency: razorpayOrder.currency,
+        settlementType: canReceivePayments ? 'direct' : 'traditional',
+        linkedAccountId,
+        createdAt: new Date().toISOString(),
+      }
+    );
+
+    return {
+      razorpayKey: this.razorpayService.publicKey,
+      razorpayOrderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      restaurant: {
+        id: restaurant.id,
+      },
+      settlementType: canReceivePayments ? 'direct' : 'traditional',
+    };
+  }
+
+  async addItemsToOrder(slug: string, orderId: string, itemsData: any) {
+    const restaurant = await this.getRestaurantBySlug(slug);
+
+    // Use OrdersService add items method
+    return this.ordersService.addItemsToOrder(
+      restaurant.id,
+      orderId,
+      itemsData
+    );
+  }
+
+  /**
+   * Create customer session when QR code is scanned
+   * This is the entry point for customer ordering
+   */
+  async createCustomerSession(
+    slug: string,
+    tableId: string,
+    userAgent?: string,
+    ipAddress?: string
+  ) {
+    // Get restaurant and validate
+    const restaurant = await this.getRestaurantBySlug(slug);
+
+    // Get table info
+    const table = await this.tableModel
+      .findOne({
+        _id: new Types.ObjectId(tableId),
+        restaurantId: restaurant.id,
+        isActive: true
+      })
+      .lean();
+
+    if (!table) {
+      throw new NotFoundException(`Table not found or inactive`);
+    }
+
+    // Create customer session
+    const session = await this.customerSessionsService.createSession(
+      restaurant.id,
+      tableId,
+      table.tableNumber,
+      userAgent,
+      ipAddress
+    );
+
+    return {
+      sessionId: session.sessionId,
+      restaurant: {
+        id: restaurant.id,
+        name: restaurant.name,
+        slug: restaurant.slug,
+      },
+      table: {
+        id: table._id.toString(),
+        tableNumber: table.tableNumber,
+        displayName: table.displayName,
+      },
+      expiresAt: session.expiresAt,
+      message: 'Session created successfully. You can now browse the menu and place orders.',
+    };
+  }
+
+  async createSessionPaymentIntent(slug: string, tableId: string) {
+    const restaurant = await this.getRestaurantBySlug(slug);
+
+    if (!this.razorpayService.isEnabled() || !this.razorpayService.publicKey) {
+      throw new BadRequestException('Online payments are not configured');
+    }
+
+    // Get all unpaid orders for this table
+    const unpaidOrders = await this.orderModel
+      .find({
+        restaurantId: restaurant.id,
+        tableId: new Types.ObjectId(tableId),
+        paymentStatus: PaymentStatus.Pending,
+        status: { $ne: OrderStatus.Cancelled },
+      })
+      .lean();
+
+    if (!unpaidOrders.length) {
+      throw new BadRequestException('No unpaid orders found for this table');
+    }
+
+    // Prepare items from all unpaid orders for tax calculation
+    const allOrderItems = [];
+    for (const order of unpaidOrders) {
+      for (const item of order.items) {
+        allOrderItems.push({
+          menuItemId: item.menuItemId.toString(), // Convert ObjectId to string
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.pricing.unitAmount,
+          discountAmount: item.pricing.discountAmount || 0,
+        });
+      }
+    }
+
+    // Calculate tax on the combined session total
+    const taxCalculation = await this.smartGstService.calculateOrderGst(
+      restaurant.id,
+      allOrderItems,
+      unpaidOrders[0]?.customerState // Use customer state from first order
+    );
+
+    const finalAmountWithTax = taxCalculation.summary.totalAmount;
+    const amountInPaise = Math.round(finalAmountWithTax * 100);
+
+    if (amountInPaise <= 0) {
+      throw new BadRequestException('Total amount must be greater than zero');
+    }
+
+    // Check if restaurant has linked account for direct settlement
+    const canReceivePayments =
+      await this.restaurantOnboardingService.canReceivePayments(restaurant.id);
+    const linkedAccountId =
+      await this.restaurantOnboardingService.getLinkedAccountId(restaurant.id);
+
+    // Create combined receipt number for all orders
+    const orderNumbers = unpaidOrders
+      .map((order) => order.orderNumber)
+      .join(',');
+
+    let razorpayOrder: any;
+
+    if (canReceivePayments && linkedAccountId) {
+      // Direct settlement - 100% to restaurant (Pure SaaS model)
+      razorpayOrder = await this.razorpayService.createOrder({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `sess_${tableId.slice(-8)}_${Date.now().toString().slice(-6)}`,
+        notes: {
+          restaurantId: restaurant.id,
+          tableId,
+          orderIds: unpaidOrders.map((order) => order._id.toString()).join(','),
+          settlementType: 'direct',
+          type: 'session_payment',
+        },
+        transfers: [
+          {
+            account: linkedAccountId,
+            amount: amountInPaise, // 100% to restaurant
+            currency: 'INR',
+            notes: {
+              tableId,
+              orderNumbers,
+            },
+          },
+        ],
+      });
+    } else {
+      // Fallback: Traditional payment (money comes to our account first)
+      razorpayOrder = await this.razorpayService.createOrder({
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `sess_${tableId.slice(-8)}_${Date.now().toString().slice(-6)}`,
+        notes: {
+          restaurantId: restaurant.id,
+          tableId,
+          orderIds: unpaidOrders.map((order) => order._id.toString()).join(','),
+          settlementType: 'traditional',
+          type: 'session_payment',
+        },
+      });
+    }
+
+    // Register payment intent for all orders
+    for (const order of unpaidOrders) {
+      await this.ordersService.registerPaymentIntent(
+        restaurant.id,
+        order._id.toString(),
+        'razorpay',
+        razorpayOrder.id,
+        {
+          orderNumber: order.orderNumber,
+          amount: order.totalAmount * 100,
+          currency: razorpayOrder.currency,
+          settlementType: canReceivePayments ? 'direct' : 'traditional',
+          linkedAccountId,
+          sessionPayment: true,
+          totalSessionAmount: amountInPaise,
+          createdAt: new Date().toISOString(),
+        }
+      );
+    }
+
+    return {
+      razorpayKey: this.razorpayService.publicKey,
+      razorpayOrderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      restaurant: {
+        id: restaurant.id,
+      },
+      settlementType: canReceivePayments ? 'direct' : 'traditional',
+      orderIds: unpaidOrders.map((order) => order._id.toString()),
+      orderCount: unpaidOrders.length,
+      totalAmount: finalAmountWithTax,
+    };
+  }
+
+  async getConsolidatedBill(slug: string, tableId: string) {
+    const restaurant = await this.restaurantModel.findOne({ slug }).lean();
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant ${slug} not found`);
+    }
+
+    // Get table session data
+    const tableSession = await this.getTableSessionData(
+      restaurant._id.toString(),
+      tableId,
+      slug
+    );
+
+    if (!tableSession || tableSession.orders.length === 0) {
+      throw new NotFoundException(`No orders found for table`);
+    }
+
+    // Get full order documents
+    const orderIds = tableSession.orders.map((order) => order.id);
+    const fullOrders = await this.orderModel.find({
+      _id: { $in: orderIds.map(id => new Types.ObjectId(id)) },
+    }).lean();
+
+    // Prepare items for tax calculation
+    const consolidatedItems = [];
+    for (const order of fullOrders) {
+      for (const item of order.items) {
+        consolidatedItems.push({
+          menuItemId: item.menuItemId.toString(),
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.pricing.unitAmount,
+          discountAmount: item.pricing.discountAmount || 0,
+        });
+      }
+    }
+
+    // Calculate tax on the consolidated session total using Smart GST
+    const taxCalculation = await this.smartGstService.calculateOrderGst(
+      restaurant._id.toString(),
+      consolidatedItems,
+      fullOrders[0]?.customerState
+    );
+
+    // Format bill data
+    const orders = fullOrders.map((order) => ({
+      orderNumber: order.orderNumber,
+      items: order.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.pricing.unitAmount,
+        lineTotal: item.pricing.unitAmount * item.quantity,
+      })),
+      orderTotal: order.items.reduce((sum, item) =>
+        sum + (item.pricing.unitAmount * item.quantity), 0),
+    }));
+
+    return {
+      restaurant: {
+        id: restaurant._id.toString(),
+        name: restaurant.name,
+        address: restaurant.address,
+        phone: restaurant.contactPhone,
+        email: restaurant.contactEmail,
+        gstin: restaurant.businessDetails?.gst?.gstin,
+      },
+      bill: {
+        tableNumber: tableSession.tableNumber,
+        orders,
+        subtotal: taxCalculation.summary.subtotal,
+        taxAmount: taxCalculation.summary.totalTaxAmount,
+        cgstAmount: taxCalculation.summary.cgstAmount,
+        sgstAmount: taxCalculation.summary.sgstAmount,
+        igstAmount: taxCalculation.summary.igstAmount,
+        roundOffAmount: 0, // Round off will be calculated in frontend or later
+        totalAmount: taxCalculation.summary.totalAmount,
+        billGeneratedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  async getCombinedTableInvoice(slug: string, tableId: string) {
+    // Get consolidated bill data with proper tax calculation
+    const consolidatedBillData = await this.getConsolidatedBill(slug, tableId);
+    const { restaurant, bill } = consolidatedBillData;
+
+    // Generate thermal receipt-style HTML
+    const receiptHtml = this.generateThermalReceiptHtml(restaurant, bill);
+
+    // Generate PDF from HTML using Puppeteer
+    const pdfBuffer = await this.generatePdfFromHtml(receiptHtml);
+
+    return {
+      pdf: pdfBuffer,
+      filename: `table-${bill.tableNumber}-bill-${new Date().toISOString().slice(0, 10)}.pdf`,
+    };
+  }
+
+  private generateThermalReceiptHtml(restaurant: any, bill: any): string {
+    const formatCurrency = (amount: number) => `₹${amount.toFixed(2)}`;
+    const formatDate = (date: string) => new Date(date).toLocaleString('en-IN');
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill - Table ${bill.tableNumber}</title>
+    <style>
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            width: 80mm;
+            margin: 0 auto;
+            padding: 5mm;
+            font-size: 11px;
+            line-height: 1.2;
+            background: white;
+            color: black;
+        }
+
+        .receipt {
+            max-width: 70mm;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 5px;
+            margin-bottom: 8px;
+        }
+
+        .restaurant-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+
+        .restaurant-details {
+            font-size: 9px;
+            line-height: 1.1;
+        }
+
+        .bill-info {
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 10px;
+        }
+
+        .section-divider {
+            border-bottom: 1px dashed #000;
+            margin: 5px 0;
+        }
+
+        .items {
+            margin-bottom: 8px;
+        }
+
+        .item {
+            margin-bottom: 3px;
+        }
+
+        .item-line1 {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .item-name {
+            flex: 1;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .item-line2 {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            margin-top: 1px;
+        }
+
+        .qty-rate {
+            color: #666;
+        }
+
+        .amount {
+            font-weight: bold;
+        }
+
+        .order-separator {
+            text-align: center;
+            margin: 8px 0;
+            font-size: 9px;
+            color: #666;
+            border-top: 1px dotted #666;
+            border-bottom: 1px dotted #666;
+            padding: 2px 0;
+        }
+
+        .totals {
+            border-top: 1px dashed #000;
+            padding-top: 5px;
+            margin-top: 8px;
+        }
+
+        .total-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+
+        .total-line.grand {
+            font-weight: bold;
+            font-size: 12px;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 3px 0;
+            margin-top: 5px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 10px;
+            border-top: 1px dashed #000;
+            padding-top: 5px;
+            font-size: 9px;
+        }
+
+        .thank-you {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="header">
+            <div class="restaurant-name">${restaurant.name}</div>
+            <div class="restaurant-details">
+                ${restaurant.address ? `${restaurant.address.line1}` : ''}${restaurant.address ? `<br>${restaurant.address.city}, ${restaurant.address.state}` : ''}
+                ${restaurant.phone ? `<br>Ph: ${restaurant.phone}` : ''}
+                ${restaurant.gstin ? `<br>GSTIN: ${restaurant.gstin}` : ''}
+            </div>
+        </div>
+
+        <div class="bill-info">
+            <div>TABLE: ${bill.tableNumber}</div>
+            <div>${formatDate(bill.billGeneratedAt)}</div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="items">
+            ${bill.orders.map((order: any, orderIndex: number) => `
+                ${orderIndex > 0 ? `<div class="order-separator">ORDER #${order.orderNumber}</div>` : ''}
+                ${order.items.map((item: any) => `
+                    <div class="item">
+                        <div class="item-line1">
+                            <span class="item-name">${item.name}</span>
+                        </div>
+                        <div class="item-line2">
+                            <span class="qty-rate">${item.quantity} x ${formatCurrency(item.unitPrice)}</span>
+                            <span class="amount">${formatCurrency(item.lineTotal)}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            `).join('')}
+        </div>
+
+        <div class="totals">
+            <div class="total-line">
+                <span>Subtotal:</span>
+                <span>${formatCurrency(bill.subtotal)}</span>
+            </div>
+
+            ${bill.cgstAmount > 0 ? `
+                <div class="total-line">
+                    <span>CGST:</span>
+                    <span>${formatCurrency(bill.cgstAmount)}</span>
+                </div>
+            ` : ''}
+
+            ${bill.sgstAmount > 0 ? `
+                <div class="total-line">
+                    <span>SGST:</span>
+                    <span>${formatCurrency(bill.sgstAmount)}</span>
+                </div>
+            ` : ''}
+
+            ${bill.igstAmount > 0 ? `
+                <div class="total-line">
+                    <span>IGST:</span>
+                    <span>${formatCurrency(bill.igstAmount)}</span>
+                </div>
+            ` : ''}
+
+            ${bill.taxAmount > 0 ? `
+                <div class="total-line">
+                    <span>Total Tax:</span>
+                    <span>${formatCurrency(bill.taxAmount)}</span>
+                </div>
+            ` : ''}
+
+            ${bill.roundOffAmount !== 0 ? `
+                <div class="total-line">
+                    <span>Round Off:</span>
+                    <span>${formatCurrency(bill.roundOffAmount)}</span>
+                </div>
+            ` : ''}
+
+            <div class="total-line grand">
+                <span>TOTAL:</span>
+                <span>${formatCurrency(bill.totalAmount)}</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="thank-you">THANK YOU FOR VISITING!</div>
+            <div>Powered by RestoHand</div>
+        </div>
+    </div>
+</body>
+</html>`;
+  }
+
+  private async generatePdfFromHtml(htmlContent: string): Promise<Buffer> {
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+    const pdfBuffer = await page.pdf({
+      width: '80mm',
+      printBackground: true,
+      margin: {
+        top: '0mm',
+        bottom: '0mm',
+        left: '0mm',
+        right: '0mm',
+      },
+    });
+
+    await browser.close();
+    return Buffer.from(pdfBuffer);
+  }
+
 }

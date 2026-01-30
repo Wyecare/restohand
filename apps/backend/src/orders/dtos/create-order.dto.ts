@@ -28,6 +28,15 @@ export class CreateOrderDto {
   @IsMongoId()
   sessionId?: string;
 
+  @ApiProperty({
+    example: 'b5bc55d9-132c-4984-8a96-a1077a96af57',
+    required: false,
+    description: 'Customer session ID from session management (UUID format)',
+  })
+  @IsOptional()
+  @IsString()
+  customerSessionId?: string;
+
   @ApiProperty({ example: 'T5', required: false })
   @IsOptional()
   @IsString()

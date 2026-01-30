@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import CustomerMenuPageNew from '@/pages/customer/CustomerMenuPageNew';
+import CustomerTableSessionPage from '@/pages/customer/CustomerTableSessionPage';
 import CustomerOrderStatusPageNew from '@/pages/customer/CustomerOrderStatusPageNew';
 import CustomerReceiptPage from '@/pages/customer/CustomerReceiptPage';
 import CustomerLayout from '@/components/customer/CustomerLayout';
@@ -31,6 +32,8 @@ const CustomerRouter = () => {
         {/* Customer QR ordering interface */}
         <Route element={<CustomerLayout />}>
           <Route path="/c/:slug" element={<CustomerMenuPageNew />} />
+          <Route path="/c/:slug/table/:tableId" element={<CustomerMenuPageNew />} />
+          <Route path="/c/:slug/session" element={<CustomerTableSessionPage />} />
           <Route
             path="/c/:slug/order/:orderId"
             element={<CustomerOrderStatusPageNew />}
@@ -42,6 +45,10 @@ const CustomerRouter = () => {
 
         {/* Combined receipt page - standalone without layout */}
         <Route path="/combined-receipt" element={<CustomerReceiptPage />} />
+
+        {/* Table session bill page - standalone without layout */}
+        <Route path="/table-bill/:slug/:tableId" element={<CustomerReceiptPage />} />
+        <Route path="/c/:slug/table/:tableId/receipt" element={<CustomerReceiptPage />} />
 
         {/* Root redirect - if someone visits qr.restohand.com without a restaurant slug */}
         <Route

@@ -18,16 +18,22 @@ export interface ListOrdersParams {
   search?: string;
   page?: number;
   limit?: number;
+  customerSessionId?: string; // Filter by customer session ID
 }
 
 export interface CreateOrderPayload {
   restaurantId: string;
   sessionId?: string;
+  customerSessionId?: string; // Customer session ID for proper customer isolation
   tableNumber?: string;
+  tableId?: string; // Table ID for branch isolation
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
+  customerGstin?: string;
+  customerState?: string;
   notes?: string;
-  paymentMethod?: 'upi' | 'cash';
+  paymentMethod?: 'upi' | 'cash' | 'pending';
   items: Array<{
     menuItemId: string;
     name: string;

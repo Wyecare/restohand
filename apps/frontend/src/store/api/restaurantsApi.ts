@@ -20,6 +20,8 @@ import type {
   CreateZonePayload,
   UpdateZonePayload,
   BulkUpdateZonesPayload,
+  CustomerSession,
+  CreateCustomerSessionRequest,
 } from './types';
 
 export interface ListRestaurantsParams {
@@ -693,6 +695,173 @@ export const restaurantsApi = baseApi.injectEndpoints({
       ],
     }),
 
+    getTableSessionPublic: builder.query<
+      {
+        restaurant: PublicRestaurant;
+        tableSession: any; // Table session data with all orders
+      },
+      { slug: string; tableId: string }
+    >({
+      query: ({ slug, tableId }) =>
+        `/public/restaurants/${slug}/table/${tableId}/session`,
+    }),
+
+    createPublicOrder: builder.mutation<
+      Order,
+      {
+        slug: string;
+        tableId?: string;
+        tableNumber?: string;
+        customerName?: string;
+        customerPhone?: string;
+        notes?: string;
+        paymentMethod?: 'upi' | 'cash';
+        items: Array<{
+          menuItemId: string;
+          name: string;
+          quantity: number;
+          pricing: {
+            unitAmount: number;
+            currency: string;
+            taxAmount?: number;
+            discountAmount?: number;
+          };
+          notes?: string;
+        }>;
+      }
+    >({
+      query: ({ slug, ...body }) => ({
+        url: `/public/restaurants/${slug}/orders`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Order'],
+    }),
+
+    createPublicPaymentIntent: builder.mutation<
+      {
+        razorpayKey: string;
+        razorpayOrderId: string;
+        amount: number;
+        currency: string;
+        restaurant: { id: string };
+        settlementType: string;
+      },
+      { slug: string; orderId: string }
+    >({
+      query: ({ slug, orderId }) => ({
+        url: `/public/restaurants/${slug}/orders/${orderId}/payment-intent`,
+        method: 'POST',
+      }),
+    }),
+
+    addItemsToPublicOrder: builder.mutation<
+      Order,
+      {
+        slug: string;
+        orderId: string;
+        items: Array<{
+          menuItemId: string;
+          name: string;
+          quantity: number;
+          pricing: {
+            unitAmount: number;
+            currency: string;
+            taxAmount?: number;
+            discountAmount?: number;
+          };
+          notes?: string;
+        }>;
+      }
+    >({
+      query: ({ slug, orderId, ...body }) => ({
+        url: `/public/restaurants/${slug}/orders/${orderId}/add-items`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { orderId }) => [
+        { type: 'Order', id: orderId },
+      ],
+    }),
+
+    // Customer Session Management
+    createCustomerSession: builder.mutation<
+      CustomerSession,
+      CreateCustomerSessionRequest
+    >({
+      query: ({ slug, tableId }) => ({
+        url: `/public/restaurants/${slug}/table/${tableId}/session`,
+        method: 'POST',
+      }),
+    }),
+
+    createSessionPaymentIntent: builder.mutation<
+      {
+        razorpayKey: string;
+        razorpayOrderId: string;
+        amount: number;
+        currency: string;
+        restaurant: { id: string };
+        settlementType: string;
+        orderIds: string[];
+        orderCount: number;
+        totalAmount: number;
+      },
+      { slug: string; tableId: string }
+    >({
+      query: ({ slug, tableId }) => ({
+        url: `/public/restaurants/${slug}/table/${tableId}/session/payment-intent`,
+        method: 'POST',
+      }),
+    }),
+
+    getConsolidatedBill: builder.query<
+      {
+        restaurant: PublicRestaurant;
+        bill: {
+          tableNumber: string;
+          orders: Array<{
+            orderNumber: string;
+            items: Array<{
+              name: string;
+              quantity: number;
+              unitPrice: number;
+              lineTotal: number;
+            }>;
+            orderTotal: number;
+          }>;
+          subtotal: number;
+          taxAmount: number;
+          cgstAmount: number;
+          sgstAmount: number;
+          igstAmount: number;
+          roundOffAmount: number;
+          totalAmount: number;
+          billGeneratedAt: string;
+        };
+      },
+      { slug: string; tableId: string }
+    >({
+      query: ({ slug, tableId }) => ({
+        url: `/public/restaurants/${slug}/table/${tableId}/consolidated-bill`,
+      }),
+    }),
+
+    downloadTableBill: builder.query<
+      Blob,
+      { slug: string; tableId: string }
+    >({
+      query: ({ slug, tableId }) => ({
+        url: `/public/restaurants/${slug}/table/${tableId}/bill`,
+        responseHandler: (response) => response.blob(),
+      }),
+      keepUnusedDataFor: 0, // Don't cache blob data
+      serializeQueryArgs: ({ queryArgs }) => {
+        // Always treat as a fresh request to avoid caching issues
+        return JSON.stringify(queryArgs) + '-' + Date.now();
+      },
+    }),
+
     getRestaurantQrCode: builder.query<
       RestaurantQrCodeResponse,
       { restaurantId: string; table?: string }
@@ -968,6 +1137,14 @@ export const {
   useGetPublicMenuQuery,
   useGetPublicOrderQuery,
   useCancelPublicOrderMutation,
+  useGetTableSessionPublicQuery,
+  useCreatePublicOrderMutation,
+  useCreatePublicPaymentIntentMutation,
+  useAddItemsToPublicOrderMutation,
+  useCreateCustomerSessionMutation,
+  useCreateSessionPaymentIntentMutation,
+  useGetConsolidatedBillQuery,
+  useDownloadTableBillQuery,
   useGetRestaurantQrCodeQuery,
   useSetupLinkedAccountMutation,
   useGetPaymentStatusQuery,
