@@ -8,6 +8,7 @@ import { PaymentRoundingDialog } from '@/components/PaymentRoundingDialog';
 import {
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
+  useGetCombinedTableInvoiceQuery,
 } from '@/store/api/restaurantsApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
@@ -46,9 +47,9 @@ export default function ServicePaymentScreen() {
   const [showReceiptQr, setShowReceiptQr] = useState(false);
 
   // State to hold current order data
-  const [currentOrder, setCurrentOrder] = useState(null);
+  const [currentOrder, setCurrentOrder] = useState<any>(null);
   // State to hold updated orders after payment
-  const [updatedOrdersState, setUpdatedOrdersState] = useState(null);
+  const [updatedOrdersState, setUpdatedOrdersState] = useState<any>(null);
 
   // Parse order data from route params (fallback to RTK query if not available)
   const orderFromParams = orderData ? JSON.parse(orderData as string) : null;
@@ -75,8 +76,58 @@ export default function ServicePaymentScreen() {
   // Always process orders as array - simplified logic
   const ordersToProcess = updatedOrdersState || allOrdersFromParams || (order ? [order] : []);
 
-  // Calculate combined bill details
+  // Get restaurant details
+  const { data: restaurant, refetch: refetchRestaurant } =
+    useGetRestaurantQuery(restaurantId ?? skipToken, { skip: !restaurantId });
+
+  // Get table details
+  const { data: enhancedTables, refetch: refetchTables } =
+    useListEnhancedTablesQuery(restaurantId ? { restaurantId } : skipToken, {
+      skip: !restaurantId,
+    });
+
+  const selectedTable = useMemo(() => {
+    return enhancedTables?.find((table) => table.id === tableId) ?? null;
+  }, [enhancedTables, tableId]);
+
+  // Get session-based tax calculation (same as customer frontend)
+  const {
+    data: sessionInvoice,
+    isLoading: sessionInvoiceLoading,
+    refetch: refetchSessionInvoice,
+  } = useGetCombinedTableInvoiceQuery(
+    restaurant?.slug && tableId
+      ? {
+          slug: restaurant.slug,
+          tableId: tableId as string,
+          // TODO: Add sessionId if available
+        }
+      : skipToken,
+    {
+      skip: !restaurant?.slug || !tableId,
+    }
+  );
+
+  // Use session-based tax calculation (same as customer frontend)
   const combinedBillDetails = useMemo(() => {
+    if (sessionInvoice?.bill) {
+      // Use proper session-based tax calculation
+      const bill = sessionInvoice.bill;
+      return {
+        subTotalAmount: bill.subtotal,
+        taxAmount: bill.taxAmount,
+        cgstAmount: bill.cgstAmount,
+        sgstAmount: bill.sgstAmount,
+        igstAmount: bill.igstAmount,
+        discountAmount: bill.discountAmount || 0,
+        totalAmount: bill.totalAmount,
+        roundOffAmount: bill.roundOffAmount,
+        orderNumbers: bill.orders.map((order: any) => order.orderNumber),
+        orderCount: bill.orders.length,
+      };
+    }
+
+    // Fallback to individual order summation (old way - less accurate)
     if (!ordersToProcess.length) return null;
 
     const combined = {
@@ -89,11 +140,11 @@ export default function ServicePaymentScreen() {
       grossAmount: 0,
       totalAmount: 0,
       roundOffAmount: 0,
-      orderNumbers: [],
+      orderNumbers: [] as string[],
       orderCount: ordersToProcess.length,
     };
 
-    ordersToProcess.forEach((ord) => {
+    ordersToProcess.forEach((ord: any) => {
       combined.subTotalAmount += ord.subTotalAmount || 0;
       combined.taxAmount += ord.taxAmount || 0;
       combined.cgstAmount += ord.cgstAmount || 0;
@@ -107,10 +158,10 @@ export default function ServicePaymentScreen() {
     });
 
     return combined;
-  }, [ordersToProcess]);
+  }, [sessionInvoice, ordersToProcess]);
 
-  // Use combined total if available, otherwise fallback to single order
-  const finalTotalAmount = combinedBillAmount || combinedBillDetails?.totalAmount || order?.totalAmount || 0;
+  // Use session-based total (most accurate), then combined bill param, then fallback
+  const finalTotalAmount = sessionInvoice?.bill?.totalAmount || combinedBillAmount || combinedBillDetails?.totalAmount || order?.totalAmount || 0;
 
   // Initialize current order when component loads
   useEffect(() => {
@@ -121,15 +172,6 @@ export default function ServicePaymentScreen() {
     }
   }, [orderFromParams, orderFromQuery, currentOrder]);
 
-  // Get restaurant details
-  const { data: restaurant, refetch: refetchRestaurant } =
-    useGetRestaurantQuery(restaurantId ?? skipToken, { skip: !restaurantId });
-
-  // Get table details
-  const { data: enhancedTables, refetch: refetchTables } =
-    useListEnhancedTablesQuery(restaurantId ? { restaurantId } : skipToken, {
-      skip: !restaurantId,
-    });
 
   console.log(
     restaurantId,
@@ -156,15 +198,11 @@ export default function ServicePaymentScreen() {
   // Use the appropriate receipt QR based on whether we have multiple orders
   const receiptQr = ordersToProcess.length > 1 ? combinedReceiptQr : singleReceiptQr;
 
-  const selectedTable = useMemo(() => {
-    return enhancedTables?.find((table) => table.id === tableId) ?? null;
-  }, [enhancedTables, tableId]);
-
   const [updatePayment] = useUpdateOrderPaymentMutation();
 
-  // Refresh function to update order, restaurant, and table data
+  // Refresh function to update order, restaurant, table data, and session invoice
   const handleRefresh = async () => {
-    await Promise.all([refetchOrder(), refetchRestaurant(), refetchTables()]);
+    await Promise.all([refetchOrder(), refetchRestaurant(), refetchTables(), refetchSessionInvoice()]);
   };
 
 
@@ -590,28 +628,65 @@ export default function ServicePaymentScreen() {
               </View>
             ))}
 
-            {/* Combined Bill Breakdown */}
-            {ordersToProcess.length > 1 && combinedBillDetails && (
+            {/* Session-based Bill Breakdown */}
+            {combinedBillDetails && (ordersToProcess.length > 1 || sessionInvoice) && (
               <View style={styles.billBreakdown}>
                 <View style={styles.divider} />
-                <Text style={styles.breakdownTitle}>Bill Summary</Text>
+                <Text style={styles.breakdownTitle}>
+                  {sessionInvoice ? 'Session Bill Summary' : 'Bill Summary'}
+                </Text>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Subtotal</Text>
                   <Text style={styles.breakdownAmount}>
                     {formatCurrency(combinedBillDetails.subTotalAmount)}
                   </Text>
                 </View>
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Tax (CGST + SGST)</Text>
-                  <Text style={styles.breakdownAmount}>
-                    {formatCurrency(combinedBillDetails.cgstAmount + combinedBillDetails.sgstAmount)}
-                  </Text>
-                </View>
+                {combinedBillDetails.taxAmount > 0 && (
+                  <>
+                    {combinedBillDetails.cgstAmount > 0 && (
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>CGST</Text>
+                        <Text style={styles.breakdownAmount}>
+                          {formatCurrency(combinedBillDetails.cgstAmount)}
+                        </Text>
+                      </View>
+                    )}
+                    {combinedBillDetails.sgstAmount > 0 && (
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>SGST</Text>
+                        <Text style={styles.breakdownAmount}>
+                          {formatCurrency(combinedBillDetails.sgstAmount)}
+                        </Text>
+                      </View>
+                    )}
+                    {combinedBillDetails.igstAmount > 0 && (
+                      <View style={styles.breakdownRow}>
+                        <Text style={styles.breakdownLabel}>IGST</Text>
+                        <Text style={styles.breakdownAmount}>
+                          {formatCurrency(combinedBillDetails.igstAmount)}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.breakdownRow}>
+                      <Text style={styles.breakdownLabel}>Total Tax</Text>
+                      <Text style={styles.breakdownAmount}>
+                        {formatCurrency(combinedBillDetails.taxAmount)}
+                      </Text>
+                    </View>
+                  </>
+                )}
                 {combinedBillDetails.discountAmount > 0 && (
                   <View style={styles.breakdownRow}>
                     <Text style={styles.breakdownLabel}>Discount</Text>
                     <Text style={styles.breakdownAmount}>
                       -{formatCurrency(combinedBillDetails.discountAmount)}
+                    </Text>
+                  </View>
+                )}
+                {sessionInvoice && (
+                  <View style={styles.sessionIndicator}>
+                    <Text style={styles.sessionIndicatorText}>
+                      ✓ Smart GST Calculation Applied
                     </Text>
                   </View>
                 )}
@@ -1101,5 +1176,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#1f2937',
+  },
+  sessionIndicator: {
+    marginTop: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: '#dcfce7',
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  sessionIndicatorText: {
+    fontSize: 12,
+    color: '#16a34a',
+    fontWeight: '600',
   },
 });

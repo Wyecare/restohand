@@ -17,6 +17,28 @@ export interface ServiceTablesResponse {
   stats: ServiceTablesStats;
 }
 
+export interface CombinedTableInvoice {
+  restaurant: {
+    id: string;
+    name: string;
+    address: any;
+    gstin: string;
+  };
+  bill: {
+    tableNumber: string;
+    orders: any[];
+    subtotal: number;
+    taxAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    totalAmount: number;
+    discountAmount?: number;
+    roundOffAmount: number;
+    billGeneratedAt: string;
+  };
+}
+
 export const restaurantsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getRestaurant: builder.query<Restaurant, string>({
@@ -74,6 +96,15 @@ export const restaurantsApi = baseApi.injectEndpoints({
             ]
           : [{ type: 'RestaurantTable' as const, id: `ALL-${restaurantId}` }],
     }),
+
+    getCombinedTableInvoice: builder.query<CombinedTableInvoice, { slug: string; tableId: string; sessionId?: string }>({
+      query: ({ slug, tableId, sessionId }) => ({
+        url: `/public/restaurants/${slug}/table/${tableId}/consolidated-bill`,
+        params: sessionId ? { sessionId } : {},
+      }),
+      // Don't cache this as it changes frequently
+      keepUnusedDataFor: 0,
+    }),
   }),
   overrideExisting: false,
 });
@@ -83,4 +114,5 @@ export const {
   useListServiceTablesQuery,
   useListEnhancedTablesQuery,
   useListRestaurantTablesQuery,
+  useGetCombinedTableInvoiceQuery,
 } = restaurantsApi;

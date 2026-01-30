@@ -80,6 +80,7 @@ export default function ServiceMenuScreen() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedOrderForStatus, setSelectedOrderForStatus] = useState<any>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(null);
 
   // Check for existing active orders (multiple orders per table)
   const activeExistingOrders = useMemo(() => {
@@ -323,6 +324,45 @@ export default function ServiceMenuScreen() {
     }
   };
 
+  const handleCancelOrder = async (order: any) => {
+    if (!restaurant) return;
+
+    Alert.alert(
+      "Cancel Order",
+      `Are you sure you want to cancel Order #${order.orderNumber}?`,
+      [
+        {
+          text: "No",
+          style: "cancel"
+        },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            setIsCancellingOrder(order.id);
+            try {
+              await updateOrderStatus({
+                restaurantId: restaurant.id,
+                orderId: order.id,
+                status: 'cancelled' as any,
+                statusNote: 'Cancelled by waiter'
+              }).unwrap();
+
+              // Refetch table data to show updated status
+              await refetchTables();
+
+              Alert.alert("Order Cancelled", `Order #${order.orderNumber} has been cancelled`);
+            } catch (error) {
+              Alert.alert("Error", "Failed to cancel order");
+            } finally {
+              setIsCancellingOrder(null);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const getStatusUpdateOptions = (currentStatus: string) => {
     const statusOptions = [
       {
@@ -509,9 +549,36 @@ export default function ServiceMenuScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.orderAmount}>
-                    ₹{order.totalAmount.toFixed(0)}
-                  </Text>
+                  <View style={styles.orderActions}>
+                    <Text style={styles.orderAmount}>
+                      ₹{order.totalAmount.toFixed(0)}
+                    </Text>
+                    <View style={styles.orderButtonsContainer}>
+                      {/* Cancel button - only show for pending/accepted orders */}
+                      {['pending', 'accepted'].includes(order.status) && (
+                        <TouchableOpacity
+                          style={styles.cancelButton}
+                          onPress={() => handleCancelOrder(order)}
+                          disabled={isCancellingOrder === order.id}
+                        >
+                          {isCancellingOrder === order.id ? (
+                            <ActivityIndicator size={12} color="#ffffff" />
+                          ) : (
+                            <Ionicons name="close" size={12} color="#ffffff" />
+                          )}
+                        </TouchableOpacity>
+                      )}
+                      {/* Status update button - only show for non-ready orders */}
+                      {!['ready', 'completed', 'cancelled'].includes(order.status) && (
+                        <TouchableOpacity
+                          style={styles.individualStatusButton}
+                          onPress={() => handleUpdateStatusAction(order)}
+                        >
+                          <Ionicons name="refresh" size={12} color="#ffffff" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
                 </View>
               ))}
             </View>
@@ -527,20 +594,7 @@ export default function ServiceMenuScreen() {
                   Pay Total Bill (₹{totalBillAmount.toFixed(0)})
                 </Text>
               </TouchableOpacity>
-            ) : (
-              /* Show update status button if orders exist but none are ready */
-              activeExistingOrders.length > 0 && (
-                <TouchableOpacity
-                  style={styles.updateStatusButton}
-                  onPress={() => handleUpdateStatusAction(activeExistingOrders[0])}
-                >
-                  <Ionicons name="refresh" size={16} color="#ffffff" />
-                  <Text style={styles.updateStatusButtonText}>
-                    Update Status
-                  </Text>
-                </TouchableOpacity>
-              )
-            )}
+            ) : null}
           </View>
         </View>
       )}
@@ -918,7 +972,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 8,
     paddingHorizontal: 8,
     backgroundColor: "#f8fafc",
     borderRadius: 6,
@@ -933,10 +987,34 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1e293b",
   },
+  orderActions: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
   orderAmount: {
     fontSize: 12,
     fontWeight: "600",
     color: "#059669",
+  },
+  orderButtonsContainer: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  cancelButton: {
+    backgroundColor: "#dc2626",
+    borderRadius: 10,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  individualStatusButton: {
+    backgroundColor: "#3b82f6",
+    borderRadius: 10,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
   },
   existingOrderMeta: {
     flexDirection: "row",
@@ -1386,3 +1464,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
+
