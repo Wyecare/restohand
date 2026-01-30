@@ -15,7 +15,8 @@ export class PublicController {
   async getMenu(
     @Param('slug') slug: string,
     @Query('table') table?: string,
-    @Query('tableId') tableId?: string
+    @Query('tableId') tableId?: string,
+    @Query('includeUnavailable') includeUnavailable?: string
   ) {
     const restaurant = await this.publicService.getRestaurantBySlug(slug);
 
@@ -37,7 +38,8 @@ export class PublicController {
     // Load menu filtered by branch - this prevents Branch A customers seeing Branch B items
     const menu = await this.publicService.getMenuForRestaurant(
       restaurant.id,
-      branchId
+      branchId,
+      includeUnavailable === 'true'
     );
 
     // If table is specified, check for table session data

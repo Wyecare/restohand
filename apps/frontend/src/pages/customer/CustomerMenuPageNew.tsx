@@ -7,10 +7,10 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import {
   useGetPublicMenuQuery,
-  useCreateCustomerSessionMutation
+  useCreateCustomerSessionMutation,
+  useCreatePublicOrderMutation
 } from '@/store/api/restaurantsApi';
 import {
-  useCreateOrderMutation,
   useAddItemsToOrderMutation,
 } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
@@ -29,6 +29,14 @@ import { Input } from '@/components/ui/input';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
 import { formatCurrency } from '@/lib/billing';
 import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type DisplayCategory = {
   id: string;
@@ -206,13 +214,17 @@ export default function CustomerMenuPageNew() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [unavailableItemsDialog, setUnavailableItemsDialog] = useState<{
+    open: boolean;
+    unavailableItems: string[];
+  }>({ open: false, unavailableItems: [] });
 
   const { data, isLoading, isError, refetch } = useGetPublicMenuQuery(
     { slug: slug!, table: tableFromUrl || undefined, tableId: tableIdFromUrl || undefined },
     { skip: !slug }
   );
 
-  const [createOrder, { isLoading: isPlacingOrder }] = useCreateOrderMutation();
+  const [createOrder, { isLoading: isPlacingOrder }] = useCreatePublicOrderMutation();
   const [addItemsToOrder, { isLoading: isAddingItems }] =
     useAddItemsToOrderMutation();
 
@@ -443,10 +455,9 @@ export default function CustomerMenuPageNew() {
         // Create new order with tableId for proper branch isolation
         const currentSession = getStoredSession();
         const result = await createOrder({
-          restaurantId: restaurant.id,
+          slug: slug!,
           items: orderItems,
           ...customerInfo,
-          customerSessionId: currentSession?.sessionId, // Include session ID for proper customer isolation
           paymentMethod: 'upi', // Default to UPI for customer orders
         }).unwrap();
 
@@ -470,13 +481,38 @@ export default function CustomerMenuPageNew() {
       if (hasActiveOrder) {
         setCart([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Order placement error:', error);
-      toast({
-        title: 'Failed to place order',
-        description: 'Please try again or ask for assistance.',
-        variant: 'destructive',
-      });
+
+      // Check if it's an unavailable items error
+      if (error?.status === 400 &&
+          error?.data?.message?.includes('not available')) {
+        // Extract menu item IDs from the error message
+        const message = error.data.message;
+        const itemIdsMatch = message.match(/not available:\s*([a-f0-9,\s]+)/);
+        const unavailableItemIds = itemIdsMatch
+          ? itemIdsMatch[1].split(',').map((id: string) => id.trim())
+          : [];
+
+        setUnavailableItemsDialog({
+          open: true,
+          unavailableItems: unavailableItemIds,
+        });
+
+        // Automatically remove unavailable items from cart
+        setCart(prevCart =>
+          prevCart.filter(cartItem =>
+            !unavailableItemIds.includes(cartItem.menuItemId)
+          )
+        );
+      } else {
+        // Generic error handling
+        toast({
+          title: 'Failed to place order',
+          description: 'Please try again or ask for assistance.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -911,6 +947,62 @@ export default function CustomerMenuPageNew() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Unavailable Items Dialog */}
+      <Dialog
+        open={unavailableItemsDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            // Dialog is closing - refetch menu and clear dialog state
+            setUnavailableItemsDialog({ open: false, unavailableItems: [] });
+            refetch(); // Refetch menu to get updated availability
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="h-5 w-5 text-destructive" />
+              Items Unavailable
+            </DialogTitle>
+            <DialogDescription>
+              Some items in your order are no longer available. We've removed them from your cart automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-2">
+              The following items are currently unavailable:
+            </p>
+            <div className="space-y-2">
+              {unavailableItemsDialog.unavailableItems.map((itemId) => {
+                const cartItem = cart.find(item => item.menuItemId === itemId);
+                const menuItem = displayItems.find(item => item.id === itemId);
+                const itemName = cartItem?.name || menuItem?.name || `Item ID: ${itemId}`;
+                return (
+                  <div key={itemId} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                    <X className="h-4 w-4 text-destructive flex-shrink-0" />
+                    <span className="text-sm">{itemName}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setUnavailableItemsDialog({ open: false, unavailableItems: [] });
+                refetch(); // Refetch menu to get updated availability
+              }}
+              className="w-full"
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Update Menu & Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

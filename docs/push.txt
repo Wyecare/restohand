@@ -1,0 +1,191 @@
+Configuring FCM for Expo Push Notifications: A Complete Guide
+Amna Mubarak
+Amna Mubarak
+
+Follow
+5 min read
+·
+Nov 5, 2024
+8
+
+
+3
+
+
+
+Push notifications are essential for engaging users and keeping them updated with your app’s latest content. In this guide, we’ll walk through setting up Firebase Cloud Messaging (FCM) with Expo, focusing primarily on Android devices, using a practical example.
+
+Prerequisites
+Before we begin, ensure you have:
+
+Node.js installed
+Expo CLI (npm install -g expo-cli)
+A Firebase account
+An Expo project
+A physical device for testing (emulators don’t support push notifications)
+Step 1: Initial Project Setup
+First, let’s install the required dependencies:
+
+npx expo install expo-notifications expo-device expo-constants
+Step 2: Add a Working Code Example
+This functional code example shows how to configure push notifications for your application. The following steps are intended to help you implement the code.
+
+1. Configure Notification Handler
+This function specifies how notifications behave when received while the app is running. For instance, you can control if the notification shows an alert or plays a sound.
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+2. Request Notification Permissions
+Before sending notifications, check if the app has permission; if not, request it. This ensures compliance with platform rules and user privacy.
+
+async function registerForPushNotificationsAsync() {
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  if (finalStatus !== 'granted') {
+    alert('Failed to get push token!');
+    return;
+  }
+}
+3. Obtain Expo Push Token
+The Expo push token, unique to each device, enables targeted notifications. The function below retrieves and logs the token for backend storage.
+
+if (Device.isDevice) {
+  token = (await Notifications.getExpoPushTokenAsync()).data;
+  console.log(token); // Send this to your server
+} else {
+  alert('Physical device required for notifications');
+}
+4. Handle Incoming Notifications
+This listener captures incoming notifications while the app is active, enabling real-time UI updates.
+
+Notifications.addNotificationReceivedListener(notification => {
+  console.log('Received notification:', notification);
+});
+5. Respond to Notification Taps
+This listener handles user interactions with notifications, enabling navigation to specific screens.
+
+Notifications.addNotificationResponseReceivedListener(response => {
+  const screen = response?.notification?.request?.content?.data?.screen;
+  if (screen) {
+    navigation.navigate(screen);
+  }
+});
+This example provides a complete push notification setup, enabling your app to request permissions, obtain a token, and manage notifications and user interactions. Find the full code file at : app.tsx
+
+Step 3: Firebase Project Configuration
+Go to the Firebase Console.
+Create a new project or select an existing one.
+Register your Android App on firebase using your app’s package name (from app.json).
+Press enter or click to view image in full size
+
+Download the google-services.json file, Make sure to save it in the root directory of your project.
+Press enter or click to view image in full size
+
+Update your app.json to include FCM configuration
+{
+  "expo": {
+    "android": {
+      "package": "com.yourcompany.yourapp", // Replace with your app's package name
+      "googleServicesFile": "./google-services.json"
+    }
+  }
+}
+Step 4: Create a Project on Expo Dashboard
+create your EAS project on expo dashboard and link this to your local project. There are two ways to accomplish this:
+
+Create a new project:
+npm install --global eas-cli 
+npx create-expo-app ridermobileappnew 
+cd ridermobileappnew
+eas init --id 'id-123445'  //example id
+Link an existing codebase
+Run the following commands in your project root directory:
+
+npm install --global eas-cli 
+eas init --id 'id-123445' //example id
+This command updates your app.json file by adding the projectId to the extra field, ensuring your Expo project is linked to the corresponding EAS project.
+
+"extra": {
+      "eas": {
+        "projectId": "id-1234566" //example id 
+      }
+    },
+    "owner": "amnatest"
+Step 5 : Add eas.json Configurations to your Codebase
+The eas.json file serves as the configuration file for EAS CLI and its associated services. It is automatically created when you execute the eas build:configure command for the first time and is found in the root directory alongside package.json.
+
+{
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {}
+  }
+}
+By default, a new project’s eas.json file includes basic configuration settings that facilitate build management. It contains three build profiles: development, preview, and production. Each profile serves a distinct purpose.
+
+Step 5: Get credentials for development builds
+In the Firebase console, open Project settings > Service accounts for your project.
+
+Press enter or click to view image in full size
+
+Click Generate New Private Key, then confirm by clicking Generate Key. Securely store the JSON file containing the private key.
+
+Press enter or click to view image in full size
+
+Upload the JSON file to EAS and configure it for sending Android notifications. This can be done using EAS CLI or in Expo dashboard.
+
+Get Amna Mubarak’s stories in your inbox
+Join Medium for free to get updates from this writer.
+
+Enter your email
+Subscribe
+For Expo Dashboard:
+
+Open Expo Dashboard and follow below mentioned steps.
+
+Under Project > Configuration, click Credentials in the navigation menu
+Press enter or click to view image in full size
+
+For Android, click Add Application Identifier or select an existing Application identifier
+Press enter or click to view image in full size
+
+Under Service Credentials > FCM V1 service account key, click Add a service account key and upload the downloaded file here.
+For Expo CLI:
+
+To upload the private key JSON file through Expo CLI, follow these steps:
+
+Open your terminal and navigate to your project directory.
+Run eas credentialsto initiate the EAS configuration
+Select Android > production > Google Service Account
+Choose Manage your Google Service Account Key for Push Notifications (FCM V1)
+Select Set up a Google Service Account Key for Push Notifications (FCM V1) > Upload a new service account key
+This process enables you to upload and configure your service account key for FCM notifications effectively.
+
+Step 6: Test push notifications
+After implementing the notification setup, you’ll need to test if everything is working correctly. Here’s how:
+
+Run your app on a physical device (not an emulator)
+Look for the Expo Push Token in your console logs or UI. It will look like this:
+ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+Visit Expo’s Push Notification Tool, Fill in the notification details.
+Press enter or click to view image in full size
+
+Click “Send Notification” to test.
+Conclusion:
+In summary, integrating Firebase Cloud Messaging (FCM) with Expo allows you to leverage push notifications effectively, enhancing user engagement. By following this guide, you can successfully set up FCM and implement notification handling in your app.
+
+Good Luck!!

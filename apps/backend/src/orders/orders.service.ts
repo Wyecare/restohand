@@ -91,6 +91,20 @@ export class OrdersService {
     const customerState =
       dto.customerState?.trim() || restaurant.address?.state;
 
+    // Validate menu item availability
+    const menuItemIds = dto.items.map((item) => item.menuItemId);
+    const availableMenuItems = await this.menuItemModel
+      .find({ _id: { $in: menuItemIds }, restaurantId, isAvailable: true })
+      .select('_id')
+      .lean();
+
+    const availableItemIds = new Set(availableMenuItems.map(item => item._id.toString()));
+    const unavailableItems = menuItemIds.filter(id => !availableItemIds.has(id));
+
+    if (unavailableItems.length > 0) {
+      throw new BadRequestException(`The following menu items are not available: ${unavailableItems.join(', ')}`);
+    }
+
     // Prepare order items for GST calculation
     const orderItems: OrderItemGstData[] = dto.items.map((item) => ({
       menuItemId: item.menuItemId,
@@ -1328,7 +1342,7 @@ export class OrdersService {
     const menuItemIds = dto.items.map((item) => item.menuItemId);
 
     const menuItems = await this.menuItemModel
-      .find({ _id: { $in: menuItemIds }, restaurantId })
+      .find({ _id: { $in: menuItemIds }, restaurantId, isAvailable: true })
       .lean();
 
     const menuMap = new Map<string, (typeof menuItems)[number]>(

@@ -1,6 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, IsNotEmpty, MaxLength, IsUUID } from 'class-validator';
-import { CallWaiterType, CallWaiterUrgency } from '../schemas/call-waiter.schema';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  MaxLength,
+  IsUUID,
+} from 'class-validator';
+import {
+  CallWaiterType,
+  CallWaiterUrgency,
+} from '../schemas/call-waiter.schema';
 
 export class CreateCallWaiterDto {
   @ApiProperty({ description: 'Table ID from the QR scan' })
@@ -8,11 +18,17 @@ export class CreateCallWaiterDto {
   @IsNotEmpty()
   tableId!: string;
 
-  @ApiProperty({ enum: CallWaiterType, description: 'Type of assistance needed' })
+  @ApiProperty({
+    enum: CallWaiterType,
+    description: 'Type of assistance needed',
+  })
   @IsEnum(CallWaiterType)
   type!: CallWaiterType;
 
-  @ApiPropertyOptional({ enum: CallWaiterUrgency, description: 'Urgency level' })
+  @ApiPropertyOptional({
+    enum: CallWaiterUrgency,
+    description: 'Urgency level',
+  })
   @IsEnum(CallWaiterUrgency)
   @IsOptional()
   urgency?: CallWaiterUrgency;
@@ -36,7 +52,6 @@ export class CreateCallWaiterDto {
   customerPhone?: string;
 
   @ApiPropertyOptional({ description: 'Associated order ID if any' })
-  @IsUUID()
   @IsOptional()
   orderId?: string;
 }

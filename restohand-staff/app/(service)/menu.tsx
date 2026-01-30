@@ -1,4 +1,4 @@
-import { useGetPublicMenuQuery } from "@/store/api/menuApi";
+import { useGetPublicMenuWithAvailabilityQuery, useUpdateMenuItemMutation } from "@/store/api/menuApi";
 import { useCreateOrderMutation, useUpdateOrderStatusMutation } from "@/store/api/ordersApi";
 import {
   useGetRestaurantQuery,
@@ -51,8 +51,8 @@ export default function ServiceMenuScreen() {
     { skip: !restaurantId },
   );
 
-  // Get public menu using the correct endpoint
-  const { data, isLoading, isError, refetch: refetchMenu } = useGetPublicMenuQuery(
+  // Get public menu with availability info for staff
+  const { data, isLoading, isError, refetch: refetchMenu } = useGetPublicMenuWithAvailabilityQuery(
     { slug: restaurant?.slug ?? "" },
     { skip: !restaurant?.slug },
   );
@@ -70,6 +70,7 @@ export default function ServiceMenuScreen() {
   // RTK mutation for creating orders and updating status
   const [createOrder] = useCreateOrderMutation();
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
+  const [updateMenuItem] = useUpdateMenuItemMutation();
 
   // Component state
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -81,6 +82,7 @@ export default function ServiceMenuScreen() {
   const [selectedOrderForStatus, setSelectedOrderForStatus] = useState<any>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(null);
+  const [updatingAvailability, setUpdatingAvailability] = useState<string | null>(null);
 
   // Check for existing active orders (multiple orders per table)
   const activeExistingOrders = useMemo(() => {
@@ -119,6 +121,7 @@ export default function ServiceMenuScreen() {
         _isPopular:
           i.tags?.includes("popular") || i.tags?.includes("bestseller"),
         _isQuick: i.tags?.includes("quick") || i.tags?.includes("fast"),
+        _isAvailable: (i as any).isAvailable !== false, // Default to true for backward compatibility
       })),
     );
     return [
@@ -133,6 +136,7 @@ export default function ServiceMenuScreen() {
         _isPopular:
           i.tags?.includes("popular") || i.tags?.includes("bestseller"),
         _isQuick: i.tags?.includes("quick") || i.tags?.includes("fast"),
+        _isAvailable: (i as any).isAvailable !== false, // Default to true for backward compatibility
       })),
     ];
   }, [categories, uncategorised]);
@@ -361,6 +365,32 @@ export default function ServiceMenuScreen() {
         }
       ]
     );
+  };
+
+  const handleToggleAvailability = async (itemId: string, currentAvailability: boolean) => {
+    if (!restaurant) return;
+
+    setUpdatingAvailability(itemId);
+    try {
+      await updateMenuItem({
+        restaurantId: restaurant.id,
+        itemId,
+        updates: { isAvailable: !currentAvailability },
+      }).unwrap();
+
+      // Refetch the menu to update the UI
+      await refetchMenu();
+
+      Alert.alert(
+        "Availability Updated",
+        `Item is now ${!currentAvailability ? "available" : "unavailable"}`
+      );
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to update item availability");
+      console.error("Failed to update availability:", error);
+    } finally {
+      setUpdatingAvailability(null);
+    }
   };
 
   const getStatusUpdateOptions = (currentStatus: string) => {
@@ -680,7 +710,10 @@ export default function ServiceMenuScreen() {
             {displayItems.map((item, index) => {
               const entry = cart[item.id];
               return (
-                <View key={item.id} style={styles.menuItemCard}>
+                <View key={item.id} style={[
+                  styles.menuItemCard,
+                  !item._isAvailable && styles.unavailableItemCard
+                ]}>
                   {/* Item Image */}
                   <View style={styles.itemImageContainer}>
                     {item.imageUrls?.[0] ? (
@@ -736,6 +769,35 @@ export default function ServiceMenuScreen() {
                         )}
                       </View>
                     )}
+
+                    {/* Unavailable Badge */}
+                    {!item._isAvailable && (
+                      <View style={styles.unavailableBadge}>
+                        <Text style={styles.unavailableText}>Out of Stock</Text>
+                      </View>
+                    )}
+
+                    {/* Availability Toggle Button */}
+                    <TouchableOpacity
+                      style={[
+                        styles.availabilityToggle,
+                        item._isAvailable
+                          ? styles.availabilityToggleAvailable
+                          : styles.availabilityToggleUnavailable
+                      ]}
+                      onPress={() => handleToggleAvailability(item.id, item._isAvailable)}
+                      disabled={updatingAvailability === item.id}
+                    >
+                      {updatingAvailability === item.id ? (
+                        <ActivityIndicator size={12} color="#ffffff" />
+                      ) : (
+                        <Ionicons
+                          name={item._isAvailable ? "checkmark" : "close"}
+                          size={12}
+                          color="#ffffff"
+                        />
+                      )}
+                    </TouchableOpacity>
                   </View>
 
                   {/* Item Details */}
@@ -748,7 +810,11 @@ export default function ServiceMenuScreen() {
                     </Text>
 
                     {/* Add/Remove Controls */}
-                    {entry ? (
+                    {!item._isAvailable ? (
+                      <View style={styles.disabledButton}>
+                        <Text style={styles.disabledButtonText}>Unavailable</Text>
+                      </View>
+                    ) : entry ? (
                       <View style={styles.quantityControls}>
                         <TouchableOpacity
                           style={styles.quantityButton}
@@ -1462,6 +1528,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#1e40af",
     fontWeight: "500",
+  },
+  // Unavailable item styles
+  unavailableItemCard: {
+    opacity: 0.6,
+    borderColor: "#e5e5e5",
+  },
+  unavailableBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  unavailableText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  disabledButton: {
+    backgroundColor: "#e5e5e5",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  disabledButtonText: {
+    color: "#9ca3af",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
 

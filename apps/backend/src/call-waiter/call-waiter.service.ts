@@ -1,45 +1,70 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { CallWaiter, CallWaiterDocument, CallWaiterStatus, CallWaiterUrgency } from './schemas/call-waiter.schema';
-import { TableStatus, TableStatusDocument } from '../floor-plans/schemas/table-status.schema';
-import { RestaurantTable, RestaurantTableDocument } from '../restaurant-tables/schemas/restaurant-table.schema';
+import { Model, Types } from 'mongoose';
+import {
+  CallWaiter,
+  CallWaiterDocument,
+  CallWaiterStatus,
+  CallWaiterUrgency,
+} from './schemas/call-waiter.schema';
+import {
+  TableStatus,
+  TableStatusDocument,
+} from '../floor-plans/schemas/table-status.schema';
+import {
+  RestaurantTable,
+  RestaurantTableDocument,
+} from '../restaurant-tables/schemas/restaurant-table.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { FCMNotificationService } from './fcm-notification.service';
 import { CallWaiterGateway } from './call-waiter.gateway';
-import { CreateCallWaiterDto, AcknowledgeCallDto, ResolveCallDto } from './dtos/call-waiter.dto';
+import {
+  CreateCallWaiterDto,
+  AcknowledgeCallDto,
+  ResolveCallDto,
+} from './dtos/call-waiter.dto';
 
 @Injectable()
 export class CallWaiterService {
   private readonly logger = new Logger(CallWaiterService.name);
 
   constructor(
-    @InjectModel(CallWaiter.name) private callWaiterModel: Model<CallWaiterDocument>,
-    @InjectModel(TableStatus.name) private tableStatusModel: Model<TableStatusDocument>,
-    @InjectModel(RestaurantTable.name) private restaurantTableModel: Model<RestaurantTableDocument>,
+    @InjectModel(CallWaiter.name)
+    private callWaiterModel: Model<CallWaiterDocument>,
+    @InjectModel(TableStatus.name)
+    private tableStatusModel: Model<TableStatusDocument>,
+    @InjectModel(RestaurantTable.name)
+    private restaurantTableModel: Model<RestaurantTableDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     private fcmService: FCMNotificationService,
-    private callWaiterGateway: CallWaiterGateway,
+    private callWaiterGateway: CallWaiterGateway
   ) {}
 
   async createCallWaiter(
     restaurantId: string,
-    createCallWaiterDto: CreateCallWaiterDto,
+    createCallWaiterDto: CreateCallWaiterDto
   ): Promise<CallWaiter> {
     try {
       // First find the actual table by table number/identifier
       const table = await this.restaurantTableModel
         .findOne({
-          restaurantId,
-          tableNumber: createCallWaiterDto.tableId, // tableId is actually tableNumber like "T1"
-          isActive: true
+          restaurantId: new Types.ObjectId(restaurantId),
+          _id: new Types.ObjectId(createCallWaiterDto.tableId),
+          isActive: true,
         })
         .lean();
 
       if (!table) {
-        throw new NotFoundException(`Table ${createCallWaiterDto.tableId} not found or inactive`);
+        throw new NotFoundException(
+          `Table ${createCallWaiterDto.tableId} not found or inactive`
+        );
       }
 
       // Get table status using the actual table ObjectId
@@ -51,7 +76,9 @@ export class CallWaiterService {
         .lean();
 
       if (!tableStatus) {
-        this.logger.warn(`No table status found for table ${createCallWaiterDto.tableId}, proceeding without assigned waiter`);
+        this.logger.warn(
+          `No table status found for table ${createCallWaiterDto.tableId}, proceeding without assigned waiter`
+        );
       }
 
       // Get order details if provided
@@ -68,6 +95,7 @@ export class CallWaiterService {
 
       // Get assigned waiter details
       let assignedWaiter = null;
+      console.log(assignedWaiter, 'tableStatus?.assignedServerId');
       if (tableStatus?.assignedServerId) {
         assignedWaiter = await this.userModel
           .findById(tableStatus.assignedServerId)
@@ -86,8 +114,10 @@ export class CallWaiterService {
         type: createCallWaiterDto.type,
         urgency: createCallWaiterDto.urgency || CallWaiterUrgency.Normal,
         message: createCallWaiterDto.message,
-        customerName: createCallWaiterDto.customerName || orderDetails?.customerName,
-        customerPhone: createCallWaiterDto.customerPhone || orderDetails?.customerPhone,
+        customerName:
+          createCallWaiterDto.customerName || orderDetails?.customerName,
+        customerPhone:
+          createCallWaiterDto.customerPhone || orderDetails?.customerPhone,
         assignedWaiterId: assignedWaiter?._id,
         assignedWaiterName: assignedWaiter?.name,
         fcmSent: false,
@@ -99,7 +129,11 @@ export class CallWaiterService {
       if (assignedWaiter?.fcmToken) {
         await this.sendFCMNotification(savedCall, assignedWaiter.fcmToken);
       } else {
-        this.logger.warn(`No FCM token for waiter ${assignedWaiter?.name || 'unassigned'} - notification not sent`);
+        this.logger.warn(
+          `No FCM token for waiter ${
+            assignedWaiter?.name || 'unassigned'
+          } - notification not sent`
+        );
       }
 
       // Emit real-time event to all restaurant staff
@@ -115,7 +149,9 @@ export class CallWaiterService {
         createdAt: savedCall.createdAt,
       });
 
-      this.logger.log(`Call waiter created: ${savedCall._id} for table ${tableLabel}`);
+      this.logger.log(
+        `Call waiter created: ${savedCall._id} for table ${tableLabel}`
+      );
       return savedCall;
     } catch (error) {
       this.logger.error('Failed to create call waiter:', error);
@@ -127,7 +163,7 @@ export class CallWaiterService {
     callId: string,
     userId: string,
     restaurantId: string,
-    acknowledgeDto?: AcknowledgeCallDto,
+    acknowledgeDto?: AcknowledgeCallDto
   ): Promise<CallWaiter> {
     const call = await this.callWaiterModel.findOne({
       _id: callId,
@@ -174,7 +210,7 @@ export class CallWaiterService {
     callId: string,
     userId: string,
     restaurantId: string,
-    resolveDto: ResolveCallDto,
+    resolveDto: ResolveCallDto
   ): Promise<CallWaiter> {
     const call = await this.callWaiterModel.findOne({
       _id: callId,
@@ -198,7 +234,8 @@ export class CallWaiterService {
 
     // Update response time if not already set
     if (!call.responseTimeMinutes && call.acknowledgedAt) {
-      const responseTimeMs = call.acknowledgedAt.getTime() - call.createdAt.getTime();
+      const responseTimeMs =
+        call.acknowledgedAt.getTime() - call.createdAt.getTime();
       call.responseTimeMinutes = Math.round(responseTimeMs / (1000 * 60));
     }
 
@@ -219,7 +256,7 @@ export class CallWaiterService {
   async getRestaurantCalls(
     restaurantId: string,
     status?: CallWaiterStatus,
-    limit = 50,
+    limit = 50
   ): Promise<CallWaiter[]> {
     const filter: any = { restaurantId, isArchived: false };
 
@@ -238,12 +275,12 @@ export class CallWaiterService {
     restaurantId: string,
     waiterId: string,
     status?: CallWaiterStatus,
-    limit = 50,
+    limit = 50
   ): Promise<CallWaiter[]> {
     const filter: any = {
       restaurantId,
       assignedWaiterId: waiterId,
-      isArchived: false
+      isArchived: false,
     };
 
     if (status) {
@@ -276,10 +313,15 @@ export class CallWaiterService {
       throw new NotFoundException('User not found');
     }
 
-    this.logger.log(`FCM token updated for user ${userId} (matched: ${result.matchedCount}, modified: ${result.modifiedCount})`);
+    this.logger.log(
+      `FCM token updated for user ${userId} (matched: ${result.matchedCount}, modified: ${result.modifiedCount})`
+    );
   }
 
-  private async sendFCMNotification(call: CallWaiterDocument, fcmToken: string): Promise<void> {
+  private async sendFCMNotification(
+    call: CallWaiterDocument,
+    fcmToken: string
+  ): Promise<void> {
     try {
       const payload = this.fcmService.createNotificationPayload(
         call.type,
@@ -304,7 +346,9 @@ export class CallWaiterService {
 
       if (!result.success) {
         call.fcmError = result.error;
-        this.logger.error(`FCM notification failed for call ${call._id}: ${result.error}`);
+        this.logger.error(
+          `FCM notification failed for call ${call._id}: ${result.error}`
+        );
       } else {
         this.logger.log(`FCM notification sent for call ${call._id}`);
       }

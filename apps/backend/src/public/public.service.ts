@@ -100,7 +100,7 @@ export class PublicService {
     return table?.branchId?.toString();
   }
 
-  async getMenuForRestaurant(restaurantId: string, branchId?: string) {
+  async getMenuForRestaurant(restaurantId: string, branchId?: string, includeUnavailable: boolean = false) {
     // CRITICAL FIX: Add branch filtering to prevent cross-branch menu contamination
     const categoryQuery: any = {
       restaurantId: new Types.ObjectId(restaurantId),
@@ -108,8 +108,12 @@ export class PublicService {
     };
     const itemQuery: any = {
       restaurantId: new Types.ObjectId(restaurantId),
-      isAvailable: true,
     };
+
+    // Only filter by availability if includeUnavailable is false
+    if (!includeUnavailable) {
+      itemQuery.isAvailable = true;
+    }
 
     // If branchId is provided, only show items/categories from that branch
     if (branchId) {
@@ -141,6 +145,7 @@ export class PublicService {
           pricing: item.pricing,
           tags: item.tags,
           imageUrls: item.imageUrls,
+          isAvailable: item.isAvailable,
         })),
     }));
 
@@ -153,6 +158,7 @@ export class PublicService {
         pricing: item.pricing,
         tags: item.tags,
         imageUrls: item.imageUrls,
+        isAvailable: item.isAvailable,
       }));
 
     return {

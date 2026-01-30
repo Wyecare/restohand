@@ -105,6 +105,26 @@ export const menuApi = baseApi.injectEndpoints({
             ],
     }),
 
+    // Enhanced public menu that includes unavailable items for staff use
+    getPublicMenuWithAvailability: builder.query<
+      {
+        restaurant: PublicRestaurant;
+        menu: PublicMenuPayload;
+        activeOrder?: PublicOrder;
+      },
+      { slug: string; table?: string; tableId?: string }
+    >({
+      query: ({ slug, table, tableId }) => ({
+        url: `/public/restaurants/${slug}/menu`,
+        params: {
+          ...(table && { table }),
+          ...(tableId && { tableId }),
+          includeUnavailable: true, // Key difference - include unavailable items
+        },
+      }),
+      providesTags: ["MenuCategory"],
+    }),
+
     getMenuItems: builder.query<
       MenuItem[],
       {
@@ -129,13 +149,35 @@ export const menuApi = baseApi.injectEndpoints({
             ]
           : [{ type: "MenuItem" as const, id: `LIST-${restaurantId}` }],
     }),
+
+    updateMenuItem: builder.mutation<
+      MenuItem,
+      {
+        restaurantId: string;
+        itemId: string;
+        updates: Partial<MenuItem>;
+      }
+    >({
+      query: ({ restaurantId, itemId, updates }) => ({
+        url: `/restaurants/${restaurantId}/menu/items/${itemId}`,
+        method: "PATCH",
+        body: updates,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, itemId }) => [
+        { type: "MenuItem" as const, id: itemId },
+        { type: "MenuItem" as const, id: `LIST-${restaurantId}` },
+        { type: "MenuCategory" as const, id: "LIST" },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
 
 export const {
   useGetPublicMenuQuery,
+  useGetPublicMenuWithAvailabilityQuery,
   useGetRestaurantMenuQuery,
   useGetMenuCategoriesQuery,
   useGetMenuItemsQuery,
+  useUpdateMenuItemMutation,
 } = menuApi;
