@@ -282,3 +282,9 @@ variable "anthropic_api_key" {
   type        = string
   default     = ""
 }
+
+variable "vapid_key" {
+  description = "VAPID key for web push notifications"
+  type        = string
+  sensitive   = true
+}
