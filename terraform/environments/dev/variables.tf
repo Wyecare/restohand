@@ -72,6 +72,12 @@ variable "api_firebase_site_id" {
   default     = null
 }
 
+variable "firebase_storage_bucket" {
+  description = "Firebase Storage Bucket name"
+  type        = string
+  default     = null
+}
+
 # Legacy variable for backwards compatibility
 variable "firebase_site_id" {
   description = "Legacy Firebase Hosting site ID - use admin_firebase_site_id instead"

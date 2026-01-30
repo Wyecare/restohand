@@ -78,6 +78,12 @@ variable "firebase_site_id" {
   default     = null
 }
 
+variable "firebase_storage_bucket" {
+  description = "Firebase Storage Bucket name"
+  type        = string
+  default     = null
+}
+
 # GitHub Configuration
 variable "github_repository" {
   description = "GitHub repository for deployments"
