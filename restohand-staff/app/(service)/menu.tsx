@@ -1560,5 +1560,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  // Availability toggle styles
+  availabilityToggle: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    borderRadius: 10,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  availabilityToggleAvailable: {
+    backgroundColor: "#16a34a",
+  },
+  availabilityToggleUnavailable: {
+    backgroundColor: "#dc2626",
+  },
 });
 
