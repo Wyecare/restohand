@@ -22,9 +22,9 @@ import { FirebaseAuthGuard } from './guards/firebase-auth.guard';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: () => ({
-        secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+        secret: process.env.JWT_ACCESS_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
         signOptions: {
-          expiresIn: '15m',
+          expiresIn: process.env.JWT_ACCESS_TTL || '30d',
         },
       }),
     }),

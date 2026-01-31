@@ -173,8 +173,11 @@ export class JwtAuthService {
       restaurantId: user.restaurantId?.toString(),
     };
 
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+    const accessTokenTTL = process.env.JWT_ACCESS_TTL || '30d';
+    const refreshTokenTTL = process.env.JWT_REFRESH_TTL || '60d';
+
+    const accessToken = this.jwtService.sign(payload, { expiresIn: accessTokenTTL });
+    const refreshToken = this.jwtService.sign(payload, { expiresIn: refreshTokenTTL });
 
     const authenticatedUser: AuthenticatedUser = {
       uid: user._id.toString(),
@@ -189,11 +192,14 @@ export class JwtAuthService {
       claims: payload as unknown as Record<string, unknown>,
     };
 
+    // Calculate expiry time in seconds (30 days = 30 * 24 * 60 * 60)
+    const expiresInSeconds = 30 * 24 * 60 * 60; // 30 days
+
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
       user: authenticatedUser,
-      expires_in: 15 * 60, // 15 minutes in seconds
+      expires_in: expiresInSeconds,
     };
   }
 
