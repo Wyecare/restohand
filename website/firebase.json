@@ -1,0 +1,29 @@
+{
+  "hosting": {
+    "site": "restohand-p-96d85",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/privacy-policy",
+        "destination": "/privacy-policy.html"
+      },
+      {
+        "source": "/data-security",
+        "destination": "/data-security.html"
+      },
+      {
+        "source": "/delete-account",
+        "destination": "/delete-account.html"
+      },
+      {
+        "source": "/contact",
+        "destination": "/contact.html"
+      }
+    ]
+  }
+}

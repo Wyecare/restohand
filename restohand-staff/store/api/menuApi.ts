@@ -169,6 +169,29 @@ export const menuApi = baseApi.injectEndpoints({
         { type: "MenuCategory" as const, id: "LIST" },
       ],
     }),
+
+    updateMenuItem: builder.mutation<
+      MenuItem,
+      {
+        restaurantId: string;
+        itemId: string;
+        data: Partial<MenuItem>;
+      }
+    >({
+      query: ({ restaurantId, itemId, data }) => ({
+        url: `/restaurants/${restaurantId}/menu/items/${itemId}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (result, error, { restaurantId, itemId }) =>
+        error
+          ? []
+          : [
+              { type: 'MenuItem' as const, id: itemId },
+              { type: 'MenuItem' as const, id: `LIST-${restaurantId}` },
+              { type: 'MenuCategory' as const, id: 'LIST' },
+            ],
+    }),
   }),
   overrideExisting: false,
 });

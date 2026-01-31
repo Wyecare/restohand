@@ -22,6 +22,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Pressable,
 } from "react-native";
 
 interface CartEntry {
@@ -78,11 +79,15 @@ export default function ServiceMenuScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [updatingAvailability, setUpdatingAvailability] = useState<string | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedOrderForStatus, setSelectedOrderForStatus] = useState<any>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(null);
-  const [updatingAvailability, setUpdatingAvailability] = useState<string | null>(null);
+  const [showItemPopover, setShowItemPopover] = useState<string | null>(null);
+  const [selectedItemForPopover, setSelectedItemForPopover] = useState<any>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [confirmDialogData, setConfirmDialogData] = useState<{itemId: string, itemName: string, currentAvailability: boolean} | null>(null);
 
   // Check for existing active orders (multiple orders per table)
   const activeExistingOrders = useMemo(() => {
@@ -367,27 +372,59 @@ export default function ServiceMenuScreen() {
     );
   };
 
-  const handleToggleAvailability = async (itemId: string, currentAvailability: boolean) => {
-    if (!restaurant) return;
+  const handleToggleAvailability = (itemId: string, itemName: string, currentAvailability: boolean) => {
+    console.log('handleToggleAvailability called with:', { itemId, itemName, currentAvailability });
+    if (!restaurant) {
+      console.log('No restaurant found, returning early');
+      return;
+    }
 
+    const action = currentAvailability ? "mark as unavailable" : "mark as available";
+    const newStatus = currentAvailability ? "unavailable" : "available";
+    console.log('About to show alert for:', action);
+
+    // Show custom confirmation dialog
+    setConfirmDialogData({ itemId, itemName, currentAvailability });
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmToggle = async () => {
+    if (!confirmDialogData || !restaurant) return;
+
+    const { itemId, itemName, currentAvailability } = confirmDialogData;
+    const newStatus = currentAvailability ? "unavailable" : "available";
+
+    console.log('Confirm pressed, starting update...');
+    setShowConfirmDialog(false);
+    setConfirmDialogData(null);
     setUpdatingAvailability(itemId);
+
     try {
-      await updateMenuItem({
+      console.log('Calling updateMenuItem with:', {
         restaurantId: restaurant.id,
         itemId,
-        updates: { isAvailable: !currentAvailability },
+        data: { isAvailable: !currentAvailability }
+      });
+
+      const result = await updateMenuItem({
+        restaurantId: restaurant.id,
+        itemId,
+        data: { isAvailable: !currentAvailability },
       }).unwrap();
+
+      console.log('API call successful:', result);
 
       // Refetch the menu to update the UI
       await refetchMenu();
+      console.log('Menu refetched');
 
       Alert.alert(
         "Availability Updated",
-        `Item is now ${!currentAvailability ? "available" : "unavailable"}`
+        `"${itemName}" is now ${newStatus}`
       );
     } catch (error: any) {
-      Alert.alert("Error", "Failed to update item availability");
       console.error("Failed to update availability:", error);
+      Alert.alert("Error", "Failed to update item availability");
     } finally {
       setUpdatingAvailability(null);
     }
@@ -710,10 +747,17 @@ export default function ServiceMenuScreen() {
             {displayItems.map((item, index) => {
               const entry = cart[item.id];
               return (
-                <View key={item.id} style={[
-                  styles.menuItemCard,
-                  !item._isAvailable && styles.unavailableItemCard
-                ]}>
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.menuItemCard,
+                    !item._isAvailable && styles.unavailableItemCard
+                  ]}
+                  onLongPress={() => {
+                    setSelectedItemForPopover(item);
+                    setShowItemPopover(item.id);
+                  }}
+                >
                   {/* Item Image */}
                   <View style={styles.itemImageContainer}>
                     {item.imageUrls?.[0] ? (
@@ -776,28 +820,6 @@ export default function ServiceMenuScreen() {
                         <Text style={styles.unavailableText}>Out of Stock</Text>
                       </View>
                     )}
-
-                    {/* Availability Toggle Button */}
-                    <TouchableOpacity
-                      style={[
-                        styles.availabilityToggle,
-                        item._isAvailable
-                          ? styles.availabilityToggleAvailable
-                          : styles.availabilityToggleUnavailable
-                      ]}
-                      onPress={() => handleToggleAvailability(item.id, item._isAvailable)}
-                      disabled={updatingAvailability === item.id}
-                    >
-                      {updatingAvailability === item.id ? (
-                        <ActivityIndicator size={12} color="#ffffff" />
-                      ) : (
-                        <Ionicons
-                          name={item._isAvailable ? "checkmark" : "close"}
-                          size={12}
-                          color="#ffffff"
-                        />
-                      )}
-                    </TouchableOpacity>
                   </View>
 
                   {/* Item Details */}
@@ -845,7 +867,7 @@ export default function ServiceMenuScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
-                </View>
+                </Pressable>
               );
             })}
           </View>
@@ -941,6 +963,113 @@ export default function ServiceMenuScreen() {
             )}
           </View>
         </SafeAreaView>
+      </Modal>
+
+      {/* Item Popover Modal */}
+      <Modal
+        visible={showItemPopover !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowItemPopover(null);
+          setSelectedItemForPopover(null);
+        }}
+      >
+        <View style={styles.popoverOverlay}>
+          <View style={styles.popoverContent}>
+            {selectedItemForPopover && (
+              <>
+                <Text style={styles.popoverTitle}>{selectedItemForPopover.name}</Text>
+                <View style={styles.popoverActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.availabilityToggleButton,
+                      selectedItemForPopover._isAvailable
+                        ? styles.markUnavailableButton
+                        : styles.markAvailableButton
+                    ]}
+                    onPress={async () => {
+                      console.log('Toggle button pressed for item:', selectedItemForPopover.id);
+                      const itemId = selectedItemForPopover.id;
+                      const itemName = selectedItemForPopover.name;
+                      const currentAvailability = selectedItemForPopover._isAvailable;
+
+                      // Close popover first
+                      setShowItemPopover(null);
+                      setSelectedItemForPopover(null);
+
+                      // Then call the toggle function
+                      handleToggleAvailability(itemId, itemName, currentAvailability);
+                    }}
+                    disabled={updatingAvailability === selectedItemForPopover.id}
+                  >
+                    {updatingAvailability === selectedItemForPopover.id ? (
+                      <ActivityIndicator size={16} color="#ffffff" />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name={selectedItemForPopover._isAvailable ? "close-circle" : "checkmark-circle"}
+                          size={16}
+                          color="#ffffff"
+                        />
+                        <Text style={styles.toggleButtonText}>
+                          {selectedItemForPopover._isAvailable ? "Mark Unavailable" : "Mark Available"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={styles.popoverCloseButton}
+                  onPress={() => {
+                    setShowItemPopover(null);
+                    setSelectedItemForPopover(null);
+                  }}
+                >
+                  <Text style={styles.popoverCloseText}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirmation Dialog Modal */}
+      <Modal
+        visible={showConfirmDialog}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowConfirmDialog(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmDialog}>
+            {confirmDialogData && (
+              <>
+                <Text style={styles.confirmTitle}>Confirm Action</Text>
+                <Text style={styles.confirmMessage}>
+                  Are you sure you want to {confirmDialogData.currentAvailability ? 'mark' : 'mark'} "{confirmDialogData.itemName}" as {confirmDialogData.currentAvailability ? 'unavailable' : 'available'}?
+                </Text>
+                <View style={styles.confirmButtons}>
+                  <TouchableOpacity
+                    style={[styles.confirmButton, styles.cancelButton]}
+                    onPress={() => {
+                      setShowConfirmDialog(false);
+                      setConfirmDialogData(null);
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmButton, styles.confirmButtonPrimary]}
+                    onPress={() => handleConfirmToggle()}
+                  >
+                    <Text style={styles.confirmButtonText}>Confirm</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1560,22 +1689,125 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  // Availability toggle styles
-  availabilityToggle: {
-    position: "absolute",
-    bottom: 6,
-    right: 6,
-    borderRadius: 10,
-    width: 24,
-    height: 24,
+  // Popover styles
+  popoverOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 20,
   },
-  availabilityToggleAvailable: {
+  popoverContent: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 24,
+    minWidth: 280,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  popoverTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1f2937",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  popoverActions: {
+    marginBottom: 16,
+  },
+  availabilityToggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  markAvailableButton: {
     backgroundColor: "#16a34a",
   },
-  availabilityToggleUnavailable: {
+  markUnavailableButton: {
     backgroundColor: "#dc2626",
+  },
+  toggleButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  popoverCloseButton: {
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  popoverCloseText: {
+    color: "#6b7280",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  confirmDialog: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 24,
+    width: "90%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  confirmMessage: {
+    fontSize: 16,
+    color: "#4b5563",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  confirmButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  cancelButton: {
+    backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+  },
+  cancelButtonText: {
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  confirmButtonPrimary: {
+    backgroundColor: "#3b82f6",
+  },
+  confirmButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "500",
   },
 });
 

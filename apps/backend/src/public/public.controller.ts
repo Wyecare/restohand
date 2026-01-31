@@ -239,4 +239,25 @@ export class PublicController {
   ) {
     return this.publicService.getConsolidatedBill(slug, tableId);
   }
+
+  @Post('account-deletion-request')
+  async submitAccountDeletionRequest(
+    @Body()
+    requestData: {
+      email: string;
+      reason: string;
+      additionalInfo?: string;
+    }
+  ) {
+    // For now, just return a dummy success response
+    // In the future, this could save to database and notify admins
+    console.log('Account deletion request received:', requestData);
+
+    return {
+      success: true,
+      message: 'Your account deletion request has been submitted successfully. You will receive an email confirmation within 5-7 business days.',
+      requestId: `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      status: 'pending_admin_approval'
+    };
+  }
 }

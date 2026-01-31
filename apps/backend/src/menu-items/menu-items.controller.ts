@@ -96,6 +96,7 @@ export class MenuItemsController {
   }
 
   @Get()
+  @Roles(UserRole.Manager, UserRole.Waiter)
   @ApiParam({ name: 'restaurantId' })
   @ApiQuery({ name: 'categoryId', required: false })
   @ApiQuery({ name: 'isAvailable', required: false })
@@ -134,6 +135,7 @@ export class MenuItemsController {
   }
 
   @Get(':itemId')
+  @Roles(UserRole.Manager, UserRole.Waiter)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'itemId' })
   @ApiOkResponse({ type: MenuItemResponseDto })
@@ -156,6 +158,7 @@ export class MenuItemsController {
   }
 
   @Patch(':itemId')
+  @Roles(UserRole.Manager, UserRole.Waiter)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'itemId' })
   @ApiOkResponse({ type: MenuItemResponseDto })
@@ -294,6 +297,7 @@ export class MenuItemsController {
 
   // New branch-aware endpoints
   @Get('branch/:branchId')
+  @Roles(UserRole.Manager, UserRole.Waiter)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'branchId' })
   @ApiQuery({ name: 'categoryId', required: false })
