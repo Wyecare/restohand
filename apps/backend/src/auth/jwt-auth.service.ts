@@ -27,6 +27,19 @@ export interface AuthResult {
   expires_in: number;
 }
 
+export interface SuperAdminAuthResult {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    roles: string[];
+    isActive: boolean;
+    createdAt: string;
+  };
+  expiresIn?: number;
+}
+
 @Injectable()
 export class JwtAuthService {
   private readonly logger = new Logger(JwtAuthService.name);
@@ -72,6 +85,42 @@ export class JwtAuthService {
     });
 
     return this.generateTokens(user);
+  }
+
+  async superAdminLogin(loginDto: LoginDto): Promise<SuperAdminAuthResult> {
+    const user = await this.validateUser(loginDto.email, loginDto.password);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Check if user has super admin role
+    if (!user.roles || !user.roles.includes(UserRole.SuperAdmin)) {
+      throw new UnauthorizedException('Access denied: Super Admin privileges required');
+    }
+
+    this.logger.log(`Super Admin login: ${user.email}`);
+
+    // Update last login time
+    await this.userModel.findByIdAndUpdate(user._id, {
+      lastLoginAt: new Date(),
+    });
+
+    const authResult = await this.generateTokens(user);
+
+    // Transform to SuperAdmin format
+    return {
+      token: authResult.access_token,
+      user: {
+        id: user._id.toString(),
+        email: user.email || '',
+        name: user.name,
+        roles: user.roles.map(role => role.toString()),
+        isActive: user.isActive,
+        createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+      },
+      expiresIn: authResult.expires_in,
+    };
   }
 
   async register(registerDto: RegisterDto): Promise<AuthResult> {

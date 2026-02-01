@@ -20,6 +20,12 @@
     },
     {
       "path": "./apps/landing"
+    },
+    {
+      "path": "./apps/admin-web-e2e"
+    },
+    {
+      "path": "./apps/admin-web"
     }
   ]
 }

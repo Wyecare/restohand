@@ -235,6 +235,15 @@ export class Order {
 
   @Prop({ type: Boolean, default: false })
   isArchived!: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  isSettled!: boolean;
+
+  @Prop({ type: String })
+  settlementId?: string;
+
+  @Prop({ type: Date })
+  settledAt?: Date;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

@@ -30,6 +30,8 @@ import { MigrationModule } from '../migrations/migration.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
 import { PlansModule } from '../plans/plans.module';
+import { SuperAdminModule } from '../super-admin/super-admin.module';
+import { SeederModule } from '../database/seeders/seeder.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -69,6 +71,8 @@ import { AppService } from './app.service';
     WebhooksModule,
     CustomerSessionsModule,
     PlansModule,
+    SuperAdminModule,
+    SeederModule,
   ],
   controllers: [AppController],
   providers: [AppService],
