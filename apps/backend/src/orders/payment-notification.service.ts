@@ -139,51 +139,88 @@ export class PaymentNotificationService {
     branchId?: string
   ): Promise<Array<{ userId: string; name: string; fcmToken: string; roles: UserRole[] }>> {
     try {
-      // Get table details to determine zone
-      const tableModel = this.userModel.db.collection('restauranttables');
-      const table = await tableModel.findOne({
-        _id: new require('mongoose').Types.ObjectId(tableId),
-        restaurantId: new require('mongoose').Types.ObjectId(restaurantId)
-      });
+      const waiters: Array<{ userId: string; name: string; fcmToken: string; roles: UserRole[] }> = [];
 
-      if (!table) {
-        this.logger.warn(`Table ${tableId} not found for restaurant ${restaurantId}`);
-        return [];
+      // First, check if there's a specific waiter assigned to this table via table status
+      try {
+        const tableStatusModel = this.userModel.db.collection('tablestatuses');
+        const tableStatus = await tableStatusModel.findOne({
+          restaurantId,
+          tableId: new require('mongoose').Types.ObjectId(tableId)
+        });
+
+        if (tableStatus?.assignedServerId) {
+          const assignedWaiter = await this.userModel.findOne({
+            _id: tableStatus.assignedServerId,
+            roles: { $in: [UserRole.Waiter] },
+            fcmToken: { $exists: true, $ne: null, $ne: '' },
+            isActive: true,
+          }).select('name roles fcmToken').lean();
+
+          if (assignedWaiter) {
+            waiters.push({
+              userId: assignedWaiter._id.toString(),
+              name: assignedWaiter.name,
+              fcmToken: assignedWaiter.fcmToken,
+              roles: assignedWaiter.roles,
+            });
+            this.logger.log(`Found assigned waiter ${assignedWaiter.name} for table ${tableId}`);
+          }
+        }
+      } catch (error) {
+        this.logger.warn(`Could not check table status for assigned waiter: ${error.message}`);
       }
 
-      const query: any = {
-        restaurantId,
-        roles: { $in: [UserRole.Waiter] },
-        fcmToken: { $exists: true, $ne: null, $ne: '' },
-        isActive: true,
-      };
+      // If no assigned waiter found, fall back to zone-based assignment
+      if (waiters.length === 0) {
+        try {
+          const tableModel = this.userModel.db.collection('restauranttables');
+          const table = await tableModel.findOne({
+            _id: new require('mongoose').Types.ObjectId(tableId),
+            restaurantId: new require('mongoose').Types.ObjectId(restaurantId)
+          });
 
-      // If table has a zone, find waiters assigned to that zone
-      if (table.zone) {
-        query.assignedZones = table.zone;
+          if (table?.zone) {
+            const query: any = {
+              restaurantId,
+              roles: { $in: [UserRole.Waiter] },
+              fcmToken: { $exists: true, $ne: null, $ne: '' },
+              isActive: true,
+              assignedZones: table.zone
+            };
+
+            // If branchId is provided, include users from that branch or users without specific branch assignment
+            if (branchId || table.branchId) {
+              const targetBranchId = branchId || table.branchId;
+              query.$or = [
+                { branchId: targetBranchId },
+                { branchId: { $exists: false } },
+                { branchId: null }
+              ];
+            }
+
+            const zoneWaiters = await this.userModel
+              .find(query)
+              .select('name roles fcmToken assignedZones')
+              .lean();
+
+            zoneWaiters.forEach(waiter => {
+              waiters.push({
+                userId: waiter._id.toString(),
+                name: waiter.name,
+                fcmToken: waiter.fcmToken,
+                roles: waiter.roles,
+              });
+            });
+
+            this.logger.log(`Found ${zoneWaiters.length} zone-assigned waiters for table ${tableId} zone ${table.zone}`);
+          }
+        } catch (error) {
+          this.logger.warn(`Could not check zone assignment for waiters: ${error.message}`);
+        }
       }
 
-      // If branchId is provided, include users from that branch or users without specific branch assignment
-      if (branchId || table.branchId) {
-        const targetBranchId = branchId || table.branchId;
-        query.$or = [
-          { branchId: targetBranchId },
-          { branchId: { $exists: false } },
-          { branchId: null }
-        ];
-      }
-
-      const waiters = await this.userModel
-        .find(query)
-        .select('name roles fcmToken assignedZones')
-        .lean();
-
-      return waiters.map(waiter => ({
-        userId: waiter._id.toString(),
-        name: waiter.name,
-        fcmToken: waiter.fcmToken,
-        roles: waiter.roles,
-      }));
+      return waiters;
     } catch (error) {
       this.logger.error(`Error finding waiters for table ${tableId}:`, error);
       return [];

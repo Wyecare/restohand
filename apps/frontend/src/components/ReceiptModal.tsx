@@ -8,7 +8,15 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Receipt, User, Calendar, Hash, DollarSign, MapPin, Phone } from 'lucide-react';
+import {
+  Receipt,
+  User,
+  Calendar,
+  Hash,
+  DollarSign,
+  MapPin,
+  Phone,
+} from 'lucide-react';
 import { useGetReceiptDetailsByOrderIdQuery } from '@/store/api/ordersApi';
 
 interface ReceiptDetails {
@@ -71,7 +79,12 @@ interface ReceiptModalProps {
   restaurantId: string;
 }
 
-export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: ReceiptModalProps) => {
+export const ReceiptModal = ({
+  isOpen,
+  onClose,
+  orderId,
+  restaurantId,
+}: ReceiptModalProps) => {
   const {
     data: receiptData,
     isLoading,
@@ -90,7 +103,7 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className=" min-w-[60vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5" />
@@ -108,9 +121,12 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
         {error && (
           <div className="text-center py-8">
             <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-            <h3 className="text-lg font-medium text-gray-900 mb-1">Receipt Not Found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">
+              Receipt Not Found
+            </h3>
             <p className="text-gray-600">
-              No receipt found for this order. The order may not have been paid yet.
+              No receipt found for this order. The order may not have been paid
+              yet.
             </p>
           </div>
         )}
@@ -130,14 +146,18 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
                   <div className="flex items-center gap-2">
                     <Hash className="h-4 w-4 text-gray-500" />
                     <span className="text-sm font-medium">Receipt Number:</span>
-                    <Badge variant="outline">{receiptData.receipt.receiptNumber}</Badge>
+                    <Badge variant="outline">
+                      {receiptData.receipt.receiptNumber}
+                    </Badge>
                   </div>
 
                   {receiptData.receipt.tableNumber && (
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Table:</span>
-                      <span className="text-sm">{receiptData.receipt.tableNumber}</span>
+                      <span className="text-sm">
+                        {receiptData.receipt.tableNumber}
+                      </span>
                     </div>
                   )}
 
@@ -145,7 +165,9 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Customer:</span>
-                      <span className="text-sm">{receiptData.receipt.customerName}</span>
+                      <span className="text-sm">
+                        {receiptData.receipt.customerName}
+                      </span>
                     </div>
                   )}
 
@@ -153,28 +175,42 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-500" />
                       <span className="text-sm font-medium">Phone:</span>
-                      <span className="text-sm">{receiptData.receipt.customerPhone}</span>
+                      <span className="text-sm">
+                        {receiptData.receipt.customerPhone}
+                      </span>
                     </div>
                   )}
 
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-500" />
                     <span className="text-sm font-medium">Issued:</span>
-                    <span className="text-sm">{new Date(receiptData.receipt.issuedAt).toLocaleString()}</span>
+                    <span className="text-sm">
+                      {new Date(receiptData.receipt.issuedAt).toLocaleString()}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-gray-500" />
                     <span className="text-sm font-medium">Total:</span>
-                    <span className="text-sm font-bold text-green-600">{formatCurrency(receiptData.receipt.totalAmount)}</span>
+                    <span className="text-sm font-bold text-green-600">
+                      {formatCurrency(receiptData.receipt.totalAmount)}
+                    </span>
                   </div>
                 </div>
 
                 <div className="flex gap-2">
-                  <Badge variant={receiptData.receipt.paymentStatus === 'paid' ? 'default' : 'secondary'}>
+                  <Badge
+                    variant={
+                      receiptData.receipt.paymentStatus === 'paid'
+                        ? 'default'
+                        : 'secondary'
+                    }
+                  >
                     {receiptData.receipt.paymentStatus.toUpperCase()}
                   </Badge>
-                  <Badge variant="outline">{receiptData.receipt.paymentMethod.toUpperCase()}</Badge>
+                  <Badge variant="outline">
+                    {receiptData.receipt.paymentMethod.toUpperCase()}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
@@ -188,15 +224,23 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-gray-50 p-4 rounded-lg">
+                <div className=" p-4 rounded-lg">
                   {receiptData.staffInfo.name ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium">{receiptData.staffInfo.name}</span>
-                        <Badge variant="outline">{receiptData.staffInfo.role}</Badge>
+                        <span className="font-medium">
+                          {receiptData.staffInfo.name}
+                        </span>
+                        <Badge variant="outline">
+                          {receiptData.staffInfo.role}
+                        </Badge>
                       </div>
-                      <div className="text-sm text-gray-600">{receiptData.staffInfo.email}</div>
-                      <div className="text-sm text-green-600 font-medium">{receiptData.staffInfo.action}</div>
+                      <div className="text-sm text-gray-600">
+                        {receiptData.staffInfo.email}
+                      </div>
+                      <div className="text-sm text-green-600 font-medium">
+                        {receiptData.staffInfo.action}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-sm text-gray-600">
@@ -210,7 +254,9 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
             {/* Orders Included */}
             <Card>
               <CardHeader>
-                <CardTitle>Orders Included ({receiptData.orders.length})</CardTitle>
+                <CardTitle>
+                  Orders Included ({receiptData.orders.length})
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -218,16 +264,25 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
                     <div key={order.id} className="border rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">#{order.orderNumber}</span>
+                          <span className="font-medium">
+                            #{order.orderNumber}
+                          </span>
                           <Badge variant="outline">{order.status}</Badge>
                         </div>
-                        <span className="font-medium">{formatCurrency(order.totalAmount)}</span>
+                        <span className="font-medium">
+                          {formatCurrency(order.totalAmount)}
+                        </span>
                       </div>
 
                       <div className="text-sm text-gray-600 space-y-1">
-                        <div>Created: {new Date(order.createdAt).toLocaleString()}</div>
+                        <div>
+                          Created: {new Date(order.createdAt).toLocaleString()}
+                        </div>
                         {order.createdBy && (
-                          <div>Created by: {order.createdBy.name} ({order.createdBy.role})</div>
+                          <div>
+                            Created by: {order.createdBy.name} (
+                            {order.createdBy.role})
+                          </div>
                         )}
                       </div>
                     </div>
@@ -244,29 +299,40 @@ export const ReceiptModal = ({ isOpen, onClose, orderId, restaurantId }: Receipt
               <CardContent>
                 <div className="space-y-2">
                   {receiptData.receipt.items.map((item, index) => (
-                    <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                    <div
+                      key={index}
+                      className="flex justify-between items-center py-2 border-b last:border-b-0"
+                    >
                       <div className="flex-1">
                         <span className="font-medium">{item.name}</span>
                         <div className="text-sm text-gray-600">
                           @ {formatCurrency(item.unitPrice)} × {item.quantity}
                         </div>
                       </div>
-                      <span className="font-medium">{formatCurrency(item.lineTotal)}</span>
+                      <span className="font-medium">
+                        {formatCurrency(item.lineTotal)}
+                      </span>
                     </div>
                   ))}
 
                   <div className="pt-3 mt-3 border-t space-y-2">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span>{formatCurrency(receiptData.receipt.subtotal)}</span>
+                      <span>
+                        {formatCurrency(receiptData.receipt.subtotal)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Tax (GST):</span>
-                      <span>{formatCurrency(receiptData.receipt.taxAmount)}</span>
+                      <span>
+                        {formatCurrency(receiptData.receipt.taxAmount)}
+                      </span>
                     </div>
                     <div className="flex justify-between font-bold text-lg">
                       <span>Total:</span>
-                      <span>{formatCurrency(receiptData.receipt.totalAmount)}</span>
+                      <span>
+                        {formatCurrency(receiptData.receipt.totalAmount)}
+                      </span>
                     </div>
                   </div>
                 </div>

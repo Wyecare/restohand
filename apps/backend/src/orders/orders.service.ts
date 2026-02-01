@@ -1066,6 +1066,36 @@ export class OrdersService {
       return;
     }
 
+    // Handle order.paid events for customer session payments
+    if (eventName === 'order.paid') {
+      const orderData = event.payload?.order?.entity;
+      const paymentData = event.payload?.payment?.entity;
+
+      if (!orderData || !paymentData) {
+        this.logger.warn('Missing order or payment data in order.paid webhook');
+        return;
+      }
+
+      const notes = orderData.notes || {};
+
+      // Check if this is a session payment
+      if (notes.type === 'session_payment') {
+        await this.handleSessionPayment(orderData, paymentData);
+
+        // Send customer payment notifications to managers, owners, and assigned waiters
+        await this.sendCustomerPaymentNotifications(orderData, paymentData);
+      } else {
+        // Regular order payment
+        const orderId = notes.orderId;
+        if (orderId) {
+          await this.handleOrderFullyPaid(orderId, orderData);
+        } else {
+          this.logger.warn('No orderId found in order.paid webhook notes');
+        }
+      }
+      return;
+    }
+
     if (
       eventName !== 'payment.captured' &&
       eventName !== 'payment.authorized'
@@ -2317,6 +2347,101 @@ export class OrdersService {
         error
       );
       throw error;
+    }
+  }
+
+  private async handleSessionPayment(orderData: any, paymentData: any): Promise<void> {
+    try {
+      const notes = orderData.notes || {};
+      const orderIds = notes.orderIds ? notes.orderIds.split(',') : [];
+      const paymentId = paymentData.id;
+
+      for (const orderId of orderIds) {
+        // Mark each order as paid
+        await this.updatePayment(
+          notes.restaurantId,
+          orderId,
+          {
+            paymentStatus: PaymentStatus.Paid,
+            transactionId: paymentId,
+            provider: 'razorpay',
+            paymentMethod: paymentData.method || 'upi',
+          },
+          null, // no updatedBy for customer payments
+          true  // skip notification to prevent duplicates
+        );
+      }
+
+      this.logger.log(`Session payment processed: ${orderIds.length} orders marked as paid`);
+    } catch (error) {
+      this.logger.error('Failed to handle session payment:', error);
+    }
+  }
+
+  private async sendCustomerPaymentNotifications(orderData: any, paymentData: any): Promise<void> {
+    try {
+      const notes = orderData.notes || {};
+      const restaurantId = notes.restaurantId;
+      const orderIds = notes.orderIds ? notes.orderIds.split(',') : [];
+      const tableId = notes.tableId;
+      const amount = paymentData.amount / 100; // Convert from paise to rupees
+      const paymentMethod = paymentData.method || 'upi';
+
+      if (!restaurantId || orderIds.length === 0) {
+        this.logger.warn('Missing restaurantId or orderIds in customer payment webhook');
+        return;
+      }
+
+      // Get order details for the first order (for order number and table info)
+      const firstOrder = await this.orderModel.findById(orderIds[0]).lean();
+      if (!firstOrder) {
+        this.logger.warn(`Order ${orderIds[0]} not found for customer payment notification`);
+        return;
+      }
+
+      // Get table details for table number
+      let tableNumber = firstOrder.tableNumber;
+      let branchId = firstOrder.branchId;
+
+      if (tableId && !tableNumber) {
+        try {
+          const tableModel = this.orderModel.db.collection('restauranttables');
+          const table = await tableModel.findOne({
+            _id: new require('mongoose').Types.ObjectId(tableId),
+            restaurantId: new require('mongoose').Types.ObjectId(restaurantId)
+          });
+
+          if (table) {
+            tableNumber = table.tableNumber;
+            branchId = branchId || table.branchId?.toString();
+          }
+        } catch (error) {
+          this.logger.error('Error fetching table details for notification:', error);
+        }
+      }
+
+      // Send notification to managers, owners, and assigned waiters
+      await this.paymentNotificationService.sendPaymentConfirmationNotification(
+        restaurantId,
+        orderIds[0], // Use first order ID as primary
+        firstOrder.orderNumber,
+        amount,
+        paymentMethod,
+        {
+          tableId,
+          tableNumber,
+          branchId,
+          isCustomerPayment: true,
+          customerName: firstOrder.customerName || 'Guest Customer',
+        }
+      );
+
+      this.logger.log(
+        `Customer payment notification sent for order ${firstOrder.orderNumber} ` +
+        `(${orderIds.length} orders, ₹${amount}, Table ${tableNumber})`
+      );
+    } catch (error) {
+      this.logger.error('Failed to send customer payment notifications:', error);
     }
   }
 }
