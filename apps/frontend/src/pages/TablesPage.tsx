@@ -41,10 +41,9 @@ const TablesPage = () => {
         onValueChange={(value) => setActiveTab(value as any)}
         className="space-y-6"
       >
-        <TabsList className="grid w-fit grid-cols-3">
+        <TabsList className="grid w-1/2 grid-cols-2">
           <TabsTrigger value="tables">Tables</TabsTrigger>
           <TabsTrigger value="zones">Zones</TabsTrigger>
-          <TabsTrigger value="servers">Waiter Assignment</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tables" className="space-y-6">

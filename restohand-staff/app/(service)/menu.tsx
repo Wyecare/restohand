@@ -1,29 +1,36 @@
-import { useGetPublicMenuWithAvailabilityQuery, useUpdateMenuItemMutation } from "@/store/api/menuApi";
-import { useCreateOrderMutation, useUpdateOrderStatusMutation } from "@/store/api/ordersApi";
+import { Colors } from '@/constants/theme';
+import {
+  useGetPublicMenuWithAvailabilityQuery,
+  useUpdateMenuItemMutation,
+} from '@/store/api/menuApi';
+import {
+  useCreateOrderMutation,
+  useUpdateOrderStatusMutation,
+} from '@/store/api/ordersApi';
 import {
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
-} from "@/store/api/restaurantsApi";
-import { useAppSelector } from "@/store/hooks";
-import { selectActiveRestaurantId } from "@/store/slices/authSlice";
-import { Ionicons } from "@expo/vector-icons";
-import { skipToken } from "@reduxjs/toolkit/query";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useState } from "react";
+} from '@/store/api/restaurantsApi';
+import { useAppSelector } from '@/store/hooks';
+import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { Ionicons } from '@expo/vector-icons';
+import { skipToken } from '@reduxjs/toolkit/query';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useColorScheme,
   View,
-  Pressable,
-} from "react-native";
+} from 'react-native';
 
 interface CartEntry {
   id: string;
@@ -36,33 +43,42 @@ interface CartEntry {
 }
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     maximumFractionDigits: 0,
   }).format(amount);
 
 export default function ServiceMenuScreen() {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
+  const isDark = colorScheme === 'dark';
+
   const { tableId, restaurant_slug } = useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
   // Get restaurant details
   const { data: restaurant } = useGetRestaurantQuery(
     restaurantId ?? skipToken,
-    { skip: !restaurantId },
+    { skip: !restaurantId }
   );
 
   // Get public menu with availability info for staff
-  const { data, isLoading, isError, refetch: refetchMenu } = useGetPublicMenuWithAvailabilityQuery(
-    { slug: restaurant?.slug ?? "" },
-    { skip: !restaurant?.slug },
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch: refetchMenu,
+  } = useGetPublicMenuWithAvailabilityQuery(
+    { slug: restaurant?.slug ?? '' },
+    { skip: !restaurant?.slug }
   );
 
   // Get table information
-  const { data: enhancedTables, refetch: refetchTables } = useListEnhancedTablesQuery(
-    restaurantId ? { restaurantId } : skipToken,
-    { skip: !restaurantId },
-  );
+  const { data: enhancedTables, refetch: refetchTables } =
+    useListEnhancedTablesQuery(restaurantId ? { restaurantId } : skipToken, {
+      skip: !restaurantId,
+    });
 
   const selectedTable = useMemo(() => {
     return enhancedTables?.find((table) => table.id === tableId) ?? null;
@@ -74,27 +90,45 @@ export default function ServiceMenuScreen() {
   const [updateMenuItem] = useUpdateMenuItemMutation();
 
   // Component state
-  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const [cart, setCart] = useState<Record<string, CartEntry>>({});
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [updatingAvailability, setUpdatingAvailability] = useState<string | null>(null);
+  const [updatingAvailability, setUpdatingAvailability] = useState<
+    string | null
+  >(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [selectedOrderForStatus, setSelectedOrderForStatus] = useState<any>(null);
+  const [selectedOrderForStatus, setSelectedOrderForStatus] =
+    useState<any>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(null);
+  const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(
+    null
+  );
   const [showItemPopover, setShowItemPopover] = useState<string | null>(null);
-  const [selectedItemForPopover, setSelectedItemForPopover] = useState<any>(null);
+  const [selectedItemForPopover, setSelectedItemForPopover] =
+    useState<any>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [confirmDialogData, setConfirmDialogData] = useState<{itemId: string, itemName: string, currentAvailability: boolean} | null>(null);
+  const [confirmDialogData, setConfirmDialogData] = useState<{
+    itemId: string;
+    itemName: string;
+    currentAvailability: boolean;
+  } | null>(null);
+  const [showCancelOrderModal, setShowCancelOrderModal] = useState(false);
+  const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<any>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successModalData, setSuccessModalData] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   // Check for existing active orders (multiple orders per table)
   const activeExistingOrders = useMemo(() => {
     const existingOrders = selectedTable?.activeOrders || [];
-    return existingOrders.filter(order =>
-      order.paymentStatus !== "paid" &&
-      !["completed", "cancelled"].includes(order.status)
+    return existingOrders.filter(
+      (order) =>
+        order.paymentStatus !== 'paid' &&
+        !['completed', 'cancelled'].includes(order.status)
     );
   }, [selectedTable?.activeOrders]);
 
@@ -105,8 +139,13 @@ export default function ServiceMenuScreen() {
 
   // Calculate total bill for all active orders
   const totalBillAmount = useMemo(() => {
-    return selectedTable?.totalBillAmount ||
-           activeExistingOrders.reduce((total, order) => total + order.totalAmount, 0);
+    return (
+      selectedTable?.totalBillAmount ||
+      activeExistingOrders.reduce(
+        (total, order) => total + order.totalAmount,
+        0
+      )
+    );
   }, [selectedTable?.totalBillAmount, activeExistingOrders]);
 
   // Process menu data
@@ -121,27 +160,27 @@ export default function ServiceMenuScreen() {
         _categoryId: c.id,
         _categoryName: c.name,
         _isVegetarian:
-          i.tags?.includes("vegetarian") || i.tags?.includes("veg"),
-        _isSpicy: i.tags?.includes("spicy") || i.tags?.includes("hot"),
+          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
         _isPopular:
-          i.tags?.includes("popular") || i.tags?.includes("bestseller"),
-        _isQuick: i.tags?.includes("quick") || i.tags?.includes("fast"),
-        _isAvailable: (i as any).isAvailable !== false, // Default to true for backward compatibility
-      })),
+          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
+        _isAvailable: (i as any).isAvailable !== false,
+      }))
     );
     return [
       ...grouped,
       ...uncategorised.map((i) => ({
         ...i,
-        _categoryId: "uncategorised",
-        _categoryName: "Others",
+        _categoryId: 'uncategorised',
+        _categoryName: 'Others',
         _isVegetarian:
-          i.tags?.includes("vegetarian") || i.tags?.includes("veg"),
-        _isSpicy: i.tags?.includes("spicy") || i.tags?.includes("hot"),
+          i.tags?.includes('vegetarian') || i.tags?.includes('veg'),
+        _isSpicy: i.tags?.includes('spicy') || i.tags?.includes('hot'),
         _isPopular:
-          i.tags?.includes("popular") || i.tags?.includes("bestseller"),
-        _isQuick: i.tags?.includes("quick") || i.tags?.includes("fast"),
-        _isAvailable: (i as any).isAvailable !== false, // Default to true for backward compatibility
+          i.tags?.includes('popular') || i.tags?.includes('bestseller'),
+        _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
+        _isAvailable: (i as any).isAvailable !== false,
       })),
     ];
   }, [categories, uncategorised]);
@@ -157,7 +196,7 @@ export default function ServiceMenuScreen() {
           item.name.toLowerCase().includes(query) ||
           item.description?.toLowerCase().includes(query) ||
           item._categoryName.toLowerCase().includes(query) ||
-          item.tags?.some((tag) => tag.toLowerCase().includes(query)),
+          item.tags?.some((tag) => tag.toLowerCase().includes(query))
       );
     }
 
@@ -166,7 +205,7 @@ export default function ServiceMenuScreen() {
 
   // Get items for current category
   const displayItems = useMemo(() => {
-    if (activeCategory === "all") {
+    if (activeCategory === 'all') {
       return filteredProducts;
     }
     return filteredProducts.filter((p) => p._categoryId === activeCategory);
@@ -175,21 +214,21 @@ export default function ServiceMenuScreen() {
   // Get available categories with items
   const availableCategories = useMemo(() => {
     const categoriesWithItems = categories.filter((c) =>
-      filteredProducts.some((item) => item._categoryId === c.id),
+      filteredProducts.some((item) => item._categoryId === c.id)
     );
 
     const hasUncategorised = filteredProducts.some(
-      (item) => item._categoryId === "uncategorised",
+      (item) => item._categoryId === 'uncategorised'
     );
 
     return [
-      { id: "all", name: "All", icon: "🍽️" },
+      { id: 'all', name: 'All', icon: '🍽️' },
       ...categoriesWithItems.map((c) => ({
         ...c,
-        icon: c.icon || "🍴",
+        icon: c.icon || '🍴',
       })),
       ...(hasUncategorised
-        ? [{ id: "uncategorised", name: "Others", icon: "✨" }]
+        ? [{ id: 'uncategorised', name: 'Others', icon: '✨' }]
         : []),
     ];
   }, [categories, filteredProducts]);
@@ -197,11 +236,11 @@ export default function ServiceMenuScreen() {
   // Cart calculations
   const totalItems = Object.values(cart).reduce(
     (sum, e) => sum + e.quantity,
-    0,
+    0
   );
   const totalAmount = Object.values(cart).reduce(
     (sum, e) => sum + e.quantity * e.pricing.amount,
-    0,
+    0
   );
 
   // Cart management functions
@@ -229,21 +268,25 @@ export default function ServiceMenuScreen() {
     if (!restaurant) return;
 
     if (Object.keys(cart).length === 0) {
-      Alert.alert("Cart is empty", "Add items to place an order");
+      setSuccessModalData({
+        title: 'Cart is empty',
+        message: 'Add items to place an order'
+      });
+      setShowSuccessModal(true);
       return;
     }
 
     const payload = {
       restaurantId: restaurant.id,
       tableId: selectedTable?.id,
-      paymentMethod: "cash" as const,
+      paymentMethod: 'cash' as const,
       items: Object.values(cart).map((entry) => ({
         menuItemId: entry.id,
         name: entry.name,
         quantity: entry.quantity,
         pricing: {
           unitAmount: entry.pricing.amount,
-          currency: entry.pricing.currency ?? "INR",
+          currency: entry.pricing.currency ?? 'INR',
         },
       })),
     };
@@ -253,34 +296,19 @@ export default function ServiceMenuScreen() {
       const order = await createOrder(payload).unwrap();
       setCart({});
 
-      // Refetch table data to show the new order immediately
       await refetchTables();
 
-      Alert.alert(
-        "Order placed! 🎉",
-        `Order #${order.orderNumber} sent to kitchen`,
-        [
-          {
-            text: "Go to Payment",
-            onPress: () => {
-              router.push({
-                pathname: "/(service)/payment",
-                params: {
-                  orderId: order.id,
-                  tableId: selectedTable?.id,
-                  orderData: JSON.stringify(order),
-                },
-              });
-            },
-          },
-          {
-            text: "Back to Tables",
-            onPress: () => router.back(),
-          },
-        ],
-      );
+      setSuccessModalData({
+        title: 'Order placed! 🎉',
+        message: `Order #${order.orderNumber} sent to kitchen`
+      });
+      setShowSuccessModal(true);
     } catch (err: any) {
-      Alert.alert("Failed to place order", err?.message || "Unexpected error");
+      setSuccessModalData({
+        title: 'Failed to place order',
+        message: err?.message || 'Unexpected error'
+      });
+      setShowSuccessModal(true);
     } finally {
       setIsPlacingOrder(false);
     }
@@ -288,15 +316,14 @@ export default function ServiceMenuScreen() {
 
   const handlePaymentAction = () => {
     if (activeExistingOrders.length > 0) {
-      // Pass all active orders for combined payment
       router.push({
-        pathname: "/(service)/payment",
+        pathname: '/(service)/payment',
         params: {
-          orderId: activeExistingOrders[0].id, // Primary order ID for compatibility
+          orderId: activeExistingOrders[0].id,
           tableId: selectedTable?.id,
-          orderData: JSON.stringify(activeExistingOrders[0]), // Primary order data for compatibility
-          allOrdersData: JSON.stringify(activeExistingOrders), // All orders for combined payment
-          totalBillAmount: totalBillAmount.toString(), // Total amount to pay
+          orderData: JSON.stringify(activeExistingOrders[0]),
+          allOrdersData: JSON.stringify(activeExistingOrders),
+          totalBillAmount: totalBillAmount.toString(),
         },
       });
     }
@@ -322,68 +349,70 @@ export default function ServiceMenuScreen() {
       setShowStatusModal(false);
       setSelectedOrderForStatus(null);
 
-      // Refetch table data to show updated status
       await refetchTables();
 
-      Alert.alert("Status Updated!", `Order #${selectedOrderForStatus.orderNumber} is now ${status.replace('_', ' ')}`);
+      setSuccessModalData({
+        title: 'Status Updated!',
+        message: `Order #${selectedOrderForStatus.orderNumber} is now ${status.replace('_', ' ')}`
+      });
+      setShowSuccessModal(true);
     } catch (error) {
-      Alert.alert("Error", "Failed to update order status");
+      setSuccessModalData({
+        title: 'Error',
+        message: 'Failed to update order status'
+      });
+      setShowSuccessModal(true);
     } finally {
       setIsUpdatingStatus(false);
     }
   };
 
-  const handleCancelOrder = async (order: any) => {
+  const handleCancelOrder = (order: any) => {
     if (!restaurant) return;
-
-    Alert.alert(
-      "Cancel Order",
-      `Are you sure you want to cancel Order #${order.orderNumber}?`,
-      [
-        {
-          text: "No",
-          style: "cancel"
-        },
-        {
-          text: "Yes, Cancel",
-          style: "destructive",
-          onPress: async () => {
-            setIsCancellingOrder(order.id);
-            try {
-              await updateOrderStatus({
-                restaurantId: restaurant.id,
-                orderId: order.id,
-                status: 'cancelled' as any,
-                statusNote: 'Cancelled by waiter'
-              }).unwrap();
-
-              // Refetch table data to show updated status
-              await refetchTables();
-
-              Alert.alert("Order Cancelled", `Order #${order.orderNumber} has been cancelled`);
-            } catch (error) {
-              Alert.alert("Error", "Failed to cancel order");
-            } finally {
-              setIsCancellingOrder(null);
-            }
-          }
-        }
-      ]
-    );
+    setSelectedOrderForCancel(order);
+    setShowCancelOrderModal(true);
   };
 
-  const handleToggleAvailability = (itemId: string, itemName: string, currentAvailability: boolean) => {
-    console.log('handleToggleAvailability called with:', { itemId, itemName, currentAvailability });
-    if (!restaurant) {
-      console.log('No restaurant found, returning early');
-      return;
+  const handleConfirmCancelOrder = async () => {
+    if (!restaurant || !selectedOrderForCancel) return;
+
+    setShowCancelOrderModal(false);
+    setIsCancellingOrder(selectedOrderForCancel.id);
+
+    try {
+      await updateOrderStatus({
+        restaurantId: restaurant.id,
+        orderId: selectedOrderForCancel.id,
+        status: 'cancelled' as any,
+        statusNote: 'Cancelled by waiter',
+      }).unwrap();
+
+      await refetchTables();
+
+      setSuccessModalData({
+        title: 'Order Cancelled',
+        message: `Order #${selectedOrderForCancel.orderNumber} has been cancelled`
+      });
+      setShowSuccessModal(true);
+    } catch (error) {
+      setSuccessModalData({
+        title: 'Error',
+        message: 'Failed to cancel order'
+      });
+      setShowSuccessModal(true);
+    } finally {
+      setIsCancellingOrder(null);
+      setSelectedOrderForCancel(null);
     }
+  };
 
-    const action = currentAvailability ? "mark as unavailable" : "mark as available";
-    const newStatus = currentAvailability ? "unavailable" : "available";
-    console.log('About to show alert for:', action);
+  const handleToggleAvailability = (
+    itemId: string,
+    itemName: string,
+    currentAvailability: boolean
+  ) => {
+    if (!restaurant) return;
 
-    // Show custom confirmation dialog
     setConfirmDialogData({ itemId, itemName, currentAvailability });
     setShowConfirmDialog(true);
   };
@@ -392,39 +421,32 @@ export default function ServiceMenuScreen() {
     if (!confirmDialogData || !restaurant) return;
 
     const { itemId, itemName, currentAvailability } = confirmDialogData;
-    const newStatus = currentAvailability ? "unavailable" : "available";
+    const newStatus = currentAvailability ? 'unavailable' : 'available';
 
-    console.log('Confirm pressed, starting update...');
     setShowConfirmDialog(false);
     setConfirmDialogData(null);
     setUpdatingAvailability(itemId);
 
     try {
-      console.log('Calling updateMenuItem with:', {
-        restaurantId: restaurant.id,
-        itemId,
-        data: { isAvailable: !currentAvailability }
-      });
-
-      const result = await updateMenuItem({
+      await updateMenuItem({
         restaurantId: restaurant.id,
         itemId,
         data: { isAvailable: !currentAvailability },
       }).unwrap();
 
-      console.log('API call successful:', result);
-
-      // Refetch the menu to update the UI
       await refetchMenu();
-      console.log('Menu refetched');
 
-      Alert.alert(
-        "Availability Updated",
-        `"${itemName}" is now ${newStatus}`
-      );
+      setSuccessModalData({
+        title: 'Availability Updated',
+        message: `"${itemName}" is now ${newStatus}`
+      });
+      setShowSuccessModal(true);
     } catch (error: any) {
-      console.error("Failed to update availability:", error);
-      Alert.alert("Error", "Failed to update item availability");
+      setSuccessModalData({
+        title: 'Error',
+        message: 'Failed to update item availability'
+      });
+      setShowSuccessModal(true);
     } finally {
       setUpdatingAvailability(null);
     }
@@ -438,7 +460,7 @@ export default function ServiceMenuScreen() {
         icon: 'checkmark-circle',
         color: '#3B82F6',
         progress: 20,
-        description: 'Mark order as accepted'
+        description: 'Mark order as accepted',
       },
       {
         status: 'in_progress',
@@ -446,7 +468,7 @@ export default function ServiceMenuScreen() {
         icon: 'flame',
         color: '#F59E0B',
         progress: 40,
-        description: 'Begin preparation'
+        description: 'Begin preparation',
       },
       {
         status: 'in_progress',
@@ -454,7 +476,7 @@ export default function ServiceMenuScreen() {
         icon: 'hourglass',
         color: '#10B981',
         progress: 80,
-        description: 'Order is almost done'
+        description: 'Order is almost done',
       },
       {
         status: 'ready',
@@ -462,52 +484,64 @@ export default function ServiceMenuScreen() {
         icon: 'restaurant',
         color: '#059669',
         progress: 100,
-        description: 'Ready for pickup/serving'
-      }
+        description: 'Ready for pickup/serving',
+      },
     ];
 
-    // Filter based on current status
     switch (currentStatus) {
       case 'pending':
-        return statusOptions.filter(opt =>
-          (opt.status === 'accepted') ||
-          (opt.status === 'in_progress' && opt.progress === 40)
+        return statusOptions.filter(
+          (opt) =>
+            opt.status === 'accepted' ||
+            (opt.status === 'in_progress' && opt.progress === 40)
         );
       case 'accepted':
-        return statusOptions.filter(opt =>
-          (opt.status === 'in_progress' && opt.progress === 40)
+        return statusOptions.filter(
+          (opt) => opt.status === 'in_progress' && opt.progress === 40
         );
       case 'in_progress':
-        return statusOptions.filter(opt =>
-          (opt.status === 'in_progress' && opt.progress === 80) ||
-          (opt.status === 'ready')
+        return statusOptions.filter(
+          (opt) =>
+            (opt.status === 'in_progress' && opt.progress === 80) ||
+            opt.status === 'ready'
         );
       default:
         return [];
     }
   };
 
-  // Refresh function to update menu and table data
   const handleRefresh = async () => {
     await Promise.all([refetchMenu(), refetchTables()]);
   };
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.background,
+              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+            },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#1f2937" />
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>Loading Menu...</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Loading Menu...
+            </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={theme.brand} />
         </View>
       </SafeAreaView>
     );
@@ -515,20 +549,32 @@ export default function ServiceMenuScreen() {
 
   if (isError || !restaurant) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.background,
+              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+            },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#1f2937" />
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>Menu Not Available</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Menu Not Available
+            </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.emptyText}>
+          <Text style={[styles.emptyText, { color: theme.icon }]}>
             Unable to load the menu. Please try again.
           </Text>
         </View>
@@ -542,77 +588,124 @@ export default function ServiceMenuScreen() {
     `Table ${tableId}`;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.background,
+            borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1f2937" />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>{tableNumber}</Text>
+          <Text style={[styles.title, { color: theme.text }]}>
+            {tableNumber}
+          </Text>
           <View style={styles.tableInfo}>
             {selectedTable?.capacity && (
               <View style={styles.tableCapacityInfo}>
-                <Ionicons name="people" size={12} color="#6b7280" />
-                <Text style={styles.tableCapacityText}>
+                <Ionicons name="people" size={12} color={theme.icon} />
+                <Text style={[styles.tableCapacityText, { color: theme.icon }]}>
                   {selectedTable.capacity} seats
                 </Text>
               </View>
             )}
             {selectedTable?.zone && (
-              <Text style={styles.tableZoneText}>• {selectedTable.zone}</Text>
+              <Text style={[styles.tableZoneText, { color: theme.icon }]}>
+                • {selectedTable.zone}
+              </Text>
             )}
           </View>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={styles.refreshButton}
+            style={[
+              styles.iconButton,
+              { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+            ]}
             onPress={handleRefresh}
           >
-            <Ionicons name="refresh" size={20} color="#1f2937" />
+            <Ionicons name="refresh" size={20} color={theme.text} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.searchButton}
+            style={[
+              styles.iconButton,
+              { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+            ]}
             onPress={() => setShowSearch(!showSearch)}
           >
             <Ionicons
-              name={showSearch ? "close" : "search"}
+              name={showSearch ? 'close' : 'search'}
               size={20}
-              color="#1f2937"
+              color={theme.text}
             />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Existing Orders Alert - Show multiple orders */}
+      {/* Existing Orders Alert */}
       {activeExistingOrders.length > 0 && (
-        <View style={styles.existingOrderAlert}>
+        <View
+          style={[
+            styles.existingOrderAlert,
+            {
+              backgroundColor: isDark ? '#1E3A8A' : '#dbeafe',
+              borderColor: theme.brand,
+            },
+          ]}
+        >
           <View style={styles.existingOrderContent}>
             <View style={styles.orderHeaderContainer}>
-              <Text style={styles.existingOrderTitle}>
+              <Text
+                style={[
+                  styles.existingOrderTitle,
+                  { color: isDark ? '#93C5FD' : '#1e40af' },
+                ]}
+              >
                 {activeExistingOrders.length === 1
                   ? `Active Order #${activeExistingOrders[0].orderNumber}`
-                  : `${activeExistingOrders.length} Active Orders`
-                }
+                  : `${activeExistingOrders.length} Active Orders`}
               </Text>
               <Text style={styles.totalBillAmount}>
                 Total: ₹{totalBillAmount.toFixed(0)}
               </Text>
             </View>
 
-            {/* Show all orders */}
             <View style={styles.ordersContainer}>
-              {activeExistingOrders.map((order, index) => (
-                <View key={order.id} style={styles.orderRow}>
+              {activeExistingOrders.map((order) => (
+                <View
+                  key={order.id}
+                  style={[
+                    styles.orderRow,
+                    {
+                      backgroundColor: isDark ? '#1F2937' : '#f8fafc',
+                      borderLeftColor: theme.brand,
+                    },
+                  ]}
+                >
                   <View style={styles.orderInfo}>
-                    <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
+                    <Text style={[styles.orderNumber, { color: theme.text }]}>
+                      #{order.orderNumber}
+                    </Text>
                     <View style={styles.existingOrderMeta}>
-                      <Ionicons name="time" size={10} color="#1d4ed8" />
-                      <Text style={styles.existingOrderStatus}>
-                        {order.status.replace("_", " ")}
+                      <Ionicons name="time" size={10} color={theme.brand} />
+                      <Text
+                        style={[
+                          styles.existingOrderStatus,
+                          { color: theme.brand },
+                        ]}
+                      >
+                        {order.status.replace('_', ' ')}
                       </Text>
                     </View>
                   </View>
@@ -621,7 +714,6 @@ export default function ServiceMenuScreen() {
                       ₹{order.totalAmount.toFixed(0)}
                     </Text>
                     <View style={styles.orderButtonsContainer}>
-                      {/* Cancel button - only show for pending/accepted orders */}
                       {['pending', 'accepted'].includes(order.status) && (
                         <TouchableOpacity
                           style={styles.cancelButton}
@@ -635,10 +727,14 @@ export default function ServiceMenuScreen() {
                           )}
                         </TouchableOpacity>
                       )}
-                      {/* Status update button - only show for non-ready orders */}
-                      {!['ready', 'completed', 'cancelled'].includes(order.status) && (
+                      {!['ready', 'completed', 'cancelled'].includes(
+                        order.status
+                      ) && (
                         <TouchableOpacity
-                          style={styles.individualStatusButton}
+                          style={[
+                            styles.individualStatusButton,
+                            { backgroundColor: theme.brand },
+                          ]}
                           onPress={() => handleUpdateStatusAction(order)}
                         >
                           <Ionicons name="refresh" size={12} color="#ffffff" />
@@ -650,10 +746,9 @@ export default function ServiceMenuScreen() {
               ))}
             </View>
 
-            {/* Show payment button if any order is ready */}
-            {activeExistingOrders.some(order => order.status === "ready") ? (
+            {activeExistingOrders.some((order) => order.status === 'ready') && (
               <TouchableOpacity
-                style={styles.paymentButton}
+                style={[styles.paymentButton, { backgroundColor: theme.brand }]}
                 onPress={handlePaymentAction}
               >
                 <Ionicons name="card" size={16} color="#ffffff" />
@@ -661,33 +756,39 @@ export default function ServiceMenuScreen() {
                   Pay Total Bill (₹{totalBillAmount.toFixed(0)})
                 </Text>
               </TouchableOpacity>
-            ) : null}
+            )}
           </View>
         </View>
       )}
 
       {/* Search Bar */}
       {showSearch && (
-        <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons
-              name="search"
-              size={16}
-              color="#6b7280"
-              style={styles.searchIcon}
-            />
+        <View
+          style={[
+            styles.searchContainer,
+            {
+              backgroundColor: theme.background,
+              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.searchInputContainer,
+              { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+            ]}
+          >
+            <Ionicons name="search" size={16} color={theme.icon} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.text }]}
               placeholder="Search menu..."
+              placeholderTextColor={theme.icon}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery && (
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => setSearchQuery("")}
-              >
-                <Ionicons name="close" size={16} color="#6b7280" />
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close" size={16} color={theme.icon} />
               </TouchableOpacity>
             )}
           </View>
@@ -695,11 +796,18 @@ export default function ServiceMenuScreen() {
       )}
 
       {/* Category Pills */}
-      <View style={styles.categoryContainer}>
+      <View
+        style={[
+          styles.categoryContainer,
+          {
+            backgroundColor: theme.background,
+            borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+          },
+        ]}
+      >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.categoryScrollView}
           contentContainerStyle={styles.categoryContent}
         >
           {availableCategories.map((category) => (
@@ -707,7 +815,20 @@ export default function ServiceMenuScreen() {
               key={category.id}
               style={[
                 styles.categoryPill,
-                activeCategory === category.id && styles.activeCategoryPill,
+                {
+                  backgroundColor:
+                    activeCategory === category.id
+                      ? theme.brand
+                      : isDark
+                      ? '#374151'
+                      : '#f3f4f6',
+                  borderColor:
+                    activeCategory === category.id
+                      ? theme.brand
+                      : isDark
+                      ? '#4B5563'
+                      : '#e5e7eb',
+                },
               ]}
               onPress={() => setActiveCategory(category.id)}
             >
@@ -715,7 +836,10 @@ export default function ServiceMenuScreen() {
               <Text
                 style={[
                   styles.categoryText,
-                  activeCategory === category.id && styles.activeCategoryText,
+                  {
+                    color:
+                      activeCategory === category.id ? '#ffffff' : theme.text,
+                  },
                 ]}
               >
                 {category.name}
@@ -730,51 +854,64 @@ export default function ServiceMenuScreen() {
         {displayItems.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyTitle}>No items found</Text>
-            <Text style={styles.emptyText}>Try adjusting your search</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              No items found
+            </Text>
+            <Text style={[styles.emptyText, { color: theme.icon }]}>
+              Try adjusting your search
+            </Text>
             <TouchableOpacity
-              style={styles.clearFiltersButton}
+              style={[
+                styles.clearFiltersButton,
+                { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+              ]}
               onPress={() => {
-                setSearchQuery("");
-                setActiveCategory("all");
+                setSearchQuery('');
+                setActiveCategory('all');
               }}
             >
-              <Text style={styles.clearFiltersText}>Clear filters</Text>
+              <Text style={[styles.clearFiltersText, { color: theme.text }]}>
+                Clear filters
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.itemsGrid}>
-            {displayItems.map((item, index) => {
+            {displayItems.map((item) => {
               const entry = cart[item.id];
               return (
                 <Pressable
                   key={item.id}
                   style={[
                     styles.menuItemCard,
-                    !item._isAvailable && styles.unavailableItemCard
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: isDark ? '#374151' : '#e5e7eb',
+                    },
+                    !item._isAvailable && styles.unavailableItemCard,
                   ]}
                   onLongPress={() => {
                     setSelectedItemForPopover(item);
                     setShowItemPopover(item.id);
                   }}
                 >
-                  {/* Item Image */}
                   <View style={styles.itemImageContainer}>
                     {item.imageUrls?.[0] ? (
                       <Image
                         source={{ uri: item.imageUrls[0] }}
                         style={styles.itemImage}
-                        onError={() => {
-                          /* Handle image error */
-                        }}
                       />
                     ) : (
-                      <View style={styles.placeholderImage}>
+                      <View
+                        style={[
+                          styles.placeholderImage,
+                          { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+                        ]}
+                      >
                         <Text style={styles.placeholderIcon}>🍽️</Text>
                       </View>
                     )}
 
-                    {/* Veg/Non-veg indicator */}
                     <View style={styles.vegIndicatorContainer}>
                       <View
                         style={[
@@ -795,14 +932,12 @@ export default function ServiceMenuScreen() {
                       </View>
                     </View>
 
-                    {/* Popular badge */}
                     {item._isPopular && (
                       <View style={styles.popularBadge}>
                         <Ionicons name="star" size={12} color="#ffffff" />
                       </View>
                     )}
 
-                    {/* Tags */}
                     {(item._isSpicy || item._isQuick) && (
                       <View style={styles.tagsContainer}>
                         {item._isSpicy && (
@@ -814,7 +949,6 @@ export default function ServiceMenuScreen() {
                       </View>
                     )}
 
-                    {/* Unavailable Badge */}
                     {!item._isAvailable && (
                       <View style={styles.unavailableBadge}>
                         <Text style={styles.unavailableText}>Out of Stock</Text>
@@ -822,22 +956,40 @@ export default function ServiceMenuScreen() {
                     )}
                   </View>
 
-                  {/* Item Details */}
                   <View style={styles.itemDetails}>
-                    <Text style={styles.itemName} numberOfLines={2}>
+                    <Text
+                      style={[styles.itemName, { color: theme.text }]}
+                      numberOfLines={2}
+                    >
                       {item.name}
                     </Text>
-                    <Text style={styles.itemPrice}>
+                    <Text style={[styles.itemPrice, { color: theme.text }]}>
                       {formatCurrency(item.pricing.amount)}
                     </Text>
 
-                    {/* Add/Remove Controls */}
                     {!item._isAvailable ? (
-                      <View style={styles.disabledButton}>
-                        <Text style={styles.disabledButtonText}>Unavailable</Text>
+                      <View
+                        style={[
+                          styles.disabledButton,
+                          { backgroundColor: isDark ? '#374151' : '#e5e5e5' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.disabledButtonText,
+                            { color: theme.icon },
+                          ]}
+                        >
+                          Unavailable
+                        </Text>
                       </View>
                     ) : entry ? (
-                      <View style={styles.quantityControls}>
+                      <View
+                        style={[
+                          styles.quantityControls,
+                          { backgroundColor: theme.brand },
+                        ]}
+                      >
                         <TouchableOpacity
                           style={styles.quantityButton}
                           onPress={() => handleRemove(item.id)}
@@ -858,7 +1010,10 @@ export default function ServiceMenuScreen() {
                       </View>
                     ) : (
                       <TouchableOpacity
-                        style={styles.addButton}
+                        style={[
+                          styles.addButton,
+                          { backgroundColor: theme.brand },
+                        ]}
                         onPress={() =>
                           handleAdd(item.id, item.name, item.pricing)
                         }
@@ -878,7 +1033,7 @@ export default function ServiceMenuScreen() {
       {totalItems > 0 && (
         <View style={styles.floatingCart}>
           <TouchableOpacity
-            style={styles.cartButton}
+            style={[styles.cartButton, { backgroundColor: theme.brand }]}
             onPress={handlePlaceOrder}
             disabled={isPlacingOrder}
           >
@@ -896,7 +1051,7 @@ export default function ServiceMenuScreen() {
               </View>
               <View style={styles.placeOrderContainer}>
                 <Text style={styles.placeOrderText}>
-                  {isPlacingOrder ? "Placing..." : "Place Order"}
+                  {isPlacingOrder ? 'Placing...' : 'Place Order'}
                 </Text>
                 {!isPlacingOrder && (
                   <Ionicons name="arrow-forward" size={20} color="#ffffff" />
@@ -914,51 +1069,112 @@ export default function ServiceMenuScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowStatusModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
+        <SafeAreaView
+          style={[styles.modalContainer, { backgroundColor: theme.background }]}
+        >
+          <View
+            style={[
+              styles.modalHeader,
+              {
+                backgroundColor: theme.background,
+                borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+              },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
               Update Status - #{selectedOrderForStatus?.orderNumber}
             </Text>
             <TouchableOpacity
-              style={styles.modalCloseButton}
+              style={[
+                styles.modalCloseButton,
+                { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+              ]}
               onPress={() => setShowStatusModal(false)}
             >
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={theme.icon} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
-            <Text style={styles.currentStatusText}>
-              Current Status: <Text style={styles.currentStatusValue}>
+            <Text style={[styles.currentStatusText, { color: theme.icon }]}>
+              Current Status:{' '}
+              <Text style={[styles.currentStatusValue, { color: theme.text }]}>
                 {selectedOrderForStatus?.status?.replace('_', ' ')}
               </Text>
             </Text>
 
             <View style={styles.statusOptionsContainer}>
               {selectedOrderForStatus &&
-                getStatusUpdateOptions(selectedOrderForStatus.status).map((option, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.statusOptionButton, { borderColor: option.color }]}
-                  onPress={() => handleStatusUpdate(option.status, option.progress)}
-                  disabled={isUpdatingStatus}
-                >
-                  <View style={[styles.statusOptionIcon, { backgroundColor: option.color }]}>
-                    <Ionicons name={option.icon as any} size={24} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.statusOptionContent}>
-                    <Text style={styles.statusOptionLabel}>{option.label}</Text>
-                    <Text style={styles.statusOptionDescription}>{option.description}</Text>
-                  </View>
-                  <Ionicons name="arrow-forward" size={20} color={option.color} />
-                </TouchableOpacity>
-              ))}
+                getStatusUpdateOptions(selectedOrderForStatus.status).map(
+                  (option, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.statusOptionButton,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: option.color,
+                        },
+                      ]}
+                      onPress={() =>
+                        handleStatusUpdate(option.status, option.progress)
+                      }
+                      disabled={isUpdatingStatus}
+                    >
+                      <View
+                        style={[
+                          styles.statusOptionIcon,
+                          { backgroundColor: option.color },
+                        ]}
+                      >
+                        <Ionicons
+                          name={option.icon as any}
+                          size={24}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                      <View style={styles.statusOptionContent}>
+                        <Text
+                          style={[
+                            styles.statusOptionLabel,
+                            { color: theme.text },
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statusOptionDescription,
+                            { color: theme.icon },
+                          ]}
+                        >
+                          {option.description}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={20}
+                        color={option.color}
+                      />
+                    </TouchableOpacity>
+                  )
+                )}
             </View>
 
             {isUpdatingStatus && (
-              <View style={styles.updatingContainer}>
-                <ActivityIndicator size="small" color="#3B82F6" />
-                <Text style={styles.updatingText}>Updating status...</Text>
+              <View
+                style={[
+                  styles.updatingContainer,
+                  {
+                    backgroundColor: isDark ? '#1E3A8A' : '#f0f9ff',
+                    borderColor: isDark ? '#3B82F6' : '#bfdbfe',
+                  },
+                ]}
+              >
+                <ActivityIndicator size="small" color={theme.brand} />
+                <Text style={[styles.updatingText, { color: theme.brand }]}>
+                  Updating status...
+                </Text>
               </View>
             )}
           </View>
@@ -976,44 +1192,61 @@ export default function ServiceMenuScreen() {
         }}
       >
         <View style={styles.popoverOverlay}>
-          <View style={styles.popoverContent}>
+          <View
+            style={[
+              styles.popoverContent,
+              { backgroundColor: theme.background },
+            ]}
+          >
             {selectedItemForPopover && (
               <>
-                <Text style={styles.popoverTitle}>{selectedItemForPopover.name}</Text>
+                <Text style={[styles.popoverTitle, { color: theme.text }]}>
+                  {selectedItemForPopover.name}
+                </Text>
                 <View style={styles.popoverActions}>
                   <TouchableOpacity
                     style={[
                       styles.availabilityToggleButton,
                       selectedItemForPopover._isAvailable
                         ? styles.markUnavailableButton
-                        : styles.markAvailableButton
+                        : styles.markAvailableButton,
                     ]}
-                    onPress={async () => {
-                      console.log('Toggle button pressed for item:', selectedItemForPopover.id);
+                    onPress={() => {
                       const itemId = selectedItemForPopover.id;
                       const itemName = selectedItemForPopover.name;
-                      const currentAvailability = selectedItemForPopover._isAvailable;
+                      const currentAvailability =
+                        selectedItemForPopover._isAvailable;
 
-                      // Close popover first
                       setShowItemPopover(null);
                       setSelectedItemForPopover(null);
 
-                      // Then call the toggle function
-                      handleToggleAvailability(itemId, itemName, currentAvailability);
+                      handleToggleAvailability(
+                        itemId,
+                        itemName,
+                        currentAvailability
+                      );
                     }}
-                    disabled={updatingAvailability === selectedItemForPopover.id}
+                    disabled={
+                      updatingAvailability === selectedItemForPopover.id
+                    }
                   >
                     {updatingAvailability === selectedItemForPopover.id ? (
                       <ActivityIndicator size={16} color="#ffffff" />
                     ) : (
                       <>
                         <Ionicons
-                          name={selectedItemForPopover._isAvailable ? "close-circle" : "checkmark-circle"}
+                          name={
+                            selectedItemForPopover._isAvailable
+                              ? 'close-circle'
+                              : 'checkmark-circle'
+                          }
                           size={16}
                           color="#ffffff"
                         />
                         <Text style={styles.toggleButtonText}>
-                          {selectedItemForPopover._isAvailable ? "Mark Unavailable" : "Mark Available"}
+                          {selectedItemForPopover._isAvailable
+                            ? 'Mark Unavailable'
+                            : 'Mark Available'}
                         </Text>
                       </>
                     )}
@@ -1026,7 +1259,11 @@ export default function ServiceMenuScreen() {
                     setSelectedItemForPopover(null);
                   }}
                 >
-                  <Text style={styles.popoverCloseText}>Close</Text>
+                  <Text
+                    style={[styles.popoverCloseText, { color: theme.icon }]}
+                  >
+                    Close
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -1042,29 +1279,200 @@ export default function ServiceMenuScreen() {
         onRequestClose={() => setShowConfirmDialog(false)}
       >
         <View style={styles.confirmOverlay}>
-          <View style={styles.confirmDialog}>
+          <View
+            style={[
+              styles.confirmDialog,
+              { backgroundColor: theme.background },
+            ]}
+          >
             {confirmDialogData && (
               <>
-                <Text style={styles.confirmTitle}>Confirm Action</Text>
-                <Text style={styles.confirmMessage}>
-                  Are you sure you want to {confirmDialogData.currentAvailability ? 'mark' : 'mark'} "{confirmDialogData.itemName}" as {confirmDialogData.currentAvailability ? 'unavailable' : 'available'}?
+                <Text style={[styles.confirmTitle, { color: theme.text }]}>
+                  Confirm Action
+                </Text>
+                <Text style={[styles.confirmMessage, { color: theme.icon }]}>
+                  Are you sure you want to mark "{confirmDialogData.itemName}"
+                  as{' '}
+                  {confirmDialogData.currentAvailability
+                    ? 'unavailable'
+                    : 'available'}
+                  ?
                 </Text>
                 <View style={styles.confirmButtons}>
                   <TouchableOpacity
-                    style={[styles.confirmButton, styles.cancelButton]}
+                    style={[
+                      styles.confirmButton,
+                      styles.cancelButtonStyle,
+                      {
+                        backgroundColor: isDark ? '#374151' : '#f3f4f6',
+                        borderColor: isDark ? '#4B5563' : '#d1d5db',
+                      },
+                    ]}
                     onPress={() => {
                       setShowConfirmDialog(false);
                       setConfirmDialogData(null);
                     }}
                   >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                    <Text
+                      style={[styles.cancelButtonText, { color: theme.text }]}
+                    >
+                      Cancel
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.confirmButton, styles.confirmButtonPrimary]}
-                    onPress={() => handleConfirmToggle()}
+                    style={[
+                      styles.confirmButton,
+                      styles.confirmButtonPrimary,
+                      { backgroundColor: theme.brand },
+                    ]}
+                    onPress={handleConfirmToggle}
                   >
                     <Text style={styles.confirmButtonText}>Confirm</Text>
                   </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cancel Order Modal */}
+      <Modal
+        visible={showCancelOrderModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCancelOrderModal(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View
+            style={[
+              styles.confirmDialog,
+              { backgroundColor: theme.background },
+            ]}
+          >
+            <Text style={[styles.confirmTitle, { color: theme.text }]}>
+              Cancel Order
+            </Text>
+            <Text style={[styles.confirmMessage, { color: theme.icon }]}>
+              Are you sure you want to cancel Order #{selectedOrderForCancel?.orderNumber}?
+            </Text>
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.confirmButton,
+                  styles.cancelButtonStyle,
+                  {
+                    backgroundColor: isDark ? '#374151' : '#f3f4f6',
+                    borderColor: isDark ? '#4B5563' : '#d1d5db',
+                  },
+                ]}
+                onPress={() => {
+                  setShowCancelOrderModal(false);
+                  setSelectedOrderForCancel(null);
+                }}
+              >
+                <Text
+                  style={[styles.cancelButtonText, { color: theme.text }]}
+                >
+                  No
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.confirmButton,
+                  { backgroundColor: '#dc2626' },
+                ]}
+                onPress={handleConfirmCancelOrder}
+              >
+                <Text style={[styles.confirmButtonText, { color: '#ffffff' }]}>
+                  Yes, Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success/Error Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View
+            style={[
+              styles.confirmDialog,
+              { backgroundColor: theme.background },
+            ]}
+          >
+            {successModalData && (
+              <>
+                <Text style={[styles.confirmTitle, { color: theme.text }]}>
+                  {successModalData.title}
+                </Text>
+                <Text style={[styles.confirmMessage, { color: theme.icon }]}>
+                  {successModalData.message}
+                </Text>
+                <View style={styles.confirmButtons}>
+                  {successModalData.title === 'Order placed! 🎉' ? (
+                    <>
+                      <TouchableOpacity
+                        style={[
+                          styles.confirmButton,
+                          styles.cancelButtonStyle,
+                          {
+                            backgroundColor: isDark ? '#374151' : '#f3f4f6',
+                            borderColor: isDark ? '#4B5563' : '#d1d5db',
+                          },
+                        ]}
+                        onPress={() => {
+                          setShowSuccessModal(false);
+                          setSuccessModalData(null);
+                          router.back();
+                        }}
+                      >
+                        <Text
+                          style={[styles.cancelButtonText, { color: theme.text }]}
+                        >
+                          Back to Tables
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.confirmButton,
+                          { backgroundColor: theme.brand },
+                        ]}
+                        onPress={() => {
+                          setShowSuccessModal(false);
+                          setSuccessModalData(null);
+                          const orderData = JSON.stringify(cart); // This would need the actual order data
+                          router.push({
+                            pathname: '/(service)/payment',
+                            params: {
+                              tableId: selectedTable?.id,
+                            },
+                          });
+                        }}
+                      >
+                        <Text style={styles.confirmButtonText}>Go to Payment</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.confirmButton,
+                        { backgroundColor: theme.brand, flex: 1 },
+                      ]}
+                      onPress={() => {
+                        setShowSuccessModal(false);
+                        setSuccessModalData(null);
+                      }}
+                    >
+                      <Text style={styles.confirmButtonText}>OK</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </>
             )}
@@ -1078,310 +1486,254 @@ export default function ServiceMenuScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    paddingTop: 20,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#ffffff",
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
   },
   backButton: {
-    marginRight: 16,
-    padding: 8,
+    marginRight: 12,
+    padding: 6,
   },
   headerContent: {
     flex: 1,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1f2937",
+    fontSize: 18,
+    fontWeight: '700',
   },
   tableInfo: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 2,
   },
   tableCapacityInfo: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
   tableCapacityText: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: 11,
   },
   tableZoneText: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: 11,
     marginLeft: 4,
   },
   headerActions: {
-    flexDirection: "row",
-    gap: 8,
+    flexDirection: 'row',
+    gap: 6,
   },
-  refreshButton: {
+  iconButton: {
     padding: 8,
-    borderRadius: 20,
-    backgroundColor: "#f3f4f6",
-  },
-  searchButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
   },
   existingOrderAlert: {
-    backgroundColor: "#dbeafe",
-    borderColor: "#3b82f6",
-    borderWidth: 1,
-    margin: 16,
-    padding: 12,
-    borderRadius: 8,
+    borderWidth: 1.5,
+    margin: 12,
+    padding: 10,
+    borderRadius: 10,
   },
   existingOrderContent: {
-    flexDirection: "column",
-    gap: 12,
+    gap: 10,
   },
   orderHeaderContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   existingOrderTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1e40af",
+    fontSize: 13,
+    fontWeight: '600',
   },
   totalBillAmount: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#059669",
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#059669',
   },
   ordersContainer: {
-    gap: 8,
+    gap: 6,
   },
   orderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 8,
-    backgroundColor: "#f8fafc",
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: "#3b82f6",
   },
   orderInfo: {
     flex: 1,
   },
   orderNumber: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#1e293b",
+    fontWeight: '600',
   },
   orderActions: {
-    alignItems: "flex-end",
+    alignItems: 'flex-end',
     gap: 6,
   },
   orderAmount: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#059669",
+    fontWeight: '600',
+    color: '#059669',
   },
   orderButtonsContainer: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 4,
   },
   cancelButton: {
-    backgroundColor: "#dc2626",
+    backgroundColor: '#dc2626',
     borderRadius: 10,
     width: 24,
     height: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   individualStatusButton: {
-    backgroundColor: "#3b82f6",
     borderRadius: 10,
     width: 24,
     height: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   existingOrderMeta: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 4,
     gap: 4,
   },
   existingOrderStatus: {
-    fontSize: 12,
-    color: "#1d4ed8",
-    textTransform: "capitalize",
-  },
-  existingOrderAmount: {
-    fontSize: 12,
-    color: "#1d4ed8",
+    fontSize: 11,
+    textTransform: 'capitalize',
+    fontWeight: '500',
   },
   paymentButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3b82f6",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
   },
   paymentButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "600",
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   searchContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
   },
   searchInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-  },
-  searchIcon: {
-    marginRight: 8,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: "#1f2937",
-  },
-  clearSearchButton: {
-    padding: 4,
+    fontSize: 15,
   },
   categoryContainer: {
-    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  categoryScrollView: {
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   categoryContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     gap: 8,
   },
   categoryPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#f3f4f6",
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    gap: 6,
-  },
-  activeCategoryPill: {
-    backgroundColor: "#3b82f6",
-    borderColor: "#3b82f6",
+    gap: 5,
   },
   categoryIcon: {
     fontSize: 14,
   },
   categoryText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#6b7280",
-  },
-  activeCategoryText: {
-    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: '600',
   },
   content: {
     flex: 1,
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 32,
   },
   emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+    fontSize: 48,
+    marginBottom: 12,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 8,
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   emptyText: {
     fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-    marginBottom: 16,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   clearFiltersButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: "#f3f4f6",
     borderRadius: 8,
   },
   clearFiltersText: {
     fontSize: 14,
-    color: "#374151",
+    fontWeight: '500',
   },
   itemsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     padding: 8,
-    gap: 12,
+    gap: 10,
   },
   menuItemCard: {
-    width: "47%",
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
+    width: '47%',
+    borderRadius: 12,
     padding: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
   },
   itemImageContainer: {
-    position: "relative",
-    width: "100%",
+    position: 'relative',
+    width: '100%',
     aspectRatio: 1,
-    borderRadius: 6,
+    borderRadius: 8,
     marginBottom: 8,
-    backgroundColor: "#f3f4f6",
   },
   itemImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 6,
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
   },
   placeholderImage: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 6,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
   },
   placeholderIcon: {
-    fontSize: 32,
+    fontSize: 28,
     opacity: 0.3,
   },
   vegIndicatorContainer: {
-    position: "absolute",
+    position: 'absolute',
     top: 6,
     left: 6,
   },
@@ -1390,48 +1742,48 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 2,
     borderWidth: 2,
-    backgroundColor: "#ffffff",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   vegIndicatorVeg: {
-    borderColor: "#16a34a",
+    borderColor: '#16a34a',
   },
   vegIndicatorNonVeg: {
-    borderColor: "#dc2626",
+    borderColor: '#dc2626',
   },
   vegDot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
   },
   vegDotVeg: {
-    backgroundColor: "#16a34a",
+    backgroundColor: '#16a34a',
   },
   vegDotNonVeg: {
-    backgroundColor: "#dc2626",
+    backgroundColor: '#dc2626',
   },
   popularBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: 6,
     right: 6,
-    backgroundColor: "#eab308",
+    backgroundColor: '#eab308',
     borderRadius: 10,
     width: 20,
     height: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tagsContainer: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 6,
     left: 6,
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 4,
   },
   tagIcon: {
     fontSize: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 4,
     paddingHorizontal: 4,
     paddingVertical: 2,
@@ -1441,373 +1793,302 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: 12,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 6,
+    fontWeight: '700',
+    marginBottom: 4,
     lineHeight: 16,
   },
   itemPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1f2937",
+    fontSize: 15,
+    fontWeight: '700',
     marginBottom: 8,
   },
   quantityControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3b82f6",
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 20,
     paddingHorizontal: 6,
     paddingVertical: 4,
-    justifyContent: "space-between",
+    justifyContent: 'space-between',
   },
   quantityButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   quantityText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
     minWidth: 20,
-    textAlign: "center",
+    textAlign: 'center',
   },
   addButton: {
-    backgroundColor: "#3b82f6",
     borderRadius: 20,
     paddingVertical: 6,
-    alignItems: "center",
+    alignItems: 'center',
   },
   addButtonText: {
-    color: "#ffffff",
+    color: '#ffffff',
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   floatingCart: {
-    position: "absolute",
-    bottom: 24,
-    left: 16,
-    right: 16,
+    position: 'absolute',
+    bottom: 20,
+    left: 12,
+    right: 12,
   },
   cartButton: {
-    backgroundColor: "#3b82f6",
-    borderRadius: 16,
+    borderRadius: 14,
     paddingHorizontal: 8,
-    paddingVertical: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    paddingVertical: 14,
   },
   cartButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   cartInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   cartIconContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 8,
     padding: 8,
   },
   cartDetails: {
-    alignItems: "flex-start",
+    alignItems: 'flex-start',
   },
   cartItems: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   cartTotal: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   placeOrderContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    gap: 6,
   },
   placeOrderText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "bold",
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  updateStatusButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#6B7280",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4,
-  },
-  updateStatusButtonText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "600",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: "#f8fafc",
   },
   modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: "#ffffff",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#1f2937",
+    fontSize: 17,
+    fontWeight: '700',
     flex: 1,
   },
   modalCloseButton: {
     padding: 8,
-    borderRadius: 20,
-    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
   },
   modalContent: {
     flex: 1,
-    padding: 16,
+    padding: 14,
   },
   currentStatusText: {
-    fontSize: 16,
-    color: "#6b7280",
-    marginBottom: 24,
-    textAlign: "center",
+    fontSize: 15,
+    marginBottom: 20,
+    textAlign: 'center',
   },
   currentStatusValue: {
-    fontWeight: "600",
-    color: "#1f2937",
-    textTransform: "capitalize",
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
   statusOptionsContainer: {
-    gap: 12,
+    gap: 10,
   },
   statusOptionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
     borderRadius: 12,
     borderWidth: 2,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    gap: 10,
   },
   statusOptionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusOptionContent: {
     flex: 1,
   },
   statusOptionLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 3,
   },
   statusOptionDescription: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: 13,
   },
   updatingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: "#f0f9ff",
-    borderRadius: 8,
+    marginTop: 20,
+    padding: 14,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#bfdbfe",
   },
   updatingText: {
-    fontSize: 14,
-    color: "#1e40af",
-    fontWeight: "500",
+    fontSize: 13,
+    fontWeight: '500',
   },
-  // Unavailable item styles
   unavailableItemCard: {
     opacity: 0.6,
-    borderColor: "#e5e5e5",
   },
   unavailableBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: "#ef4444",
+    backgroundColor: '#ef4444',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
   unavailableText: {
-    color: "#ffffff",
-    fontSize: 10,
-    fontWeight: "600",
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '600',
   },
   disabledButton: {
-    backgroundColor: "#e5e5e5",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignItems: 'center',
   },
   disabledButtonText: {
-    color: "#9ca3af",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: '600',
   },
-  // Popover styles
   popoverOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 20,
   },
   popoverContent: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 24,
-    minWidth: 280,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
+    borderRadius: 14,
+    padding: 20,
+    minWidth: 260,
   },
   popoverTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#1f2937",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  popoverActions: {
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
     marginBottom: 16,
   },
+  popoverActions: {
+    marginBottom: 12,
+  },
   availabilityToggleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: 10,
     gap: 8,
   },
   markAvailableButton: {
-    backgroundColor: "#16a34a",
+    backgroundColor: '#16a34a',
   },
   markUnavailableButton: {
-    backgroundColor: "#dc2626",
+    backgroundColor: '#dc2626',
   },
   toggleButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
   popoverCloseButton: {
-    paddingVertical: 12,
-    alignItems: "center",
+    paddingVertical: 10,
+    alignItems: 'center',
   },
   popoverCloseText: {
-    color: "#6b7280",
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: '500',
   },
   confirmOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
   confirmDialog: {
-    backgroundColor: "#ffffff",
     borderRadius: 12,
-    padding: 24,
-    width: "90%",
+    padding: 20,
+    width: '90%',
     maxWidth: 400,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
   },
   confirmTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 12,
-    textAlign: "center",
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 10,
+    textAlign: 'center',
   },
   confirmMessage: {
-    fontSize: 16,
-    color: "#4b5563",
-    textAlign: "center",
-    marginBottom: 24,
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 20,
     lineHeight: 22,
   },
   confirmButtons: {
-    flexDirection: "row",
-    gap: 12,
+    flexDirection: 'row',
+    gap: 10,
   },
   confirmButton: {
     flex: 1,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
+    borderRadius: 10,
+    alignItems: 'center',
   },
-  cancelButton: {
-    backgroundColor: "#f3f4f6",
+  cancelButtonStyle: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
   },
   cancelButtonText: {
-    color: "#374151",
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: '500',
   },
-  confirmButtonPrimary: {
-    backgroundColor: "#3b82f6",
-  },
+  confirmButtonPrimary: {},
   confirmButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "500",
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
-

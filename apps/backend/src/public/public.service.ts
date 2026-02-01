@@ -578,10 +578,21 @@ export class PublicService {
   async createOrder(slug: string, orderData: any) {
     const restaurant = await this.getRestaurantBySlug(slug);
 
-    // Extract branchId from table
+    // Extract branchId from table and ensure tableId is properly set
     let branchId: string | undefined;
+    let table = null;
+
     if (orderData.tableId) {
-      branchId = await this.getBranchIdFromTableId(orderData.tableId);
+      table = await this.tableModel.findOne({
+        _id: new Types.ObjectId(orderData.tableId),
+        isActive: true
+      }).lean();
+      if (table) {
+        branchId = table.branchId?.toString();
+        // Ensure tableId is properly converted to ObjectId string format
+        orderData.tableId = table._id.toString();
+        orderData.tableNumber = table.tableNumber;
+      }
     } else if (orderData.tableNumber) {
       branchId = await this.getBranchIdFromTable(
         restaurant.id,

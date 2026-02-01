@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
@@ -61,6 +62,8 @@ export interface OrderItemWithTax {
 
 @Injectable()
 export class GstService {
+  private readonly logger = new Logger(GstService.name);
+
   constructor(
     @InjectModel(GstRate.name)
     private readonly gstRateModel: Model<GstRateDocument>,
@@ -445,17 +448,22 @@ export class GstService {
       discountAmount?: number;
     }
   ): Promise<string> {
-    const invoiceNumber = await this.generateInvoiceNumber(restaurantId);
-    const restaurant = await this.getRestaurantDetails(restaurantId);
+    let retries = 0;
+    const maxRetries = 3;
 
-    const roundOffAmount = this.calculateRoundOff(
-      orderData.summary.totalAmount
-    );
-    const finalAmount = this.roundToTwo(
-      orderData.summary.totalAmount + roundOffAmount
-    );
+    while (retries <= maxRetries) {
+      try {
+        const invoiceNumber = await this.generateInvoiceNumber(restaurantId, retries);
+        const restaurant = await this.getRestaurantDetails(restaurantId);
 
-    await this.taxInvoiceModel.create({
+        const roundOffAmount = this.calculateRoundOff(
+          orderData.summary.totalAmount
+        );
+        const finalAmount = this.roundToTwo(
+          orderData.summary.totalAmount + roundOffAmount
+        );
+
+        await this.taxInvoiceModel.create({
       restaurantId,
       orderId,
       invoiceNumber,
@@ -496,9 +504,23 @@ export class GstService {
       restaurantAddress: restaurant.address,
       taxType: orderData.summary.taxType,
       status: 'final',
-    });
+        });
 
-    return invoiceNumber;
+        return invoiceNumber;
+
+      } catch (error) {
+        if (error.code === 11000 && retries < maxRetries) {
+          // Duplicate key error on invoiceNumber - retry
+          retries++;
+          this.logger.warn(`Invoice number collision detected, retrying... Attempt ${retries}/${maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, 50 * retries)); // Small delay
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error('Failed to generate unique invoice number after retries');
   }
 
   // Private helper methods
@@ -611,25 +633,55 @@ export class GstService {
     return 'inter-state';
   }
 
-  private async generateInvoiceNumber(restaurantId: string): Promise<string> {
+  private async generateInvoiceNumber(restaurantId: string, retryCount: number = 0): Promise<string> {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
 
-    // Count invoices for this month
-    const startOfMonth = new Date(year, now.getMonth(), 1);
-    const endOfMonth = new Date(year, now.getMonth() + 1, 0);
+    let retries = 0;
+    const maxRetries = 5;
 
-    const count = await this.taxInvoiceModel.countDocuments({
-      restaurantId,
-      invoiceDate: {
-        $gte: startOfMonth,
-        $lte: endOfMonth,
-      },
-    });
+    while (retries < maxRetries) {
+      try {
+        // Count invoices for this month
+        const startOfMonth = new Date(year, now.getMonth(), 1);
+        const endOfMonth = new Date(year, now.getMonth() + 1, 0);
 
-    const sequence = String(count + 1).padStart(4, '0');
-    return `INV-${year}${month}-${sequence}`;
+        const count = await this.taxInvoiceModel.countDocuments({
+          restaurantId,
+          invoiceDate: {
+            $gte: startOfMonth,
+            $lte: endOfMonth,
+          },
+        });
+
+        // Add timestamp suffix to ensure uniqueness in case of race conditions
+        const timestamp = Date.now().toString().slice(-3); // Last 3 digits of timestamp
+        const baseSequence = count + 1;
+        const sequence = String(baseSequence).padStart(4, '0');
+
+        // For the first attempt, use the normal sequence
+        // For retries, append timestamp and retry count to ensure uniqueness
+        let finalSequence = sequence;
+        if (retryCount > 0) {
+          finalSequence = `${sequence}${timestamp}${retryCount}`;
+        }
+
+        return `INV-${year}${month}-${finalSequence}`;
+      } catch (error) {
+        if (error.code === 11000 && retries < maxRetries - 1) {
+          // Duplicate key error, retry with a delay
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 100 * retries)); // Exponential backoff
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    // Final fallback with UUID suffix
+    const uuid = require('crypto').randomBytes(4).toString('hex');
+    return `INV-${year}${month}-${uuid.toUpperCase()}`;
   }
 
   private calculateRoundOff(amount: number): number {

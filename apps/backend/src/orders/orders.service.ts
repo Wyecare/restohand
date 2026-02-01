@@ -49,6 +49,8 @@ import {
   OrderItemWithTax,
 } from '../gst/gst.service';
 import { ReceiptDocumentService } from './receipt-document.service';
+import { PaymentNotificationService } from './payment-notification.service';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class OrdersService {
@@ -65,13 +67,16 @@ export class OrdersService {
     private readonly menuItemModel: Model<MenuItemDocument>,
     @InjectModel(OrderCounter.name)
     private readonly orderCounterModel: Model<OrderCounterDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
     private readonly ordersGateway: OrdersGateway,
     private readonly ordersSSEService: OrdersSSEService,
     private readonly smartGstService: SmartGstService,
     private readonly gstService: GstService,
     private readonly razorpayService: RazorpayService,
     private readonly tableStatusService: TableStatusService,
-    private readonly receiptDocumentService: ReceiptDocumentService
+    private readonly receiptDocumentService: ReceiptDocumentService,
+    private readonly paymentNotificationService: PaymentNotificationService
   ) {}
 
   async create(
@@ -537,7 +542,8 @@ export class OrdersService {
     restaurantId: string,
     orderId: string,
     dto: UpdateOrderPaymentDto,
-    updatedBy?: string
+    updatedBy?: string,
+    skipNotification: boolean = false
   ): Promise<OrderResponseDto> {
     console.log('=== PAYMENT UPDATE SERVICE ===');
     console.log('Restaurant ID:', restaurantId);
@@ -607,9 +613,39 @@ export class OrdersService {
       );
     }
 
-    if (dto.paymentStatus === PaymentStatus.Paid) {
+    if (dto.paymentStatus === PaymentStatus.Paid && !skipNotification) {
       // Skip automatic transfer for direct payments (not using Razorpay transfers)
       // await this.transferToRestaurant(updated);
+
+      // Send payment confirmation notification to managers/owners
+      try {
+        // Get staff member name if payment was marked by staff
+        let staffMemberName: string | undefined;
+        if (updatedBy) {
+          const staffMember = await this.userModel.findById(updatedBy).select('name').lean();
+          staffMemberName = staffMember?.name;
+        }
+
+        await this.paymentNotificationService.sendPaymentConfirmationNotification(
+          restaurantId,
+          orderId,
+          updated.orderNumber,
+          updated.totalAmount,
+          updated.paymentMethod || 'cash',
+          {
+            tableId: updated.tableId?.toString(),
+            tableNumber: updated.tableNumber,
+            staffMemberName,
+            customerName: updated.customerName,
+            branchId: updated.branchId?.toString(),
+          }
+        );
+
+        this.logger.log(`Payment notification sent for order ${updated.orderNumber}`);
+      } catch (notificationError) {
+        this.logger.error(`Failed to send payment notification for order ${updated.orderNumber}:`, notificationError);
+        // Don't fail the payment update if notification fails
+      }
 
       // Only generate tax invoice after all payment details are set
       if (updated) {
@@ -1940,12 +1976,12 @@ export class OrdersService {
         return;
       }
 
-      // Update order payment status
+      // Update order payment status (skip notification to avoid duplicate)
       await this.updatePayment(order.restaurantId.toString(), orderId, {
         paymentStatus: PaymentStatus.Paid,
         transactionId: paymentId,
         provider: 'razorpay',
-      });
+      }, null, true); // skipNotification = true
 
       // Record payment captured event
       await this.recordEvent(
@@ -2033,12 +2069,12 @@ export class OrdersService {
         return;
       }
 
-      // Ensure order is marked as fully paid
+      // Ensure order is marked as fully paid (skip notification to avoid duplicate)
       if (order.paymentStatus !== PaymentStatus.Paid) {
         await this.updatePayment(order.restaurantId.toString(), orderId, {
           paymentStatus: PaymentStatus.Paid,
           provider: 'razorpay',
-        });
+        }, null, true); // skipNotification = true
       }
 
       // Record order fully paid event
@@ -2203,14 +2239,14 @@ export class OrdersService {
     );
 
     try {
-      // Mark order as paid if it's not already
+      // Mark order as paid if it's not already (skip notification to avoid duplicate)
       const order = await this.orderModel.findById(orderId);
       if (order && order.paymentStatus !== PaymentStatus.Paid) {
         await this.updatePayment(order.restaurantId.toString(), orderId, {
           paymentStatus: PaymentStatus.Paid,
           transactionId: invoiceData.payment_id,
           provider: 'razorpay',
-        });
+        }, null, true); // skipNotification = true
       }
 
       await this.recordEvent(

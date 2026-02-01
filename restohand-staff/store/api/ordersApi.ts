@@ -1,13 +1,10 @@
-import { baseApi } from './baseApi';
-import type {
-  PaginatedResponse,
-  Order,
-} from './types';
+import { baseApi } from "./baseApi";
+import type { Order, PaginatedResponse } from "./types";
 
 export interface ListOrdersParams {
   restaurantId: string;
-  status?: Order['status'];
-  paymentStatus?: Order['paymentStatus'];
+  status?: Order["status"];
+  paymentStatus?: Order["paymentStatus"];
   from?: string;
   to?: string;
   search?: string;
@@ -18,8 +15,8 @@ export interface ListOrdersParams {
 export interface UpdateOrderStatusPayload {
   restaurantId: string;
   orderId: string;
-  status?: Order['status'];
-  progress?: Order['progress'];
+  status?: Order["status"];
+  progress?: Order["progress"];
   statusNote?: string;
 }
 
@@ -31,8 +28,8 @@ export interface CreateOrderPayload {
   customerName?: string;
   customerPhone?: string;
   notes?: string;
-  paymentMethod?: 'upi' | 'cash';
-  items: Array<{
+  paymentMethod?: "upi" | "cash";
+  items: {
     menuItemId: string;
     name: string;
     quantity: number;
@@ -43,13 +40,13 @@ export interface CreateOrderPayload {
       discountAmount?: number;
     };
     notes?: string;
-  }>;
+  }[];
 }
 
 export interface UpdateOrderPaymentPayload {
   restaurantId: string;
   orderId: string;
-  paymentStatus?: Order['paymentStatus'];
+  paymentStatus?: Order["paymentStatus"];
   transactionId?: string;
   provider?: string;
 }
@@ -77,66 +74,70 @@ export const ordersApi = baseApi.injectEndpoints({
         result
           ? [
               ...result.data.map((order) => ({
-                type: 'Order' as const,
+                type: "Order" as const,
                 id: order.id,
               })),
-              { type: 'Order' as const, id: `LIST-${restaurantId}` },
+              { type: "Order" as const, id: `LIST-${restaurantId}` },
             ]
-          : [{ type: 'Order' as const, id: `LIST-${restaurantId}` }],
+          : [{ type: "Order" as const, id: `LIST-${restaurantId}` }],
     }),
 
     getOrder: builder.query<Order, { restaurantId: string; orderId: string }>({
       query: ({ restaurantId, orderId }) =>
         `/restaurants/${restaurantId}/orders/${orderId}`,
       providesTags: (_result, _error, { orderId }) => [
-        { type: 'Order', id: orderId },
+        { type: "Order", id: orderId },
       ],
     }),
 
     createOrder: builder.mutation<Order, CreateOrderPayload>({
       query: ({ restaurantId, ...body }) => ({
         url: `/restaurants/${restaurantId}/orders`,
-        method: 'POST',
+        method: "POST",
         body,
       }),
       invalidatesTags: (_result, _error, { restaurantId }) => [
-        { type: 'Order', id: `LIST-${restaurantId}` },
+        { type: "Order", id: `LIST-${restaurantId}` },
       ],
     }),
 
     updateOrderStatus: builder.mutation<Order, UpdateOrderStatusPayload>({
       query: ({ restaurantId, orderId, ...body }) => ({
         url: `/restaurants/${restaurantId}/orders/${orderId}/status`,
-        method: 'PATCH',
+        method: "PATCH",
         body,
       }),
       invalidatesTags: (_result, _error, { restaurantId, orderId }) => [
-        { type: 'Order', id: orderId },
-        { type: 'Order', id: `LIST-${restaurantId}` },
+        { type: "Order", id: orderId },
+        { type: "Order", id: `LIST-${restaurantId}` },
       ],
     }),
 
     updateOrderPayment: builder.mutation<Order, UpdateOrderPaymentPayload>({
       query: ({ restaurantId, orderId, ...body }) => ({
         url: `/restaurants/${restaurantId}/orders/${orderId}/payment`,
-        method: 'PATCH',
+        method: "PATCH",
         body,
       }),
-      invalidatesTags: (_result, _error, { restaurantId, orderId }) => [
-        { type: 'Order', id: orderId },
-        { type: 'Order', id: `LIST-${restaurantId}` },
-      ],
+      invalidatesTags: ["Order", "RestaurantTable"],
     }),
 
-    generateReceiptQr: builder.query<GenerateReceiptQrResponse, { restaurantId: string; orderId: string }>({
-      query: ({ restaurantId, orderId }) => `/restaurants/${restaurantId}/orders/${orderId}/receipt-qr`,
+    generateReceiptQr: builder.query<
+      GenerateReceiptQrResponse,
+      { restaurantId: string; orderId: string }
+    >({
+      query: ({ restaurantId, orderId }) =>
+        `/restaurants/${restaurantId}/orders/${orderId}/receipt-qr`,
       // No caching for QR generation
     }),
 
-    generateCombinedReceiptQr: builder.mutation<GenerateReceiptQrResponse, { restaurantId: string; orderIds: string[]; tableNumber?: string }>({
+    generateCombinedReceiptQr: builder.mutation<
+      GenerateReceiptQrResponse,
+      { restaurantId: string; orderIds: string[]; tableNumber?: string }
+    >({
       query: ({ restaurantId, ...body }) => ({
         url: `/restaurants/${restaurantId}/orders/combined-receipt-qr`,
-        method: 'POST',
+        method: "POST",
         body,
       }),
       // No caching for QR generation

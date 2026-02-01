@@ -1,31 +1,37 @@
-import React, { useState } from 'react';
+import { Colors } from "@/constants/theme";
+import { useStaffLoginMutation } from "@/store/api/authApi";
+import { useAppDispatch } from "@/store/hooks";
+import { setCredentials } from "@/store/slices/authSlice";
+import { useFCMToken } from "@/hooks/useFCMToken";
+import { Image } from "expo-image";
+import { router } from "expo-router";
+import React, { useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { router } from 'expo-router';
-import { useStaffLoginMutation } from '@/store/api/authApi';
-import { useAppDispatch } from '@/store/hooks';
-import { setCredentials } from '@/store/slices/authSlice';
-import { Image } from 'expo-image';
+  useColorScheme,
+  View,
+} from "react-native";
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [staffLogin, { isLoading }] = useStaffLoginMutation();
   const dispatch = useAppDispatch();
+  const { registerToken } = useFCMToken();
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Missing Details', 'Please enter both email and password');
+      Alert.alert("Missing Details", "Please enter both email and password");
       return;
     }
 
@@ -33,83 +39,101 @@ export default function LoginScreen() {
       const { access_token, refresh_token, user, expires_in } =
         await staffLogin({ email, password }).unwrap();
 
-      // Create session info from user data
       const sessionInfo = {
         id: user.uid,
         userId: user.uid,
         restaurantId: user.restaurantId,
         branchId: user.branchId,
         roles: user.roles,
-        permissions: [], // Add permissions if available
+        permissions: [],
         displayName: user.displayName,
         email: user.email,
-        phone: undefined, // Not provided in response
+        phone: undefined,
         isActive: true,
         lastActiveAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      // Store credentials
       dispatch(
         setCredentials({
           idToken: access_token,
           refreshToken: refresh_token,
           expiresIn: expires_in,
           session: sessionInfo,
-        })
+        }),
       );
 
-      // Navigate based on role
-      if (user.roles.includes('chef')) {
-        router.replace('/(kitchen)');
+      // Register FCM token after successful login
+      setTimeout(() => {
+        registerToken().catch((error) => {
+          console.warn('FCM token registration failed after login:', error);
+        });
+      }, 1000); // Small delay to ensure auth state is fully set
+
+      if (user.roles.includes("chef")) {
+        router.replace("/(kitchen)");
       } else if (
-        user.roles.includes('waiter') ||
-        user.roles.includes('cashier')
+        user.roles.includes("waiter") ||
+        user.roles.includes("cashier")
       ) {
-        router.replace('/(service)');
+        router.replace("/(service)");
       } else {
         Alert.alert(
-          'Access Denied',
-          'You do not have permission to access this app'
+          "Access Denied",
+          "You do not have permission to access this app",
         );
       }
     } catch (error: any) {
       Alert.alert(
-        'Login Failed',
-        error?.data?.message || error?.message || 'Failed to sign in'
+        "Login Failed",
+        error?.data?.message || error?.message || "Failed to sign in",
       );
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoid}
       >
         <View style={styles.content}>
+          {/* Logo Section */}
           <View style={styles.header}>
             <Image
-              source={require('../../assets/images/logo-min.png')}
-              style={{ width: 200, height: 180 }}
+              source={
+                colorScheme === "dark"
+                  ? require("../../assets/images/logo_white.png")
+                  : require("../../assets/images/logo_black.png")
+              }
+              style={styles.brandLogo}
               contentFit="contain"
             />
-            <Image
-              source={require('../../assets/images/logo_black.png')}
-              style={{ width: 150, height: 40, top: -30 }}
-              contentFit="contain"
-            />
+            <Text style={[styles.welcomeText, { color: theme.icon }]}>
+              Welcome back
+            </Text>
           </View>
 
+          {/* Form */}
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={[styles.label, { color: theme.text }]}>Email</Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.text,
+                    borderColor: colorScheme === "dark" ? "#374151" : "#e5e7eb",
+                  },
+                ]}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="your.email@example.com"
+                placeholderTextColor={theme.icon}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 autoComplete="email"
@@ -117,12 +141,22 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={[styles.label, { color: theme.text }]}>
+                Password
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.text,
+                    borderColor: colorScheme === "dark" ? "#374151" : "#e5e7eb",
+                  },
+                ]}
                 value={password}
                 onChangeText={setPassword}
-                placeholder="Enter your password"
+                placeholder="••••••••"
+                placeholderTextColor={theme.icon}
                 secureTextEntry
                 autoComplete="password"
               />
@@ -131,15 +165,29 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={[
                 styles.loginButton,
+                {
+                  backgroundColor:
+                    colorScheme === "dark" ? "#ffffff" : "#111827",
+                },
                 isLoading && styles.loginButtonDisabled,
               ]}
               onPress={handleLogin}
               disabled={isLoading}
+              activeOpacity={0.9}
             >
               {isLoading ? (
-                <ActivityIndicator color="#ffffff" />
+                <ActivityIndicator
+                  color={colorScheme === "dark" ? "#111827" : "#ffffff"}
+                />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
+                <Text
+                  style={[
+                    styles.loginButtonText,
+                    { color: colorScheme === "dark" ? "#111827" : "#ffffff" },
+                  ]}
+                >
+                  Sign in
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -152,63 +200,68 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   keyboardAvoid: {
     flex: 1,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 24,
+    justifyContent: "center",
+    padding: 32,
+    maxWidth: 440,
+    width: "100%",
+    alignSelf: "center",
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 8,
+  logo: {
+    width: 140,
+    height: 140,
   },
-  subtitle: {
+  brandLogo: {
+    width: 160,
+    height: 42,
+  },
+  welcomeText: {
     fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
+    fontWeight: "500",
   },
   form: {
-    width: '100%',
+    width: "100%",
   },
   inputGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 15,
+    fontWeight: "600",
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    backgroundColor: '#ffffff',
   },
   loginButton: {
-    backgroundColor: '#2563eb',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
+    padding: 18,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   loginButtonDisabled: {
-    backgroundColor: '#93c5fd',
+    opacity: 0.5,
+    shadowOpacity: 0.05,
   },
   loginButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: 0.3,
   },
 });

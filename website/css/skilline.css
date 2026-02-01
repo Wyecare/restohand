@@ -1,6 +1,6 @@
 /*primary color*/
 .bg-cream {
-  background-color: hsl(220, 20%, 26%);
+  background-color: #151718;
 }
 
 /*font*/
@@ -9,7 +9,7 @@ body {
 }
 
 .bg-yellow-500 {
-  background-color: #f48c06;
+  background-color: #4910bc;
 }
 .text-yellow-500 {
   color: #3c6838;

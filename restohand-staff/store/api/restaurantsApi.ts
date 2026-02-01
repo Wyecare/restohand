@@ -1,9 +1,9 @@
-import { baseApi } from './baseApi';
+import { baseApi } from "./baseApi";
 import type {
+  EnhancedRestaurantTable,
   Restaurant,
   RestaurantTable,
-  EnhancedRestaurantTable,
-} from './types';
+} from "./types";
 
 export interface ServiceTablesStats {
   totalTables: number;
@@ -44,11 +44,14 @@ export const restaurantsApi = baseApi.injectEndpoints({
     getRestaurant: builder.query<Restaurant, string>({
       query: (restaurantId) => `/restaurants/${restaurantId}`,
       providesTags: (_result, _error, restaurantId) => [
-        { type: 'Restaurant', id: restaurantId },
+        { type: "Restaurant", id: restaurantId },
       ],
     }),
 
-    listServiceTables: builder.query<ServiceTablesResponse, { restaurantId: string }>({
+    listServiceTables: builder.query<
+      ServiceTablesResponse,
+      { restaurantId: string }
+    >({
       query: ({ restaurantId }) => ({
         url: `/restaurants/${restaurantId}/tables/service`,
       }),
@@ -56,48 +59,48 @@ export const restaurantsApi = baseApi.injectEndpoints({
         result
           ? [
               ...result.tables.map((table) => ({
-                type: 'RestaurantTable' as const,
+                type: "RestaurantTable" as const,
                 id: table.id,
               })),
-              { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}` },
+              { type: "RestaurantTable" as const, id: `LIST-${restaurantId}` },
             ]
-          : [{ type: 'RestaurantTable' as const, id: `LIST-${restaurantId}` }],
+          : [{ type: "RestaurantTable" as const, id: `LIST-${restaurantId}` }],
     }),
 
-    listEnhancedTables: builder.query<EnhancedRestaurantTable[], { restaurantId: string }>({
+    listEnhancedTables: builder.query<
+      EnhancedRestaurantTable[],
+      { restaurantId: string }
+    >({
       query: ({ restaurantId }) => ({
         url: `/restaurants/${restaurantId}/tables/enhanced`,
       }),
-      providesTags: (result, _error, { restaurantId }) =>
-        result
-          ? [
-              ...result.map((table) => ({
-                type: 'RestaurantTable' as const,
-                id: table.id,
-              })),
-              { type: 'RestaurantTable' as const, id: `ENHANCED-${restaurantId}` },
-            ]
-          : [{ type: 'RestaurantTable' as const, id: `ENHANCED-${restaurantId}` }],
+      providesTags: ["RestaurantTable"],
     }),
 
-    listRestaurantTables: builder.query<RestaurantTable[], { restaurantId: string; includeInactive?: boolean }>({
+    listRestaurantTables: builder.query<
+      RestaurantTable[],
+      { restaurantId: string; includeInactive?: boolean }
+    >({
       query: ({ restaurantId, includeInactive }) => ({
         url: `/restaurants/${restaurantId}/tables`,
-        params: includeInactive ? { includeInactive: 'true' } : {},
+        params: includeInactive ? { includeInactive: "true" } : {},
       }),
       providesTags: (result, _error, { restaurantId }) =>
         result
           ? [
               ...result.map((table) => ({
-                type: 'RestaurantTable' as const,
+                type: "RestaurantTable" as const,
                 id: table.id,
               })),
-              { type: 'RestaurantTable' as const, id: `ALL-${restaurantId}` },
+              { type: "RestaurantTable" as const, id: `ALL-${restaurantId}` },
             ]
-          : [{ type: 'RestaurantTable' as const, id: `ALL-${restaurantId}` }],
+          : [{ type: "RestaurantTable" as const, id: `ALL-${restaurantId}` }],
     }),
 
-    getCombinedTableInvoice: builder.query<CombinedTableInvoice, { slug: string; tableId: string; sessionId?: string }>({
+    getCombinedTableInvoice: builder.query<
+      CombinedTableInvoice,
+      { slug: string; tableId: string; sessionId?: string }
+    >({
       query: ({ slug, tableId, sessionId }) => ({
         url: `/public/restaurants/${slug}/table/${tableId}/consolidated-bill`,
         params: sessionId ? { sessionId } : {},

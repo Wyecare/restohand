@@ -3,7 +3,10 @@ import { Route, Routes, Navigate } from 'react-router-dom';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAppSelector } from '@/store/hooks';
-import { selectUserRoles, selectIsAuthenticated } from '@/store/slices/authSlice';
+import {
+  selectUserRoles,
+  selectIsAuthenticated,
+} from '@/store/slices/authSlice';
 import StaffLoginPage from '@/pages/StaffLoginPage';
 import StaffSignupPage from '@/pages/StaffSignupPage';
 import StaffInviteSignupPage from '@/pages/StaffInviteSignupPage';
@@ -39,16 +42,6 @@ const StaffRouter = () => {
       }
     >
       <Routes>
-        {/* Staff login route */}
-        <Route
-          path="/login"
-          element={
-            <AuthGuard requireAuth={false}>
-              <StaffLoginPage />
-            </AuthGuard>
-          }
-        />
-
         {/* Role-based redirect after login */}
         <Route
           path="/redirect"

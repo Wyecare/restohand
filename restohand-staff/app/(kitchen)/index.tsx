@@ -21,8 +21,9 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppSelector } from '@/store/hooks';
-import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { clearAuthState, selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { useFCMToken } from '@/hooks/useFCMToken';
 import {
   useListOrdersQuery,
   useUpdateOrderStatusMutation,
@@ -31,6 +32,7 @@ import { useOrdersSSE } from '@/hooks/useOrdersSSE';
 import type { Order } from '@/store/api/types';
 import { Image } from 'expo-image';
 import { Audio } from 'expo-av';
+import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -46,6 +48,8 @@ const cookingStatuses: Order['status'][] = [
 ];
 
 export default function KitchenOrdersScreen() {
+  const dispatch = useAppDispatch();
+  const { refreshToken } = useFCMToken();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const [refreshing, setRefreshing] = useState(false);
   const previousOrdersRef = useRef<Order[]>([]);
@@ -210,8 +214,19 @@ export default function KitchenOrdersScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await Promise.all([
+      refetch(),
+      // Refresh FCM token in background
+      refreshToken().catch((error) => {
+        console.warn('FCM token refresh failed:', error);
+      })
+    ]);
     setRefreshing(false);
+  };
+
+  const handleLogout = () => {
+    dispatch(clearAuthState());
+    router.replace("/(auth)/login");
   };
 
   const formatTime = (dateString: string) => {
@@ -496,6 +511,12 @@ export default function KitchenOrdersScreen() {
               style={refreshing ? styles.rotating : undefined}
             />
           </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={[styles.headerBtn, styles.logoutBtn]}
+          >
+            <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -680,6 +701,9 @@ const styles = StyleSheet.create({
   },
   refreshBtn: {
     backgroundColor: BRAND_COLOR_PALE,
+  },
+  logoutBtn: {
+    backgroundColor: '#DC2626',
   },
 
   // Summary Bar

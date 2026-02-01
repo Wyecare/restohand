@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId, selectAuthState } from '@/store/slices/authSlice';
 import { env } from '@/config/env';
+import EventSource from 'react-native-sse';
 
 interface UseOrdersSSEProps {
   onEvent?: (data: any) => void;
@@ -58,11 +59,16 @@ export const useOrdersSSE = ({ onEvent, enabled = true }: UseOrdersSSEProps = {}
 
     try {
       const roles = authState.session.roles.join(',');
-      const sseUrl = `${env.apiUrl}/orders/sse/connect/${restaurantId}?roles=${encodeURIComponent(roles)}&token=${encodeURIComponent(authState.idToken)}`;
+      const sseUrl = `${env.apiUrl}/orders/sse/connect/${restaurantId}?roles=${encodeURIComponent(roles)}`;
 
       console.log('Connecting to SSE:', sseUrl);
 
       const eventSource = new EventSource(sseUrl, {
+        headers: {
+          'Authorization': `Bearer ${authState.idToken}`,
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        },
         withCredentials: false
       });
 

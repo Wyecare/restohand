@@ -1,40 +1,41 @@
-import logo_white from '../../assets/images/logo_white.png';
-import { useOrdersSSE } from '@/hooks/useOrdersSSE';
+import { Colors } from "@/constants/theme";
+import { useOrdersSSE } from "@/hooks/useOrdersSSE";
+import { useFCMToken } from "@/hooks/useFCMToken";
 import {
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
   useListServiceTablesQuery,
-} from '@/store/api/restaurantsApi';
-import type { EnhancedRestaurantTable } from '@/store/api/types';
-import { useAppSelector } from '@/store/hooks';
+} from "@/store/api/restaurantsApi";
+import type { EnhancedRestaurantTable } from "@/store/api/types";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
+  clearAuthState,
   selectActiveRestaurantId,
   selectAuthSession,
-} from '@/store/slices/authSlice';
-import { Ionicons } from '@expo/vector-icons';
-import { skipToken } from '@reduxjs/toolkit/query';
-import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+} from "@/store/slices/authSlice";
+import { Ionicons } from "@expo/vector-icons";
+import { skipToken } from "@reduxjs/toolkit/query";
+import { Image } from "expo-image";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  StatusBar,
-  Dimensions,
-  Platform,
-} from 'react-native';
+  useColorScheme,
+} from "react-native";
+import logo_white from "../../assets/images/logo_white.png";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const BRAND_COLOR = '#4910bc';
-const BRAND_COLOR_LIGHT = '#6B2FDB';
-const BRAND_COLOR_PALE = '#F5F1FF';
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const getTableStatus = (table: EnhancedRestaurantTable) => {
   if (table.currentStatus) {
@@ -42,44 +43,44 @@ const getTableStatus = (table: EnhancedRestaurantTable) => {
   }
 
   const activeOrder = table.activeOrder;
-  if (!activeOrder) return 'available';
-  if (activeOrder.status === 'ready') return 'ready';
-  if (['pending', 'accepted', 'in_progress'].includes(activeOrder.status))
-    return 'occupied';
-  return 'available';
+  if (!activeOrder) return "available";
+  if (activeOrder.status === "ready") return "ready";
+  if (["pending", "accepted", "in_progress"].includes(activeOrder.status))
+    return "occupied";
+  return "available";
 };
 
-const getStatusConfig = (status: string, isAssignedToMe = false) => {
+const getStatusConfig = (status: string, isDark: boolean) => {
   const configs = {
     available: {
-      color: '#10B981',
-      bg: '#ECFDF5',
-      label: 'Available',
-      icon: 'checkmark-circle',
+      color: isDark ? "#34D399" : "#10B981",
+      bg: isDark ? "#064E3B" : "#ECFDF5",
+      label: "Available",
+      icon: "checkmark-circle",
     },
     occupied: {
-      color: '#F59E0B',
-      bg: '#FEF3C7',
-      label: 'Occupied',
-      icon: 'time',
+      color: isDark ? "#FBBF24" : "#F59E0B",
+      bg: isDark ? "#78350F" : "#FEF3C7",
+      label: "Occupied",
+      icon: "time",
     },
     ready: {
-      color: '#3B82F6',
-      bg: '#DBEAFE',
-      label: 'Ready',
-      icon: 'restaurant',
+      color: isDark ? "#60A5FA" : "#3B82F6",
+      bg: isDark ? "#1E3A8A" : "#DBEAFE",
+      label: "Ready",
+      icon: "restaurant",
     },
     cleaning: {
-      color: '#6B7280',
-      bg: '#F3F4F6',
-      label: 'Cleaning',
-      icon: 'brush',
+      color: isDark ? "#9CA3AF" : "#6B7280",
+      bg: isDark ? "#374151" : "#F3F4F6",
+      label: "Cleaning",
+      icon: "brush",
     },
     reserved: {
-      color: '#8B5CF6',
-      bg: '#F3E8FF',
-      label: 'Reserved',
-      icon: 'calendar',
+      color: isDark ? "#A78BFA" : "#8B5CF6",
+      bg: isDark ? "#5B21B6" : "#F3E8FF",
+      label: "Reserved",
+      icon: "calendar",
     },
   };
 
@@ -87,10 +88,17 @@ const getStatusConfig = (status: string, isAssignedToMe = false) => {
 };
 
 export default function ServiceTablesScreen() {
-  StatusBar.setBarStyle('dark-content', true);
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
+  const isDark = colorScheme === "dark";
+
+  StatusBar.setBarStyle(isDark ? "light-content" : "dark-content", true);
+
+  const dispatch = useAppDispatch();
+  const { refreshToken } = useFCMToken();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const session = useAppSelector(selectAuthSession);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   const {
@@ -111,7 +119,7 @@ export default function ServiceTablesScreen() {
 
   const { data: restaurant } = useGetRestaurantQuery(
     restaurantId ?? skipToken,
-    { skip: !restaurantId }
+    { skip: !restaurantId },
   );
 
   const isLoading = enhancedTablesLoading || serviceTablesLoading;
@@ -122,7 +130,7 @@ export default function ServiceTablesScreen() {
     (table: EnhancedRestaurantTable): boolean => {
       return table.currentStatus?.assignedServerId === session?.userId;
     },
-    [session?.userId]
+    [session?.userId],
   );
 
   const filteredTables = useMemo(() => {
@@ -155,7 +163,7 @@ export default function ServiceTablesScreen() {
   const assignedTablesByZone = useMemo(() => {
     const grouped = new Map<string, EnhancedRestaurantTable[]>();
     assignedTables.forEach((table) => {
-      const zone = table.zone || 'No Zone';
+      const zone = table.zone || "No Zone";
       if (!grouped.has(zone)) {
         grouped.set(zone, []);
       }
@@ -167,7 +175,7 @@ export default function ServiceTablesScreen() {
   const unassignedTablesByZone = useMemo(() => {
     const grouped = new Map<string, EnhancedRestaurantTable[]>();
     unassignedTables.forEach((table) => {
-      const zone = table.zone || 'No Zone';
+      const zone = table.zone || "No Zone";
       if (!grouped.has(zone)) {
         grouped.set(zone, []);
       }
@@ -178,16 +186,16 @@ export default function ServiceTablesScreen() {
 
   const handleTableClick = (table: EnhancedRestaurantTable) => {
     router.push({
-      pathname: '/(service)/menu',
+      pathname: "/(service)/menu",
       params: { tableId: table.id, restaurant_slug: restaurant?.slug },
     });
   };
 
   const handleViewBill = (table: EnhancedRestaurantTable) => {
     if (table.activeOrder) {
-      if (table.activeOrder.paymentStatus === 'paid') {
+      if (table.activeOrder.paymentStatus === "paid") {
         router.push({
-          pathname: '/(service)/bill',
+          pathname: "/(service)/bill",
           params: {
             orderId: table.activeOrder.id,
             orderData: JSON.stringify(table.activeOrder),
@@ -195,7 +203,7 @@ export default function ServiceTablesScreen() {
         });
       } else {
         router.push({
-          pathname: '/(service)/payment',
+          pathname: "/(service)/payment",
           params: {
             orderId: table.activeOrder.id,
             tableId: table.id,
@@ -213,8 +221,20 @@ export default function ServiceTablesScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchEnhanced(), refetchService()]);
+    await Promise.all([
+      refetchEnhanced(),
+      refetchService(),
+      // Refresh FCM token in background
+      refreshToken().catch((error) => {
+        console.warn('FCM token refresh failed:', error);
+      })
+    ]);
     setRefreshing(false);
+  };
+
+  const handleLogout = () => {
+    dispatch(clearAuthState());
+    router.replace("/(auth)/login");
   };
 
   const handleSocketEvent = useCallback(() => {
@@ -226,14 +246,18 @@ export default function ServiceTablesScreen() {
   useFocusEffect(
     useCallback(() => {
       refetchTables();
-    }, [refetchTables])
+    }, [refetchTables]),
   );
 
   if (!restaurantId) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>No restaurant selected</Text>
+          <Text style={[styles.errorText, { color: theme.text }]}>
+            No restaurant selected
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -241,10 +265,14 @@ export default function ServiceTablesScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={BRAND_COLOR} />
-          <Text style={styles.loadingText}>Loading tables...</Text>
+          <ActivityIndicator size="large" color={theme.brand} />
+          <Text style={[styles.loadingText, { color: theme.icon }]}>
+            Loading tables...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -258,24 +286,36 @@ export default function ServiceTablesScreen() {
     isAssigned: boolean;
   }) => {
     const status = getTableStatus(table);
-    const statusConfig = getStatusConfig(status, isAssigned);
+    const statusConfig = getStatusConfig(status, isDark);
     const activeOrder = table.activeOrder;
     const hasOrder = !!activeOrder;
 
     return (
       <TouchableOpacity
-        style={[styles.tableCard, isAssigned && styles.assignedTableCard]}
+        style={[
+          styles.tableCard,
+          {
+            backgroundColor: theme.background,
+            borderColor: isDark ? "#374151" : "#F3F4F6",
+          },
+          isAssigned && {
+            borderColor: theme.brand,
+            borderWidth: 2,
+          },
+        ]}
         onPress={() => handleTableClick(table)}
         activeOpacity={0.7}
       >
-        {/* Top Section - Always visible */}
+        {/* Top Section */}
         <View style={styles.tableCardTop}>
           <View style={styles.tableHeader}>
-            <Text style={styles.tableNumber}>
+            <Text style={[styles.tableNumber, { color: theme.text }]}>
               {table.displayName || table.tableNumber}
             </Text>
             {isAssigned && (
-              <View style={styles.myTableBadge}>
+              <View
+                style={[styles.myTableBadge, { backgroundColor: theme.brand }]}
+              >
                 <Ionicons name="person" size={12} color="#FFFFFF" />
               </View>
             )}
@@ -295,30 +335,40 @@ export default function ServiceTablesScreen() {
             </Text>
           </View>
 
-          <View style={styles.tableInfo}>
-            {table.capacity && (
-              <View style={styles.infoRow}>
-                <Ionicons name="people-outline" size={14} color="#9CA3AF" />
-                <Text style={styles.infoText}>{table.capacity} seats</Text>
-              </View>
-            )}
-          </View>
+          {table.capacity && (
+            <View style={styles.infoRow}>
+              <Ionicons name="people-outline" size={14} color={theme.icon} />
+              <Text style={[styles.infoText, { color: theme.icon }]}>
+                {table.capacity} seats
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Bottom Section - Only when there's an order */}
+        {/* Bottom Section - Order Info */}
         {hasOrder && (
-          <View style={styles.tableCardBottom}>
+          <View
+            style={[
+              styles.tableCardBottom,
+              {
+                backgroundColor: isDark ? "#1F2937" : "#FAFAFA",
+                borderTopColor: isDark ? "#374151" : "#F3F4F6",
+              },
+            ]}
+          >
             <View style={styles.orderInfo}>
-              <Text style={styles.orderLabel}>Order Amount</Text>
-              <Text style={styles.orderAmount}>
+              <Text style={[styles.orderLabel, { color: theme.icon }]}>
+                Order Amount
+              </Text>
+              <Text style={[styles.orderAmount, { color: theme.text }]}>
                 ₹{activeOrder.totalAmount.toFixed(0)}
               </Text>
             </View>
 
-            {(activeOrder.status === 'ready' ||
-              activeOrder.paymentStatus === 'paid') && (
+            {(activeOrder.status === "ready" ||
+              activeOrder.paymentStatus === "paid") && (
               <TouchableOpacity
-                style={styles.actionButton}
+                style={[styles.actionButton, { backgroundColor: theme.brand }]}
                 onPress={(e) => {
                   e.stopPropagation();
                   handleViewBill(table);
@@ -326,20 +376,28 @@ export default function ServiceTablesScreen() {
               >
                 <Ionicons name="receipt-outline" size={14} color="#FFFFFF" />
                 <Text style={styles.actionButtonText}>
-                  {activeOrder.paymentStatus === 'paid'
-                    ? 'View Bill'
-                    : 'Payment'}
+                  {activeOrder.paymentStatus === "paid"
+                    ? "View Bill"
+                    : "Payment"}
                 </Text>
               </TouchableOpacity>
             )}
           </View>
         )}
 
-        {/* Server name for unassigned tables */}
+        {/* Server Badge for unassigned tables */}
         {!isAssigned && table.currentStatus?.assignedServerName && (
-          <View style={styles.serverBadge}>
-            <Ionicons name="person-outline" size={10} color="#6B7280" />
-            <Text style={styles.serverText}>
+          <View
+            style={[
+              styles.serverBadge,
+              {
+                backgroundColor: isDark ? "#1F2937" : "#F9FAFB",
+                borderTopColor: isDark ? "#374151" : "#F3F4F6",
+              },
+            ]}
+          >
+            <Ionicons name="person-outline" size={10} color={theme.icon} />
+            <Text style={[styles.serverText, { color: theme.icon }]}>
               {table.currentStatus.assignedServerName}
             </Text>
           </View>
@@ -349,11 +407,13 @@ export default function ServiceTablesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
+      <StatusBar backgroundColor={theme.brand} barStyle="light-content" />
 
-      {/* Brand Color Header */}
-      <View style={styles.header}>
+      {/* Header with Brand Color */}
+      <View style={[styles.header, { backgroundColor: theme.brand }]}>
         <View style={styles.headerTop}>
           <View style={{ flex: 1 }}>
             <Image source={logo_white} style={styles.logo} />
@@ -361,9 +421,14 @@ export default function ServiceTablesScreen() {
               <Text style={styles.restaurantName}>{restaurant.name}</Text>
             )}
           </View>
-          <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
-            <Ionicons name="refresh" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
+              <Ionicons name="refresh" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+              <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Stats Cards */}
@@ -390,23 +455,26 @@ export default function ServiceTablesScreen() {
       </View>
 
       {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons
-          name="search"
-          size={18}
-          color="#9CA3AF"
-          style={styles.searchIcon}
-        />
+      <View
+        style={[
+          styles.searchContainer,
+          {
+            backgroundColor: theme.background,
+            borderColor: isDark ? "#374151" : "#E5E7EB",
+          },
+        ]}
+      >
+        <Ionicons name="search" size={18} color={theme.icon} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: theme.text }]}
           placeholder="Search tables..."
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={theme.icon}
           value={searchTerm}
           onChangeText={setSearchTerm}
         />
         {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm('')}>
-            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+          <TouchableOpacity onPress={() => setSearchTerm("")}>
+            <Ionicons name="close-circle" size={18} color={theme.icon} />
           </TouchableOpacity>
         )}
       </View>
@@ -423,22 +491,33 @@ export default function ServiceTablesScreen() {
         {/* My Tables Section */}
         {assignedTables.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
+            <View
+              style={[
+                styles.sectionHeader,
+                {
+                  backgroundColor: isDark
+                    ? theme.brandPale
+                    : "rgba(73, 16, 188, 0.03)",
+                },
+              ]}
+            >
               <View style={styles.sectionTitleRow}>
                 <Ionicons
                   name="person-circle-outline"
                   size={20}
-                  color={BRAND_COLOR}
+                  color={theme.brand}
                 />
-                <Text style={styles.sectionTitle}>My Tables</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  My Tables
+                </Text>
               </View>
               <View
                 style={[
                   styles.sectionBadge,
-                  { backgroundColor: BRAND_COLOR_PALE },
+                  { backgroundColor: theme.brandPale },
                 ]}
               >
-                <Text style={[styles.sectionBadgeText, { color: BRAND_COLOR }]}>
+                <Text style={[styles.sectionBadgeText, { color: theme.brand }]}>
                   {assignedTables.length}
                 </Text>
               </View>
@@ -449,7 +528,9 @@ export default function ServiceTablesScreen() {
                 <View key={`assigned-${zone}`}>
                   {assignedTablesByZone.size > 1 && (
                     <View style={styles.zoneHeader}>
-                      <Text style={styles.zoneTitle}>{zone}</Text>
+                      <Text style={[styles.zoneTitle, { color: theme.icon }]}>
+                        {zone}
+                      </Text>
                     </View>
                   )}
                   <View style={styles.tablesGrid}>
@@ -462,7 +543,7 @@ export default function ServiceTablesScreen() {
                     ))}
                   </View>
                 </View>
-              )
+              ),
             )}
           </View>
         )}
@@ -470,15 +551,27 @@ export default function ServiceTablesScreen() {
         {/* Other Tables Section */}
         {unassignedTables.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
+            <View
+              style={[
+                styles.sectionHeader,
+                {
+                  backgroundColor: isDark ? "#1F2937" : "#F9FAFB",
+                },
+              ]}
+            >
               <View style={styles.sectionTitleRow}>
-                <Ionicons name="grid-outline" size={20} color="#6B7280" />
-                <Text style={styles.sectionTitle}>Other Tables</Text>
+                <Ionicons name="grid-outline" size={20} color={theme.icon} />
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  Other Tables
+                </Text>
               </View>
               <View
-                style={[styles.sectionBadge, { backgroundColor: '#F3F4F6' }]}
+                style={[
+                  styles.sectionBadge,
+                  { backgroundColor: isDark ? "#374151" : "#F3F4F6" },
+                ]}
               >
-                <Text style={[styles.sectionBadgeText, { color: '#6B7280' }]}>
+                <Text style={[styles.sectionBadgeText, { color: theme.icon }]}>
                   {unassignedTables.length}
                 </Text>
               </View>
@@ -489,7 +582,9 @@ export default function ServiceTablesScreen() {
                 <View key={`unassigned-${zone}`}>
                   {unassignedTablesByZone.size > 1 && (
                     <View style={styles.zoneHeader}>
-                      <Text style={styles.zoneTitle}>{zone}</Text>
+                      <Text style={[styles.zoneTitle, { color: theme.icon }]}>
+                        {zone}
+                      </Text>
                     </View>
                   )}
                   <View style={styles.tablesGrid}>
@@ -502,7 +597,7 @@ export default function ServiceTablesScreen() {
                     ))}
                   </View>
                 </View>
-              )
+              ),
             )}
           </View>
         )}
@@ -510,16 +605,25 @@ export default function ServiceTablesScreen() {
         {/* Empty State */}
         {filteredTables.length === 0 && (
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconContainer}>
-              <Ionicons name="restaurant-outline" size={40} color="#D1D5DB" />
+            <View
+              style={[
+                styles.emptyIconContainer,
+                { backgroundColor: isDark ? "#1F2937" : "#F9FAFB" },
+              ]}
+            >
+              <Ionicons
+                name="restaurant-outline"
+                size={40}
+                color={theme.icon}
+              />
             </View>
-            <Text style={styles.emptyTitle}>
-              {searchTerm ? 'No tables found' : 'No tables available'}
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              {searchTerm ? "No tables found" : "No tables available"}
             </Text>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { color: theme.icon }]}>
               {searchTerm
-                ? 'Try adjusting your search'
-                : 'Contact your manager to set up tables'}
+                ? "Try adjusting your search"
+                : "Contact your manager to set up tables"}
             </Text>
           </View>
         )}
@@ -531,33 +635,28 @@ export default function ServiceTablesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: 12,
   },
   loadingText: {
     fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
+    fontWeight: "500",
   },
   errorText: {
     fontSize: 16,
-    color: '#DC2626',
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   // Header
   header: {
-    backgroundColor: BRAND_COLOR,
-    paddingTop: 12,
-    paddingBottom: 20,
+    paddingTop: 30,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 8,
@@ -568,91 +667,159 @@ const styles = StyleSheet.create({
     }),
   },
   headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   logo: {
     width: 120,
-    height: 36,
-    resizeMode: 'contain',
+    height: 32,
+    resizeMode: "contain",
     left: -4,
   },
   restaurantName: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
-    marginTop: 4,
+    color: "rgba(255, 255, 255, 0.85)",
+    fontWeight: "500",
+    marginTop: 0,
   },
-  headerActions: {
-    flexDirection: 'row',
+  headerButtons: {
+    flexDirection: "row",
     gap: 8,
   },
-  refreshButton: {
+  headerButton: {
     width: 40,
     height: 40,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   // Stats Bar
   statsBar: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
-    paddingBottom: 20,
-    paddingTop: 0,
+    paddingBottom: 16,
     gap: 10,
-    backgroundColor: BRAND_COLOR,
   },
   statItem: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    gap: 6,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   statValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   statLabel: {
     fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    color: "rgba(255, 255, 255, 0.85)",
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
-  },
-  statDivider: {
-    display: 'none',
   },
 
   // Search
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+  },
+
+  // Scroll View
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16,
+  },
+
+  // Section
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  sectionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    minWidth: 28,
+    alignItems: "center",
+  },
+  sectionBadgeText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  // Zone Header
+  zoneHeader: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  zoneTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  // Tables Grid
+  tablesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+
+  // Table Card
+  tableCard: {
+    width: (SCREEN_WIDTH - 32 - 24) / 3,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
+        shadowOpacity: 0.08,
         shadowRadius: 6,
       },
       android: {
@@ -660,271 +827,130 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#111827',
-    fontWeight: '500',
-  },
-
-  // Scroll View
-  scrollView: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-
-  // Section
-  section: {
-    marginBottom: 28,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(73, 16, 188, 0.03)',
-    marginHorizontal: 20,
-    borderRadius: 12,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-    letterSpacing: -0.3,
-  },
-  sectionBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    minWidth: 32,
-    alignItems: 'center',
-  },
-  sectionBadgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-
-  // Zone Header
-  zoneHeader: {
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  zoneTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-
-  // Tables Grid - Proper 3 Column Layout
-  tablesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    gap: 14,
-  },
-
-  // Table Card - Fixed Height
-  tableCard: {
-    width: (SCREEN_WIDTH - 40 - 28) / 3, // 3 columns with proper spacing
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#F3F4F6',
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  assignedTableCard: {
-    borderColor: BRAND_COLOR,
-    borderWidth: 2.5,
-    ...Platform.select({
-      ios: {
-        shadowColor: BRAND_COLOR,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
   tableCardTop: {
-    padding: 14,
+    padding: 12,
+    gap: 8,
   },
   tableHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   tableNumber: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
+    fontSize: 16,
+    fontWeight: "800",
     letterSpacing: -0.5,
   },
   myTableBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: BRAND_COLOR,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
   },
   statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
+    alignSelf: "flex-start",
   },
   statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  tableInfo: {
-    gap: 6,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   infoText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: "600",
   },
 
-  // Table Card Bottom (for orders)
+  // Table Card Bottom
   tableCardBottom: {
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    padding: 14,
-    backgroundColor: '#FAFAFA',
-    gap: 10,
+    padding: 12,
+    gap: 8,
   },
   orderInfo: {
-    gap: 4,
+    gap: 3,
   },
   orderLabel: {
     fontSize: 10,
-    color: '#9CA3AF',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   orderAmount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111827',
+    fontSize: 17,
+    fontWeight: "800",
     letterSpacing: -0.5,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 5,
-    backgroundColor: BRAND_COLOR,
     paddingVertical: 8,
-    paddingHorizontal: 12,
     borderRadius: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: BRAND_COLOR,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
   actionButtonText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
   },
 
   // Server Badge
   serverBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#F9FAFB',
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
   },
   serverText: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: "600",
   },
 
   // Empty State
   emptyState: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 32,
   },
   emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F9FAFB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 6,
+    textAlign: "center",
   },
   emptyText: {
     fontSize: 14,
-    color: '#9CA3AF',
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
 });

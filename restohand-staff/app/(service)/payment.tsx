@@ -1,21 +1,22 @@
+import { PaymentRoundingDialog } from "@/components/PaymentRoundingDialog";
+import { Colors } from "@/constants/theme";
 import {
+  useGenerateCombinedReceiptQrMutation,
+  useGenerateReceiptQrQuery,
   useGetOrderQuery,
   useUpdateOrderPaymentMutation,
-  useGenerateReceiptQrQuery,
-  useGenerateCombinedReceiptQrMutation,
-} from '@/store/api/ordersApi';
-import { PaymentRoundingDialog } from '@/components/PaymentRoundingDialog';
+} from "@/store/api/ordersApi";
 import {
+  useGetCombinedTableInvoiceQuery,
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
-  useGetCombinedTableInvoiceQuery,
-} from '@/store/api/restaurantsApi';
-import { useAppSelector } from '@/store/hooks';
-import { selectActiveRestaurantId } from '@/store/slices/authSlice';
-import { Ionicons } from '@expo/vector-icons';
-import { skipToken } from '@reduxjs/toolkit/query';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+} from "@/store/api/restaurantsApi";
+import { useAppSelector } from "@/store/hooks";
+import { selectActiveRestaurantId } from "@/store/slices/authSlice";
+import { Ionicons } from "@expo/vector-icons";
+import { skipToken } from "@reduxjs/toolkit/query";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,38 +28,42 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
+  useColorScheme,
+} from "react-native";
 
 const formatCurrency = (amount: number, showDecimals: boolean = true) =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
     minimumFractionDigits: showDecimals ? 2 : 0,
     maximumFractionDigits: showDecimals ? 2 : 0,
   }).format(amount);
 
 export default function ServicePaymentScreen() {
-  const { orderId, tableId, orderData, allOrdersData, totalBillAmount } = useLocalSearchParams();
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
+  const isDark = colorScheme === "dark";
+
+  const { orderId, tableId, orderData, allOrdersData, totalBillAmount } =
+    useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showRoundingDialog, setShowRoundingDialog] = useState(false);
   const [showReceiptQr, setShowReceiptQr] = useState(false);
 
-  // State to hold current order data
   const [currentOrder, setCurrentOrder] = useState<any>(null);
-  // State to hold updated orders after payment
   const [updatedOrdersState, setUpdatedOrdersState] = useState<any>(null);
 
-  // Parse order data from route params (fallback to RTK query if not available)
   const orderFromParams = orderData ? JSON.parse(orderData as string) : null;
+  const allOrdersFromParams = allOrdersData
+    ? JSON.parse(allOrdersData as string)
+    : null;
+  const combinedBillAmount = totalBillAmount
+    ? parseFloat(totalBillAmount as string)
+    : null;
 
-  // Parse multiple orders data for combined payment
-  const allOrdersFromParams = allOrdersData ? JSON.parse(allOrdersData as string) : null;
-  const combinedBillAmount = totalBillAmount ? parseFloat(totalBillAmount as string) : null;
-
-  // Get order details (always fetch to ensure we can refetch after payment)
   const {
     data: orderFromQuery,
     isLoading: orderLoading,
@@ -67,20 +72,16 @@ export default function ServicePaymentScreen() {
     restaurantId && orderId
       ? { restaurantId, orderId: orderId as string }
       : skipToken,
-    { skip: !restaurantId || !orderId }
+    { skip: !restaurantId || !orderId },
   );
 
-  // Use order priority: updated state > fresh query > params
   const order = currentOrder || orderFromQuery || orderFromParams;
+  const ordersToProcess =
+    updatedOrdersState || allOrdersFromParams || (order ? [order] : []);
 
-  // Always process orders as array - simplified logic
-  const ordersToProcess = updatedOrdersState || allOrdersFromParams || (order ? [order] : []);
-
-  // Get restaurant details
   const { data: restaurant, refetch: refetchRestaurant } =
     useGetRestaurantQuery(restaurantId ?? skipToken, { skip: !restaurantId });
 
-  // Get table details
   const { data: enhancedTables, refetch: refetchTables } =
     useListEnhancedTablesQuery(restaurantId ? { restaurantId } : skipToken, {
       skip: !restaurantId,
@@ -90,7 +91,6 @@ export default function ServicePaymentScreen() {
     return enhancedTables?.find((table) => table.id === tableId) ?? null;
   }, [enhancedTables, tableId]);
 
-  // Get session-based tax calculation (same as customer frontend)
   const {
     data: sessionInvoice,
     isLoading: sessionInvoiceLoading,
@@ -100,18 +100,15 @@ export default function ServicePaymentScreen() {
       ? {
           slug: restaurant.slug,
           tableId: tableId as string,
-          // TODO: Add sessionId if available
         }
       : skipToken,
     {
       skip: !restaurant?.slug || !tableId,
-    }
+    },
   );
 
-  // Use session-based tax calculation (same as customer frontend)
   const combinedBillDetails = useMemo(() => {
     if (sessionInvoice?.bill) {
-      // Use proper session-based tax calculation
       const bill = sessionInvoice.bill;
       return {
         subTotalAmount: bill.subtotal,
@@ -127,7 +124,6 @@ export default function ServicePaymentScreen() {
       };
     }
 
-    // Fallback to individual order summation (old way - less accurate)
     if (!ordersToProcess.length) return null;
 
     const combined = {
@@ -160,10 +156,13 @@ export default function ServicePaymentScreen() {
     return combined;
   }, [sessionInvoice, ordersToProcess]);
 
-  // Use session-based total (most accurate), then combined bill param, then fallback
-  const finalTotalAmount = sessionInvoice?.bill?.totalAmount || combinedBillAmount || combinedBillDetails?.totalAmount || order?.totalAmount || 0;
+  const finalTotalAmount =
+    sessionInvoice?.bill?.totalAmount ||
+    combinedBillAmount ||
+    combinedBillDetails?.totalAmount ||
+    order?.totalAmount ||
+    0;
 
-  // Initialize current order when component loads
   useEffect(() => {
     if (orderFromParams && !currentOrder) {
       setCurrentOrder(orderFromParams);
@@ -172,125 +171,118 @@ export default function ServicePaymentScreen() {
     }
   }, [orderFromParams, orderFromQuery, currentOrder]);
 
-
-  console.log(
-    restaurantId,
-    orderId,
-    order?.paymentStatus,
-    'checking receipt qr fetch'
-  );
-
-  // Check if all orders in the array are paid
   const allOrdersPaid = useMemo(() => {
-    return ordersToProcess.every((ord: any) => ord.paymentStatus === 'paid');
+    return ordersToProcess.every((ord: any) => ord.paymentStatus === "paid");
   }, [ordersToProcess]);
 
-  // Add combined receipt QR mutation
-  const [generateCombinedReceiptQr, { data: combinedReceiptQr, isLoading: isCombinedQrLoading }] = useGenerateCombinedReceiptQrMutation();
+  const [
+    generateCombinedReceiptQr,
+    { data: combinedReceiptQr, isLoading: isCombinedQrLoading },
+  ] = useGenerateCombinedReceiptQrMutation();
 
-  // Generate receipt QR (single order only - combined receipts handled in processPayment)
   const primaryOrderForQr = ordersToProcess[0];
-  const { data: singleReceiptQr, refetch: generateSingleQr } = useGenerateReceiptQrQuery(
-    { restaurantId: restaurantId!, orderId: primaryOrderForQr?._id || primaryOrderForQr?.id || (orderId as string) },
-    { skip: !restaurantId || !primaryOrderForQr || !allOrdersPaid || ordersToProcess.length > 1 || !(primaryOrderForQr._id || primaryOrderForQr.id || orderId) }
-  );
+  const { data: singleReceiptQr, refetch: generateSingleQr } =
+    useGenerateReceiptQrQuery(
+      {
+        restaurantId: restaurantId!,
+        orderId:
+          primaryOrderForQr?._id ||
+          primaryOrderForQr?.id ||
+          (orderId as string),
+      },
+      {
+        skip:
+          !restaurantId ||
+          !primaryOrderForQr ||
+          !allOrdersPaid ||
+          ordersToProcess.length > 1 ||
+          !(primaryOrderForQr._id || primaryOrderForQr.id || orderId),
+      },
+    );
 
-  // Use the appropriate receipt QR based on whether we have multiple orders
-  const receiptQr = ordersToProcess.length > 1 ? combinedReceiptQr : singleReceiptQr;
+  const receiptQr =
+    ordersToProcess.length > 1 ? combinedReceiptQr : singleReceiptQr;
 
   const [updatePayment] = useUpdateOrderPaymentMutation();
 
-  // Refresh function to update order, restaurant, table data, and session invoice
   const handleRefresh = async () => {
-    await Promise.all([refetchOrder(), refetchRestaurant(), refetchTables(), refetchSessionInvoice()]);
+    await Promise.all([
+      refetchOrder(),
+      refetchRestaurant(),
+      refetchTables(),
+      refetchSessionInvoice(),
+    ]);
   };
 
-
-  const handleMarkAsPaid = async (method: 'cash' | 'card') => {
-    console.log('handleMarkAsPaid called with method:', method);
-
+  const handleMarkAsPaid = async (method: "cash" | "card") => {
     if (!finalTotalAmount || !restaurantId || ordersToProcess.length === 0) {
-      Alert.alert('Error', 'Missing order or restaurant data');
+      Alert.alert("Error", "Missing order or restaurant data");
       return;
     }
 
-    // For cash payments, show rounding dialog
-    if (method === 'cash') {
+    if (method === "cash") {
       setShowRoundingDialog(true);
       return;
     }
 
-    // For card payments, use exact amount (no rounding)
     await processPayment(method, finalTotalAmount, 0);
   };
 
   const processPayment = async (
-    method: 'cash' | 'card',
+    method: "cash" | "card",
     finalAmount: number,
-    roundOffAmount: number
+    roundOffAmount: number,
   ) => {
     setIsProcessing(true);
     try {
-      console.log('Making API call to update payment...', {
-        method,
-        finalAmount,
-        roundOffAmount,
-        orderCount: ordersToProcess.length,
-      });
-
-      console.log('ordersToProcess:', ordersToProcess);
-
-      // Always process orders as an array (simplified logic)
       const results = [];
       for (const orderToUpdate of ordersToProcess) {
-        // Calculate proportional amount for this order
-        const proportionalAmount = ordersToProcess.length > 1
-          ? (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * finalAmount
-          : finalAmount;
-        const proportionalRounding = ordersToProcess.length > 1
-          ? (orderToUpdate.totalAmount / (combinedBillDetails?.totalAmount || 1)) * roundOffAmount
-          : roundOffAmount;
+        const proportionalAmount =
+          ordersToProcess.length > 1
+            ? (orderToUpdate.totalAmount /
+                (combinedBillDetails?.totalAmount || 1)) *
+              finalAmount
+            : finalAmount;
+        const proportionalRounding =
+          ordersToProcess.length > 1
+            ? (orderToUpdate.totalAmount /
+                (combinedBillDetails?.totalAmount || 1)) *
+              roundOffAmount
+            : roundOffAmount;
 
         const result = await updatePayment({
           restaurantId: restaurantId!,
           orderId: orderToUpdate._id || orderToUpdate.id,
-          paymentStatus: 'paid',
-          provider: method === 'card' ? 'card' : 'cash',
+          paymentStatus: "paid",
+          provider: method === "card" ? "card" : "cash",
         }).unwrap();
         results.push(result);
       }
-      console.log('All payments updated successfully:', results);
 
-      // Update local state - mark all orders as paid
       const updatedOrders = ordersToProcess.map((ord: any) => ({
         ...ord,
-        paymentStatus: 'paid'
+        paymentStatus: "paid",
       }));
 
-      // Update both the orders list and current order state
       setUpdatedOrdersState(updatedOrders);
       if (updatedOrders.length > 0) {
         setCurrentOrder(updatedOrders[0]);
       }
 
-      // Generate receipt QR - combined for multiple orders, single for one order
       if (ordersToProcess.length > 1) {
         const orderIds = ordersToProcess.map((ord: any) => ord.id || ord._id);
-        const tableNum = selectedTable?.tableNumber || selectedTable?.displayName;
+        const tableNum =
+          selectedTable?.tableNumber || selectedTable?.displayName;
         await generateCombinedReceiptQr({
           restaurantId: restaurantId!,
           orderIds,
           tableNumber: tableNum,
         });
       }
-      // For single orders, the useGenerateReceiptQrQuery hook will handle it automatically
-
-      // Payment successful - user can now see QR code option or navigate to bill manually
     } catch (error: any) {
-      console.error('Payment update failed:', error);
       Alert.alert(
-        'Payment Update Failed',
-        error?.message || 'Failed to update payment status'
+        "Payment Update Failed",
+        error?.message || "Failed to update payment status",
       );
     } finally {
       setIsProcessing(false);
@@ -299,49 +291,63 @@ export default function ServicePaymentScreen() {
 
   const handleRoundingConfirm = (
     finalAmount: number,
-    roundOffAmount: number
+    roundOffAmount: number,
   ) => {
     setShowRoundingDialog(false);
-    processPayment('cash', finalAmount, roundOffAmount);
+    processPayment("cash", finalAmount, roundOffAmount);
   };
-
 
   const getOrderStatusInfo = () => {
     if (!order) return null;
 
     if (allOrdersPaid) {
       return {
-        icon: 'checkmark-circle',
-        text: ordersToProcess.length > 1 ? 'All Payments Complete' : 'Payment Complete',
-        color: '#16a34a',
-        bgColor: '#f0fdf4',
+        icon: "checkmark-circle",
+        text:
+          ordersToProcess.length > 1
+            ? "All Payments Complete"
+            : "Payment Complete",
+        color: "#16a34a",
+        bgColor: isDark ? "#064E3B" : "#f0fdf4",
       };
     }
 
     return {
-      icon: 'time',
-      text: ordersToProcess.length > 1 ? 'Payments Pending' : 'Payment Pending',
-      color: '#ea580c',
-      bgColor: '#fff7ed',
+      icon: "time",
+      text: ordersToProcess.length > 1 ? "Payments Pending" : "Payment Pending",
+      color: "#ea580c",
+      bgColor: isDark ? "#7C2D12" : "#fff7ed",
     };
   };
 
   if (orderLoading && !orderFromParams) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.background,
+              borderBottomColor: isDark ? "#374151" : "#e5e7eb",
+            },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#1f2937" />
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>Loading...</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Loading...
+            </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
+          <ActivityIndicator size="large" color={theme.brand} />
         </View>
       </SafeAreaView>
     );
@@ -349,20 +355,34 @@ export default function ServicePaymentScreen() {
 
   if (!order || !restaurant) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.background,
+              borderBottomColor: isDark ? "#374151" : "#e5e7eb",
+            },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#1f2937" />
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.title}>Order Not Found</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Order Not Found
+            </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>Unable to load order details</Text>
+          <Text style={[styles.errorText, { color: theme.text }]}>
+            Unable to load order details
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -373,21 +393,39 @@ export default function ServicePaymentScreen() {
     selectedTable?.displayName || selectedTable?.tableNumber || tableId;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.background,
+            borderBottomColor: isDark ? "#374151" : "#e5e7eb",
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#1f2937" />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Payment</Text>
-          <Text style={styles.subtitle}>Order #{order.orderNumber}</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Payment</Text>
+          <Text style={[styles.subtitle, { color: theme.icon }]}>
+            Order #{order.orderNumber}
+          </Text>
         </View>
-        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
-          <Ionicons name="refresh" size={20} color="#1f2937" />
+        <TouchableOpacity
+          style={[
+            styles.iconButton,
+            { backgroundColor: isDark ? "#374151" : "#f3f4f6" },
+          ]}
+          onPress={handleRefresh}
+        >
+          <Ionicons name="refresh" size={20} color={theme.text} />
         </TouchableOpacity>
       </View>
 
@@ -395,7 +433,13 @@ export default function ServicePaymentScreen() {
         {/* Order Status */}
         {statusInfo && (
           <View
-            style={[styles.statusCard, { backgroundColor: statusInfo.bgColor }]}
+            style={[
+              styles.statusCard,
+              {
+                backgroundColor: statusInfo.bgColor,
+                borderColor: isDark ? statusInfo.color : "rgba(0, 0, 0, 0.05)",
+              },
+            ]}
           >
             <View style={styles.statusContent}>
               <Ionicons
@@ -407,94 +451,96 @@ export default function ServicePaymentScreen() {
                 <Text style={[styles.statusText, { color: statusInfo.color }]}>
                   {statusInfo.text}
                 </Text>
-                <Text style={styles.statusSubtext}>
+                <Text style={[styles.statusSubtext, { color: theme.icon }]}>
                   Table {tableNumber} • {formatCurrency(finalTotalAmount)}
                 </Text>
               </View>
               <View
                 style={[
                   styles.statusBadge,
-                  {
-                    backgroundColor:
-                      allOrdersPaid ? '#16a34a' : '#dc2626',
-                  },
+                  { backgroundColor: allOrdersPaid ? "#16a34a" : "#dc2626" },
                 ]}
               >
                 <Text style={styles.statusBadgeText}>
-                  {allOrdersPaid ? 'Paid' : 'Pending'}
+                  {allOrdersPaid ? "Paid" : "Pending"}
                 </Text>
               </View>
             </View>
           </View>
         )}
 
-        {/* Receipt QR Code - Show only if paid */}
+        {/* Receipt QR Code */}
         {allOrdersPaid && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Customer Receipt</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Customer Receipt
+            </Text>
             <TouchableOpacity
-              style={styles.receiptButton}
+              style={[
+                styles.receiptButton,
+                {
+                  backgroundColor: theme.background,
+                  borderColor: isDark ? "#374151" : "#e5e7eb",
+                },
+              ]}
               onPress={() => setShowReceiptQr(true)}
             >
-              <Ionicons name="qr-code" size={24} color="#3b82f6" />
+              <Ionicons name="qr-code" size={24} color={theme.brand} />
               <View style={styles.receiptButtonContent}>
-                <Text style={styles.receiptButtonTitle}>
+                <Text
+                  style={[styles.receiptButtonTitle, { color: theme.text }]}
+                >
                   Show Receipt QR Code
                 </Text>
-                <Text style={styles.receiptButtonSubtitle}>
+                <Text
+                  style={[styles.receiptButtonSubtitle, { color: theme.icon }]}
+                >
                   Let customer scan to get their receipt
                 </Text>
               </View>
-              <Ionicons name="arrow-forward" size={20} color="#6b7280" />
+              <Ionicons name="arrow-forward" size={20} color={theme.icon} />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* View Bill Button - Show only if paid */}
-        {/* {order.paymentStatus === 'paid' && (
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.viewBillButton}
-              onPress={() =>
-                router.push({
-                  pathname: '/(service)/bill',
-                  params: {
-                    orderId: order._id,
-                    orderData: JSON.stringify(order),
-                  },
-                })
-              }
-            >
-              <Ionicons name="document-text" size={20} color="#ffffff" />
-              <Text style={styles.viewBillButtonText}>
-                View Bill & Print Receipt
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )} */}
-
-        {/* Payment Methods - Show only if not paid */}
+        {/* Payment Methods */}
         {!allOrdersPaid && (
           <>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Choose Payment Method</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                Choose Payment Method
+              </Text>
               <View style={styles.paymentMethods}>
                 <TouchableOpacity
                   style={[
                     styles.methodButton,
-                    paymentMethod === 'card' && styles.activeMethodButton,
+                    {
+                      backgroundColor:
+                        paymentMethod === "card"
+                          ? theme.brand
+                          : theme.background,
+                      borderColor:
+                        paymentMethod === "card"
+                          ? theme.brand
+                          : isDark
+                            ? "#374151"
+                            : "#e5e7eb",
+                    },
                   ]}
-                  onPress={() => setPaymentMethod('card')}
+                  onPress={() => setPaymentMethod("card")}
                 >
                   <Ionicons
                     name="card"
                     size={24}
-                    color={paymentMethod === 'card' ? '#ffffff' : '#2563eb'}
+                    color={paymentMethod === "card" ? "#ffffff" : theme.brand}
                   />
                   <Text
                     style={[
                       styles.methodText,
-                      paymentMethod === 'card' && styles.activeMethodText,
+                      {
+                        color:
+                          paymentMethod === "card" ? "#ffffff" : theme.text,
+                      },
                     ]}
                   >
                     Card Payment
@@ -503,19 +549,31 @@ export default function ServicePaymentScreen() {
                 <TouchableOpacity
                   style={[
                     styles.methodButton,
-                    paymentMethod === 'cash' && styles.activeMethodButton,
+                    {
+                      backgroundColor:
+                        paymentMethod === "cash" ? "#059669" : theme.background,
+                      borderColor:
+                        paymentMethod === "cash"
+                          ? "#059669"
+                          : isDark
+                            ? "#374151"
+                            : "#e5e7eb",
+                    },
                   ]}
-                  onPress={() => setPaymentMethod('cash')}
+                  onPress={() => setPaymentMethod("cash")}
                 >
                   <Ionicons
                     name="cash"
                     size={24}
-                    color={paymentMethod === 'cash' ? '#ffffff' : '#059669'}
+                    color={paymentMethod === "cash" ? "#ffffff" : "#059669"}
                   />
                   <Text
                     style={[
                       styles.methodText,
-                      paymentMethod === 'cash' && styles.activeMethodText,
+                      {
+                        color:
+                          paymentMethod === "cash" ? "#ffffff" : theme.text,
+                      },
                     ]}
                   >
                     Cash Payment
@@ -525,24 +583,48 @@ export default function ServicePaymentScreen() {
             </View>
 
             {/* Card Payment Section */}
-            {paymentMethod === 'card' && (
+            {paymentMethod === "card" && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Card Payment</Text>
-                <View style={styles.cardCard}>
-                  <View style={styles.cardAmountContainer}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  Card Payment
+                </Text>
+                <View
+                  style={[
+                    styles.cardCard,
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: isDark ? "#374151" : "#e5e7eb",
+                      borderWidth: 1,
+                      borderRadius: 12,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.cardAmountContainer,
+                      { backgroundColor: isDark ? "#1F2937" : "#f9fafb" },
+                    ]}
+                  >
                     <Text style={styles.cardIcon}>💳</Text>
-                    <Text style={styles.cardAmount}>
+                    <Text style={[styles.cardAmount, { color: theme.text }]}>
                       {formatCurrency(finalTotalAmount)}
                     </Text>
-                    <Text style={styles.cardLabel}>
+                    <Text style={[styles.cardLabel, { color: theme.icon }]}>
                       Process card payment
                     </Text>
                   </View>
                   <View style={styles.instructionsContainer}>
-                    <Text style={styles.instructionsText}>
+                    <Text
+                      style={[styles.instructionsText, { color: theme.icon }]}
+                    >
                       Payment is collected outside the system
                     </Text>
-                    <Text style={styles.instructionsSubtext}>
+                    <Text
+                      style={[
+                        styles.instructionsSubtext,
+                        { color: theme.icon },
+                      ]}
+                    >
                       Simply mark as paid after collecting payment
                     </Text>
                   </View>
@@ -551,24 +633,48 @@ export default function ServicePaymentScreen() {
             )}
 
             {/* Cash Payment Section */}
-            {paymentMethod === 'cash' && (
+            {paymentMethod === "cash" && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Cash Payment</Text>
-                <View style={styles.cashCard}>
-                  <View style={styles.cashAmountContainer}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  Cash Payment
+                </Text>
+                <View
+                  style={[
+                    styles.cashCard,
+                    {
+                      backgroundColor: theme.background,
+                      borderColor: isDark ? "#374151" : "#e5e7eb",
+                      borderWidth: 1,
+                      borderRadius: 12,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.cashAmountContainer,
+                      { backgroundColor: isDark ? "#1F2937" : "#f9fafb" },
+                    ]}
+                  >
                     <Text style={styles.cashIcon}>💵</Text>
-                    <Text style={styles.cashAmount}>
+                    <Text style={[styles.cashAmount, { color: theme.text }]}>
                       {formatCurrency(finalTotalAmount)}
                     </Text>
-                    <Text style={styles.cashLabel}>
+                    <Text style={[styles.cashLabel, { color: theme.icon }]}>
                       Collect cash from customer
                     </Text>
                   </View>
                   <View style={styles.instructionsContainer}>
-                    <Text style={styles.instructionsText}>
+                    <Text
+                      style={[styles.instructionsText, { color: theme.icon }]}
+                    >
                       Click "Mark as Paid" to choose the exact amount to collect
                     </Text>
-                    <Text style={styles.instructionsSubtext}>
+                    <Text
+                      style={[
+                        styles.instructionsSubtext,
+                        { color: theme.icon },
+                      ]}
+                    >
                       You'll be able to round up/down for cash convenience
                     </Text>
                   </View>
@@ -580,17 +686,14 @@ export default function ServicePaymentScreen() {
             <View style={styles.section}>
               <TouchableOpacity
                 style={styles.markPaidButton}
-                onPress={() => {
-                  console.log('Mark as Paid button pressed!');
-                  handleMarkAsPaid(paymentMethod);
-                }}
+                onPress={() => handleMarkAsPaid(paymentMethod)}
                 disabled={isProcessing}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
                 <Text style={styles.markPaidButtonText}>
                   {isProcessing
-                    ? 'Processing...'
-                    : `Mark as Paid - ${paymentMethod === 'card' ? 'Card' : 'Cash'}`}
+                    ? "Processing..."
+                    : `Mark as Paid - ${paymentMethod === "card" ? "Card" : "Cash"}`}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -599,104 +702,212 @@ export default function ServicePaymentScreen() {
 
         {/* Order Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {ordersToProcess.length > 1 ? `Order Items (${ordersToProcess.length} Orders)` : 'Order Items'}
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            {ordersToProcess.length > 1
+              ? `Order Items (${ordersToProcess.length} Orders)`
+              : "Order Items"}
           </Text>
-          <View style={styles.orderCard}>
-            {/* Show items from all orders */}
+          <View
+            style={[
+              styles.orderCard,
+              {
+                backgroundColor: theme.background,
+                borderColor: isDark ? "#374151" : "#e5e7eb",
+                borderWidth: 1,
+              },
+            ]}
+          >
             {ordersToProcess.map((orderData: any, orderIndex: any) => (
               <View key={`order-${orderIndex}`}>
                 {ordersToProcess.length > 1 && (
-                  <Text style={styles.orderHeader}>Order #{orderData.orderNumber}</Text>
+                  <Text
+                    style={[
+                      styles.orderHeader,
+                      {
+                        color: theme.text,
+                        borderBottomColor: isDark ? "#374151" : "#f3f4f6",
+                      },
+                    ]}
+                  >
+                    Order #{orderData.orderNumber}
+                  </Text>
                 )}
                 {orderData.items.map((item: any, itemIndex: any) => (
-                  <View key={`${orderIndex}-${item.name}-${itemIndex}`} style={styles.orderItem}>
+                  <View
+                    key={`${orderIndex}-${item.name}-${itemIndex}`}
+                    style={[
+                      styles.orderItem,
+                      { borderBottomColor: isDark ? "#374151" : "#f3f4f6" },
+                    ]}
+                  >
                     <View style={styles.itemInfo}>
-                      <Text style={styles.itemName}>{item.name}</Text>
-                      <Text style={styles.itemDetails}>
+                      <Text style={[styles.itemName, { color: theme.text }]}>
+                        {item.name}
+                      </Text>
+                      <Text style={[styles.itemDetails, { color: theme.icon }]}>
                         ₹{item.pricing.unitAmount} × {item.quantity}
                       </Text>
                     </View>
-                    <Text style={styles.itemTotal}>
+                    <Text style={[styles.itemTotal, { color: theme.text }]}>
                       ₹{(item.pricing.unitAmount * item.quantity).toFixed(0)}
                     </Text>
                   </View>
                 ))}
-                {ordersToProcess.length > 1 && orderIndex < ordersToProcess.length - 1 && (
-                  <View style={styles.orderSeparator} />
-                )}
+                {ordersToProcess.length > 1 &&
+                  orderIndex < ordersToProcess.length - 1 && (
+                    <View
+                      style={[
+                        styles.orderSeparator,
+                        { backgroundColor: isDark ? "#374151" : "#e5e7eb" },
+                      ]}
+                    />
+                  )}
               </View>
             ))}
 
-            {/* Session-based Bill Breakdown */}
-            {combinedBillDetails && (ordersToProcess.length > 1 || sessionInvoice) && (
-              <View style={styles.billBreakdown}>
-                <View style={styles.divider} />
-                <Text style={styles.breakdownTitle}>
-                  {sessionInvoice ? 'Session Bill Summary' : 'Bill Summary'}
-                </Text>
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Subtotal</Text>
-                  <Text style={styles.breakdownAmount}>
-                    {formatCurrency(combinedBillDetails.subTotalAmount)}
+            {combinedBillDetails &&
+              (ordersToProcess.length > 1 || sessionInvoice) && (
+                <View style={styles.billBreakdown}>
+                  <View
+                    style={[
+                      styles.divider,
+                      { backgroundColor: isDark ? "#374151" : "#e5e7eb" },
+                    ]}
+                  />
+                  <Text style={[styles.breakdownTitle, { color: theme.text }]}>
+                    {sessionInvoice ? "Session Bill Summary" : "Bill Summary"}
                   </Text>
-                </View>
-                {combinedBillDetails.taxAmount > 0 && (
-                  <>
-                    {combinedBillDetails.cgstAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text
+                      style={[styles.breakdownLabel, { color: theme.icon }]}
+                    >
+                      Subtotal
+                    </Text>
+                    <Text
+                      style={[styles.breakdownAmount, { color: theme.text }]}
+                    >
+                      {formatCurrency(combinedBillDetails.subTotalAmount)}
+                    </Text>
+                  </View>
+                  {combinedBillDetails.taxAmount > 0 && (
+                    <>
+                      {combinedBillDetails.cgstAmount > 0 && (
+                        <View style={styles.breakdownRow}>
+                          <Text
+                            style={[
+                              styles.breakdownLabel,
+                              { color: theme.icon },
+                            ]}
+                          >
+                            CGST
+                          </Text>
+                          <Text
+                            style={[
+                              styles.breakdownAmount,
+                              { color: theme.text },
+                            ]}
+                          >
+                            {formatCurrency(combinedBillDetails.cgstAmount)}
+                          </Text>
+                        </View>
+                      )}
+                      {combinedBillDetails.sgstAmount > 0 && (
+                        <View style={styles.breakdownRow}>
+                          <Text
+                            style={[
+                              styles.breakdownLabel,
+                              { color: theme.icon },
+                            ]}
+                          >
+                            SGST
+                          </Text>
+                          <Text
+                            style={[
+                              styles.breakdownAmount,
+                              { color: theme.text },
+                            ]}
+                          >
+                            {formatCurrency(combinedBillDetails.sgstAmount)}
+                          </Text>
+                        </View>
+                      )}
+                      {combinedBillDetails.igstAmount > 0 && (
+                        <View style={styles.breakdownRow}>
+                          <Text
+                            style={[
+                              styles.breakdownLabel,
+                              { color: theme.icon },
+                            ]}
+                          >
+                            IGST
+                          </Text>
+                          <Text
+                            style={[
+                              styles.breakdownAmount,
+                              { color: theme.text },
+                            ]}
+                          >
+                            {formatCurrency(combinedBillDetails.igstAmount)}
+                          </Text>
+                        </View>
+                      )}
                       <View style={styles.breakdownRow}>
-                        <Text style={styles.breakdownLabel}>CGST</Text>
-                        <Text style={styles.breakdownAmount}>
-                          {formatCurrency(combinedBillDetails.cgstAmount)}
+                        <Text
+                          style={[styles.breakdownLabel, { color: theme.icon }]}
+                        >
+                          Total Tax
+                        </Text>
+                        <Text
+                          style={[
+                            styles.breakdownAmount,
+                            { color: theme.text },
+                          ]}
+                        >
+                          {formatCurrency(combinedBillDetails.taxAmount)}
                         </Text>
                       </View>
-                    )}
-                    {combinedBillDetails.sgstAmount > 0 && (
-                      <View style={styles.breakdownRow}>
-                        <Text style={styles.breakdownLabel}>SGST</Text>
-                        <Text style={styles.breakdownAmount}>
-                          {formatCurrency(combinedBillDetails.sgstAmount)}
-                        </Text>
-                      </View>
-                    )}
-                    {combinedBillDetails.igstAmount > 0 && (
-                      <View style={styles.breakdownRow}>
-                        <Text style={styles.breakdownLabel}>IGST</Text>
-                        <Text style={styles.breakdownAmount}>
-                          {formatCurrency(combinedBillDetails.igstAmount)}
-                        </Text>
-                      </View>
-                    )}
+                    </>
+                  )}
+                  {combinedBillDetails.discountAmount > 0 && (
                     <View style={styles.breakdownRow}>
-                      <Text style={styles.breakdownLabel}>Total Tax</Text>
-                      <Text style={styles.breakdownAmount}>
-                        {formatCurrency(combinedBillDetails.taxAmount)}
+                      <Text
+                        style={[styles.breakdownLabel, { color: theme.icon }]}
+                      >
+                        Discount
+                      </Text>
+                      <Text
+                        style={[styles.breakdownAmount, { color: theme.text }]}
+                      >
+                        -{formatCurrency(combinedBillDetails.discountAmount)}
                       </Text>
                     </View>
-                  </>
-                )}
-                {combinedBillDetails.discountAmount > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={styles.breakdownLabel}>Discount</Text>
-                    <Text style={styles.breakdownAmount}>
-                      -{formatCurrency(combinedBillDetails.discountAmount)}
-                    </Text>
-                  </View>
-                )}
-                {sessionInvoice && (
-                  <View style={styles.sessionIndicator}>
-                    <Text style={styles.sessionIndicatorText}>
-                      ✓ Smart GST Calculation Applied
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
+                  )}
+                  {sessionInvoice && (
+                    <View
+                      style={[
+                        styles.sessionIndicator,
+                        { backgroundColor: isDark ? "#064E3B" : "#dcfce7" },
+                      ]}
+                    >
+                      <Text style={styles.sessionIndicatorText}>
+                        ✓ Smart GST Calculation Applied
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
-            <View style={styles.divider} />
+            <View
+              style={[
+                styles.divider,
+                { backgroundColor: isDark ? "#374151" : "#e5e7eb" },
+              ]}
+            />
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalAmount}>
+              <Text style={[styles.totalLabel, { color: theme.text }]}>
+                Total
+              </Text>
+              <Text style={[styles.totalAmount, { color: theme.text }]}>
                 {formatCurrency(finalTotalAmount)}
               </Text>
             </View>
@@ -705,13 +916,12 @@ export default function ServicePaymentScreen() {
 
         {/* Help Text */}
         <View style={styles.helpContainer}>
-          <Text style={styles.helpText}>
+          <Text style={[styles.helpText, { color: theme.icon }]}>
             {ordersToProcess.length > 1
-              ? `Show orders ${combinedBillDetails?.orderNumbers.join(', ')} to kitchen staff if needed`
-              : `Show order #${order.orderNumber} to kitchen staff if needed`
-            }
+              ? `Show orders ${combinedBillDetails?.orderNumbers.join(", ")} to kitchen staff if needed`
+              : `Show order #${order.orderNumber} to kitchen staff if needed`}
           </Text>
-          <Text style={styles.helpText}>
+          <Text style={[styles.helpText, { color: theme.icon }]}>
             This screen will update automatically after payment
           </Text>
         </View>
@@ -735,14 +945,26 @@ export default function ServicePaymentScreen() {
         onRequestClose={() => setShowReceiptQr(false)}
       >
         <View style={styles.qrModalOverlay}>
-          <View style={styles.qrModalContent}>
-            <View style={styles.qrModalHeader}>
-              <Text style={styles.qrModalTitle}>Receipt QR Code</Text>
+          <View
+            style={[
+              styles.qrModalContent,
+              { backgroundColor: theme.background },
+            ]}
+          >
+            <View
+              style={[
+                styles.qrModalHeader,
+                { borderBottomColor: isDark ? "#374151" : "#e5e7eb" },
+              ]}
+            >
+              <Text style={[styles.qrModalTitle, { color: theme.text }]}>
+                Receipt QR Code
+              </Text>
               <TouchableOpacity
                 style={styles.qrCloseButton}
                 onPress={() => setShowReceiptQr(false)}
               >
-                <Ionicons name="close" size={24} color="#6b7280" />
+                <Ionicons name="close" size={24} color={theme.icon} />
               </TouchableOpacity>
             </View>
 
@@ -753,25 +975,26 @@ export default function ServicePaymentScreen() {
                   style={styles.qrCodeImage}
                   resizeMode="contain"
                 />
-                <Text style={styles.qrInstructions}>
+                <Text style={[styles.qrInstructions, { color: theme.text }]}>
                   Ask your customer to scan this QR code to download their
                   receipt
                 </Text>
-                <Text style={styles.qrOrderInfo}>
+                <Text style={[styles.qrOrderInfo, { color: theme.brand }]}>
                   {ordersToProcess.length > 1
-                    ? `Orders #${receiptQr.orderNumbers?.join(', #') || receiptQr.orderNumber}`
-                    : `Order #${receiptQr.orderNumber}`
-                  }
+                    ? `Orders #${receiptQr.orderNumbers?.join(", #") || receiptQr.orderNumber}`
+                    : `Order #${receiptQr.orderNumber}`}
                 </Text>
-                <Text style={styles.qrExpiryInfo}>
-                  Valid until{' '}
-                  {new Date(receiptQr.expiresAt).toLocaleDateString('en-IN')}
+                <Text style={[styles.qrExpiryInfo, { color: theme.icon }]}>
+                  Valid until{" "}
+                  {new Date(receiptQr.expiresAt).toLocaleDateString("en-IN")}
                 </Text>
               </View>
             ) : (
               <View style={styles.qrLoadingContainer}>
-                <ActivityIndicator size="large" color="#3b82f6" />
-                <Text style={styles.qrLoadingText}>Generating QR code...</Text>
+                <ActivityIndicator size="large" color={theme.brand} />
+                <Text style={[styles.qrLoadingText, { color: theme.icon }]}>
+                  Generating QR code...
+                </Text>
               </View>
             )}
           </View>
@@ -784,36 +1007,31 @@ export default function ServicePaymentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    paddingTop: 20,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#ffffff',
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   backButton: {
-    marginRight: 16,
-    padding: 8,
+    marginRight: 12,
+    padding: 6,
   },
   headerContent: {
     flex: 1,
   },
-  refreshButton: {
+  iconButton: {
     padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    borderRadius: 10,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 18,
+    fontWeight: "700",
   },
   subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
     marginTop: 2,
   },
   content: {
@@ -821,373 +1039,305 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorText: {
-    fontSize: 16,
-    color: '#dc2626',
-    textAlign: 'center',
+    fontSize: 15,
+    textAlign: "center",
   },
   statusCard: {
-    margin: 16,
-    padding: 16,
+    margin: 12,
+    padding: 14,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(0, 0, 0, 0.05)',
+    borderWidth: 1.5,
   },
   statusContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   statusInfo: {
     flex: 1,
   },
   statusText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: "600",
   },
   statusSubtext: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
     marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 16,
+    borderRadius: 12,
   },
   statusBadgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "600",
   },
   section: {
-    margin: 16,
+    margin: 12,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 16,
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
   },
   receiptButton: {
-    backgroundColor: '#ffffff',
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   receiptButtonContent: {
     flex: 1,
   },
   receiptButtonTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 15,
+    fontWeight: "600",
   },
   receiptButtonSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
     marginTop: 2,
   },
-  viewBillButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1f2937',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  viewBillButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   paymentMethods: {
-    flexDirection: 'row',
-    gap: 12,
+    flexDirection: "row",
+    gap: 10,
   },
   methodButton: {
     flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#ffffff',
+    flexDirection: "column",
+    alignItems: "center",
+    padding: 14,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#e5e7eb',
-    gap: 8,
-  },
-  activeMethodButton: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    gap: 6,
   },
   methodText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  activeMethodText: {
-    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: "600",
   },
   cardCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    gap: 16,
+    padding: 14,
+    gap: 12,
   },
   cardAmountContainer: {
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    gap: 8,
+    alignItems: "center",
+    padding: 20,
+    borderRadius: 10,
+    gap: 6,
   },
   cardIcon: {
-    fontSize: 32,
+    fontSize: 28,
   },
   cardAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 22,
+    fontWeight: "700",
   },
   cardLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
   },
   cashCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    gap: 16,
+    padding: 14,
+    gap: 12,
   },
   cashAmountContainer: {
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    gap: 8,
+    alignItems: "center",
+    padding: 20,
+    borderRadius: 10,
+    gap: 6,
   },
   cashIcon: {
-    fontSize: 32,
+    fontSize: 28,
   },
   cashAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 22,
+    fontWeight: "700",
   },
   cashLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
   },
   instructionsContainer: {
-    gap: 8,
+    gap: 6,
   },
   instructionsText: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+    fontSize: 13,
+    textAlign: "center",
   },
   instructionsSubtext: {
     fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
+    textAlign: "center",
   },
   markPaidButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#16a34a',
-    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#16a34a",
+    padding: 14,
     borderRadius: 12,
-    gap: 8,
+    gap: 6,
   },
   markPaidButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
   },
   orderCard: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
   },
   orderItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
   },
   itemInfo: {
     flex: 1,
   },
   itemName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f2937',
+    fontSize: 15,
+    fontWeight: "500",
   },
   itemDetails: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
     marginTop: 2,
   },
   itemTotal: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 15,
+    fontWeight: "600",
   },
   divider: {
     height: 1,
-    backgroundColor: '#e5e7eb',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 6,
   },
   totalLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 17,
+    fontWeight: "700",
   },
   totalAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 17,
+    fontWeight: "700",
   },
   helpContainer: {
-    alignItems: 'center',
-    padding: 24,
+    alignItems: "center",
+    padding: 20,
     gap: 4,
   },
   helpText: {
     fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
+    textAlign: "center",
   },
-  // QR Modal Styles
   qrModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   qrModalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    width: '100%',
+    borderRadius: 14,
+    width: "100%",
     maxWidth: 400,
-    maxHeight: '80%',
+    maxHeight: "80%",
   },
   qrModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   qrModalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 17,
+    fontWeight: "600",
   },
   qrCloseButton: {
-    padding: 8,
+    padding: 6,
   },
   qrContent: {
-    alignItems: 'center',
-    padding: 24,
-    gap: 16,
+    alignItems: "center",
+    padding: 20,
+    gap: 12,
   },
   qrCodeImage: {
-    width: 250,
-    height: 250,
+    width: 220,
+    height: 220,
   },
   qrInstructions: {
-    fontSize: 16,
-    textAlign: 'center',
-    color: '#1f2937',
+    fontSize: 15,
+    textAlign: "center",
   },
   qrOrderInfo: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#3b82f6',
+    fontWeight: "600",
   },
   qrExpiryInfo: {
     fontSize: 12,
-    color: '#6b7280',
   },
   qrLoadingContainer: {
-    alignItems: 'center',
-    padding: 40,
-    gap: 16,
+    alignItems: "center",
+    padding: 32,
+    gap: 12,
   },
   qrLoadingText: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: 15,
   },
   orderHeader: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-    marginTop: 12,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    marginTop: 10,
     paddingBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
   },
   orderSeparator: {
     height: 1,
-    backgroundColor: '#e5e7eb',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   billBreakdown: {
-    marginTop: 8,
+    marginTop: 6,
   },
   breakdownTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 12,
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 10,
   },
   breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 3,
   },
   breakdownLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
   },
   breakdownAmount: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1f2937',
+    fontSize: 13,
+    fontWeight: "500",
   },
   sessionIndicator: {
-    marginTop: 8,
+    marginTop: 6,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    backgroundColor: '#dcfce7',
-    borderRadius: 4,
-    alignSelf: 'flex-start',
+    borderRadius: 6,
+    alignSelf: "flex-start",
   },
   sessionIndicatorText: {
-    fontSize: 12,
-    color: '#16a34a',
-    fontWeight: '600',
+    fontSize: 11,
+    color: "#16a34a",
+    fontWeight: "600",
   },
 });

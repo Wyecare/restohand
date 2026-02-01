@@ -4,9 +4,11 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from '../auth/auth.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { RestaurantTablesModule } from '../restaurant-tables/restaurant-tables.module';
+import { CallWaiterModule } from '../call-waiter/call-waiter.module';
 import { OrdersController } from './orders.controller';
 import { PublicOrdersController } from './public-orders.controller';
 import { OrdersService } from './orders.service';
+import { PaymentNotificationService } from './payment-notification.service';
 import { Order, OrderSchema } from './schemas/order.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { OrderEvent, OrderEventSchema } from './schemas/order-event.schema';
@@ -32,15 +34,16 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     AuthModule,
     JwtModule.registerAsync({
       useFactory: () => ({
-        secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+        secret: process.env.JWT_ACCESS_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
         signOptions: {
-          expiresIn: '15m',
+          expiresIn: process.env.JWT_ACCESS_TTL || '30d',
         },
       }),
     }),
     GstModule,
     RestaurantsModule,
     RestaurantTablesModule,
+    CallWaiterModule,
     SubscriptionsModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
@@ -55,7 +58,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     ]),
   ],
   controllers: [OrdersController, PublicOrdersController, OrderModificationController, WebhooksController, OrdersSSEController],
-  providers: [OrdersService, OrderModificationService, ReceiptDocumentService, OrdersGateway, OrdersSSEService, RazorpayService],
-  exports: [OrdersService, OrderModificationService, ReceiptDocumentService],
+  providers: [OrdersService, OrderModificationService, ReceiptDocumentService, PaymentNotificationService, OrdersGateway, OrdersSSEService, RazorpayService],
+  exports: [OrdersService, OrderModificationService, ReceiptDocumentService, PaymentNotificationService],
 })
 export class OrdersModule {}

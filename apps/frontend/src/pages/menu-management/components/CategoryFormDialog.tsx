@@ -178,7 +178,7 @@ export function CategoryFormDialog({
       }
 
       // Upload image if a file was selected
-      const categoryId = categoryResult?.id || (category?._id || category?.id);
+      const categoryId = categoryResult?.id || category?._id || category?.id;
       if (selectedFile && categoryId) {
         try {
           await uploadImage({
@@ -222,7 +222,7 @@ export function CategoryFormDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {category ? 'Edit Category' : 'Add Category'}
+            {category ? 'Edit Category' : 'Add Category...'}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

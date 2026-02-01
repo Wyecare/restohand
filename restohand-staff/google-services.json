@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "443377004253",
+    "project_id": "restohand-p",
+    "storage_bucket": "restohand-p.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:443377004253:android:3963e855f8f098ee827534",
+        "android_client_info": {
+          "package_name": "com.restohand.staff"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCb2qfYxopWyoH6cLIh_z7OX4mXRGC8GkQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

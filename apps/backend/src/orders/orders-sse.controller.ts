@@ -4,9 +4,11 @@ import {
   Param,
   Res,
   Query,
+  Req,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -29,17 +31,27 @@ export class OrdersSSEController {
     @Param('restaurantId') restaurantId: string,
     @Query('roles') rolesParam: string,
     @Query('token') tokenParam: string,
+    @Req() request: Request,
     @Res() response: Response
   ) {
+    // Extract token from Authorization header or query parameter (for backward compatibility)
+    let token = tokenParam;
+    if (!token) {
+      const authHeader = request.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
     // Validate token and get user
-    if (!tokenParam) {
+    if (!token) {
       response.status(401).send('Missing authentication token');
       return;
     }
 
     let user: UserDocument;
     try {
-      const decoded = this.jwtService.verify(tokenParam);
+      const decoded = this.jwtService.verify(token);
       user = await this.userModel.findById(decoded.sub);
       if (!user) {
         throw new UnauthorizedException('User not found');
