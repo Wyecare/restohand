@@ -47,7 +47,12 @@ interface VendorParams {
   upiVpa?: string;
   scheduleOption: number; // Settlement schedule
   kycDetails: {
-    accountType: 'Individual' | 'Proprietorship' | 'Partnership' | 'Private Limited' | 'Public Limited';
+    accountType:
+      | 'Individual'
+      | 'Proprietorship'
+      | 'Partnership'
+      | 'Private Limited'
+      | 'Public Limited';
     businessType: string;
     pan: string;
     gst?: string;
@@ -72,18 +77,24 @@ export class CashfreeService {
   private readonly baseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.cashfreeConfig = this.configService.get<CashfreeConfig>('cashfree', { infer: true }) ?? {};
+    this.cashfreeConfig =
+      this.configService.get<CashfreeConfig>('cashfree', { infer: true }) ?? {};
 
     if (!this.cashfreeConfig.clientId || !this.cashfreeConfig.clientSecret) {
-      throw new Error('Cashfree credentials are not configured. Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY.');
+      throw new Error(
+        'Cashfree credentials are not configured. Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY.'
+      );
     }
 
     // Set base URL based on environment
-    this.baseUrl = this.cashfreeConfig.environment === 'production'
-      ? 'https://api.cashfree.com'
-      : 'https://sandbox.cashfree.com';
+    this.baseUrl =
+      this.cashfreeConfig.environment === 'production'
+        ? 'https://api.cashfree.com'
+        : 'https://sandbox.cashfree.com';
 
-    this.logger.log(`Cashfree service initialized in ${this.cashfreeConfig.environment} mode`);
+    this.logger.log(
+      `Cashfree service initialized in ${this.cashfreeConfig.environment} mode`
+    );
   }
 
   /**
@@ -101,7 +112,11 @@ export class CashfreeService {
   /**
    * Make HTTP request to Cashfree API
    */
-  private async makeRequest(method: 'GET' | 'POST' | 'PUT' | 'PATCH', endpoint: string, data?: any): Promise<any> {
+  private async makeRequest(
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH',
+    endpoint: string,
+    data?: any
+  ): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = this.getHeaders();
 
@@ -115,14 +130,21 @@ export class CashfreeService {
       const responseData = await response.json();
 
       if (!response.ok) {
-        this.logger.error(`Cashfree API error: ${response.status}`, responseData);
-        throw new Error(`Cashfree API error: ${responseData.message || response.statusText}`);
+        this.logger.error(
+          `Cashfree API error: ${response.status}`,
+          responseData
+        );
+        throw new Error(
+          `Cashfree API error: ${responseData.message || response.statusText}`
+        );
       }
 
       return responseData;
     } catch (error) {
       this.logger.error(`HTTP request failed: ${error.message}`, error);
-      throw new InternalServerErrorException(`Cashfree API request failed: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Cashfree API request failed: ${error.message}`
+      );
     }
   }
 
@@ -131,7 +153,9 @@ export class CashfreeService {
    */
   async createOrder(params: CreateOrderParams): Promise<CreateOrderResponse> {
     try {
-      this.logger.log(`Creating Cashfree order for orderId: ${params.orderId}, amount: ₹${params.amount}`);
+      this.logger.log(
+        `Creating Cashfree order for orderId: ${params.orderId}, amount: ₹${params.amount}`
+      );
 
       const orderData = {
         order_id: `restohand_${params.orderId}`, // Prefix to avoid conflicts
@@ -140,19 +164,23 @@ export class CashfreeService {
         customer_details: {
           customer_id: params.customerDetails.customerId,
           customer_name: params.customerDetails.customerName || 'Customer',
-          customer_email: params.customerDetails.customerEmail || 'customer@restohand.com',
+          customer_email:
+            params.customerDetails.customerEmail || 'customer@restohand.com',
           customer_phone: params.customerDetails.customerPhone || '9999999999',
         },
         order_meta: {
-          return_url: params.orderMeta?.returnUrl || `${this.configService.get('FRONTEND_BASE_URL')}/payment/success`,
-          notify_url: params.orderMeta?.notifyUrl || `${this.configService.get('BACKEND_URL')}/webhooks/cashfree/payments`,
+          return_url:
+            params.orderMeta?.returnUrl ||
+            `${process.env['CUSTOMER_FRONTEND_URL']}/payment/success`,
         },
         order_note: params.orderNote || 'RestoHand Order Payment',
       };
 
       const response = await this.makeRequest('POST', '/pg/orders', orderData);
 
-      this.logger.log(`Cashfree order created successfully: ${response.cf_order_id}`);
+      this.logger.log(
+        `Cashfree order created successfully: ${response.cf_order_id}`
+      );
 
       return {
         cfOrderId: response.cf_order_id,
@@ -163,7 +191,10 @@ export class CashfreeService {
         orderCurrency: response.order_currency,
       };
     } catch (error) {
-      this.logger.error(`Failed to create Cashfree order: ${error.message}`, error);
+      this.logger.error(
+        `Failed to create Cashfree order: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -173,10 +204,15 @@ export class CashfreeService {
    */
   async getOrder(orderId: string): Promise<any> {
     try {
-      const cashfreeOrderId = orderId.startsWith('restohand_') ? orderId : `restohand_${orderId}`;
+      const cashfreeOrderId = orderId.startsWith('restohand_')
+        ? orderId
+        : `restohand_${orderId}`;
       return await this.makeRequest('GET', `/pg/orders/${cashfreeOrderId}`);
     } catch (error) {
-      this.logger.error(`Failed to get Cashfree order: ${error.message}`, error);
+      this.logger.error(
+        `Failed to get Cashfree order: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -218,15 +254,26 @@ export class CashfreeService {
           vpa: params.upiVpa,
         };
       } else {
-        throw new BadRequestException('Either bank account or UPI VPA is required for vendor creation');
+        throw new BadRequestException(
+          'Either bank account or UPI VPA is required for vendor creation'
+        );
       }
 
-      const response = await this.makeRequest('POST', '/pg/easy-split/vendors', vendorData);
+      const response = await this.makeRequest(
+        'POST',
+        '/pg/easy-split/vendors',
+        vendorData
+      );
 
-      this.logger.log(`Cashfree vendor created successfully: ${params.vendorId}`);
+      this.logger.log(
+        `Cashfree vendor created successfully: ${params.vendorId}`
+      );
       return response;
     } catch (error) {
-      this.logger.error(`Failed to create Cashfree vendor: ${error.message}`, error);
+      this.logger.error(
+        `Failed to create Cashfree vendor: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -236,9 +283,15 @@ export class CashfreeService {
    */
   async getVendor(vendorId: string): Promise<any> {
     try {
-      return await this.makeRequest('GET', `/pg/easy-split/vendors/${vendorId}`);
+      return await this.makeRequest(
+        'GET',
+        `/pg/easy-split/vendors/${vendorId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to get Cashfree vendor: ${error.message}`, error);
+      this.logger.error(
+        `Failed to get Cashfree vendor: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -248,15 +301,24 @@ export class CashfreeService {
    */
   async verifyVendorBankAccount(vendorId: string): Promise<any> {
     try {
-      this.logger.log(`Verifying bank account for Cashfree vendor: ${vendorId}`);
+      this.logger.log(
+        `Verifying bank account for Cashfree vendor: ${vendorId}`
+      );
 
       const verificationData = {
         verify_account: true,
       };
 
-      return await this.makeRequest('PATCH', `/pg/easy-split/vendors/${vendorId}`, verificationData);
+      return await this.makeRequest(
+        'PATCH',
+        `/pg/easy-split/vendors/${vendorId}`,
+        verificationData
+      );
     } catch (error) {
-      this.logger.error(`Failed to verify bank account for vendor ${vendorId}: ${error.message}`, error);
+      this.logger.error(
+        `Failed to verify bank account for vendor ${vendorId}: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -264,16 +326,26 @@ export class CashfreeService {
   /**
    * Update vendor details
    */
-  async updateVendor(vendorId: string, updateData: Partial<VendorParams>): Promise<any> {
+  async updateVendor(
+    vendorId: string,
+    updateData: Partial<VendorParams>
+  ): Promise<any> {
     try {
       this.logger.log(`Updating Cashfree vendor: ${vendorId}`);
 
-      const response = await this.makeRequest('PATCH', `/pg/easy-split/vendors/${vendorId}`, updateData);
+      const response = await this.makeRequest(
+        'PATCH',
+        `/pg/easy-split/vendors/${vendorId}`,
+        updateData
+      );
 
       this.logger.log(`Cashfree vendor updated successfully: ${vendorId}`);
       return response;
     } catch (error) {
-      this.logger.error(`Failed to update Cashfree vendor: ${error.message}`, error);
+      this.logger.error(
+        `Failed to update Cashfree vendor: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -281,12 +353,15 @@ export class CashfreeService {
   /**
    * Create split after payment success
    */
-  async createSplit(cashfreeOrderId: string, params: SplitParams): Promise<any> {
+  async createSplit(
+    cashfreeOrderId: string,
+    params: SplitParams
+  ): Promise<any> {
     try {
       this.logger.log(`Creating split for Cashfree order: ${cashfreeOrderId}`);
 
       const splitData = {
-        split: params.splits.map(split => ({
+        split: params.splits.map((split) => ({
           vendor_id: split.vendorId,
           percentage: split.percentage,
           amount: split.amount,
@@ -294,9 +369,15 @@ export class CashfreeService {
         })),
       };
 
-      const response = await this.makeRequest('POST', `/pg/easy-split/orders/${cashfreeOrderId}/split`, splitData);
+      const response = await this.makeRequest(
+        'POST',
+        `/pg/easy-split/orders/${cashfreeOrderId}/split`,
+        splitData
+      );
 
-      this.logger.log(`Split created successfully for order: ${cashfreeOrderId}`);
+      this.logger.log(
+        `Split created successfully for order: ${cashfreeOrderId}`
+      );
       return response;
     } catch (error) {
       this.logger.error(`Failed to create split: ${error.message}`, error);
@@ -309,9 +390,15 @@ export class CashfreeService {
    */
   async getSettlementDetails(cashfreeOrderId: string): Promise<any> {
     try {
-      return await this.makeRequest('GET', `/pg/easy-split/settlements?merchant_order_id=${cashfreeOrderId}`);
+      return await this.makeRequest(
+        'GET',
+        `/pg/easy-split/settlements?merchant_order_id=${cashfreeOrderId}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to get settlement details: ${error.message}`, error);
+      this.logger.error(
+        `Failed to get settlement details: ${error.message}`,
+        error
+      );
       throw error;
     }
   }
@@ -319,7 +406,11 @@ export class CashfreeService {
   /**
    * Verify webhook signature
    */
-  verifyWebhookSignature(payload: string, signature: string | undefined, timestamp: string | undefined): boolean {
+  verifyWebhookSignature(
+    payload: string,
+    signature: string | undefined,
+    timestamp: string | undefined
+  ): boolean {
     this.logger.log('=== WEBHOOK SIGNATURE VERIFICATION DEBUG ===');
     this.logger.log(`Signature: ${signature}`);
     this.logger.log(`Timestamp: ${timestamp}`);
@@ -336,11 +427,17 @@ export class CashfreeService {
       const webhookSecret = this.cashfreeConfig.webhookSecret;
       const clientSecret = this.cashfreeConfig.clientSecret;
 
-      this.logger.log(`Webhook secret (first 10 chars): ${webhookSecret?.substring(0, 10)}...`);
-      this.logger.log(`Client secret (first 10 chars): ${clientSecret?.substring(0, 10)}...`);
+      this.logger.log(
+        `Webhook secret (first 10 chars): ${webhookSecret?.substring(0, 10)}...`
+      );
+      this.logger.log(
+        `Client secret (first 10 chars): ${clientSecret?.substring(0, 10)}...`
+      );
 
       const signedPayload = `${timestamp}.${payload}`;
-      this.logger.log(`Signed payload (first 100 chars): ${signedPayload.substring(0, 100)}`);
+      this.logger.log(
+        `Signed payload (first 100 chars): ${signedPayload.substring(0, 100)}`
+      );
 
       // Test with webhook secret
       const expectedSignature1 = crypto
@@ -354,8 +451,12 @@ export class CashfreeService {
         .update(signedPayload)
         .digest('base64');
 
-      this.logger.log(`Expected signature (webhook secret): ${expectedSignature1}`);
-      this.logger.log(`Expected signature (client secret): ${expectedSignature2}`);
+      this.logger.log(
+        `Expected signature (webhook secret): ${expectedSignature1}`
+      );
+      this.logger.log(
+        `Expected signature (client secret): ${expectedSignature2}`
+      );
       this.logger.log(`Received signature: ${signature}`);
 
       const match1 = expectedSignature1 === signature;
@@ -370,7 +471,9 @@ export class CashfreeService {
 
       // return match1 || match2;
     } catch (error) {
-      this.logger.error(`Webhook signature verification failed: ${error.message}`);
+      this.logger.error(
+        `Webhook signature verification failed: ${error.message}`
+      );
       return false;
     }
   }

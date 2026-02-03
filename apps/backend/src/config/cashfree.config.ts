@@ -11,5 +11,7 @@ export const cashfreeConfig = registerAs<CashfreeConfig>('cashfree', () => ({
   clientId: process.env.CASHFREE_APP_ID!,
   clientSecret: process.env.CASHFREE_SECRET_KEY!,
   webhookSecret: process.env.CASHFREE_WEBHOOK_SECRET!,
-  environment: (process.env.CASHFREE_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox',
+  environment:
+    (process.env.CASHFREE_ENVIRONMENT as 'sandbox' | 'production') ||
+    'production',
 }));
