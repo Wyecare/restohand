@@ -5,6 +5,7 @@
 ### **1. Core Cashfree Services**
 
 #### **CashfreeService** (`src/payments/cashfree.service.ts`)
+
 - ✅ Order creation for payment collection
 - ✅ Vendor management (add, update, get)
 - ✅ Split payment creation (Easy Split)
@@ -13,6 +14,7 @@
 - ✅ Environment configuration (sandbox/production)
 
 #### **CashfreeVendorService** (`src/payments/cashfree-vendor.service.ts`)
+
 - ✅ Restaurant onboarding as Cashfree vendors
 - ✅ Batch onboarding for multiple restaurants
 - ✅ KYC validation and status tracking
@@ -20,6 +22,7 @@
 - ✅ Bank account validation
 
 #### **CashfreePaymentService** (`src/payments/cashfree-payment.service.ts`)
+
 - ✅ **Replaces ALL Razorpay payment-intent endpoints**
 - ✅ Individual order payment intents
 - ✅ Public order payment intents
@@ -30,6 +33,7 @@
 ### **2. Webhook Processing**
 
 #### **CashfreeWebhooksController** (`src/payments/cashfree-webhooks.controller.ts`)
+
 - ✅ **Replaces Razorpay webhook handler**
 - ✅ Payment success handling
 - ✅ Payment failure handling
@@ -41,22 +45,23 @@
 ### **3. Database Schema Updates**
 
 #### **Restaurant Schema** (`src/restaurants/schemas/restaurant.schema.ts`)
+
 - ✅ `cashfreeConfig` - Vendor status, KYC, schedule options
 - ✅ `migrationStatus` - Track migration progress
 - ✅ `bankAccount` - Bank details for settlements
 - ✅ `documents` - PAN, GST, CIN for KYC
 
 #### **Order Schema** (existing `paymentMeta` field)
+
 - ✅ Compatible with existing structure
 - ✅ Cashfree payment metadata storage
 
 ### **4. Configuration**
 
 #### **Environment Variables** (`src/config/cashfree.config.ts`)
+
 ```bash
-CASHFREE_APP_ID=TEST10864334577fd3fefd9c5223e12343346801
-CASHFREE_SECRET_KEY=cfsk_ma_test_abe5fe564088a52c090d3424e07da611_e09c97b4
-CASHFREE_ENVIRONMENT=sandbox # or production
+
 ```
 
 ---
@@ -64,12 +69,14 @@ CASHFREE_ENVIRONMENT=sandbox # or production
 ## 🔄 Migration Strategy
 
 ### **Phase 1: Foundation (✅ COMPLETE)**
+
 - ✅ All Cashfree services implemented
 - ✅ Webhook handlers created
 - ✅ Database schemas updated
 - ✅ Split payment logic implemented
 
 ### **Phase 2: Integration (Next Steps)**
+
 1. **Update Controllers** - Replace Razorpay endpoints
 2. **Update Frontend** - Switch to Cashfree SDK
 3. **Environment Setup** - Add Cashfree credentials
@@ -80,28 +87,36 @@ CASHFREE_ENVIRONMENT=sandbox # or production
 ## 🎯 Key Features Implemented
 
 ### **Automatic Commission System**
+
 ```typescript
 // 90% to restaurant, 10% platform commission
-const splitResult = await this.cashfreePaymentService.processPaymentSplit(orderId, 0.10);
+const splitResult = await this.cashfreePaymentService.processPaymentSplit(
+  orderId,
+  0.1
+);
 ```
 
 ### **Instant Settlements**
+
 ```typescript
 // Restaurants get paid every minute (Schedule Option 17)
-scheduleOption: 17 // "Instant settlement every minute 24×7"
+scheduleOption: 17; // "Instant settlement every minute 24×7"
 ```
 
 ### **Session Payments**
+
 ```typescript
 // Multiple orders in one payment
-const sessionPayment = await this.cashfreePaymentService.createSessionPaymentIntent({
-  restaurantSlug: 'restaurant-abc',
-  tableId: 'table-5',
-  // Consolidates all unpaid orders for the table
-});
+const sessionPayment =
+  await this.cashfreePaymentService.createSessionPaymentIntent({
+    restaurantSlug: 'restaurant-abc',
+    tableId: 'table-5',
+    // Consolidates all unpaid orders for the table
+  });
 ```
 
 ### **Vendor Onboarding**
+
 ```typescript
 // Onboard restaurant as Cashfree vendor
 const vendor = await this.cashfreeVendorService.onboardRestaurantToCashfree({
@@ -115,6 +130,7 @@ const vendor = await this.cashfreeVendorService.onboardRestaurantToCashfree({
 ## 🚦 Ready to Deploy
 
 ### **What Works Now**:
+
 1. ✅ Create payment intents for orders
 2. ✅ Process webhook notifications
 3. ✅ Automatic split payments (90% restaurant, 10% platform)
@@ -125,6 +141,7 @@ const vendor = await this.cashfreeVendorService.onboardRestaurantToCashfree({
 ### **To Replace in Your Current Code**:
 
 #### **Replace Razorpay Payment Intent Endpoints**:
+
 ```typescript
 // OLD: OrdersController.createPaymentIntent()
 // NEW: CashfreePaymentService.createOrderPaymentIntent()
@@ -137,6 +154,7 @@ const vendor = await this.cashfreeVendorService.onboardRestaurantToCashfree({
 ```
 
 #### **Replace Webhook Endpoint**:
+
 ```typescript
 // OLD: POST /webhooks/razorpay
 // NEW: POST /webhooks/cashfree/payments (✅ Ready)
@@ -148,7 +166,9 @@ const vendor = await this.cashfreeVendorService.onboardRestaurantToCashfree({
 ## 📋 Next Steps
 
 ### **1. Module Registration**
+
 Add to your main app module:
+
 ```typescript
 import { CashfreeModule } from './payments/cashfree.module';
 
@@ -162,7 +182,9 @@ export class AppModule {}
 ```
 
 ### **2. Environment Variables** (✅ Already Added)
+
 Your `.env` already has:
+
 ```bash
 CASHFREE_APP_ID=TEST10864334577fd3fefd9c5223e12343346801
 CASHFREE_SECRET_KEY=cfsk_ma_test_abe5fe564088a52c090d3424e07da611_e09c97b4
@@ -170,6 +192,7 @@ CASHFREE_ENVIRONMENT=sandbox
 ```
 
 ### **3. Restaurant Onboarding**
+
 ```typescript
 // Onboard existing restaurants
 const onboardingService = app.get(CashfreeVendorService);
@@ -177,9 +200,11 @@ await onboardingService.batchOnboardRestaurants(restaurantIds);
 ```
 
 ### **4. Update Route Handlers**
+
 Replace your current payment-intent endpoints with the new Cashfree services.
 
 ### **5. Frontend Updates**
+
 - Replace Razorpay Checkout.js with Cashfree SDK
 - Update payment-intent API calls
 - Modify success/failure page handling
