@@ -107,6 +107,9 @@ module "secrets" {
     "razorpay-key-id"       = var.razorpay_key_id
     "razorpay-key-secret"   = var.razorpay_key_secret
     "razorpay-webhook-secret" = var.razorpay_webhook_secret
+    "cashfree-app-id"       = var.cashfree_app_id
+    "cashfree-secret-key"   = var.cashfree_secret_key
+    "cashfree-webhook-secret" = var.cashfree_webhook_secret
     "athropic_api_key"       = var.anthropic_api_key
     "firebase_storage_bucket" = var.firebase_storage_bucket
   }
@@ -214,6 +217,18 @@ module "run_api" {
       }
       RAZORPAY_WEBHOOK_SECRET = {
         secret_name = module.secrets.secret_names["razorpay-webhook-secret"]
+        version     = "latest"
+      }
+      CASHFREE_APP_ID = {
+        secret_name = module.secrets.secret_names["cashfree-app-id"]
+        version     = "latest"
+      }
+      CASHFREE_SECRET_KEY = {
+        secret_name = module.secrets.secret_names["cashfree-secret-key"]
+        version     = "latest"
+      }
+      CASHFREE_WEBHOOK_SECRET = {
+        secret_name = module.secrets.secret_names["cashfree-webhook-secret"]
         version     = "latest"
       }
       USER_FRONTENT_URL = {

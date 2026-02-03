@@ -276,6 +276,22 @@ variable "razorpay_key_id" {
     type        = string
   }
 
+  # Cashfree Configuration
+  variable "cashfree_app_id" {
+    description = "Cashfree App ID"
+    type        = string
+  }
+
+  variable "cashfree_secret_key" {
+    description = "Cashfree Secret Key"
+    type        = string
+  }
+
+  variable "cashfree_webhook_secret" {
+    description = "Cashfree Webhook Secret"
+    type        = string
+  }
+
 
 variable "anthropic_api_key" {
   description = "Anthropic API Key for AI integrations"
