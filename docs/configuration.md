@@ -47,7 +47,7 @@ This workspace uses environment files for both the NestJS backend and the Vite f
 | `CLOUD_STORAGE_BUCKET`                | No       | `restohand-d-bucket`                                | Bucket for generated PDFs and assets.                             |
 | `CLOUD_STORAGE_BASE_URL`              | No       | `https://storage.googleapis.com/restohand-d-bucket` | Public base URL to access bucket files.                           |
 | `ALLOWED_ORIGINS`                     | No       | `http://localhost:4200`                             | Comma-separated list of origins allowed by CORS.                  |
-| `FRONTEND_BASE_URL`                   | No       | `http://localhost:4200`                             | Primary frontend deployment URL.                                  |
+| `USER_FRONTENT_URL`                   | No       | `http://localhost:4200`                             | Primary frontend deployment URL.                                  |
 
 Your deployment platform should inject these variables at runtime. During local development, `nx serve @restohand/backend` reads them from `.env` via Node's `process.env`.
 
