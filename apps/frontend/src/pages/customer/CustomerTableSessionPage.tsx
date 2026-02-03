@@ -13,13 +13,8 @@ import {
 } from '@/store/api/restaurantsApi';
 import { generateThermalReceiptPDF } from '@/components/ThermalReceiptPDF';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
-import {
-  useVerifyPaymentMutation,
-} from '@/store/api/ordersApi';
-// CHANGE: Import Cashfree instead of Razorpay
-import {
-  useCreateCashfreeSessionPaymentIntentMutation,
-} from '@/store/api/cashfreeApi';
+import { useVerifyPaymentMutation } from '@/store/api/ordersApi';
+import { useCreateCashfreeSessionPaymentIntentMutation } from '@/store/api/cashfreeApi';
 import { initializeCashfree, openCashfreeCheckout } from '@/utils/cashfree';
 import {
   Plus,
@@ -30,7 +25,8 @@ import {
   ChefHat,
   X,
   Utensils,
-  Users,
+  Download,
+  ShoppingCart,
 } from 'lucide-react';
 import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
 import type { Order } from '@/store/api/types';
@@ -71,6 +67,376 @@ const getOrderStatusDisplay = (order: Order) => {
   };
 };
 
+/* ── Styles injected once ── */
+const STYLE = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
+  .rh-cart-root {
+    --clr-bg:        #f0ede8;
+    --clr-paper:     #faf9f7;
+    --clr-border:    #e2ddd6;
+    --clr-text:      #1a1a1a;
+    --clr-muted:     #7a756e;
+    --clr-accent:    #1a1a1a;
+    --clr-success:   #16a34a;
+    --clr-success-bg:#f0fdf4;
+    --clr-success-bd:#bbf7d0;
+    --clr-warning:   #ea580c;
+    --clr-warning-bg:#fff7ed;
+    --clr-warning-bd:#fed7aa;
+    --clr-info:      #0284c7;
+    --clr-info-bg:   #f0f9ff;
+    --clr-info-bd:   #bae6fd;
+    --clr-btn-primary: #1a1a1a;
+    --clr-btn-primary-hover: #333;
+    --clr-btn-success: #16a34a;
+    --clr-btn-success-hover: #15803d;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--clr-bg);
+    min-height: 100vh;
+  }
+
+  .rh-cart-wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+  }
+
+  /* ── header ── */
+  .rh-cart-header {
+    text-align: center;
+    padding: 20px 0 16px;
+  }
+  .rh-cart-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--clr-text);
+    letter-spacing: -0.4px;
+    margin: 0 0 4px;
+  }
+  .rh-cart-header p {
+    font-size: 13px;
+    color: var(--clr-muted);
+    margin: 0;
+  }
+
+  /* ── card ── */
+  .rh-cart-card {
+    background: var(--clr-paper);
+    border: 1px solid var(--clr-border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+
+  /* ── status banner ── */
+  .rh-status-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 18px;
+  }
+  .rh-status-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+  }
+  .rh-status-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 3px;
+  }
+  .rh-status-subtitle {
+    font-size: 13px;
+    color: var(--clr-muted);
+    margin: 0;
+  }
+  .rh-status-banner.success { border-color: var(--clr-success-bd); background: var(--clr-success-bg); }
+  .rh-status-banner.success .rh-status-title { color: var(--clr-success); }
+  .rh-status-banner.warning { border-color: var(--clr-warning-bd); background: var(--clr-warning-bg); }
+  .rh-status-banner.warning .rh-status-title { color: var(--clr-warning); }
+  .rh-status-banner.info { border-color: var(--clr-info-bd); background: var(--clr-info-bg); }
+  .rh-status-banner.info .rh-status-title { color: var(--clr-info); }
+
+  /* ── summary row ── */
+  .rh-summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+    color: var(--clr-muted);
+  }
+  .rh-summary-row span:last-child {
+    font-family: 'DM Mono', monospace;
+  }
+  .rh-summary-row.bold {
+    font-weight: 500;
+    color: var(--clr-text);
+  }
+
+  /* ── total section ── */
+  .rh-total-section {
+    text-align: center;
+    border-top: 1px solid var(--clr-border);
+    padding-top: 12px;
+    margin-top: 10px;
+  }
+  .rh-total-label {
+    font-size: 12px;
+    color: var(--clr-muted);
+    margin-bottom: 4px;
+  }
+  .rh-total-amount {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--clr-text);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .rh-total-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .rh-total-badge.pending {
+    background: var(--clr-warning-bg);
+    color: var(--clr-warning);
+    border: 1px solid var(--clr-warning-bd);
+  }
+  .rh-total-badge.paid {
+    background: var(--clr-success-bg);
+    color: var(--clr-success);
+    border: 1px solid var(--clr-success-bd);
+  }
+
+  /* ── action buttons ── */
+  .rh-btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .rh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 13px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, transform 0.05s;
+  }
+  .rh-btn:active {
+    transform: scale(0.98);
+  }
+  .rh-btn.primary {
+    background: var(--clr-btn-success);
+    color: white;
+  }
+  .rh-btn.primary:hover {
+    background: var(--clr-btn-success-hover);
+  }
+  .rh-btn.primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .rh-btn.secondary {
+    background: var(--clr-paper);
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
+  }
+  .rh-btn.secondary:hover {
+    background: #f5f3f0;
+  }
+  .rh-btn.accent {
+    background: var(--clr-btn-primary);
+    color: white;
+  }
+  .rh-btn.accent:hover {
+    background: var(--clr-btn-primary-hover);
+  }
+
+  /* ── section title ── */
+  .rh-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--clr-text);
+    margin: 0 0 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── order card ── */
+  .rh-order-card {
+    background: var(--clr-paper);
+    border: 1px solid var(--clr-border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .rh-order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .rh-order-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .rh-order-status-icon {
+    flex-shrink: 0;
+  }
+  .rh-order-number {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--clr-text);
+    margin: 0 0 2px;
+  }
+  .rh-order-status-text {
+    font-size: 12px;
+    margin: 0;
+  }
+  .rh-order-right {
+    text-align: right;
+  }
+  .rh-order-amount {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--clr-text);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 4px;
+  }
+  .rh-order-payment-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .rh-order-payment-badge.pending {
+    background: var(--clr-warning-bg);
+    color: var(--clr-warning);
+    border: 1px solid var(--clr-warning-bd);
+  }
+  .rh-order-payment-badge.paid {
+    background: var(--clr-success-bg);
+    color: var(--clr-success);
+    border: 1px solid var(--clr-success-bd);
+  }
+
+  /* ── toggle items button ── */
+  .rh-toggle-btn {
+    width: 100%;
+    padding: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    background: #f5f3f0;
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .rh-toggle-btn:hover {
+    background: #ebe8e3;
+  }
+
+  /* ── order items list ── */
+  .rh-items-list {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--clr-border);
+  }
+  .rh-item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+  .rh-item-name {
+    font-weight: 500;
+    color: var(--clr-text);
+  }
+  .rh-item-qty {
+    color: var(--clr-muted);
+    margin-left: 6px;
+    font-size: 12px;
+  }
+  .rh-item-total {
+    font-family: 'DM Mono', monospace;
+    color: var(--clr-text);
+  }
+
+  /* ── help text ── */
+  .rh-help-section {
+    text-align: center;
+    padding-top: 16px;
+  }
+  .rh-help-section p {
+    font-size: 12px;
+    color: #b5b0a8;
+    margin: 4px 0;
+  }
+  .rh-help-section strong {
+    color: var(--clr-text);
+    font-weight: 500;
+  }
+
+  /* ── loading / error screens ── */
+  .rh-loading-screen, .rh-error-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    text-align: center;
+    padding: 32px;
+  }
+  .rh-loading-screen img {
+    width: 192px;
+    height: 192px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+  .rh-loading-screen p {
+    font-size: 14px;
+    color: var(--clr-muted);
+  }
+  .rh-error-screen .rh-error-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+  .rh-error-screen h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--clr-text);
+    margin: 0 0 8px;
+  }
+  .rh-error-screen p {
+    font-size: 14px;
+    color: var(--clr-muted);
+    margin: 0 0 20px;
+  }
+`;
+
 export default function CustomerTableSessionPage() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
@@ -78,11 +444,11 @@ export default function CustomerTableSessionPage() {
   const { toast } = useToast();
   const tableId = searchParams.get('tableId') || '';
 
-  // CHANGE: Use Cashfree instead of Razorpay
   const [createSessionPaymentIntent, { isLoading: isCreatingPayment }] =
     useCreateCashfreeSessionPaymentIntentMutation();
   const [verifyPayment] = useVerifyPaymentMutation();
-  const [getConsolidatedBill] = restaurantsApi.useLazyGetConsolidatedBillQuery();
+  const [getConsolidatedBill] =
+    restaurantsApi.useLazyGetConsolidatedBillQuery();
 
   const [showOrderDetails, setShowOrderDetails] = useState<string | null>(null);
 
@@ -96,7 +462,6 @@ export default function CustomerTableSessionPage() {
     { skip: !slug || !tableId }
   );
 
-  // Real-time updates for any order in the session
   const handleSocketEvent = useMemo(
     () => (incoming: Order) => {
       if (
@@ -115,17 +480,17 @@ export default function CustomerTableSessionPage() {
     enabled: !!sessionData?.tableSession?.orders?.length,
   });
 
-  // CHANGE: Initialize Cashfree instead of Razorpay
   useEffect(() => {
     initializeCashfree({
-      mode: import.meta.env.VITE_CASHFREE_ENVIRONMENT === 'production' ? 'production' : 'sandbox'
-    }).catch(error => {
+      mode:
+        import.meta.env.VITE_CASHFREE_ENVIRONMENT === 'production'
+          ? 'production'
+          : 'sandbox',
+    }).catch((error) => {
       console.error('Failed to initialize Cashfree:', error);
     });
   }, []);
 
-
-  // Extract data safely
   const tableSession = sessionData?.tableSession;
   const restaurant = sessionData?.restaurant;
   const orders = tableSession?.orders || [];
@@ -135,7 +500,6 @@ export default function CustomerTableSessionPage() {
   const allOrdersPaid = tableSession?.allOrdersPaid || false;
   const sessionClosed = tableSession?.sessionClosed || false;
 
-  // Calculate session status
   const sessionStatus = useMemo(() => {
     if (!tableSession || orders.length === 0) {
       return null;
@@ -143,20 +507,18 @@ export default function CustomerTableSessionPage() {
 
     if (sessionClosed) {
       return {
-        title: 'Session Completed',
+        title: 'Order Completed',
         subtitle: 'Thank you for your visit!',
-        color: 'text-green-600',
-        bgColor: 'bg-green-50 border-green-200',
+        className: 'success',
         icon: '🎉',
       };
     }
 
     if (allOrdersPaid) {
       return {
-        title: 'Session Complete',
-        subtitle: 'All orders paid',
-        color: 'text-green-600',
-        bgColor: 'bg-green-50 border-green-200',
+        title: 'All Paid',
+        subtitle: 'Your cart is fully settled',
+        className: 'success',
         icon: '✅',
       };
     }
@@ -176,8 +538,7 @@ export default function CustomerTableSessionPage() {
           readyOrders.length > 1 ? 's' : ''
         } Ready`,
         subtitle: 'Please collect your food',
-        color: 'text-green-600',
-        bgColor: 'bg-green-50 border-green-200',
+        className: 'success',
         icon: '🍽️',
       };
     }
@@ -188,8 +549,7 @@ export default function CustomerTableSessionPage() {
         subtitle: `${cookingOrders.length} order${
           cookingOrders.length > 1 ? 's' : ''
         } cooking`,
-        color: 'text-orange-600',
-        bgColor: 'bg-orange-50 border-orange-200',
+        className: 'warning',
         icon: '👨‍🍳',
       };
     }
@@ -197,13 +557,11 @@ export default function CustomerTableSessionPage() {
     return {
       title: 'Orders Received',
       subtitle: "We'll start preparing soon",
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50 border-blue-200',
+      className: 'info',
       icon: '📝',
     };
-  }, [tableSession, orders, allOrdersPaid]);
+  }, [tableSession, orders, allOrdersPaid, sessionClosed]);
 
-  // CHANGE: Handle session payment with Cashfree
   const handleSessionPayment = async () => {
     if (!tableId) {
       toast({
@@ -215,24 +573,23 @@ export default function CustomerTableSessionPage() {
     }
 
     try {
-      // Get consolidated bill data BEFORE payment to store for receipt
       const billResult = await getConsolidatedBill({ slug, tableId });
 
-      // CHANGE: Use Cashfree payment intent instead of Razorpay
       const paymentData = await createSessionPaymentIntent({
         slug,
         tableId,
         sessionData: {
-          customerSessionId: sessionData?.tableSession?.customerSessionId || `session_${Date.now()}`,
+          customerSessionId:
+            sessionData?.tableSession?.customerSessionId ||
+            `session_${Date.now()}`,
           customerDetails: {
             customerName: 'Table Customer',
             customerEmail: 'customer@example.com',
             customerPhone: '9999999999',
-          }
-        }
+          },
+        },
       }).unwrap();
 
-      // Store complete bill data for receipt page BEFORE payment
       try {
         const billData = 'data' in billResult ? billResult.data : null;
         localStorage.setItem(
@@ -242,21 +599,19 @@ export default function CustomerTableSessionPage() {
             tableId,
             orderIds: paymentData.orderIds,
             totalAmount: paymentData.totalAmount,
-            billData, // Store complete bill data for receipt
+            billData,
             timestamp: new Date().toISOString(),
-            paymentProvider: 'cashfree'
+            paymentProvider: 'cashfree',
           })
         );
       } catch (error) {
         console.error('Error storing payment session data:', error);
       }
 
-      // CHANGE: Use Cashfree checkout instead of Razorpay
       await openCashfreeCheckout({
         paymentSessionId: paymentData.paymentSessionId,
-        redirectTarget: '_self'
+        redirectTarget: '_self',
       });
-
     } catch (error: any) {
       console.error('Payment intent creation failed:', error);
       toast({
@@ -276,212 +631,172 @@ export default function CustomerTableSessionPage() {
 
   if (sessionLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/20">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <img
-            src="/gifs/food-pending.gif"
-            alt="Loading"
-            className="w-48 h-48 mx-auto mb-4 rounded-2xl"
-          />
-          <p className="text-lg text-muted-foreground">
-            Loading your table session...
-          </p>
-        </motion.div>
+      <div className="rh-cart-root">
+        <style>{STYLE}</style>
+        <div className="rh-loading-screen">
+          <img src="/gifs/food-pending.gif" alt="Loading" />
+          <p>Loading your cart...</p>
+        </div>
       </div>
     );
   }
 
   if (sessionError || !tableSession) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center p-8">
-          <div className="text-6xl mb-4">🍽️</div>
-          <h2 className="text-xl font-bold mb-2">No Active Session</h2>
-          <p className="text-muted-foreground mb-4">
-            You don't have any active orders at this table.
-          </p>
-          <Button
+      <div className="rh-cart-root">
+        <style>{STYLE}</style>
+        <div className="rh-error-screen">
+          <div className="rh-error-icon">🍽️</div>
+          <h2>No Active Cart</h2>
+          <p>You don't have any active orders at this table.</p>
+          <button
+            className="rh-btn accent"
             onClick={() => navigate(`/c/${slug}?tableId=${tableId}`)}
-            className="w-full"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus size={16} />
             Start Ordering
-          </Button>
-        </Card>
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-muted/10 to-background">
+    <div className="rh-cart-root">
+      <style>{STYLE}</style>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="mx-auto max-w-2xl px-4 py-8 space-y-6"
+        className="rh-cart-wrap"
       >
-        {/* Header with Table Info */}
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center"
+          className="rh-cart-header"
         >
-          <h1 className="text-3xl font-bold mb-2">
-            Table {tableSession.tableNumber}
-          </h1>
-          <p className="text-muted-foreground">
+          <h1>Table {tableSession.tableNumber}</h1>
+          <p>
             {restaurant.name} • {orderCount} Order{orderCount > 1 ? 's' : ''}
           </p>
         </motion.div>
 
-        {/* Session Status Card */}
+        {/* Status Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+        >
+          <div
+            className={`rh-cart-card rh-status-banner ${sessionStatus.className}`}
+          >
+            <div className="rh-status-icon">{sessionStatus.icon}</div>
+            <h2 className="rh-status-title">{sessionStatus.title}</h2>
+            <p className="rh-status-subtitle">{sessionStatus.subtitle}</p>
+          </div>
+        </motion.div>
+
+        {/* Cart Summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <Card className={`border-2 ${sessionStatus.bgColor}`}>
-            <CardContent className="p-6 text-center">
-              <div className="text-4xl mb-3">{sessionStatus.icon}</div>
-              <h2 className={`text-xl font-bold mb-1 ${sessionStatus.color}`}>
-                {sessionStatus.title}
-              </h2>
-              <p className="text-muted-foreground">{sessionStatus.subtitle}</p>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Total Amount */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="border-2">
-            <CardContent className="p-6">
-              {/* Bill Summary */}
-              <div className="text-center mb-4">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Session Bill Summary
-                </p>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Order Amount:</span>
-                    <span>
-                      {formatCurrency(
-                        totals.subTotalAmount || totals.totalAmount
-                      )}
-                    </span>
-                  </div>
-                  {totals.taxAmount > 0 && (
-                    <>
-                      {totals.cgstAmount > 0 && (
-                        <div className="flex justify-between text-xs text-gray-600">
-                          <span>CGST:</span>
-                          <span>{formatCurrency(totals.cgstAmount)}</span>
-                        </div>
-                      )}
-                      {totals.sgstAmount > 0 && (
-                        <div className="flex justify-between text-xs text-gray-600">
-                          <span>SGST:</span>
-                          <span>{formatCurrency(totals.sgstAmount)}</span>
-                        </div>
-                      )}
-                      {totals.igstAmount > 0 && (
-                        <div className="flex justify-between text-xs text-gray-600">
-                          <span>IGST:</span>
-                          <span>{formatCurrency(totals.igstAmount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span>Total Tax:</span>
-                        <span>{formatCurrency(totals.taxAmount)}</span>
-                      </div>
-                    </>
+          <div className="rh-cart-card">
+            <div style={{ marginBottom: 8 }}>
+              <div className="rh-summary-row">
+                <span>Order Amount</span>
+                <span>
+                  {formatCurrency(totals.subTotalAmount || totals.totalAmount)}
+                </span>
+              </div>
+              {totals.taxAmount > 0 && (
+                <>
+                  {totals.cgstAmount > 0 && (
+                    <div className="rh-summary-row" style={{ fontSize: 12 }}>
+                      <span>CGST</span>
+                      <span>{formatCurrency(totals.cgstAmount)}</span>
+                    </div>
                   )}
-                </div>
-              </div>
+                  {totals.sgstAmount > 0 && (
+                    <div className="rh-summary-row" style={{ fontSize: 12 }}>
+                      <span>SGST</span>
+                      <span>{formatCurrency(totals.sgstAmount)}</span>
+                    </div>
+                  )}
+                  {totals.igstAmount > 0 && (
+                    <div className="rh-summary-row" style={{ fontSize: 12 }}>
+                      <span>IGST</span>
+                      <span>{formatCurrency(totals.igstAmount)}</span>
+                    </div>
+                  )}
+                  <div className="rh-summary-row">
+                    <span>Total Tax</span>
+                    <span>{formatCurrency(totals.taxAmount)}</span>
+                  </div>
+                </>
+              )}
+            </div>
 
-              {/* Final Total */}
-              <div className="text-center border-t pt-4">
-                <p className="text-sm text-muted-foreground mb-1">
-                  Final Amount
-                </p>
-                <p className="text-3xl font-bold mb-3">
-                  {formatCurrency(totals.totalAmount)}
-                </p>
-                {hasUnpaidOrders && (
-                  <Badge
-                    variant="outline"
-                    className="border-orange-300 text-orange-700"
-                  >
-                    Payment Pending
-                  </Badge>
-                )}
-                {allOrdersPaid && (
-                  <Badge variant="default" className="bg-green-500">
-                    ✓ Fully Paid
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+            <div className="rh-total-section">
+              <p className="rh-total-label">Cart Total</p>
+              <p className="rh-total-amount">
+                {formatCurrency(totals.totalAmount)}
+              </p>
+              {hasUnpaidOrders && (
+                <span className="rh-total-badge pending">Payment Pending</span>
+              )}
+              {allOrdersPaid && (
+                <span className="rh-total-badge paid">✓ Fully Paid</span>
+              )}
+            </div>
+          </div>
         </motion.div>
 
         {/* Action Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="grid grid-cols-2 gap-3"
+          transition={{ delay: 0.15 }}
+          className="rh-btn-group"
         >
-          {/* Pay Now Button - Show when payment is pending and session not closed */}
           {hasUnpaidOrders && !sessionClosed && (
-            <Button
-              size="lg"
-              className="col-span-2 h-14 text-lg font-bold bg-green-600 hover:bg-green-700"
+            <button
+              className="rh-btn primary"
               onClick={handleSessionPayment}
               disabled={isCreatingPayment}
             >
-              <CreditCard className="mr-2 h-5 w-5" />
+              <CreditCard size={18} />
               {isCreatingPayment
                 ? 'Processing...'
-                : `Pay Session Total - ${formatCurrency(totals.totalAmount)}`}
-            </Button>
+                : `Pay Now — ${formatCurrency(totals.totalAmount)}`}
+            </button>
           )}
 
-          <Button
-            variant="outline"
-            size="lg"
-            className="col-span-2 h-12"
+          <button
+            className="rh-btn secondary"
             onClick={async () => {
               try {
-                // Get consolidated bill data with tax calculation
                 const result = await getConsolidatedBill({ slug, tableId });
 
                 if ('data' in result && result.data) {
-                  // Generate PDF using @react-pdf/renderer
                   const pdfBlob = await generateThermalReceiptPDF({
                     restaurant: result.data.restaurant,
                     bill: result.data.bill,
                   });
 
-                  // Create download link
                   const url = URL.createObjectURL(pdfBlob);
                   const link = document.createElement('a');
                   link.href = url;
                   link.download = `table-${tableSession.tableNumber}-bill.pdf`;
                   document.body.appendChild(link);
                   link.click();
-
-                  // Cleanup
                   document.body.removeChild(link);
                   URL.revokeObjectURL(url);
                 } else {
-                  throw new Error(result.error?.toString() || 'Failed to get bill data');
+                  throw new Error(
+                    result.error?.toString() || 'Failed to get bill data'
+                  );
                 }
               } catch (error) {
                 console.error('Error downloading bill:', error);
@@ -493,37 +808,34 @@ export default function CustomerTableSessionPage() {
               }
             }}
           >
-            <Receipt className="mr-2 h-4 w-4" />
-            Download Bill - {formatCurrency(totals.totalAmount)}
-          </Button>
+            <Download size={16} />
+            Download Bill — {formatCurrency(totals.totalAmount)}
+          </button>
 
-          {/* Order More Items - Only show when session is not closed */}
           {!sessionClosed && (
-            <Button
-              variant="default"
-              size="lg"
-              className="col-span-2 h-12 bg-primary"
+            <button
+              className="rh-btn accent"
               onClick={() =>
                 navigate(`/c/${slug}?tableId=${tableId}&addMore=true`)
               }
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus size={16} />
               Order More Items
-            </Button>
+            </button>
           )}
         </motion.div>
 
-        {/* Call Waiter Button */}
+        {/* Call Waiter */}
         {restaurant && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0.2 }}
           >
             <CallWaiterButton
               tableId={tableId}
               restaurantId={restaurant.id}
-              orderId={orders[0]?.id} // Use first order ID for waiter call
+              orderId={orders[0]?.id}
             />
           </motion.div>
         )}
@@ -532,109 +844,97 @@ export default function CustomerTableSessionPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="space-y-4"
+          transition={{ delay: 0.25 }}
+          style={{ marginTop: 20 }}
         >
-          <h3 className="text-lg font-bold">Your Orders</h3>
+          <h3 className="rh-section-title">Your Orders</h3>
           {orders.map((order) => {
             const statusDisplay = getOrderStatusDisplay(order);
             const StatusIcon = statusDisplay.icon;
 
             return (
-              <Card key={order.id} className="border">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <StatusIcon
-                        className={`h-5 w-5 ${statusDisplay.color}`}
-                      />
-                      <div>
-                        <h4 className="font-semibold">#{order.orderNumber}</h4>
-                        <p className={`text-sm ${statusDisplay.color}`}>
-                          {statusDisplay.text}
-                        </p>
-                      </div>
+              <div key={order.id} className="rh-order-card">
+                <div className="rh-order-header">
+                  <div className="rh-order-left">
+                    <div className="rh-order-status-icon">
+                      <StatusIcon size={20} className={statusDisplay.color} />
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold">
-                        {formatCurrency(order.totalAmount)}
+                    <div>
+                      <h4 className="rh-order-number">#{order.orderNumber}</h4>
+                      <p
+                        className={`rh-order-status-text ${statusDisplay.color}`}
+                      >
+                        {statusDisplay.text}
                       </p>
-                      {order.paymentStatus === 'paid' ? (
-                        <Badge
-                          variant="default"
-                          className="bg-green-500 text-xs"
-                        >
-                          Paid
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-orange-300 text-orange-700 text-xs"
-                        >
-                          Pending
-                        </Badge>
-                      )}
                     </div>
                   </div>
-
-                  {/* Toggle Order Details */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() =>
-                      setShowOrderDetails(
-                        showOrderDetails === order.id ? null : order.id
-                      )
-                    }
-                  >
-                    {showOrderDetails === order.id ? (
-                      <>
-                        <X className="mr-2 h-3 w-3" />
-                        Hide Items
-                      </>
+                  <div className="rh-order-right">
+                    <p className="rh-order-amount">
+                      {formatCurrency(order.totalAmount)}
+                    </p>
+                    {order.paymentStatus === 'paid' ? (
+                      <span className="rh-order-payment-badge paid">Paid</span>
                     ) : (
-                      <>
-                        <Utensils className="mr-2 h-3 w-3" />
-                        View Items ({order.items.length})
-                      </>
+                      <span className="rh-order-payment-badge pending">
+                        Pending
+                      </span>
                     )}
-                  </Button>
+                  </div>
+                </div>
 
-                  {/* Order Items Details */}
-                  <AnimatePresence>
-                    {showOrderDetails === order.id && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="mt-3 pt-3 border-t space-y-2"
-                      >
-                        {order.items.map((item, index) => (
-                          <div
-                            key={`${item.name}-${index}`}
-                            className="flex justify-between text-sm"
-                          >
-                            <div>
-                              <span className="font-medium">{item.name}</span>
-                              <span className="text-muted-foreground ml-2">
-                                ₹{item.pricing.unitAmount} × {item.quantity}
-                              </span>
-                            </div>
-                            <span className="font-medium">
-                              ₹
-                              {(
-                                item.pricing.unitAmount * item.quantity
-                              ).toFixed(0)}
+                <button
+                  className="rh-toggle-btn"
+                  onClick={() =>
+                    setShowOrderDetails(
+                      showOrderDetails === order.id ? null : order.id
+                    )
+                  }
+                >
+                  {showOrderDetails === order.id ? (
+                    <>
+                      <X size={14} />
+                      Hide Items
+                    </>
+                  ) : (
+                    <>
+                      <Utensils size={14} />
+                      View Items ({order.items.length})
+                    </>
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {showOrderDetails === order.id && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="rh-items-list"
+                    >
+                      {order.items.map((item, index) => (
+                        <div
+                          key={`${item.name}-${index}`}
+                          className="rh-item-row"
+                        >
+                          <div>
+                            <span className="rh-item-name">{item.name}</span>
+                            <span className="rh-item-qty">
+                              ₹{item.pricing.unitAmount} × {item.quantity}
                             </span>
                           </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </CardContent>
-              </Card>
+                          <span className="rh-item-total">
+                            ₹
+                            {(item.pricing.unitAmount * item.quantity).toFixed(
+                              0
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             );
           })}
         </motion.div>
@@ -643,14 +943,14 @@ export default function CustomerTableSessionPage() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="text-center text-sm text-muted-foreground space-y-2 pt-4"
+          transition={{ delay: 0.3 }}
+          className="rh-help-section"
         >
           <p>
             Need help? Show your table number{' '}
             <strong>{tableSession.tableNumber}</strong> to staff
           </p>
-          <p className="text-xs">This page updates automatically</p>
+          <p>This page updates automatically</p>
         </motion.div>
       </motion.div>
     </div>

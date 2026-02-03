@@ -8,11 +8,9 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   useGetPublicMenuQuery,
   useCreateCustomerSessionMutation,
-  useCreatePublicOrderMutation
+  useCreatePublicOrderMutation,
 } from '@/store/api/restaurantsApi';
-import {
-  useAddItemsToOrderMutation,
-} from '@/store/api/ordersApi';
+import { useAddItemsToOrderMutation } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
@@ -56,7 +54,514 @@ type AugmentedMenuItem = PublicMenuCategory['items'][number] & {
   _isQuick: boolean;
 };
 
-// Removed session storage - using real-time API data only
+/* ── Styles ── */
+const STYLE = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
+  .rh-menu-root {
+    --clr-bg:        #f0ede8;
+    --clr-paper:     #faf9f7;
+    --clr-border:    #e2ddd6;
+    --clr-text:      #1a1a1a;
+    --clr-muted:     #7a756e;
+    --clr-accent:    #1a1a1a;
+    --clr-primary:   #1a1a1a;
+    --clr-primary-fg:#fff;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--clr-bg);
+    min-height: 100vh;
+    padding-bottom: 140px;
+  }
+
+  /* ── header ── */
+  .rh-menu-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: rgba(250, 249, 247, 0.97);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--clr-border);
+  }
+  .rh-menu-header-inner {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 14px 16px;
+  }
+  .rh-menu-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .rh-menu-title-area {
+    flex: 1;
+  }
+  .rh-menu-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--clr-text);
+    letter-spacing: -0.3px;
+    margin: 0 0 2px;
+  }
+  .rh-menu-subtitle {
+    font-size: 12px;
+    color: var(--clr-muted);
+    margin: 0;
+  }
+  .rh-search-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--clr-paper);
+    border: 1px solid var(--clr-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .rh-search-toggle:hover {
+    background: #f5f3f0;
+  }
+
+  /* ── search bar ── */
+  .rh-search-bar-wrap {
+    position: relative;
+    margin-bottom: 10px;
+  }
+  .rh-search-input {
+    width: 100%;
+    height: 40px;
+    padding-left: 38px;
+    padding-right: 38px;
+    border: 1px solid var(--clr-border);
+    border-radius: 8px;
+    background: var(--clr-paper);
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--clr-text);
+    outline: none;
+  }
+  .rh-search-input:focus {
+    border-color: #a89f95;
+  }
+  .rh-search-input::placeholder {
+    color: #b5b0a8;
+  }
+  .rh-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--clr-muted);
+  }
+  .rh-search-clear {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--clr-muted);
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .rh-search-clear:hover {
+    background: #ebe8e3;
+  }
+
+  /* ── banner (session / order) ── */
+  .rh-banner {
+    background: var(--clr-paper);
+    border: 1px solid var(--clr-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .rh-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .rh-banner-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #16a34a;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .rh-banner-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--clr-text);
+  }
+  .rh-banner-meta {
+    font-size: 11px;
+    color: var(--clr-muted);
+    margin-left: 6px;
+  }
+  .rh-banner-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    background: #f5f3f0;
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .rh-banner-btn:hover {
+    background: #ebe8e3;
+  }
+
+  /* ── categories ── */
+  .rh-categories-wrap {
+    border-top: 1px solid var(--clr-border);
+    padding-top: 10px;
+    padding-bottom: 4px;
+  }
+  .rh-category-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    border: 1px solid var(--clr-border);
+    background: var(--clr-paper);
+    color: var(--clr-text);
+  }
+  .rh-category-pill.active {
+    background: var(--clr-primary);
+    color: var(--clr-primary-fg);
+    border-color: var(--clr-primary);
+  }
+  .rh-category-pill:hover:not(.active) {
+    background: #f5f3f0;
+  }
+
+  /* ── menu grid ── */
+  .rh-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+
+  /* ── menu item card ── */
+  .rh-item-card {
+    background: var(--clr-paper);
+    border: 1px solid var(--clr-border);
+    border-radius: 10px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.15s;
+  }
+  .rh-item-card:hover {
+    border-color: #b5b0a8;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  /* ── item image ── */
+  .rh-item-image-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f0ede8, #e8e4df);
+    margin-bottom: 8px;
+  }
+  .rh-item-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .rh-item-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    opacity: 0.3;
+  }
+  .rh-item-popular-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: #facc15;
+    border-radius: 50%;
+    padding: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .rh-item-tags {
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    display: flex;
+    gap: 4px;
+  }
+  .rh-item-tag {
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(4px);
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 11px;
+  }
+
+  /* ── item details ── */
+  .rh-item-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 4px;
+  }
+  .rh-item-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-text);
+    line-height: 1.3;
+    margin: 0 0 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .rh-item-price {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--clr-text);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 8px;
+  }
+
+  /* ── add button / quantity controls ── */
+  .rh-add-btn {
+    width: 100%;
+    height: 30px;
+    border-radius: 15px;
+    background: var(--clr-primary);
+    color: var(--clr-primary-fg);
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .rh-add-btn:hover {
+    background: #333;
+  }
+  .rh-qty-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--clr-primary);
+    border-radius: 15px;
+    padding: 4px 6px;
+    height: 30px;
+  }
+  .rh-qty-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--clr-primary-fg);
+    transition: background 0.15s;
+  }
+  .rh-qty-btn:hover {
+    background: rgba(255,255,255,0.3);
+  }
+  .rh-qty-value {
+    min-width: 20px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--clr-primary-fg);
+  }
+
+  /* ── floating cart ── */
+  .rh-floating-cart {
+    position: fixed;
+    bottom: 20px;
+    left: 16px;
+    right: 16px;
+    z-index: 40;
+  }
+  .rh-floating-cart-inner {
+    max-width: 640px;
+    margin: 0 auto;
+    background: var(--clr-paper);
+    border: 2px solid var(--clr-primary);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  }
+  .rh-cart-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .rh-cart-info h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--clr-text);
+    margin: 0 0 3px;
+  }
+  .rh-cart-info p {
+    font-size: 13px;
+    color: var(--clr-muted);
+    margin: 0;
+  }
+  .rh-cart-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--clr-primary);
+    color: var(--clr-primary-fg);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .rh-cart-btn:hover {
+    background: #333;
+  }
+  .rh-cart-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* ── empty state ── */
+  .rh-empty-state {
+    text-align: center;
+    padding: 64px 32px;
+  }
+  .rh-empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+  .rh-empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--clr-text);
+    margin: 0 0 8px;
+  }
+  .rh-empty-desc {
+    font-size: 14px;
+    color: var(--clr-muted);
+    margin: 0 0 16px;
+  }
+  .rh-empty-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--clr-paper);
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .rh-empty-btn:hover {
+    background: #f5f3f0;
+  }
+
+  /* ── loading / error screens ── */
+  .rh-loading-screen, .rh-error-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    text-align: center;
+    padding: 32px;
+  }
+  .rh-loading-screen img {
+    width: 192px;
+    height: 192px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+  .rh-loading-screen p {
+    font-size: 14px;
+    color: var(--clr-muted);
+  }
+  .rh-error-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+  .rh-error-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--clr-text);
+    margin: 0 0 8px;
+  }
+  .rh-error-desc {
+    font-size: 14px;
+    color: var(--clr-muted);
+    margin: 0 0 20px;
+  }
+  .rh-error-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    background: var(--clr-paper);
+    color: var(--clr-text);
+    border: 1px solid var(--clr-border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .rh-error-btn:hover {
+    background: #f5f3f0;
+  }
+`;
 
 const AccessibleEmoji = ({
   symbol,
@@ -98,15 +603,12 @@ export default function CustomerMenuPageNew() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Extract parameters
   const { slug, tableId } = params;
   const tableFromUrl = searchParams.get('table');
   const tableIdFromUrl = searchParams.get('tableId') || tableId;
 
-  // Customer session management
   const [createCustomerSession] = useCreateCustomerSessionMutation();
 
-  // Session storage utilities
   const STORAGE_KEY = 'customerSession';
 
   const getStoredSession = () => {
@@ -143,19 +645,19 @@ export default function CustomerMenuPageNew() {
     }
   };
 
-  // Initialize customer session when tableId is detected
   useEffect(() => {
     const initializeSession = async () => {
       if (!slug || !tableIdFromUrl) return;
 
-      // Check if we already have a valid session for this table
       const storedSession = getStoredSession();
-      if (storedSession?.tableId === tableIdFromUrl && storedSession?.restaurantSlug === slug) {
-        // Check if session is still valid (not expired)
+      if (
+        storedSession?.tableId === tableIdFromUrl &&
+        storedSession?.restaurantSlug === slug
+      ) {
         const expiresAt = new Date(storedSession.expiresAt);
         if (expiresAt > new Date()) {
           console.log('Using existing session:', storedSession.sessionId);
-          return; // Session is valid, no need to create new one
+          return;
         }
       }
 
@@ -163,10 +665,9 @@ export default function CustomerMenuPageNew() {
         console.log('Creating new customer session for table:', tableIdFromUrl);
         const sessionResponse = await createCustomerSession({
           slug: slug!,
-          tableId: tableIdFromUrl
+          tableId: tableIdFromUrl,
         }).unwrap();
 
-        // Store session data for persistence
         const sessionData = {
           sessionId: sessionResponse.sessionId,
           restaurantId: sessionResponse.restaurant.id,
@@ -175,7 +676,7 @@ export default function CustomerMenuPageNew() {
           tableId: sessionResponse.table.id,
           tableNumber: sessionResponse.table.tableNumber,
           expiresAt: sessionResponse.expiresAt,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
 
         storeSession(sessionData);
@@ -190,8 +691,9 @@ export default function CustomerMenuPageNew() {
         console.error('Failed to create customer session:', error);
         toast({
           title: 'Session Error',
-          description: 'Failed to create customer session. You can still browse the menu.',
-          variant: 'destructive'
+          description:
+            'Failed to create customer session. You can still browse the menu.',
+          variant: 'destructive',
         });
       }
     };
@@ -199,9 +701,6 @@ export default function CustomerMenuPageNew() {
     initializeSession();
   }, [slug, tableIdFromUrl, createCustomerSession, toast]);
 
-  // Removed session storage - activeOrder comes directly from API
-
-  // Local cart for new items before placing order
   const [cart, setCart] = useState<
     Array<{
       menuItemId: string;
@@ -220,47 +719,53 @@ export default function CustomerMenuPageNew() {
   }>({ open: false, unavailableItems: [] });
 
   const { data, isLoading, isError, refetch } = useGetPublicMenuQuery(
-    { slug: slug!, table: tableFromUrl || undefined, tableId: tableIdFromUrl || undefined },
+    {
+      slug: slug!,
+      table: tableFromUrl || undefined,
+      tableId: tableIdFromUrl || undefined,
+    },
     { skip: !slug }
   );
 
-  const [createOrder, { isLoading: isPlacingOrder }] = useCreatePublicOrderMutation();
+  const [createOrder, { isLoading: isPlacingOrder }] =
+    useCreatePublicOrderMutation();
   const [addItemsToOrder, { isLoading: isAddingItems }] =
     useAddItemsToOrderMutation();
 
-  // Extract data from the API response
   const restaurant = data?.restaurant;
   const menu = data?.menu;
-  const activeOrderFromAPI = data?.activeOrder; // Legacy fallback
+  const activeOrderFromAPI = data?.activeOrder;
 
-  // Get current session from localStorage
   const currentSession = getStoredSession();
 
-  // Redirect logic: If customer has active session with unpaid orders, redirect to session page
   useEffect(() => {
     if (
       currentSession &&
       tableIdFromUrl &&
       !searchParams.get('addMore') &&
       !searchParams.get('sessionView') &&
-      activeOrderFromAPI // Has active order
+      activeOrderFromAPI
     ) {
-      // Customer has active session with orders - redirect to session page unless they explicitly want to order more
       navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`, {
         replace: true,
       });
     }
-  }, [currentSession, tableIdFromUrl, searchParams, navigate, slug, activeOrderFromAPI]);
+  }, [
+    currentSession,
+    tableIdFromUrl,
+    searchParams,
+    navigate,
+    slug,
+    activeOrderFromAPI,
+  ]);
 
-  // Setup WebSocket for real-time order updates
   useOrdersSocket({
     onEvent: (order) => {
-      // Refetch menu data to get updated activeOrder when our order is updated
       if (activeOrderFromAPI && order.id === activeOrderFromAPI.id) {
         refetch();
       }
     },
-    enabled: !!activeOrderFromAPI, // Only listen when we have an active order
+    enabled: !!activeOrderFromAPI,
   });
 
   const categories = useMemo(() => menu?.categories ?? [], [menu]);
@@ -355,7 +860,6 @@ export default function CustomerMenuPageNew() {
     return displayCategories;
   }, [categories, filteredProducts]);
 
-  // Check if we have an existing order from API only
   const hasActiveOrder = !!activeOrderFromAPI;
   const hasTableSession = !!currentSession && !!tableIdFromUrl;
 
@@ -431,15 +935,13 @@ export default function CustomerMenuPageNew() {
     }));
 
     try {
-      // Customer info for first order - include tableId for proper branch isolation
       const customerInfo = {
-        customerName: 'Guest Customer', // We'll add a form for this later
+        customerName: 'Guest Customer',
         tableNumber: tableFromUrl || undefined,
-        tableId: tableIdFromUrl || undefined, // CRITICAL: Include tableId for branch lookup
+        tableId: tableIdFromUrl || undefined,
       };
 
       if (hasActiveOrder && activeOrderFromAPI) {
-        // Add to existing order
         await addItemsToOrder({
           restaurantId: restaurant.id,
           orderId: activeOrderFromAPI.id,
@@ -452,13 +954,12 @@ export default function CustomerMenuPageNew() {
           description: `${cartItemCount} items added to order #${activeOrderFromAPI.orderNumber}`,
         });
       } else {
-        // Create new order with tableId for proper branch isolation
         const currentSession = getStoredSession();
         const result = await createOrder({
           slug: slug!,
           items: orderItems,
           ...customerInfo,
-          paymentMethod: 'upi', // Default to UPI for customer orders
+          paymentMethod: 'upi',
         }).unwrap();
 
         toast({
@@ -466,10 +967,8 @@ export default function CustomerMenuPageNew() {
           description: `Order #${result.orderNumber} sent to kitchen`,
         });
 
-        // Clear cart after successful order
         setCart([]);
 
-        // Navigate to table session page for combined payment
         const params = new URLSearchParams();
         if (tableIdFromUrl) params.set('tableId', tableIdFromUrl);
         if (tableFromUrl) params.set('table', tableFromUrl);
@@ -477,17 +976,16 @@ export default function CustomerMenuPageNew() {
         navigate(`/c/${slug}/session${queryString}`);
       }
 
-      // Clear cart after successful order if adding to existing
       if (hasActiveOrder) {
         setCart([]);
       }
     } catch (error: any) {
       console.error('Order placement error:', error);
 
-      // Check if it's an unavailable items error
-      if (error?.status === 400 &&
-          error?.data?.message?.includes('not available')) {
-        // Extract menu item IDs from the error message
+      if (
+        error?.status === 400 &&
+        error?.data?.message?.includes('not available')
+      ) {
         const message = error.data.message;
         const itemIdsMatch = message.match(/not available:\s*([a-f0-9,\s]+)/);
         const unavailableItemIds = itemIdsMatch
@@ -499,14 +997,12 @@ export default function CustomerMenuPageNew() {
           unavailableItems: unavailableItemIds,
         });
 
-        // Automatically remove unavailable items from cart
-        setCart(prevCart =>
-          prevCart.filter(cartItem =>
-            !unavailableItemIds.includes(cartItem.menuItemId)
+        setCart((prevCart) =>
+          prevCart.filter(
+            (cartItem) => !unavailableItemIds.includes(cartItem.menuItemId)
           )
         );
       } else {
-        // Generic error handling
         toast({
           title: 'Failed to place order',
           description: 'Please try again or ask for assistance.',
@@ -526,81 +1022,66 @@ export default function CustomerMenuPageNew() {
     }
   };
 
-  if (isLoading)
+  if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-muted/20">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <img
-            src="/gifs/food-pending.gif"
-            alt="Loading menu"
-            className="w-48 h-48 mx-auto mb-4 rounded-2xl"
-          />
-          <p className="text-lg text-muted-foreground">Loading menu...</p>
-        </motion.div>
+      <div className="rh-menu-root">
+        <style>{STYLE}</style>
+        <div className="rh-loading-screen">
+          <img src="/gifs/food-pending.gif" alt="Loading menu" />
+          <p>Loading menu...</p>
+        </div>
       </div>
     );
+  }
 
-  if (isError || !restaurant)
+  if (isError || !restaurant) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center p-8">
-          <AccessibleEmoji
-            symbol="😕"
-            label="Menu unavailable"
-            className="text-6xl mb-4"
-          />
-          <h2 className="text-xl font-bold mb-2">Menu Unavailable</h2>
-          <p className="text-muted-foreground mb-4">
+      <div className="rh-menu-root">
+        <style>{STYLE}</style>
+        <div className="rh-error-screen">
+          <div className="rh-error-icon">😕</div>
+          <h2 className="rh-error-title">Menu Unavailable</h2>
+          <p className="rh-error-desc">
             Unable to load the menu. Please try refreshing or ask for
             assistance.
           </p>
-          <Button
+          <button
+            className="rh-error-btn"
             onClick={() => window.location.reload()}
-            className="w-full"
-            variant="outline"
           >
-            <RefreshCcw className="h-4 w-4 mr-2" />
+            <RefreshCcw size={16} />
             Try Again
-          </Button>
-        </Card>
+          </button>
+        </div>
       </div>
     );
+  }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-background via-muted/5 to-background pb-32">
+    <div className="rh-menu-root">
+      <style>{STYLE}</style>
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b"
+        className="rh-menu-header"
       >
-        <div className="max-w-2xl mx-auto p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1">
-              <h1 className="text-2xl font-black tracking-tight">
-                {restaurant?.name || 'Menu'}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {allProducts.length} items available
+        <div className="rh-menu-header-inner">
+          <div className="rh-menu-top-row">
+            <div className="rh-menu-title-area">
+              <h1 className="rh-menu-title">{restaurant?.name || 'Menu'}</h1>
+              <p className="rh-menu-subtitle">
+                {allProducts.length} items
                 {tableFromUrl && ` • Table ${tableFromUrl}`}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 rounded-full"
+            <button
+              className="rh-search-toggle"
               onClick={() => setShowSearch(!showSearch)}
             >
-              {showSearch ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Search className="h-5 w-5" />
-              )}
-            </Button>
+              {showSearch ? <X size={18} /> : <Search size={18} />}
+            </button>
           </div>
 
           {/* Search Bar */}
@@ -610,101 +1091,80 @@ export default function CustomerMenuPageNew() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
+                className="rh-search-bar-wrap"
               >
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search menu..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-11"
-                  />
-                  {searchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                      onClick={() => setSearchQuery('')}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                <Search size={16} className="rh-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search menu..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="rh-search-input"
+                />
+                {searchQuery && (
+                  <button
+                    className="rh-search-clear"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Table Session Banner - Show when tableId exists and session active */}
+          {/* Session Banner */}
           <AnimatePresence>
             {hasTableSession && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4"
+                className="rh-banner"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-blue-500 rounded-full w-2 h-2 animate-pulse"></div>
-                    <span className="font-medium text-blue-900 dark:text-blue-100 text-sm">
-                      Table {currentSession?.tableNumber || 'Unknown'}
-                    </span>
-                    <span className="text-blue-600 dark:text-blue-400 text-xs">
-                      Session Active
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-3 text-xs text-blue-700 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                    onClick={() =>
-                      navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`)
-                    }
-                  >
-                    <Receipt className="h-3 w-3 mr-1" />
-                    View Session
-                  </Button>
+                <div className="rh-banner-left">
+                  <div className="rh-banner-dot"></div>
+                  <span className="rh-banner-label">
+                    Table {currentSession?.tableNumber || 'Unknown'}
+                  </span>
+                  <span className="rh-banner-meta">Session Active</span>
                 </div>
+                <button
+                  className="rh-banner-btn"
+                  onClick={() =>
+                    navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`)
+                  }
+                >
+                  <Receipt size={12} />
+                  View Cart
+                </button>
               </motion.div>
             )}
-            {/* Legacy Active Order Banner - Show when only activeOrder exists (no session) */}
             {hasActiveOrder && !hasTableSession && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4"
+                className="rh-banner"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-green-500 rounded-full w-2 h-2 animate-pulse"></div>
-                    <span className="font-medium text-green-900 dark:text-green-100 text-sm">
-                      Order #{activeOrderFromAPI?.orderNumber}
-                    </span>
-                    <span className="text-green-600 dark:text-green-400 text-xs">
-                      • In Progress
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-3 text-xs text-green-700 hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/50"
-                    onClick={handleViewOrder}
-                  >
-                    <Receipt className="h-3 w-3 mr-1" />
-                    View
-                  </Button>
+                <div className="rh-banner-left">
+                  <div className="rh-banner-dot"></div>
+                  <span className="rh-banner-label">
+                    Order #{activeOrderFromAPI?.orderNumber}
+                  </span>
+                  <span className="rh-banner-meta">In Progress</span>
                 </div>
+                <button className="rh-banner-btn" onClick={handleViewOrder}>
+                  <Receipt size={12} />
+                  View
+                </button>
               </motion.div>
             )}
 
-            {/* Call Waiter Button - Show when customer is at a table */}
             {restaurant && tableFromUrl && (
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-4"
               >
                 <CallWaiterButton
                   tableId={tableFromUrl}
@@ -716,35 +1176,36 @@ export default function CustomerMenuPageNew() {
           </AnimatePresence>
 
           {/* Categories */}
-          <div className="border-t border-border/70 pt-3 pb-1">
+          <div className="rh-categories-wrap">
             <ScrollArea className="w-full">
-              <div className="flex gap-2 max-w-2xl mx-auto pb-1">
+              <div style={{ display: 'flex', gap: 8, paddingBottom: 4 }}>
                 {availableCategories.map((category) => (
-                  <Button
+                  <button
                     key={category.id}
-                    variant={
-                      activeCategory === category.id ? 'default' : 'outline'
-                    }
-                    size="sm"
+                    className={`rh-category-pill ${
+                      activeCategory === category.id ? 'active' : ''
+                    }`}
                     onClick={() => setActiveCategory(category.id)}
-                    className="shrink-0 h-12 px-4"
                   >
                     {category.imageUrl ? (
                       <img
                         src={category.imageUrl}
                         alt={category.name}
-                        className="h-11 w-5 mr-2 flex-shrink-0 object-cover rounded-full"
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                        }}
                       />
                     ) : (
                       <AccessibleEmoji
                         symbol={category.icon.symbol}
                         label={category.icon.label}
-                        className="mr-1.5"
                       />
                     )}
-
                     {category.name}
-                  </Button>
+                  </button>
                 ))}
               </div>
               <ScrollBar orientation="horizontal" />
@@ -757,148 +1218,105 @@ export default function CustomerMenuPageNew() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="p-0 max-w-2xl mx-auto"
+        transition={{ delay: 0.05 }}
+        style={{ padding: '16px 0' }}
       >
         {displayItems.length === 0 ? (
-          <div className="text-center py-16">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
+          <div className="rh-empty-state">
+            <div className="rh-empty-icon">🔍</div>
+            <h3 className="rh-empty-title">No items found</h3>
+            <p className="rh-empty-desc">Try adjusting your search</p>
+            <button
+              className="rh-empty-btn"
+              onClick={() => {
+                setSearchQuery('');
+                setActiveCategory('all');
+              }}
             >
-              <div className="text-6xl mb-4">
-                <AccessibleEmoji symbol="🔍" label="No items found" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">No items found</h3>
-              <p className="text-muted-foreground mb-4">
-                Try adjusting your search
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchQuery('');
-                  setActiveCategory('all');
-                }}
-              >
-                Clear filters
-              </Button>
-            </motion.div>
+              Clear filters
+            </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="rh-menu-grid">
             {displayItems.map((item, index) => {
               const quantity = getItemQuantity(item.id);
               return (
                 <motion.div
                   key={item.id}
-                  initial={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.02 }}
+                  transition={{ delay: index * 0.015 }}
+                  className="rh-item-card"
                 >
-                  <Card className="py-2 overflow-hidden border hover:shadow-md transition-all duration-200 hover:border-primary/30 h-full">
-                    <CardContent className="px-2 py-0 flex flex-col h-full">
-                      {/* Item Image */}
-                      <div className="relative w-full aspect-square rounded-md overflow-hidden mb-2 bg-gradient-to-br from-muted to-muted/50">
-                        {item.imageUrls?.[0] ? (
-                          <img
-                            src={item.imageUrls[0]}
-                            alt={item.name}
-                            className="absolute inset-0 h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <AccessibleEmoji
-                              symbol="🍽️"
-                              label="Dish placeholder"
-                              className="text-4xl opacity-30"
-                            />
-                          </div>
+                  {/* Image */}
+                  <div className="rh-item-image-wrap">
+                    {item.imageUrls?.[0] ? (
+                      <img
+                        src={item.imageUrls[0]}
+                        alt={item.name}
+                        className="rh-item-image"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="rh-item-placeholder">🍽️</div>
+                    )}
+                    {item._isPopular && (
+                      <div className="rh-item-popular-badge">
+                        <Sparkles size={14} color="white" fill="white" />
+                      </div>
+                    )}
+                    {(item._isSpicy || item._isQuick) && (
+                      <div className="rh-item-tags">
+                        {item._isSpicy && (
+                          <span className="rh-item-tag">🌶️</span>
                         )}
-                        {/* Popular badge */}
-                        {item._isPopular && (
-                          <div className="absolute top-1.5 right-1.5 bg-yellow-500 rounded-full p-0.5 shadow-sm z-10">
-                            <Sparkles className="h-3 w-3 text-white fill-white" />
-                          </div>
-                        )}
-                        {/* Tags on image */}
-                        {(item._isSpicy || item._isQuick) && (
-                          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
-                            {item._isSpicy && (
-                              <AccessibleEmoji
-                                symbol="🌶️"
-                                label="Spicy"
-                                className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
-                              />
-                            )}
-                            {item._isQuick && (
-                              <AccessibleEmoji
-                                symbol="⚡"
-                                label="Quick serve"
-                                className="bg-white/90 backdrop-blur-sm rounded px-1 text-xs"
-                              />
-                            )}
-                          </div>
+                        {item._isQuick && (
+                          <span className="rh-item-tag">⚡</span>
                         )}
                       </div>
+                    )}
+                  </div>
 
-                      {/* Item Details */}
-                      <div className="flex-1 flex flex-col px-1">
-                        <h3 className="font-bold text-xs line-clamp-2 mb-1.5 leading-tight">
-                          {item.name}
-                        </h3>
+                  {/* Details */}
+                  <div className="rh-item-details">
+                    <h3 className="rh-item-name">{item.name}</h3>
+                    <p className="rh-item-price">
+                      {formatCurrency(item.pricing.amount)}
+                    </p>
 
-                        {/* Price */}
-                        <p className="text-base font-black mb-2">
-                          {formatCurrency(item.pricing.amount)}
-                        </p>
-
-                        {/* Add Button */}
-                        {quantity > 0 ? (
-                          <div className="flex items-center justify-center gap-1.5 bg-primary rounded-full px-1.5 py-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
-                              onClick={() => handleRemoveFromCart(item.id)}
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </Button>
-                            <span className="w-5 text-center font-bold text-sm text-primary-foreground">
-                              {quantity}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 rounded-full hover:bg-primary-foreground/20 text-primary-foreground p-0"
-                              onClick={() =>
-                                handleAddToCart(
-                                  item.id,
-                                  item.name,
-                                  item.pricing
-                                )
-                              }
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="w-full rounded-full h-7 font-semibold text-xs"
-                            onClick={() =>
-                              handleAddToCart(item.id, item.name, item.pricing)
-                            }
-                          >
-                            Add
-                          </Button>
-                        )}
+                    {/* Add / Qty Controls */}
+                    {quantity > 0 ? (
+                      <div className="rh-qty-controls">
+                        <button
+                          className="rh-qty-btn"
+                          onClick={() => handleRemoveFromCart(item.id)}
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="rh-qty-value">{quantity}</span>
+                        <button
+                          className="rh-qty-btn"
+                          onClick={() =>
+                            handleAddToCart(item.id, item.name, item.pricing)
+                          }
+                        >
+                          <Plus size={14} />
+                        </button>
                       </div>
-                    </CardContent>
-                  </Card>
+                    ) : (
+                      <button
+                        className="rh-add-btn"
+                        onClick={() =>
+                          handleAddToCart(item.id, item.name, item.pricing)
+                        }
+                      >
+                        Add
+                      </button>
+                    )}
+                  </div>
                 </motion.div>
               );
             })}
@@ -906,43 +1324,36 @@ export default function CustomerMenuPageNew() {
         )}
       </motion.div>
 
-      {/* Floating Order Button */}
+      {/* Floating Cart */}
       <AnimatePresence>
         {cart.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-6 left-4 right-4 z-40"
+            className="rh-floating-cart"
           >
-            <div className="max-w-2xl mx-auto">
-              <Card className="border-2 border-primary shadow-2xl">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="font-bold text-lg">
-                        {hasActiveOrder ? 'Add to Order' : 'Place Order'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {cartItemCount} items • {formatCurrency(cartTotal)}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handlePlaceOrder}
-                      disabled={isPlacingOrder || isAddingItems}
-                      size="lg"
-                      className="font-bold px-6"
-                    >
-                      {isPlacingOrder || isAddingItems ? (
-                        <LoadingSpinner className="h-4 w-4 mr-2" />
-                      ) : (
-                        <ShoppingBag className="h-4 w-4 mr-2" />
-                      )}
-                      {hasActiveOrder ? 'Add Items' : 'Place Order'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="rh-floating-cart-inner">
+              <div className="rh-cart-row">
+                <div className="rh-cart-info">
+                  <h4>{hasActiveOrder ? 'Add to Order' : 'Place Order'}</h4>
+                  <p>
+                    {cartItemCount} items • {formatCurrency(cartTotal)}
+                  </p>
+                </div>
+                <button
+                  className="rh-cart-btn"
+                  onClick={handlePlaceOrder}
+                  disabled={isPlacingOrder || isAddingItems}
+                >
+                  {isPlacingOrder || isAddingItems ? (
+                    <LoadingSpinner className="h-4 w-4" />
+                  ) : (
+                    <ShoppingBag size={16} />
+                  )}
+                  {hasActiveOrder ? 'Add Items' : 'Place Order'}
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -953,9 +1364,8 @@ export default function CustomerMenuPageNew() {
         open={unavailableItemsDialog.open}
         onOpenChange={(open) => {
           if (!open) {
-            // Dialog is closing - refetch menu and clear dialog state
             setUnavailableItemsDialog({ open: false, unavailableItems: [] });
-            refetch(); // Refetch menu to get updated availability
+            refetch();
           }
         }}
       >
@@ -966,7 +1376,8 @@ export default function CustomerMenuPageNew() {
               Items Unavailable
             </DialogTitle>
             <DialogDescription>
-              Some items in your order are no longer available. We've removed them from your cart automatically.
+              Some items in your order are no longer available. We've removed
+              them from your cart automatically.
             </DialogDescription>
           </DialogHeader>
 
@@ -976,11 +1387,19 @@ export default function CustomerMenuPageNew() {
             </p>
             <div className="space-y-2">
               {unavailableItemsDialog.unavailableItems.map((itemId) => {
-                const cartItem = cart.find(item => item.menuItemId === itemId);
-                const menuItem = displayItems.find(item => item.id === itemId);
-                const itemName = cartItem?.name || menuItem?.name || `Item ID: ${itemId}`;
+                const cartItem = cart.find(
+                  (item) => item.menuItemId === itemId
+                );
+                const menuItem = displayItems.find(
+                  (item) => item.id === itemId
+                );
+                const itemName =
+                  cartItem?.name || menuItem?.name || `Item ID: ${itemId}`;
                 return (
-                  <div key={itemId} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                  <div
+                    key={itemId}
+                    className="flex items-center gap-2 p-2 bg-muted rounded-md"
+                  >
                     <X className="h-4 w-4 text-destructive flex-shrink-0" />
                     <span className="text-sm">{itemName}</span>
                   </div>
@@ -992,8 +1411,11 @@ export default function CustomerMenuPageNew() {
           <DialogFooter>
             <Button
               onClick={() => {
-                setUnavailableItemsDialog({ open: false, unavailableItems: [] });
-                refetch(); // Refetch menu to get updated availability
+                setUnavailableItemsDialog({
+                  open: false,
+                  unavailableItems: [],
+                });
+                refetch();
               }}
               className="w-full"
             >
