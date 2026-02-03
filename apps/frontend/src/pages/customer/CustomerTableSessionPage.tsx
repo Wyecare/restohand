@@ -590,6 +590,9 @@ export default function CustomerTableSessionPage() {
         },
       }).unwrap();
 
+      console.log('Payment data received:', paymentData);
+      console.log('Payment session ID:', paymentData?.paymentSessionId);
+
       try {
         const billData = 'data' in billResult ? billResult.data : null;
         localStorage.setItem(
