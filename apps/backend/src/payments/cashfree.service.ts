@@ -171,7 +171,7 @@ export class CashfreeService {
         order_meta: {
           return_url:
             params.orderMeta?.returnUrl ||
-            `${process.env['CUSTOMER_FRONTEND_URL']}/payment/success`,
+            `${process.env.USER_FRONTENT_URL}/payment/success`,
         },
         order_note: params.orderNote || 'RestoHand Order Payment',
       };
