@@ -40,9 +40,18 @@ import { RazorpayService } from '../payments/razorpay.service';
 import { RestaurantOnboardingService } from '../restaurants/restaurant-onboarding.service';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { InjectModel } from '@nestjs/mongoose';
-import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
-import { RestaurantTable, RestaurantTableDocument } from '../restaurant-tables/schemas/restaurant-table.schema';
-import { MenuItem, MenuItemDocument } from '../menu-items/schemas/menu-item.schema';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../restaurants/schemas/restaurant.schema';
+import {
+  RestaurantTable,
+  RestaurantTableDocument,
+} from '../restaurant-tables/schemas/restaurant-table.schema';
+import {
+  MenuItem,
+  MenuItemDocument,
+} from '../menu-items/schemas/menu-item.schema';
 import { Model } from 'mongoose';
 
 @ApiTags('orders')
@@ -63,25 +72,36 @@ export class OrdersController {
   ) {}
 
   // CRITICAL FIX: Helper methods for branch isolation
-  private async getBranchIdFromTable(restaurantId: string, tableNumber: string): Promise<string | undefined> {
-    const table = await this.tableModel.findOne({
-      restaurantId,
-      tableNumber: tableNumber.trim(),
-      isActive: true
-    }).lean();
+  private async getBranchIdFromTable(
+    restaurantId: string,
+    tableNumber: string
+  ): Promise<string | undefined> {
+    const table = await this.tableModel
+      .findOne({
+        restaurantId,
+        tableNumber: tableNumber.trim(),
+        isActive: true,
+      })
+      .lean();
 
     return table?.branchId?.toString();
   }
 
-  private async validateItemsBelongToBranch(restaurantId: string, itemIds: string[], branchId: string): Promise<boolean> {
+  private async validateItemsBelongToBranch(
+    restaurantId: string,
+    itemIds: string[],
+    branchId: string
+  ): Promise<boolean> {
     if (!branchId || itemIds.length === 0) return true;
 
-    const items = await this.menuItemModel.find({
-      _id: { $in: itemIds },
-      restaurantId,
-      branchId,
-      isAvailable: true
-    }).lean();
+    const items = await this.menuItemModel
+      .find({
+        _id: { $in: itemIds },
+        restaurantId,
+        branchId,
+        isAvailable: true,
+      })
+      .lean();
 
     return items.length === itemIds.length;
   }
@@ -97,7 +117,7 @@ export class OrdersController {
     // Default to pending payment for new order-first flow
     const orderDto = {
       ...dto,
-      paymentMethod: dto.paymentMethod || 'pending'
+      paymentMethod: dto.paymentMethod || 'pending',
     };
 
     // Extract branchId if user is authenticated, otherwise get it from table
@@ -110,18 +130,22 @@ export class OrdersController {
 
       // Prefer tableId lookup (globally unique)
       if (orderDto.tableId) {
-        table = await this.tableModel.findOne({
-          _id: orderDto.tableId,
-          isActive: true
-        }).lean();
+        table = await this.tableModel
+          .findOne({
+            _id: orderDto.tableId,
+            isActive: true,
+          })
+          .lean();
       }
       // Fallback to tableNumber lookup (needs restaurant scope)
       else if (orderDto.tableNumber) {
-        table = await this.tableModel.findOne({
-          restaurantId,
-          tableNumber: orderDto.tableNumber.trim(),
-          isActive: true
-        }).lean();
+        table = await this.tableModel
+          .findOne({
+            restaurantId,
+            tableNumber: orderDto.tableNumber.trim(),
+            isActive: true,
+          })
+          .lean();
       }
 
       if (table) {
@@ -239,12 +263,18 @@ export class OrdersController {
     });
 
     // Register payment intent for tracking
-    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay', razorpayOrder.id, {
-      orderNumber: order.orderNumber,
-      amount: amountInPaise,
-      currency: 'INR',
-      razorpayOrderId: razorpayOrder.id,
-    });
+    await this.ordersService.registerPaymentIntent(
+      restaurantId,
+      orderId,
+      'razorpay',
+      razorpayOrder.id,
+      {
+        orderNumber: order.orderNumber,
+        amount: amountInPaise,
+        currency: 'INR',
+        razorpayOrderId: razorpayOrder.id,
+      }
+    );
 
     return {
       razorpayKey: this.razorpayService.publicKey,
@@ -281,8 +311,10 @@ export class OrdersController {
     }
 
     // Check if restaurant has linked account for direct settlement
-    const canReceivePayments = await this.restaurantOnboardingService.canReceivePayments(restaurantId);
-    const linkedAccountId = await this.restaurantOnboardingService.getLinkedAccountId(restaurantId);
+    const canReceivePayments =
+      await this.restaurantOnboardingService.canReceivePayments(restaurantId);
+    const linkedAccountId =
+      await this.restaurantOnboardingService.getLinkedAccountId(restaurantId);
 
     let razorpayOrder: any;
 
@@ -305,12 +337,16 @@ export class OrdersController {
             notes: {
               orderId,
               orderNumber: order.orderNumber,
-            }
-          }
-        ]
+            },
+          },
+        ],
       });
 
-      this.logger.log(`Created payment intent with direct settlement for order ${orderId}. Restaurant gets ₹${amountInPaise/100} (100%)`);
+      this.logger.log(
+        `Created payment intent with direct settlement for order ${orderId}. Restaurant gets ₹${
+          amountInPaise / 100
+        } (100%)`
+      );
     } else {
       // Fallback: Traditional payment (money comes to our account first)
       razorpayOrder = await this.razorpayService.createOrder({
@@ -324,17 +360,25 @@ export class OrdersController {
         },
       });
 
-      this.logger.warn(`Restaurant ${restaurantId} doesn't have direct settlement enabled. Using traditional payment flow.`);
+      this.logger.warn(
+        `Restaurant ${restaurantId} doesn't have direct settlement enabled. Using traditional payment flow.`
+      );
     }
 
-    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay', razorpayOrder.id, {
-      orderNumber: order.orderNumber,
-      amount: amountInPaise,
-      currency: razorpayOrder.currency,
-      settlementType: canReceivePayments ? 'direct' : 'traditional',
-      linkedAccountId,
-      createdAt: new Date().toISOString(),
-    });
+    await this.ordersService.registerPaymentIntent(
+      restaurantId,
+      orderId,
+      'razorpay',
+      razorpayOrder.id,
+      {
+        orderNumber: order.orderNumber,
+        amount: amountInPaise,
+        currency: razorpayOrder.currency,
+        settlementType: canReceivePayments ? 'direct' : 'traditional',
+        linkedAccountId,
+        createdAt: new Date().toISOString(),
+      }
+    );
 
     return {
       razorpayKey: this.razorpayService.publicKey,
@@ -344,7 +388,7 @@ export class OrdersController {
       restaurant: {
         id: restaurantId,
       },
-      settlementType: canReceivePayments ? 'direct' : 'traditional'
+      settlementType: canReceivePayments ? 'direct' : 'traditional',
     };
   }
 
@@ -359,9 +403,9 @@ export class OrdersController {
         razorpayOrderId: { type: 'string' },
         amount: { type: 'number' },
         currency: { type: 'string' },
-        settlementType: { type: 'string' }
-      }
-    }
+        settlementType: { type: 'string' },
+      },
+    },
   })
   async createUpiIntent(
     @Param('restaurantId') restaurantId: string,
@@ -383,8 +427,10 @@ export class OrdersController {
     }
 
     // Check if restaurant has linked account for direct settlement
-    const canReceivePayments = await this.restaurantOnboardingService.canReceivePayments(restaurantId);
-    const linkedAccountId = await this.restaurantOnboardingService.getLinkedAccountId(restaurantId);
+    const canReceivePayments =
+      await this.restaurantOnboardingService.canReceivePayments(restaurantId);
+    const linkedAccountId =
+      await this.restaurantOnboardingService.getLinkedAccountId(restaurantId);
 
     let razorpayOrder: any;
 
@@ -407,12 +453,16 @@ export class OrdersController {
             notes: {
               orderId,
               orderNumber: order.orderNumber,
-            }
-          }
-        ]
+            },
+          },
+        ],
       });
 
-      this.logger.log(`Created UPI intent with direct settlement for order ${orderId}. Restaurant gets ₹${amountInPaise/100} (100%)`);
+      this.logger.log(
+        `Created UPI intent with direct settlement for order ${orderId}. Restaurant gets ₹${
+          amountInPaise / 100
+        } (100%)`
+      );
     } else {
       // Traditional payment flow
       razorpayOrder = await this.razorpayService.createOrder({
@@ -426,32 +476,45 @@ export class OrdersController {
         },
       });
 
-      this.logger.warn(`Restaurant ${restaurantId} doesn't have direct settlement enabled. Using traditional payment flow for UPI intent.`);
+      this.logger.warn(
+        `Restaurant ${restaurantId} doesn't have direct settlement enabled. Using traditional payment flow for UPI intent.`
+      );
     }
 
     // Generate UPI intent URL
     const restaurant = await this.restaurantModel.findById(restaurantId);
     const merchantVPA = restaurant?.upi?.vpa || 'restohand@paytm'; // Fallback VPA
-    const merchantName = restaurant?.upi?.displayName || restaurant?.name || 'RestoHand';
+    const merchantName =
+      restaurant?.upi?.displayName || restaurant?.name || 'RestoHand';
 
-    const upiIntent = `upi://pay?pa=${merchantVPA}&pn=${encodeURIComponent(merchantName)}&am=${(amountInPaise/100).toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Order ${order.orderNumber}`)}&tr=${razorpayOrder.id}`;
+    const upiIntent = `upi://pay?pa=${merchantVPA}&pn=${encodeURIComponent(
+      merchantName
+    )}&am=${(amountInPaise / 100).toFixed(2)}&cu=INR&tn=${encodeURIComponent(
+      `Order ${order.orderNumber}`
+    )}&tr=${razorpayOrder.id}`;
 
-    await this.ordersService.registerPaymentIntent(restaurantId, orderId, 'razorpay_upi', razorpayOrder.id, {
-      orderNumber: order.orderNumber,
-      amount: amountInPaise,
-      currency: razorpayOrder.currency,
-      settlementType: canReceivePayments ? 'direct' : 'traditional',
-      linkedAccountId,
-      upiIntent,
-      createdAt: new Date().toISOString(),
-    });
+    await this.ordersService.registerPaymentIntent(
+      restaurantId,
+      orderId,
+      'razorpay_upi',
+      razorpayOrder.id,
+      {
+        orderNumber: order.orderNumber,
+        amount: amountInPaise,
+        currency: razorpayOrder.currency,
+        settlementType: canReceivePayments ? 'direct' : 'traditional',
+        linkedAccountId,
+        upiIntent,
+        createdAt: new Date().toISOString(),
+      }
+    );
 
     return {
       upiIntent,
       razorpayOrderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      settlementType: canReceivePayments ? 'direct' : 'traditional'
+      settlementType: canReceivePayments ? 'direct' : 'traditional',
     };
   }
 
@@ -508,7 +571,8 @@ export class OrdersController {
   @Roles(UserRole.Manager, UserRole.Cashier, UserRole.Waiter)
   async createReceiptDocument(
     @Param('restaurantId') restaurantId: string,
-    @Body() dto: {
+    @Body()
+    dto: {
       orderIds: string[];
       paymentMethod?: 'cash' | 'upi' | 'card';
       paymentProvider?: string;
@@ -580,9 +644,9 @@ export class OrdersController {
         igstAmount: { type: 'number' },
         totalAmount: { type: 'number' },
         billGeneratedAt: { type: 'string' },
-        paymentStatus: { type: 'string' }
-      }
-    }
+        paymentStatus: { type: 'string' },
+      },
+    },
   })
   async generateBill(
     @Param('restaurantId') restaurantId: string,
@@ -606,31 +670,44 @@ export class OrdersController {
         igstAmount: { type: 'number' },
         roundOffAmount: { type: 'number' },
         totalAmount: { type: 'number' },
-        itemDetails: { type: 'array' }
-      }
-    }
+        itemDetails: { type: 'array' },
+      },
+    },
   })
   async calculateCartTotal(
     @Param('restaurantId') restaurantId: string,
     @Body() dto: CalculateCartTotalDto
   ) {
-    this.logger.log(`Calculating cart total for restaurant ${restaurantId}. Items: ${dto.items.length}`);
+    this.logger.log(
+      `Calculating cart total for restaurant ${restaurantId}. Items: ${dto.items.length}`
+    );
 
     // CRITICAL FIX: Get branch ID from table to prevent cross-branch pricing
     let branchId: string | undefined;
     if (dto.tableNumber?.trim()) {
-      branchId = await this.getBranchIdFromTable(restaurantId, dto.tableNumber.trim());
+      branchId = await this.getBranchIdFromTable(
+        restaurantId,
+        dto.tableNumber.trim()
+      );
       if (!branchId) {
-        throw new BadRequestException(`Table ${dto.tableNumber} not found or inactive`);
+        throw new BadRequestException(
+          `Table ${dto.tableNumber} not found or inactive`
+        );
       }
     }
 
     // CRITICAL FIX: Validate all items belong to the correct branch
     if (branchId) {
-      const itemIds = dto.items.map(item => item.menuItemId);
-      const isValid = await this.validateItemsBelongToBranch(restaurantId, itemIds, branchId);
+      const itemIds = dto.items.map((item) => item.menuItemId);
+      const isValid = await this.validateItemsBelongToBranch(
+        restaurantId,
+        itemIds,
+        branchId
+      );
       if (!isValid) {
-        throw new BadRequestException('Some items are not available in this branch');
+        throw new BadRequestException(
+          'Some items are not available in this branch'
+        );
       }
     }
 
@@ -642,11 +719,14 @@ export class OrdersController {
       customerName: dto.customerInfo?.name,
       customerPhone: dto.customerInfo?.phone,
       customerEmail: dto.customerInfo?.email,
-      paymentMethod: 'upi' // Doesn't affect pricing calculation
+      paymentMethod: 'upi', // Doesn't affect pricing calculation
     };
 
     // Get the exact calculation without creating order
-    const calculation = await this.ordersService.calculateOrderTotal(restaurantId, createOrderDto);
+    const calculation = await this.ordersService.calculateOrderTotal(
+      restaurantId,
+      createOrderDto
+    );
 
     return {
       subtotal: calculation.subtotal,
@@ -656,14 +736,15 @@ export class OrdersController {
       igstAmount: calculation.igstAmount,
       roundOffAmount: calculation.roundOffAmount,
       totalAmount: calculation.totalAmount,
-      itemDetails: calculation.items?.map(item => ({
-        menuItemId: item.menuItemId,
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: item.pricing.unitAmount,
-        lineTotal: item.lineTotal,
-        taxAmount: item.taxAmount
-      })) || []
+      itemDetails:
+        calculation.items?.map((item) => ({
+          menuItemId: item.menuItemId,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.pricing.unitAmount,
+          lineTotal: item.lineTotal,
+          taxAmount: item.taxAmount,
+        })) || [],
     };
   }
 
@@ -678,9 +759,9 @@ export class OrdersController {
         razorpayOrderId: { type: 'string' },
         razorpayKey: { type: 'string' },
         amount: { type: 'number' },
-        currency: { type: 'string' }
-      }
-    }
+        currency: { type: 'string' },
+      },
+    },
   })
   async createOrderWithPayment(
     @Param('restaurantId') restaurantId: string,
@@ -690,23 +771,38 @@ export class OrdersController {
       throw new BadRequestException('Online payments are not configured');
     }
 
-    this.logger.log(`Creating order with payment for restaurant ${restaurantId}. Items: ${dto.items.length}, Amount: ₹${dto.totalAmount/100}`);
+    this.logger.log(
+      `Creating order with payment for restaurant ${restaurantId}. Items: ${
+        dto.items.length
+      }, Amount: ₹${dto.totalAmount / 100}`
+    );
 
     // CRITICAL FIX: Get branch ID from table to prevent cross-branch contamination
     let branchId: string | undefined;
     if (dto.tableNumber?.trim()) {
-      branchId = await this.getBranchIdFromTable(restaurantId, dto.tableNumber.trim());
+      branchId = await this.getBranchIdFromTable(
+        restaurantId,
+        dto.tableNumber.trim()
+      );
       if (!branchId) {
-        throw new BadRequestException(`Table ${dto.tableNumber} not found or inactive`);
+        throw new BadRequestException(
+          `Table ${dto.tableNumber} not found or inactive`
+        );
       }
     }
 
     // CRITICAL FIX: Validate all items belong to the correct branch
     if (branchId) {
-      const itemIds = dto.items.map(item => item.menuItemId);
-      const isValid = await this.validateItemsBelongToBranch(restaurantId, itemIds, branchId);
+      const itemIds = dto.items.map((item) => item.menuItemId);
+      const isValid = await this.validateItemsBelongToBranch(
+        restaurantId,
+        itemIds,
+        branchId
+      );
       if (!isValid) {
-        throw new BadRequestException('Some items are not available in this branch');
+        throw new BadRequestException(
+          'Some items are not available in this branch'
+        );
       }
     }
 
@@ -718,21 +814,32 @@ export class OrdersController {
       customerName: dto.customerInfo?.name,
       customerPhone: dto.customerInfo?.phone,
       customerEmail: dto.customerInfo?.email,
-      paymentMethod: 'upi'
+      paymentMethod: 'upi',
     };
 
     // CRITICAL FIX: Pass branchId to ensure order is created in the correct branch
-    const order = await this.ordersService.create(restaurantId, createOrderDto, branchId);
+    const order = await this.ordersService.create(
+      restaurantId,
+      createOrderDto,
+      branchId
+    );
 
     // Verify amount matches calculated total
     const calculatedAmount = Math.round(order.totalAmount * 100);
-    if (Math.abs(calculatedAmount - dto.totalAmount) > 100) { // Allow ₹1 difference for rounding
-      throw new BadRequestException(`Amount mismatch. Expected: ₹${calculatedAmount/100}, Received: ₹${dto.totalAmount/100}`);
+    if (Math.abs(calculatedAmount - dto.totalAmount) > 100) {
+      // Allow ₹1 difference for rounding
+      throw new BadRequestException(
+        `Amount mismatch. Expected: ₹${calculatedAmount / 100}, Received: ₹${
+          dto.totalAmount / 100
+        }`
+      );
     }
 
     // Check if restaurant has direct settlement enabled
-    const canReceivePayments = await this.restaurantOnboardingService.canReceivePayments(restaurantId);
-    const linkedAccountId = await this.restaurantOnboardingService.getLinkedAccountId(restaurantId);
+    const canReceivePayments =
+      await this.restaurantOnboardingService.canReceivePayments(restaurantId);
+    const linkedAccountId =
+      await this.restaurantOnboardingService.getLinkedAccountId(restaurantId);
 
     let razorpayOrder: any;
     const amountInPaise = calculatedAmount;
@@ -751,18 +858,24 @@ export class OrdersController {
           customerName: dto.customerInfo?.name || 'Guest',
           settlementType: 'direct',
         },
-        transfers: [{
-          account: linkedAccountId,
-          amount: amountInPaise,
-          currency: 'INR',
-          notes: {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-          }
-        }]
+        transfers: [
+          {
+            account: linkedAccountId,
+            amount: amountInPaise,
+            currency: 'INR',
+            notes: {
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+            },
+          },
+        ],
       });
 
-      this.logger.log(`Created payment with direct settlement for order ${order.id}. Restaurant gets ₹${amountInPaise/100} (100%)`);
+      this.logger.log(
+        `Created payment with direct settlement for order ${
+          order.id
+        }. Restaurant gets ₹${amountInPaise / 100} (100%)`
+      );
     } else {
       // Traditional payment (money comes to platform first)
       razorpayOrder = await this.razorpayService.createOrder({
@@ -779,18 +892,26 @@ export class OrdersController {
         },
       });
 
-      this.logger.warn(`Restaurant ${restaurantId} doesn't have direct settlement enabled. Using traditional payment flow.`);
+      this.logger.warn(
+        `Restaurant ${restaurantId} doesn't have direct settlement enabled. Using traditional payment flow.`
+      );
     }
 
     // Register payment intent
-    await this.ordersService.registerPaymentIntent(restaurantId, order.id, 'razorpay', razorpayOrder.id, {
-      orderNumber: order.orderNumber,
-      amount: amountInPaise,
-      currency: 'INR',
-      settlementType: canReceivePayments ? 'direct' : 'traditional',
-      linkedAccountId,
-      customerInfo: dto.customerInfo,
-    });
+    await this.ordersService.registerPaymentIntent(
+      restaurantId,
+      order.id,
+      'razorpay',
+      razorpayOrder.id,
+      {
+        orderNumber: order.orderNumber,
+        amount: amountInPaise,
+        currency: 'INR',
+        settlementType: canReceivePayments ? 'direct' : 'traditional',
+        linkedAccountId,
+        customerInfo: dto.customerInfo,
+      }
+    );
 
     return {
       orderId: order.id,
@@ -811,16 +932,18 @@ export class OrdersController {
       properties: {
         success: { type: 'boolean' },
         message: { type: 'string' },
-        order: { $ref: '#/components/schemas/OrderResponseDto' }
-      }
-    }
+        order: { $ref: '#/components/schemas/OrderResponseDto' },
+      },
+    },
   })
   async verifyPayment(
     @Param('restaurantId') restaurantId: string,
     @Param('orderId') orderId: string,
     @Body() dto: VerifyPaymentDto
   ) {
-    this.logger.log(`Verifying payment for order ${orderId}. Payment ID: ${dto.razorpay_payment_id}`);
+    this.logger.log(
+      `Verifying payment for order ${orderId}. Payment ID: ${dto.razorpay_payment_id}`
+    );
 
     // Get order to verify
     const order = await this.ordersService.findOne(restaurantId, orderId);
@@ -841,8 +964,12 @@ export class OrdersController {
       .digest('hex');
 
     if (expectedSignature !== dto.razorpay_signature) {
-      this.logger.error(`Payment verification failed for order ${orderId}. Invalid signature.`);
-      throw new BadRequestException('Payment verification failed. Invalid signature.');
+      this.logger.error(
+        `Payment verification failed for order ${orderId}. Invalid signature.`
+      );
+      throw new BadRequestException(
+        'Payment verification failed. Invalid signature.'
+      );
     }
 
     // Payment signature is valid - update order status
@@ -853,9 +980,14 @@ export class OrdersController {
     });
 
     // Get updated order
-    const updatedOrder = await this.ordersService.findOne(restaurantId, orderId);
+    const updatedOrder = await this.ordersService.findOne(
+      restaurantId,
+      orderId
+    );
 
-    this.logger.log(`Payment verified successfully for order ${orderId}. Payment ID: ${dto.razorpay_payment_id}`);
+    this.logger.log(
+      `Payment verified successfully for order ${orderId}. Payment ID: ${dto.razorpay_payment_id}`
+    );
 
     return {
       success: true,
@@ -872,7 +1004,7 @@ export class OrdersController {
   @ApiOkResponse({ description: 'Receipt QR code generated successfully' })
   async generateReceiptQr(
     @Param('restaurantId') restaurantId: string,
-    @Param('orderId') orderId: string,
+    @Param('orderId') orderId: string
   ) {
     const order = await this.ordersService.findOne(restaurantId, orderId);
     if (!order) {
@@ -889,13 +1021,19 @@ export class OrdersController {
         type: 'receipt',
         iat: Math.floor(Date.now() / 1000),
       },
-      process.env.JWT_ACCESS_SECRET!,
+      process.env.JWT_SECRET!,
       { expiresIn: '30d' } // Token valid for 30 days
     );
 
     // Use customer frontend domain for receipt URL - pass token as URL param
-    const baseUrl = process.env.CUSTOMER_FRONTEND_URL ?? process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
-    const receiptUrl = `${baseUrl.replace(/\/$/, '')}/receipt/${orderId}?t=${token}`;
+    const baseUrl =
+      process.env.CUSTOMER_FRONTEND_URL ??
+      process.env.USER_FRONTENT_URL ??
+      'http://localhost:4200';
+    const receiptUrl = `${baseUrl.replace(
+      /\/$/,
+      ''
+    )}/receipt/${orderId}?t=${token}`;
 
     // Generate QR code
     const qrCodeDataUrl = await QRCode.toDataURL(receiptUrl, {
@@ -919,10 +1057,13 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId' })
-  @ApiOkResponse({ description: 'Combined receipt QR code generated successfully' })
+  @ApiOkResponse({
+    description: 'Combined receipt QR code generated successfully',
+  })
   async generateCombinedReceiptQr(
     @Param('restaurantId') restaurantId: string,
-    @Body() { orderIds, tableNumber }: { orderIds: string[], tableNumber?: string },
+    @Body()
+    { orderIds, tableNumber }: { orderIds: string[]; tableNumber?: string }
   ) {
     // Validate all orders exist and belong to the restaurant
     const orders = [];
@@ -945,13 +1086,20 @@ export class OrdersController {
         type: 'combined-receipt',
         iat: Math.floor(Date.now() / 1000),
       },
-      process.env.JWT_ACCESS_SECRET!,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      process.env.JWT_SECRET!,
       { expiresIn: '30d' } // Token valid for 30 days
     );
 
     // Use customer frontend domain for combined receipt URL
-    const baseUrl = process.env.CUSTOMER_FRONTEND_URL ?? process.env.USER_FRONTENT_URL ?? 'http://localhost:4200';
-    const receiptUrl = `${baseUrl.replace(/\/$/, '')}/combined-receipt?t=${token}`;
+    const baseUrl =
+      process.env.CUSTOMER_FRONTEND_URL ??
+      process.env.USER_FRONTENT_URL ??
+      'http://localhost:4200';
+    const receiptUrl = `${baseUrl.replace(
+      /\/$/,
+      ''
+    )}/combined-receipt?t=${token}`;
 
     // Generate QR code
     const qrCodeDataUrl = await QRCode.toDataURL(receiptUrl, {
@@ -963,7 +1111,7 @@ export class OrdersController {
 
     return {
       orderIds,
-      orderNumbers: orders.map(o => o.orderNumber),
+      orderNumbers: orders.map((o) => o.orderNumber),
       tableNumber,
       receiptUrl,
       qrCodeDataUrl,

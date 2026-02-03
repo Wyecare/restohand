@@ -32,6 +32,7 @@ import {
   Package,
   CreditCard,
   Building2,
+  Shield,
 } from 'lucide-react';
 
 interface NavLink {
@@ -61,6 +62,7 @@ const managerLinks: NavLink[] = [
     href: '/subscription',
     icon: CreditCard,
   },
+  { titleKey: 'navigation.kyc', href: '/kyc', icon: Shield },
   { titleKey: 'navigation.settings', href: '/settings', icon: Settings },
 ];
 

@@ -1,0 +1,36 @@
+Charge a Subscription
+
+Open in ChatGPT
+
+Learn how to charge your customer on an active subscription.
+
+Collect payments for your subscriptions manually through the dashboard, in bulk, or using the Charge Subscription API. Cashfree Payments processes each transaction and confirms payment collection from your customer.
+For periodic subscriptions, Cashfree automatically initiates payments on your behalf at each billing interval. For on-demand subscriptions, you will need to manually charge your customer as needed.
+Cashfree Retry Policy: UPI Autopay charges follow a 1+3 retry mechanism. If the initial attempt fails, the system retries up to three times at hourly intervals. ENACH and Card payment methods do not support automatic retries.
+Dashboard
+API
+You can either raise a single charge from a dashboard or you can raise multiple charges by uploading a file.
+
+​
+After creating a charge
+Depending on the payment method the charge you have created might be updated asynchronously. In some cases where customer’s bank account does not have sufficient funds the charge attempt will fail. Here are the states which a charge will go through:
+Transaction State	Description
+INITIALIZED	This state indicates that the transaction is initialized.
+PENDING	Transaction is pending while being processed and sent to the appropriate bank for approval.
+SUCCESS	Transaction is completed successfully. A success notification is received from the bank, and a success webhook is triggered to notify this.
+FAILED	Transaction has failed. A failure notification is received from the bank, and a failed webhook is triggered to notify this.
+CANCELLED	This state indicates that the on-demand transaction has been cancelled.
+​
+Cut-off timelines for raising a charge
+Charge Raised On	Charge Scheduled For	NACH	UPI Autopay	SI on Indian Cards	SI on International Cards
+T: 00:00 - 06:59	null	Raised on T	Not Allowed	Not Allowed	Raised on T
+T: 07:00 - 11:59	null	Raised on T+1	Not Allowed	Not Allowed	Raised on T+1
+T: 00:00 - 06:59	T	Raised on T	Not Allowed	Not Allowed	Raised on T
+T: 07:00 - 11:59	T	Not Allowed	Not Allowed	Not Allowed	Not Allowed
+T: 00:00 - 20:59	T+1	Raised on T+1	Raised on T+1	Raised on T+1	Raised on T+1
+T: 21:00 - 23:59	T+1	Raised on T+1	Not Allowed	Not Allowed	Raised on T+1
+T: 00:00 - 23:59	T+n (n between & including 2 and 14)	Raised on T+n	Raised on T+n	Raised on T+n	Raised on T+n
+T: 00:00 - 23:59	T+15	Not Allowed	Not Allowed	Not Allowed	Not Allowed
+Was this page helpful?
+
+

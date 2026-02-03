@@ -10,6 +10,7 @@ import { cartPersistenceMiddleware } from './middleware/cartPersistence';
 
 // Import API endpoints to ensure they're loaded
 import './api/fcmApi';
+import './api/cashfreeApi';
 
 export const store = configureStore({
   reducer: {

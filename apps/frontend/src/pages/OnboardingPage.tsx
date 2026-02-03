@@ -14,27 +14,18 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { useOnboardRestaurantMutation } from '@/store/api/subscriptionsApi';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { useAppSelector } from '@/store/hooks';
 import {
   selectActiveRestaurantId,
   selectAuthSession,
   selectAuthState,
-  setAuthPending,
 } from '@/store/slices/authSlice';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { Navigate } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)+/g, '');
-
 const OnboardingPage = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const session = useAppSelector(selectAuthSession);
   const existingRestaurantId = useAppSelector(selectActiveRestaurantId);
   const { toast } = useToast();
@@ -53,6 +44,13 @@ const OnboardingPage = () => {
   const [restaurantType, setRestaurantType] = useState<'regular' | 'premium'>('regular');
   const [gstNumber, setGstNumber] = useState('');
   const [panNumber, setPanNumber] = useState('');
+
+  // Optional KYC fields for instant settlements
+  const [showKycFields, setShowKycFields] = useState(false);
+  const [accountNumber, setAccountNumber] = useState('');
+  const [ifscCode, setIfscCode] = useState('');
+  const [accountHolderName, setAccountHolderName] = useState('');
+  const [cinNumber, setCinNumber] = useState('');
 
   if (existingRestaurantId) {
     return <Navigate to="/dashboard" replace />;
@@ -87,7 +85,7 @@ const OnboardingPage = () => {
     }
 
     try {
-      const freshToken = await getFirebaseAuth().currentUser?.getIdToken(true);
+      await getFirebaseAuth().currentUser?.getIdToken(true);
 
       const onboardingData = {
         name,
@@ -104,16 +102,32 @@ const OnboardingPage = () => {
         restaurantType,
         gstNumber: gstNumber || undefined,
         panNumber: panNumber || undefined,
+        // Include KYC fields if provided
+        ...(accountNumber && ifscCode && accountHolderName && {
+          bankAccount: {
+            accountNumber,
+            ifscCode,
+            accountHolderName,
+          },
+        }),
+        ...(cinNumber && businessType !== 'sole_proprietorship' && {
+          documents: {
+            cin: cinNumber,
+          },
+        }),
       };
 
-      const result = await onboardRestaurant(onboardingData).unwrap();
+      await onboardRestaurant(onboardingData).unwrap();
 
-      dispatch(setAuthPending());
-      await getFirebaseAuth().currentUser?.getIdToken(true);
       toast({
         title: 'Restaurant onboarded successfully!',
         description: 'Your SaaS subscription is now active with a 30-day free trial.'
       });
+
+      // Force token refresh to trigger auth state update with restaurant info
+      await getFirebaseAuth().currentUser?.getIdToken(true);
+
+      // Navigate immediately - the AuthProvider will handle the token update
       navigate('/dashboard', { replace: true });
     } catch (error) {
       console.error('[OnboardingPage] SaaS onboarding failed', error);
@@ -230,7 +244,7 @@ const OnboardingPage = () => {
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="businessType">Business Type *</Label>
-                  <Select value={businessType} onValueChange={(value: any) => setBusinessType(value)}>
+                  <Select value={businessType} onValueChange={(value: 'sole_proprietorship' | 'partnership' | 'private_limited' | 'public_limited') => setBusinessType(value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select business type" />
                     </SelectTrigger>
@@ -289,6 +303,88 @@ const OnboardingPage = () => {
               </div>
             </div>
 
+            {/* Optional KYC Section */}
+            <div className="space-y-4 border-t pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">Instant Settlement Setup (Optional)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Complete KYC now to enable instant settlements, or skip and complete later from dashboard.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowKycFields(!showKycFields)}
+                >
+                  {showKycFields ? 'Skip for Now' : 'Setup Now'}
+                </Button>
+              </div>
+
+              {showKycFields && (
+                <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
+                  <h4 className="font-medium">Bank Account Details</h4>
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="accountHolderName">Account Holder Name</Label>
+                      <Input
+                        id="accountHolderName"
+                        placeholder="Same as business legal name"
+                        value={accountHolderName}
+                        onChange={(event) => setAccountHolderName(event.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label htmlFor="accountNumber">Account Number</Label>
+                        <Input
+                          id="accountNumber"
+                          placeholder="000000000000"
+                          value={accountNumber}
+                          onChange={(event) => setAccountNumber(event.target.value)}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="ifscCode">IFSC Code</Label>
+                        <Input
+                          id="ifscCode"
+                          placeholder="SBIN0000000"
+                          value={ifscCode}
+                          onChange={(event) => setIfscCode(event.target.value.toUpperCase())}
+                        />
+                      </div>
+                    </div>
+
+                    {(businessType === 'private_limited' || businessType === 'public_limited') && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="cinNumber">CIN Number</Label>
+                        <Input
+                          id="cinNumber"
+                          placeholder="U72900KA2020PTC134123"
+                          value={cinNumber}
+                          onChange={(event) => setCinNumber(event.target.value.toUpperCase())}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Required for private/public limited companies
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <div className="text-blue-600 text-sm">
+                        <span role="img" aria-label="Information">ℹ️</span>
+                      </div>
+                      <div className="text-sm text-blue-800">
+                        <strong>Why provide this?</strong> With complete KYC, you'll receive payments directly to your bank account within minutes. Without KYC, settlements may take 2-3 business days.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Policy Agreement */}
             <div className="text-center space-y-2 mt-6">

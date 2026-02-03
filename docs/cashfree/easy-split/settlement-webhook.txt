@@ -1,0 +1,206 @@
+Settlement Webhook
+
+Open in ChatGPT
+
+Configure vendor settlement webhooks to receive automated notifications when vendor settlements are initiated, successfully processed, failed, or reversed.
+The webhook notifications are sent on all the URLs added and enabled in the settlement webhook. You can add new URLs and enable or disable existing URLs for settlement webhook at any time and it will reflect instantaneously. For security best practices on webhook endpoints, refer to the Webhook Security Checklist.
+The table below lists the webhook events available for settlements.
+Webhook Event	Description
+VENDOR_SETTLEMENT_INITIATED	This webhook will be triggered when a vendor settlement is initiated.
+VENDOR_SETTLEMENT_SUCCESS	This webhook will be triggered when a vendor settlement is successful.
+VENDOR_SETTLEMENT_FAILED	This webhook will be triggered when a vendor settlement has failed.
+VENDOR_SETTLEMENT_REVERSED	This webhook will be triggered when a vendor settlement has been reversed.
+​
+Vendor settlement initiated
+SETTLEMENT_INITIATED webhook is triggered when a settlement has been initiated by Cashfree Payments.
+{
+    "data": {
+        "settlement": {
+            "settlement_id": 49703,
+            "status": "CREATED",
+            "utr": "1686217237243457",
+            "payment_amount": null,
+            "settlement_initiated_on": "2023-06-08T15:10:35+05:30",
+            "settled_on": "null",
+            "reason": null,
+            "adjustment": 100.00,
+            "settlement_amount": 600.00,
+            "service_charge": 0.50,
+            "service_tax": 0.09,
+            "amount_settled": null,
+            "payment_from": "2023-06-08",
+            "payment_till": "2023-06-08",
+            "vendor_id": "esSettlementsAutomationVendor",
+            "vendor_transaction_amount": 500.00,
+            "account_mode": "BANK",
+            "settled_orders_count": 1
+        }
+    },
+    "event_time": "2023-06-08T15:10:37+05:30",
+    "type": "VENDOR_SETTLEMENT_CREATED"
+}
+​
+Vendor settlement success
+{
+    "data": {
+        "settlement": {
+            "settlement_id": 49703,
+            "status": "SUCCESS",
+            "utr": "1686217237243457",
+            "payment_amount": null,
+            "settlement_initiated_on": "2023-06-08T15:10:35+05:30",
+            "settled_on": "2023-06-08T15:10:37+05:30",
+            "reason": null,
+            "adjustment": 100.00,
+            "settlement_amount": 600.00,
+            "service_charge": 0.50,
+            "service_tax": 0.09,
+            "amount_settled": 600.00,
+            "payment_from": "2023-06-08",
+            "payment_till": "2023-06-08",
+            "vendor_id": "esSettlementsAutomationVendor",
+            "vendor_transaction_amount": 500.00,
+            "account_mode": "BANK",
+            "settled_orders_count": 1
+        }
+    },
+    "event_time": "2023-06-08T15:10:37+05:30",
+    "type": "VENDOR_SETTLEMENT_SUCCESS"
+}
+​
+Vendor settlement failed
+{
+    "data": {
+        "settlement": {
+            "settlement_id": 49703,
+            "status": "FAILED",
+            "utr": "1686217237243457",
+            "payment_amount": null,
+            "settlement_initiated_on": "2023-06-08T15:10:35+05:30",
+            "settled_on": "null",
+            "reason": null,
+            "adjustment": 100.00,
+            "settlement_amount": 600.00,
+            "service_charge": 0.50,
+            "service_tax": 0.09,
+            "amount_settled": null,
+            "payment_from": "2023-06-08",
+            "payment_till": "2023-06-08",
+            "vendor_id": "esSettlementsAutomationVendor",
+            "vendor_transaction_amount": 500.00,
+            "account_mode": "BANK",
+            "settled_orders_count": 1
+        }
+    },
+    "event_time": "2023-06-08T15:10:37+05:30",
+    "type": "VENDOR_SETTLEMENT_FAILED"
+}
+​
+Vendor settlement reversed
+{
+    "data": {
+        "settlement": {
+            "settlement_id": 49703,
+            "status": "REVERSED",
+            "utr": "1686217237243457",
+            "payment_amount": null,
+            "settlement_initiated_on": "2023-06-08T15:10:35+05:30",
+            "settled_on": "null",
+            "reason": Failed from bank end,
+            "adjustment": 100.00,
+            "settlement_amount": 600.00,
+            "service_charge": 0.50,
+            "service_tax": 0.09,
+            "amount_settled": null,
+            "payment_from": "2023-06-08",
+            "payment_till": "2023-06-08",
+            "vendor_id": "esSettlementsAutomationVendor",
+            "vendor_transaction_amount": 500.00,
+            "account_mode": "BANK",
+            "settled_orders_count": 1
+        }
+    },
+    "event_time": "2023-06-08T15:10:37+05:30",
+    "type": "VENDOR_SETTLEMENT_REVERSED"
+}
+​
+Payload field description
+Field	Description	Example
+adjustment	The sum of refunds, disputes, and chargeback part of this settlement is displayed here.	0
+amount_settled	The total amount that is settled in this schedule option.	50
+payment_amount	Total transaction amount considered for settlement.	100
+payment_from	Start date from which the payments are considered for settlement.	2022-03-15
+payment_till	End date till which the payments are considered for settlement.	2022-03-23
+reason	Reason for failed and reversed settlements. Click here to know more.	Transfer mode is not valid for beneficiary.
+service_charge	Service charges are applicable for the payments that are included in this settlement.	2
+service_tax	Service tax is applicable for the payments that are included in this settlement.	0.50
+settled_on	Date and time at which the settlement was processed.	2022-03-17T14:21:18+05:30
+settlement_amount	The sum of net settlement amount for the payments part of this settlement.	13
+settlement_id	Cashfree settlement ID	1155353
+settlement_initiated_on	The date on which settlement was initiated.	2022-03-17T14:29:21+05:30
+status	Status of the settlement (either INITIATED, SUCCESS, FAILED, or REVERSED)	SUCCESS
+utr	The unique transaction reference number is given by the bank for the settlement.	N076221079016329
+vendor_id	Reference ID as shared by you when onboarding the vendor.	IS_1hour_Upi
+vendor_transaction_amount	Transaction amount split of vendor	50
+event_time	Time at which settlement webhook was initiated.	2022-03-17T14:29:23+05:30
+type	Type of webhook - VENDOR_SETTLEMENT_INITIATED, VENDOR_SETTLEMENT_SUCCESS, VENDOR_SETTLEMENT_FAILED, or VENDOR_SETTLEMENT_REVERSED.	VENDOR_SETTLEMENT_SUCCESS
+​
+Reasons for failed and reversed settlements
+Reason	Category	Description
+BANK_GATEWAY_ERROR	Bank	Technical error at the bank
+BENE_BANK_DECLINED	Bank	Rejected by Beneficiary bank due to business reasons
+FAILED	Bank	No explicit failure reason from the bank
+INVALID_IFSC_FAIL	Customer	Invalid ifsc code provided for bank account
+INVALID_ACCOUNT_FAIL	Customer	Bank account is invalid
+RETURNED_FROM_BENEFICIARY	Bank	Immediate reversal from the beneficiary bank
+INSUFFICIENT_BALANCE	Vendor	Your balance is exhausted, need to add funds
+IMPS_MODE_FAIL	Bank	IMPS mode not supported for the beneficiary
+RTGS_MODE_FAIL	Bank	RTGS mode not supported (only for RTGS)
+REINITIALIZE_TRANSFER_LATER	Bank	Technical error at the bank, retry later
+NRE_ACCOUNT_FAIL	Customer	Customer bank account is an NRE account
+ACCOUNT_BLOCKED	Customer	Customer bank account is blocked
+DEST_LIMIT_REACHED	Bank	Transfer limit to beneficiary exceeded
+INVALID_MODE_FAIL	Bank	Transfer mode not valid for beneficiary
+NPCI_UNAVAILABLE	Bank	NPCI in unavailable
+BENEFICIARY_BANK_OFFLINE	Bank	Beneficiary bank is offline
+INVALID_AMOUNT_FAIL	Vendor	Amount is invalid for the given transfer mode
+SUSPECTED_TRANSFER	Customer	Suspicious transfer identified
+BENE_NAME_DIFFERS	Customer	Beneficiary name not matching with bank records
+DISABLED_MODE	Vendor	Transfer mode not enabled for the account
+AMAZON_AMOUNT_EXCEED	Vendor	Amount should be less than 10000 for Amazon Pay mode
+BENEFICIARY_BLACKLISTED	Vendor	Beneficiary is blacklisted
+PAYOUT_INACTIVE	Vendor	Payout account is not active
+INVALID_TRANSFER_AMOUNT	Vendor	Transfer amount is invalid
+BENEFICIARY_NOT_EXIST	Vendor	Beneficiary does not exist
+BENEFICIARY_INVALID_MODE	Vendor	Mode Not valid for Beneficiary
+INVALID_BENE_ACCOUNT_OR_IFSC	Vendor	Invalid bank account number or ifsc provided
+BENEFICIARY_NAME_DIFFERS	Customer	Beneficiary name not matching with bank records
+ANY_OTHER_REASON	Bank	No reason provided for the failure/reversal
+INVALID_OR_NO_SUCH_ACCOUNT_TYPE	Customer	Invalid account
+​
+Signature verification
+The signature must be used to verify if the request has not been tampered with. To verify the signature at your end, you will need your Cashfree PG secret key along with the payload.
+timestamp is present in the header x-webhook-timestamp
+Actual signature is present in the header x-webhook-signature
+"headers": {
+        "host": "gamma.cashfree.com",
+        "x-request-id": "ad4dc1e65f8901302455b247237a667a",
+        "x-real-ip": "172.0.57.13",
+        "x-forwarded-for": "172.0.57.13",
+        "x-forwarded-host": "gamma.cashfree.com",
+        "x-forwarded-port": "80",
+        "x-forwarded-proto": "http",
+        "x-forwarded-scheme": "http",
+        "x-scheme": "http",
+        "x-original-forwarded-for": "52.66.25.127",
+        "content-length": "592",
+        "accept": "_/_",
+        "content-type": "application/json",
+        "user-agent": "ReactorNetty/1.0.30",
+        "x-datadog-parent-id": "4281924148563621550",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-trace-id": "228569355002181270",
+        "x-webhook-signature": "Xm0YzEJCRsh0XvIEK12D4FqpmC60cReKoqPBn424kV0=",
+        "x-webhook-timestamp": "1686217237543",
+        "x-webhook-version": "2022-09-01"
+    }

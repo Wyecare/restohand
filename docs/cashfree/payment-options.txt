@@ -1,0 +1,68 @@
+Configuring Payment Options
+
+Open in ChatGPT
+
+Once you have the components ready you will need to pass on these components along with the payment_session_idto cashfree.js. Here is an example of a payment options. You can see there are three properties to it:
+paymentMethod: This is the component which will be used for the payment.
+paymentSessionId: This is the payment_session_id which you get once you have created an order.
+Other attributes likes returnUrl, savePaymentInstrument etc.
+let paymentOptions = {
+	paymentMethod: component,
+	paymentSessionId: "your-payment-session-id",
+	savePaymentInstrument: true,
+};
+​
+paymentOptions
+​
+paymentMethod
+objectrequired
+A reference to a payable component. Kindly note that the payable component should be ready and complete before invoking pay on it, otherwise it will throw an error. To get if a payable component is complete or not you can use component.isComplete() which returns a bool.
+There are scenarios when one component also requires other components, in that case you will have to also check the completeness of those other component. Example- to process card you would need to make sure cardNumber, cardExpiry, cardCvv and cardHolder are all complete.
+​
+paymentSessionId
+stringrequired
+To make payment you will need a paymentSessionId, you can get this by making a create order API call to POST /orders. Please make sure you are using the correct hostname for the environment you want to process the payment for.
+In the response of POST /orders you will find payment_session_id. Note that this is a backend call so you will need to have a server. Read how to generate payment_session_id here
+​
+returnUrl
+string
+This is the url where your customers will be redirected after they have complete the payment.
+​
+redirect
+string
+For certain paymentMethod you can choose to not redirect the customer to the returnUrl by passing if_required. Examples would be Card, UPI and QR. For payment method where redirection is required this flag will be completely ignored. If you decide not to redirect the customer then pay() promise resolves with {paymentDetails: {paymentMessage: "Payment finished. Check status."}}. To confirm the payment it is recommended that you always check the status of your order from your backend server with Cashfree.
+​
+redirectTarget
+string
+We also provide a way for you to decide how to redirect your customer. This takes all the values that are valid for hyperlink. Default is _self
+Value	Description
+_blank	Opens the linked document in a new window or tab
+_self	Opens the linked document in the same frame as it was clicked (this is default)
+_parent	Opens the linked document in the parent frame
+_top	Opens the linked document in the full body of the window
+_framename_	Opens the linked document in the named iframe
+​
+savePaymentInstrument
+object
+Assign a savePaymentInstrument to this to save the payment method. Works only for card payment. Default is null.
+let saveOptions = {
+	values: {
+		label: "Save Card for later"
+	}
+};
+let savecard = cashfree.create("savePaymentInstrument", saveOptions);
+savecard.mount("#div-id");
+
+let cashfree = Cashfree();
+.....
+cashfree.pay({
+  ...
+  savePaymentInstrument: savecard
+})
+​
+offerId
+object
+You can pass an offer in the object which you can fetch using the get offer api. Please note that you need use the the offer_id value only. It is a uuid.
+Was this page helpful?
+
+

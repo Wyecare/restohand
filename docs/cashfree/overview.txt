@@ -1,0 +1,45 @@
+Overview
+
+Open in ChatGPT
+
+Cashfree Payment Gateway offers multiple integration options to suit different business needs and technical capabilities. Choose a hosted checkout solution, customise your checkout with web elements, or integrate payments into mobile applications.
+Use Cashien AI in Visual Studio Code to get code suggestions and integration help in real-time. For more information, see Cashien AI.
+Choose the integration method that best fits your requirements:
+​
+Web integrations
+Web checkout integration
+Cashfree hosted checkout
+Web element integration
+Merchant hosted checkout
+​
+App checkout integrations
+Android integration
+iOS integration
+React Native integration
+Flutter integration
+​
+Plugins
+Shopify
+Woocommerce
+Explore all plugins
+​
+No-code solutions
+Payment links
+Payment forms
+Affiliate partner program
+
+As a developer building payment experiences for your clients, you can earn additional income while providing them with industry-leading payment solutions.
+
+Join the Cashfree affiliate partner program and get rewarded every time your clients use Cashfree.
+
+What you get:
+
+Earn up to 0.25% commission on every transaction.
+Become a trusted fintech partner for your clients.
+Access to a dedicated partner manager for expert support.
+What your clients get:
+
+Instant activation and go live in minutes.
+Industry-best success rate across all payment modes.
+Effortless acceptance of international payments in 140+ currencies.
+Get started today. Become a partner now.

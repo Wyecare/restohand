@@ -1,0 +1,136 @@
+Overview
+
+Open in ChatGPT
+
+Listen on your webhook endpoint so your integration can automatically trigger updates.
+
+When building Cashfree integrations, you might want your applications to receive events as they occur in your Cashfree account so that your back-end systems can execute actions accordingly.
+To enable real-time event notifications, register your webhook endpoints with Cashfree (Developers > Webhooks). These endpoints will receive HTTP POST requests containing JSON payloads whenever specific events happen in your Cashfree account. This allows your application to react promptly to changes such as successful payments, failed transactions, or new chargebacks.
+Payment Webhooks
+Refund Webhooks
+Token Vault Webhooks
+Subscription Webhooks
+Payment Link Webhooks
+​
+Verify webhooks
+Verify webhooks to prevent tampering and ensure you process only legitimate notifications from Cashfree. Without verification, your application is vulnerable to fraudulent payment confirmations and security threats.
+Use webhook signatures to authenticate Cashfree Payments webhooks, and proceed with further actions only after successful verification.
+Cashfree generates the webhook signature based on the raw payload, not the parsed payload. You can refer to how the popular JavaScript framework NestJS provides a hook for accessing the raw body.
+​
+Test webhooks
+Before going live, you can test your webhooks in the sandbox environment to check payloads and integration. Configuring your webhooks, from the dashboard, in the test environment and events triggered in test transactions will send webhooks to the configured endpoint.
+You can create endpoint URLs and test webhooks using tools like webhook.site or create a tunnel to your localhost using tools like ngrok.
+​
+Duplicate webhook processing
+We practice atleast-once delivery of webhooks to mitigate missing webhook delivery due to any unforeseen reason.
+In case of inadvertent downtimes at Cashfree Payments or your end, we might attempt to duplicate webhook delivery to ensure fulfilment.
+
+To prevent business processing of duplicate events at your end, you are strongly recommended to validate x-idempotency-header in each webhook header. This hashed value will always be unique for each unique webhook payload.
+This feature is available on webhook versions starting 2025-01-01. To migrate to this new version, refer to Webhook Migration section below.
+​
+Retry webhooks policy
+You can also customise and define a retry policy for all webhooks that do not get delivered with a 200 response. Log in to the Merchant Dashboard and go to Payment Gateway > Developers > Webhooks. We will trigger webhooks to your URLs according to the defined retry policy for each endpoint till the time we get a 200 response. To configure the retry policy:
+You will see two types of URLs listed -
+NOTIFY_URL - This is the default configuration added to your account and configurations here cannot be edited or deleted. This configuration will apply to only the URLs sent in the notify_url param of Create Order API within the order_meta object
+Your custom configured URLs - You can click on ‘Edit’ and follow the steps on the screen to define a custom retry policy. A default policy is applied to all URLs
+The following webhook policy types are available:
+Default: The system retries up to three times at 2, 10, and 30-minute intervals.
+Fixed: You can specify the number of retries (maximum of 10) and the interval between retries.
+Exponential: You can specify the number of retries (maximum of 10), the interval, and a multiplier. For example, if the number of retries is 5, the interval is 15 minutes, and the multiplier is 2, retries occur at 15, 17, 19, 23, and 31-minute intervals.
+Custom: You can specify the number of retries (maximum of 10) and define custom intervals.
+​
+Resend webhooks
+This feature is only available for payment webhooks
+There are various reasons why you might need to resend a webhook response again to your endpoint. Common reasons include service level downtime, failure to register webhook payload etc. With Cashfree, you can resend the webhooks that have been previously triggered. Simply log on to your dashboard and follow the steps below:
+Go to Webhooks under the Developer section and go to ‘Logs’
+On the top right, click on the ‘Batch Resend’ button
+
+You will see three options here:
+Text - simple enter transaction IDs (comma separated) in the text box and click ‘Resend’. Transaction IDs are the same as Entity IDs listed on the logs dashboard
+File - upload the file in the required format (downloadable from the dashboard) with the required Transaction IDs and click ‘Resend’
+Time Duration - select the time period (max. allowed duration is 24 hours) and click ‘Resend’
+​
+Webhook signature verification
+Cashfree generates the webhook signature based on the raw payload, not the parsed payload. You can refer to how the popular JavaScript framework NestJS provides a hook for accessing the raw body.
+The signature must be used to verify if the request has not been tampered with. To verify the signature at your end, you will need your Cashfree PG secret key along with the payload.
+The timestamp is present in the header x-webhook-timestamp.
+The actual signature is present in the header x-webhook-signature.
+signature-verification
+timestamp := 1617695238078;
+signedPayload := $timestamp.$payload;
+expectedSignature := Base64Encode(HMACSHA256($signedPayload, $merchantSecretKey));
+​
+SDK verification (built-in approach)
+
+Node (express)
+
+golang
+
+PHP
+
+Python
+
+Java
+
+csharp
+var express = require('express')
+const { Cashfree, CFEnvironment } = require "cashfree-pg";
+
+var app = express()
+
+const cashfree = new Cashfree(
+CFEnvironment.SANDBOX,
+"{Client ID}",
+"{Client Secret Key}"
+);
+
+app.post('/webhook', function (req, res) {
+try {
+cashfree.PGVerifyWebhookSignature(req.headers["x-webhook-signature"], req.rawBody, req.headers["x-webhook-timestamp"])
+} catch (err) {
+console.log(err.message)
+}
+})
+
+​
+Manual verification (custom approach)
+
+Node (Express)
+
+golang
+
+PHP
+
+Java
+
+Python
+function verify(ts, request){
+    const body = request.headers['x-webhook-timestamp'] + request.rawBody
+    const secretKey = <client secret>;
+    let generatedSignature = crypto.createHmac('sha256', secretKey).update(body).digest("base64");
+    const signature = request.headers['x-webhook-signature']
+    if(generatedSignature === signature) {
+        let jsonObject = JSON.parse(rawBody)
+        return jsonObject
+    }
+    throw new Error("Generated signature and received signature did not match.");
+}
+​
+Webhook migration
+Webhook endpoints have a specific API version set, for example, 2023-08-01. To migrate from an older version to a newer version, we recommend the following steps:
+1
+Add webhook for new version
+
+Create a new webhook endpoint with the new URL and new version. Subscribe to the events you want to consume.
+2
+Update your code to return 200 for new webhooks
+
+Update your event processing code and return a 200 response to prevent delivery retries. Next, enable the new webhook endpoint that you created in the previous step. At this point, every event is sent twice: once with the old API version and once with the new one.
+3
+Update your webhook code to process events for the new endpoint
+
+Update your code to ensure you can process the version of your new webhook endpoint. Make sure you read the changelog and handle any breaking changes.
+4
+Disable old webhook endpoint
+
+If events aren’t being correctly handled by your new code, first temporarily disable the new webhook endpoint. After monitoring for some time, you can permanently delete the old webhook endpoint.

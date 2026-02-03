@@ -11,6 +11,7 @@ import { OrdersModule } from '../orders/orders.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
 import { GstModule } from '../gst/gst.module';
+import { CashfreeModule } from '../payments/cashfree.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { GstModule } from '../gst/gst.module';
     RestaurantsModule,
     CustomerSessionsModule,
     GstModule,
+    CashfreeModule,
   ],
   controllers: [PublicController],
   providers: [PublicService],

@@ -1,0 +1,72 @@
+Webhook Signature Verification
+
+Open in ChatGPT
+
+Learn how to verify webhook signatures to ensure the authenticity and integrity of webhook payloads.
+
+Verify webhook signatures to ensure payloads from Cashfree haven’t been tampered with. This security measure prevents fraudulent notifications and protects your application from malicious attacks.
+Essential for production environments: all merchants processing live payments, subscriptions, or marketplace transactions must implement signature verification to maintain security and prevent financial losses.
+Cashfree generates the webhook signature based on the raw payload, not the parsed payload. You can refer to how the popular JavaScript framework NestJS provides a hook for accessing the raw body.
+Use the signature to verify that the request hasn’t been tampered with. You need your Cashfree PG secret key and the payload to verify the signature.
+The timestamp is present in the header x-webhook-timestamp.
+The actual signature is present in the header x-webhook-signature.
+signature-verification
+timestamp := 1617695238078;
+signedPayload := $timestamp.$payload;
+expectedSignature := Base64Encode(HMACSHA256($signedPayload, $merchantSecretKey));
+​
+SDK Verification (Built-in Approach)
+
+Node (express)
+
+golang
+
+PHP
+
+Python
+
+Java
+
+csharp
+var express = require('express')
+const { Cashfree, CFEnvironment } = require "cashfree-pg";
+
+var app = express()
+
+const cashfree = new Cashfree(
+CFEnvironment.SANDBOX,
+"{Client ID}",
+"{Client Secret Key}"
+);
+
+app.post('/webhook', function (req, res) {
+try {
+cashfree.PGVerifyWebhookSignature(req.headers["x-webhook-signature"], req.rawBody, req.headers["x-webhook-timestamp"])
+} catch (err) {
+console.log(err.message)
+}
+})
+
+​
+Manual Verification (Custom Approach)
+
+Node (Express)
+
+golang
+
+PHP
+
+Java
+
+Python
+function verify(ts, request){
+    const body = request.headers['x-webhook-timestamp'] + request.rawBody
+    const secretKey = <client secret>;
+    let generatedSignature = crypto.createHmac('sha256', secretKey).update(body).digest("base64");
+    const signature = request.headers['x-webhook-signature']
+    if(generatedSignature === signature) {
+        let jsonObject = JSON.parse(rawBody)
+        return jsonObject
+    }
+    throw new Error("Generated signature and received signature did not match.");
+}

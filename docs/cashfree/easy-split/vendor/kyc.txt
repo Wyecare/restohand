@@ -1,0 +1,38 @@
+Vendor KYC
+
+Open in ChatGPT
+
+To improve the current vendor onboarding process to comply with PA-PG and the digital lending norms we have included the vendor KYC collection for both individual vendor accounts and business accounts. For business account type, type of vendor business is to be collected and additional document verification is carried out for NBFC, Financial services businesses and other critical businesses.
+​
+Overview
+Current vendor onboarding does not include KYC details collection. This makes it easier for fraudulent vendors or seller accounts to use the platform and start selling products or services which are not authorised by merchants. There is no due diligence on the relationship between the merchant and the vendor accounts.
+By including KYC details during onboarding, there will be
+A surety for merchants to continue business with Cashfree and post account audits
+A clear connection between the merchant and the vendor relationship
+Validation for the product or services offered by vendor
+Why should businesses onboard vendors with KYC?
+To continue business as usual with Cashfree EasySplit, non-compliant vendors will be blocked for settlement until they meet the required criteria
+For businesses which fall under the purview of digital lending guidelines, onboarding the vendor accounts with the full KYC checks will ensure that loan repayments are done to the valid bank accounts of the NBFCs where the settlements are intended to be credited.
+Criminals on board the platforms use fake information and act as sellers/buyers to steal consumers’ identities or process transactions for products or services which they are not intended to otherwise under specific MCC codes. This will limit such unauthorised vendors.
+Vendor Type	KYC Documents Required for Non-Critical Business	KYC Documents Required for Critical business
+Individual	- PAN - Address Proof: Any one of (Aadhar, Driving License, passport and Voter ID)	- PAN - Address Proof: Any one of (Aadhar, Driving License, passport and Voter ID)
+Business	- Business PAN, GST, CIN	- Business PAN, GST, CIN
+These are the dummy data that non-critical merchants alone can use adding vendor from the Merchant Dashboard:
+Individual PAN: BNZAA2318J
+Business PAN: BNZAA2318J
+Voter ID: XGN3002623
+GST : 06BZAHM6385P6Z2
+CIN: U12345AB6784CDE123456
+​
+Verification process
+The various KYC status for vendor accounts is mentioned in the table below.
+KYC Status	Description
+Document not shared	If KYC details are submitted without documents, Cashfree marks the status as document not shared.
+In Document Review	If KYC details are submitted with documents then Cashfree marks the status as in document review.
+Completed	Once the documents are verified by the ops team, the status of vendor KYC will change to complete.
+On Hold	The On-hold status is updated by the Cashfree Payments team. The onboarding team has put the account On-hold because either the document is not available or the documents shared are insufficient.
+Blocked	This is done by you if you intend to stop vendor settlement to the vendors. You can later unblock if you intend to resume the vendor settlements.
+Use our latest APIs to stay risk-free using KYC-based onboarding. Click here to read more.
+Was this page helpful?
+
+

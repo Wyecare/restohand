@@ -1,0 +1,15 @@
+Overview
+
+Open in ChatGPT
+
+Cashfree Element Integration makes it easy to add secure payment features to web apps. By including the Cashfree SDK with a simple script tag, developers can use ready-made payment components that are safe and compliant with security standards. These customizable elements can be embedded directly into the app, simplifying the payment process while ensuring flexibility and ease of use. The setup is quick, requiring minimal effort, and ensures a secure, efficient payment experience.
+To get started, include the cashfree.js library in your website. To be PCI compliant, you must load cashfree.js directly from https://sdk.cashfree.com. You cannot include it in a bundle or host it yourself. To always use a specific version you will have to include the version in this way:
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+If you’re using Svelte or React, refer to the SDK documentation for more details.
+​
+Async and deferred loading
+Asynchronous loading of JavaScript is generally recommended, as it can improve the user experience of your site by not blocking DOM rendering during script loading.
+You can also load cashfree.js using the async or defer attribute on the script tag. Kindly note that with asynchronous loading, any API calls will have to be made only after the script execution has finished.
+const cashfree = Cashfree({
+  mode: "sandbox", //or production
+});

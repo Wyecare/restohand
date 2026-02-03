@@ -1,0 +1,48 @@
+Introduction
+
+Open in ChatGPT
+
+Cashfree enables businesses to automate recurring payment collection from customers. Our system streamlines the payment process while providing flexibility in payment schedules and methods.
+What is a Mandate?
+A mandate is a contract between you and your customer that allows you to deduct funds from your customer on either a pre-decided frequency or on-demand upto a pre-decided amount.
+We support various payment methods that are compliant with RBI regulations. Your customers can pay using Cards (both Indian and international), eNACH, UPI autopay, and physical NACH (aka paper-based NACH).
+​
+How subscription works
+When integrating with a subscription API, understanding key terms is essential for managing subscriptions, billing, and customer access correctly. Here are the primary terms to know:
+​
+Plans
+A plan is a structured static construct that defines the terms of a recurring subscription service. Plans typically include key information that determines the billing, features, and usage associated with a subscription.
+Example: Netflix Plans - Premium, Basic, Standard, Mobile. Each plan differs and caters for a particular use-case.
+Here’s a breakdown of what a plan usually consists of
+Plan Parameters
+
+Parameter	Description
+Plan Name	Name of the plan. This will be visible to the customer during the mandate authorization process.
+Plan Type	There are two types of plans - Periodic, On-Demand. Choose Periodic if you wish to debit a fixed amount from your customers at fixed intervals (Daily, Weekly, Monthly, Yearly). Choose On-Demand if the subscriptions do not have a fixed period or a fixed amount.
+Currency	Currency in which the maximum amount and recurring amount is to be charged. For list of support currencies, see here
+Maximum Amount	The maximum amount that you can charge your customer for that particular subscription. A mandate is created for your customers for this amount.
+Recurring Amount	The amount that will be debited from your customer on a recurring basis.
+Charge Customer Once Every	The frequency at which your customers will be charged. Frequency values could range from: (Day(s), Week(s), Month(s), Year(s))
+Max. No. Of Debits	The maximum number of times you can debit your customers using this plan. If left blank, the subscription expiry date will be the completion date.
+Description	A text that describes the plan.
+You can create a new plan either through the dashboard or through the API. To give flexibility for certain usecases, you create a subscription without a plan.
+​
+Subscriptions
+Represents the relationship between a customer and a plan, indicating that the customer is actively using the service and is being billed on a recurring basis.
+Subscription Parameters
+
+Parameter	Description
+Customer Details	Customer details such as customer name, email, and phone number. Email and phone number are required for triggering communications via email or SMS to your customers.
+Subscription ID	The ID through which the subscription is identified.
+Select Plan	Select an existing plan or create a subscription without a plan. In case no pre-defined plan is to be used, all necessary details will have to be given for this subscription.
+Subscription Type	Select the Subscription Type - Periodic or On-Demand.
+Plan Name	Provide the plan name if you are not selecting an existing plan. This will be visible to the customer during the mandate authorization process.
+Currency	Currency in which the maximum amount and recurring amount is to be charged. For list of support currencies, see here
+Maximum Amount	The maximum amount you can charge your customer for this subscription.
+Recurring Amount	If the Subscription type is periodic, specify the recurring amount you want to charge your customer as per the agreed payment schedule.
+Charge Customer Once Every	The time interval in which you want to charge your customer.
+Max. No. of Debits	The maximum number of times you want to charge your customer for this subscription.
+First Charge Date	The date on which your customer will be charged for the first time for this subscription. Applicable only for periodic subscriptions.
+Subscription Ends	The date on which this subscription ends. It can end on a particular date or will remain active until you or your customer cancels it.
+Expiry Date	The last date the customer will be charged for this subscription.
+Return URL	The URL to which your customers will be redirected once the subscription is authorized.

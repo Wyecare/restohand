@@ -1,0 +1,31 @@
+What is Cashfree 10th Anniversary Offer?
+
+As part of Cashfree’s 10th Anniversary celebrations, we are offering a special limited-period discount on payment gateway pricing for new merchants. Instead of the standard 1.95% charges, new merchants who sign up between 18th September 2025 and 31st March 2026 will enjoy a reduced rate of 1.6%* on domestic transactions, including credit/debit cards, UPI, and net banking.
+
+This offer is applicable only to new merchants who complete their onboarding within the specified dates. The 1.6%* pricing will be valid for the merchants for 12 months from their signup date.
+
+Please note that this discount does not apply to international transactions, where standard rates remain unchanged. Complete terms and conditions can be found here.
+
+To avail the offer, simply register as a new merchant with Cashfree and complete onboarding between the offer dates; the reduced rates will be applied automatically. For any questions or support with onboarding, you can contact our team via the Cashfree dashboard.
+
+
+
+Are the payment gateway charges fixed? Can I get tailored pricing for my business?
+
+Yes. We can offer customized payment gateway charges if your business has very high average order values or micro-transactions. For custom, pricing get in touch with us here .
+
+Yes, the TDR or transaction discount rate is deducted on a per transaction basis. When a transaction is successful, the TDR amount is deducted by Cashfree before settling the proceeds to your bank account.
+
+Are there any additional charges such as setup fee?
+
+With Cashfree, you pay ZERO Setup fees. However, you’ll be charged ₹4,999 annually as part of Annual Maintenance Contract (AMC).
+
+What are UPI payment gateway charges with Cashfree?
+
+UPI is available as a payment mode on Cashfree Payment Gateway. Your customers can use any UPI app including PhonePe, GooglePay etc to pay. The UPI payment gateway charges are as per the applicable law.
+
+Cashfree offers the widest range of UPI integration such as UPI collect, UPI intent, UPI QR Code, UPI WhatsApp link etc. You can choose from a range of UPI integration and achieve the desired checkout experience.
+
+What is a Platform Fee?
+Platform fee is paid by you for services such as Hosted Checkout, Plugins, SDKs, Dashboard, Generation of Reports etc. The Platform Fee is mutually agreed upon between Cashfree and You. Platform fee is a fee other than the fee charged on the transaction for payments instruments.
+

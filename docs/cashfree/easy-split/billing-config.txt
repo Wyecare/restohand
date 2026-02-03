@@ -1,0 +1,59 @@
+Billing Configuration
+
+Open in ChatGPT
+
+You can now configure the payment and settlement service charges. You can either bear the service charges or bill the charges directly to the linked vendor account in the transaction split.
+There are three types of services charges:
+Payment Gateway and Easy Split Charges
+Standard and Instant Settlement Charges
+On-Demand Settlement Charges
+Payment Gateway Charges
+Charges for the collection of payment basis the mode of payment and payment gateway used.
+Easy Split Charges
+These are to split a transaction into multiple settlement accounts. These charges will be based on the order amount and not on the number of splits that are created for the order.
+Settlement Charges
+Settlement charges for the frequency of the schedule option configured for a vendor account. Faster or instant schedule option will be at a slightly higher cost than the standard T+2* schedule option.
+Settlement cycle is subject to bank approval and can vary based on transaction type, business category/model, risk parameters, and other factors.
+On-Demand Settlement Charges
+On-Demand settlements are routed through RTGS/IMPS, where you can expect the settlements instantly by invoking the on-demand settlement. These settlements are available 24*7 and charged according to the settlement amount.
+Configuration Models Available
+Bill To	Prepaid	Postpaid
+Merchant	✅	✅
+Vendor	✅	Not available
+If you bear the service charges, both prepaid and postpaid models are available. You have complete control of whom to charge for each set of charges associated with Easy Split.
+If the vendor bears the service charges, only the prepaid model is available. The vendor has no control over these charges as it is configured by you.
+Prepaid Model
+If you opt for the prepaid model, the service charges are deducted directly from the settlement amount. We settle the remaining amount to your account or the vendor account respectively.
+For example, let us assume the following scenario mentioned in the table below:
+Description	Amount
+Transaction Amount	Rs. 100
+Payment Gateway and Easy Split Charges	Rs. 2
+Merchant Settlement	Rs. 10
+Vendor Settlement	Rs. 90
+Case 1: You bear the settlement amount
+If you bear the settlement amount, the service charges are deducted from your settlement amount and the remaining amount of Rs. 8 is settled in your account. The vendor settlement amount is untouched, and Rs. 90 is settled in the vendor account.
+Case 2: Vendor bears the settlement amount
+If the vendor bears the settlement amount, the service charges are deducted from the vendor settlement amount and the remaining amount of Rs. 88 is settled to the vendor account. Your settlement amount is untouched, and Rs. 10 is settled in your account.
+Bill To	Merchant Settlement Amount	Vendor Settlement Amount
+Merchant	8	90
+Vendor	10	88
+Postpaid Model
+If you opt for the postpaid model, you receive an invoice which you have to clear at the end of the month.
+For example, let us assume the following scenario mentioned in the table below:
+Description	Amount
+Transaction Amount	Rs. 100
+Payment Gateway and Easy Split Charges	Rs. 2
+Merchant Settlement	Rs. 10
+Vendor Settlement	Rs. 90
+The postpaid model credits you and the vendor account with the full settlement amount. Cashfree Payments sends a collective invoice along with the Payment Gateway charges, you pay for the invoice.
+Bill To	Merchant Settlement Amount	Vendor Settlement Amount
+Merchant	10	90
+Vendor	10	90
+Invoice amount to the merchant	2	0
+You will receive details on the service charges in the following sections:
+Reports
+Settlement API
+Vendor Recon API
+Vendor Settlement Webhook
+The invoiced amount to vendor capability is not available in the postpaid model currently.
+You can request this functionality through your account manager. It is a one-time setup, and you can edit the configurations at any point in time.

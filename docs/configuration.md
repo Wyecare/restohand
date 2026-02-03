@@ -22,7 +22,7 @@ This workspace uses environment files for both the NestJS backend and the Vite f
 | `MONGODB_URI`                         | **Yes**  | –                                                   | Connection string for the MongoDB cluster.                        |
 | `MONGODB_DB_NAME`                     | No       | `restohand`                                         | Optional database override when the URI omits the db segment.     |
 | `MONGODB_SERVER_SELECTION_TIMEOUT_MS` | No       | `5000`                                              | Milliseconds to wait for MongoDB server selection before failing. |
-| `JWT_ACCESS_SECRET`                   | **Yes**  | –                                                   | Secret used to sign short-lived access tokens.                    |
+| `JWT_SECRET`                          | **Yes**  | –                                                   | Secret used to sign short-lived access tokens.                    |
 | `JWT_ACCESS_TTL`                      | No       | `900s`                                              | Access token lifetime (ISO/zeit/ms format).                       |
 | `JWT_REFRESH_SECRET`                  | **Yes**  | –                                                   | Secret used to sign refresh tokens.                               |
 | `JWT_REFRESH_TTL`                     | No       | `7d`                                                | Refresh token lifetime.                                           |

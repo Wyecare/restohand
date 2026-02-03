@@ -1,0 +1,222 @@
+Cashfree Hosted Checkout
+Web Integration
+
+Open in ChatGPT
+
+Cashfree’s web checkout offers merchants a secure, pre-built, and user-friendly interface that supports a wide variety of payment methods, enhancing the transaction experience for both merchants and customers.
+​
+Why choose Cashfree?
+Simplified checkout: Provides a pre-built, easy-to-use checkout page that delivers an optimised payment experience. It accepts payments from over 120 payment methods easily and securely.
+Secure and PCI compliant: Securely collects payment details and submits them directly to Cashfree servers, removing the need for Payment Card Industry Data Security Standard (PCI DSS) compliance requirements at the merchant’s end.
+Personalised: Customise your payment methods, branding, and various other elements to align seamlessly with your company’s specific theme.
+​
+Prerequisites
+Ensure you complete the following tasks before starting the integration:
+Create a Cashfree Merchant Account.
+Log in to the Merchant Dashboard and generate an App ID and Secret Key. Learn how to generate API keys.
+Whitelist your website domain for integration. Learn more about domain whitelisting.
+The web checkout integration consists of three essential steps:
+Step 1
+Create an order
+Step 2
+Open the checkout page
+Step 3
+Confirm the payment
+The step-by-step guide for each step of the integration process is as follows:
+​
+Step 1: Create an order Server-side
+To integrate the Cashfree Payment Gateway, you must first create an order. Complete this step before you process any payments. Configure an endpoint on your server to handle order creation. You cannot call this API from the client-side.
+Create orders through your backend as this API requires your secret key. Do not call it directly from the client-side.
+API request for creating an order
+Here’s a sample request for creating an order using your desired backend language. Cashfree offers backend SDKs to simplify the integration process.
+
+javascript
+
+python
+
+java
+
+go
+
+csharp
+
+php
+
+curl
+import { Cashfree, CFEnvironment } from "cashfree-pg";
+
+const cashfree = new Cashfree(
+	CFEnvironment.PRODUCTION,
+	"{Client ID}",
+	"{Client Secret Key}"
+);
+
+function createOrder() {
+	var request = {
+		order_amount: "1",
+		order_currency: "INR",
+		customer_details: {
+			customer_id: "node_sdk_test",
+			customer_name: "",
+			customer_email: "example@gmail.com",
+			customer_phone: "9999999999",
+		},
+		order_meta: {
+			return_url:
+				"https://test.cashfree.com/pgappsdemos/return.php?order_id=order_123",
+		},
+		order_note: "",
+	};
+
+	cashfree
+		.PGCreateOrder(request)
+		.then((response) => {
+			var a = response.data;
+			console.log(a);
+		})
+		.catch((error) => {
+			console.error("Error setting up order request:", error.response.data);
+		});
+}
+After successfully creating an order, you will receive a unique order_id and payment_session_id that you need for subsequent steps.
+You can view all the complete API request and response for /orders here.
+​
+Step 2: Open the checkout page Client-side
+You must whitelist your domain with Cashfree before you start this step.
+​
+1. Include JS SDK in your client code
+Include our JavaScript SDK in your client-side code to integrate the Cashfree checkout.
+
+CDN
+
+NPM
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+​
+2. Initialise the SDK
+Initialise the SDK using the Cashfree() function. You can use one of two modes:
+sandbox: Use this for a test environment.
+production: Use this for your live environment.
+
+CDN
+
+NPM
+const cashfree = Cashfree({
+    mode:"sandbox" //or production
+});
+​
+3. Open Cashfree checkout
+Use the cashfree.checkout() method to open the checkout page. Use the following parameters with this method:
+paymentSessionId: The ID you receive from the create order response.
+redirectTarget (optional): This parameter determines how the checkout page opens. Use one of the following values:
+Property Value	Description
+_self (default)	Opens the payment link in the same frame as it was clicked.
+_blank	Opens the payment link in a new window or tab.
+_top	Opens the linked document in the full body of the window.
+_modal	Opens the payment link in a pop-up window on the current page.
+DOM element	Opens the payment link directly within a specified DOM element.
+​
+Checkout variants
+Cashfree supports the following checkout variants:
+Redirect checkout: Use for redirectTarget values _self, _blank, or _top.
+Popup checkout: Use for redirectTarget value _modal.
+Inline checkout: Use for redirectTarget as a DOM element.
+The integration approach varies for pop-up and inline checkout. You must manage the promise that cashfree.checkout() returns to execute additional code after the payment attempt.
+
+Redirect - javascript
+
+Redirect - React
+
+Popup - JavaScript
+
+Popup - React
+
+Inline - Javascript
+
+Inline - React
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Cashfree Checkout Integration</title>
+        <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+    </head>
+    <body>
+        <div class="row">
+            <p>Click below to open the checkout page in the current tab</p>
+            <button id="renderBtn">Pay Now</button>
+        </div>
+        <script>
+            const cashfree = Cashfree({
+                mode: "production",
+            });
+            document.getElementById("renderBtn").addEventListener("click", () => {
+                let checkoutOptions = {
+                    paymentSessionId: "your-payment-session-id",
+                    redirectTarget: "_self",
+                };
+                cashfree.checkout(checkoutOptions);
+            });
+        </script>
+    </body>
+</html>
+​
+Step 3: Confirm the payment Server-side
+After the customer completes the payment, you must confirm the payment status.
+​
+Redirect checkout
+When the payment process finishes, the user redirects to the return URL you provided when you created the order (Step 1). If you do not provide a return URL, customers redirect to a default Cashfree page.
+We recommend that you provide a return URL while creating an order. This will improve the overall user experience by ensuring your customers don’t land on broken or duplicated pages. Also, remember to add context of the order in your return URL so that you can identify the order once the customer has returned to this URL.
+​
+Popup and inline checkout
+When the payment process finishes, the cashfree.checkout() function returns a promise. You must handle this promise to process the payment response.
+​
+Order status verification
+To verify an order you can call our /pg/orders endpoint from your backend. You can also use our SDK to achieve the same.
+
+golang
+
+javascript
+
+php
+
+java
+
+python
+
+csharp
+
+curl
+version := "2023-08-01"
+response, httpResponse, err := cashfree.PGFetchOrder(&version, "<order_id>", nil, nil, nil)
+if err != nil {
+	fmt.Println(err.Error())
+} else {
+	fmt.Println(httpResponse.StatusCode)
+	fmt.Println(response)
+}
+Always verify the order status before you deliver services to the customer. You can use the Get Order API for this. An order is successful when the order_status is PAID.
+​
+Testing
+After you integrate the checkout button, verify that it opens the Cashfree-hosted payment page. If the integration does not work, follow these steps to troubleshoot:
+Open the Network tab in your browser developer tools.
+Click the pay button and check the console logs.
+Ensure you pass the correct environment and payment_session_id.
+Use console.log() in your button click listener to confirm that you pass data correctly.
+Affiliate partner program
+
+As a developer building payment experiences for your clients, you can earn additional income while providing them with industry-leading payment solutions.
+
+Join the Cashfree affiliate partner program and get rewarded every time your clients use Cashfree.
+
+What you get:
+
+Earn up to 0.25% commission on every transaction.
+Become a trusted fintech partner for your clients.
+Access to a dedicated partner manager for expert support.
+What your clients get:
+
+Instant activation and go live in minutes.
+Industry-best success rate across all payment modes.
+Effortless acceptance of international payments in 140+ currencies.
+Get started today. Become a partner now.

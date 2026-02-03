@@ -1,0 +1,59 @@
+Use Cases
+
+Open in ChatGPT
+
+​
+Marketplace aggregators
+Online businesses that sell multiple products through different vendors can now use Easy Split to manage the splitting of incoming customer payments with ease. Also, easily manage schedule options, deduct commission, and view real-time reports for these vendor payments using our Easy Split product dashboard.
+
+Standard Marketplace Setup
+Add and update vendor details: Add and update vendor details via product dashboard or API.
+Prepaid charge configuration: Reduces effort from the merchant finance team in reconciling the service charges to settle fee invoices.
+Split after payment: Allows order split default delay 2 days (can be extended further if required).
+Manage refunds: Allows refund both before and after the split.
+Transfer balances: Allows credit/debit vendor account.
+Deferred settlement: Allows deferred settlement time configuration basis service time for each vendor. It should be used only when there is a different settlement time for the same order.
+​
+EdTech & other platform businesses
+Online EdTech platforms that offer courses with different professors/instructors (Vendors) can use Easy Split to collect payments from students and split the amount with the instructors after deducting their charges.
+
+Standard Platform Business Setup
+Add and update vendor details: Add and update vendor details via product dashboard or API.
+Split after payment: Allows order split default delay of 30 days (can be extended further if required).
+Prepaid charge configuration: Reduces effort from the merchant finance team.
+Manage refunds: Allows refund both before and after the split.
+Transfer balances: Allows credit/debit vendor account.
+​
+Franchise and Multi-Branch Outlets
+Businesses that centrally manage payment collections for all their branches, like an online beauty product store or a pizza delivery store, can now make use of Easy Split to collect payment via website from all customers and route the incoming payments to their individual stores.
+
+Standard Centrally Operated Business Setup
+Add and update vendor details: Add and update vendor details via product dashboard or API.
+Split after payment: Allows order split default delay 2 days (can be extended further if required).
+Prepaid charge configuration: Reduces effort from the merchant finance team.
+Manage refunds: Allows refund both before and after the split.
+Transfer balances: Allows credit/debit vendor account.
+​
+Investment or insurance marketplace
+Marketplaces where 100% order amount is settled to AMC or Insurer’s account. The settlement will be customised and completed on the same day, with additional AMC and NBFC level reconciliation. Easy split also facilitates instant and on-demand settlements
+
+Standard Investment and Insurance Marketplace Setup
+Add and update vendor details: Add and update vendor details via product dashboard or API.
+Prepaid charge configuration: Reduces effort from the merchant finance team
+Manage refunds: Allows refund both before and after split
+​
+Educational institutes
+Institutes managing multiple accounts for administration can use Easy Split to facilitate splitting student payments directly to all their business accounts by providing split. This will reduce reconciliation efforts to settle individual accounts like tutors, admin, hostel, stationary and mess accounts
+EdInstitution.gif
+Standard Educational Institutes Setup
+Add and update vendor details: Add and update vendor details via product dashboard or API.
+Split after payment: Allow order split default delay 2 days (can be extended further if required)
+Prepaid charge configuration: Reduces effort from the merchant finance team
+Manage refunds: Allows refund both before and after split
+Transfer balances: Allows credit/debit vendor account
+​
+On-demand services
+Services like cab booking, flight booking, food delivery etc. can now take bookings and automate the splitting of incoming customer payments to the respective service providers with the help of Easy Split.
+Was this page helpful?
+
+

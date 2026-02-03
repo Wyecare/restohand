@@ -1091,6 +1091,68 @@ export const restaurantsApi = baseApi.injectEndpoints({
       },
       invalidatesTags: ['MenuItem'],
     }),
+
+    // Cashfree vendor management endpoints
+    onboardRestaurantToCashfree: builder.mutation<
+      {
+        success: boolean;
+        vendorId: string;
+        status: string;
+        kycStatus: string;
+      },
+      { restaurantId: string; scheduleOption?: number; forceUpdate?: boolean }
+    >({
+      query: ({ restaurantId, scheduleOption = 17, forceUpdate = false }) => ({
+        url: `/restaurants/${restaurantId}/cashfree/vendor/onboard`,
+        method: 'POST',
+        body: { scheduleOption, forceUpdate },
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Restaurant', id: restaurantId },
+        { type: 'CashfreeVendor', id: restaurantId },
+      ],
+    }),
+
+    getCashfreeVendorStatus: builder.query<
+      {
+        hasVendor: boolean;
+        vendorId?: string;
+        status?: string;
+        kycStatus?: string;
+        canReceiveSettlements: boolean;
+        scheduleOption?: {
+          scheduleId: number;
+          settlementScheduleMessage: string;
+        };
+        error?: string;
+      },
+      string
+    >({
+      query: (restaurantId) => `/restaurants/${restaurantId}/cashfree/vendor/status`,
+      providesTags: (_result, _error, restaurantId) => [
+        { type: 'CashfreeVendor', id: restaurantId },
+      ],
+    }),
+
+    syncCashfreeVendorStatus: builder.mutation<
+      {
+        success: boolean;
+        vendorId?: string;
+        status?: string;
+        kycStatus?: string;
+        message: string;
+      },
+      string
+    >({
+      query: (restaurantId) => ({
+        url: `/restaurants/${restaurantId}/cashfree/vendor/sync`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_result, _error, restaurantId) => [
+        { type: 'CashfreeVendor', id: restaurantId },
+        { type: 'Restaurant', id: restaurantId },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -1160,4 +1222,8 @@ export const {
   // Branch-aware table hooks
   useListRestaurantTablesByBranchQuery,
   useListServiceTablesByBranchQuery,
+  // Cashfree vendor management hooks
+  useOnboardRestaurantToCashfreeMutation,
+  useGetCashfreeVendorStatusQuery,
+  useSyncCashfreeVendorStatusMutation,
 } = restaurantsApi;

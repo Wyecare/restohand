@@ -9,6 +9,8 @@ import {
   Query,
   Req,
   UseGuards,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import {
   ApiOkResponse,
@@ -29,6 +31,7 @@ import { UpdateRestaurantDto } from './dtos/update-restaurant.dto';
 import { QueryRestaurantsDto } from './dtos/query-restaurants.dto';
 import { RestaurantsService } from './restaurants.service';
 import { RestaurantOnboardingService } from './restaurant-onboarding.service';
+import { CashfreeVendorService } from '../payments/cashfree-vendor.service';
 
 @ApiTags('restaurants')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -36,7 +39,9 @@ import { RestaurantOnboardingService } from './restaurant-onboarding.service';
 export class RestaurantsController {
   constructor(
     private readonly restaurantsService: RestaurantsService,
-    private readonly onboardingService: RestaurantOnboardingService
+    private readonly onboardingService: RestaurantOnboardingService,
+    @Inject(forwardRef(() => CashfreeVendorService))
+    private readonly cashfreeVendorService: CashfreeVendorService
   ) {}
 
   @Post()
@@ -139,5 +144,140 @@ export class RestaurantsController {
       setupAttempts: restaurant.paymentConfig?.setupAttempts || 0,
       lastAttempt: restaurant.paymentConfig?.lastAttempt?.toISOString(),
     };
+  }
+
+  @Post(':id/cashfree/vendor/onboard')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiOkResponse({
+    description: 'Cashfree vendor onboarding response',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        vendorId: { type: 'string' },
+        status: { type: 'string' },
+        kycStatus: { type: 'string' },
+        error: { type: 'string' }
+      }
+    }
+  })
+  async onboardToCashfree(
+    @Param('id') restaurantId: string,
+    @Body() body: {
+      scheduleOption?: number; // Settlement schedule (default: 17 for instant per minute)
+      forceUpdate?: boolean;
+    }
+  ) {
+    const result = await this.cashfreeVendorService.onboardRestaurantToCashfree({
+      restaurantId,
+      scheduleOption: body.scheduleOption || 1,
+      forceUpdate: body.forceUpdate || false,
+    });
+
+    return {
+      success: true,
+      vendorId: result.vendorId,
+      status: result.status,
+      kycStatus: result.kycStatus,
+    };
+  }
+
+  @Get(':id/cashfree/vendor/status')
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiOkResponse({
+    description: 'Cashfree vendor status',
+    schema: {
+      type: 'object',
+      properties: {
+        hasVendor: { type: 'boolean' },
+        vendorId: { type: 'string' },
+        status: { type: 'string' },
+        kycStatus: { type: 'string' },
+        canReceiveSettlements: { type: 'boolean' },
+        scheduleOption: {
+          type: 'object',
+          properties: {
+            scheduleId: { type: 'number' },
+            settlementScheduleMessage: { type: 'string' }
+          }
+        },
+        error: { type: 'string' }
+      }
+    }
+  })
+  async getCashfreeVendorStatus(@Param('id') restaurantId: string) {
+    const status = await this.cashfreeVendorService.getRestaurantVendorStatus(restaurantId);
+
+    if (!status) {
+      return {
+        hasVendor: false,
+        canReceiveSettlements: false,
+      };
+    }
+
+    return {
+      hasVendor: true,
+      vendorId: status.vendorId,
+      status: status.status,
+      kycStatus: status.kycStatus,
+      canReceiveSettlements: status.status === 'ACTIVE',
+      scheduleOption: status.scheduleOption,
+    };
+  }
+
+  @Post(':id/cashfree/vendor/sync')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiOkResponse({
+    description: 'Sync vendor status with Cashfree',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        vendorId: { type: 'string' },
+        status: { type: 'string' },
+        kycStatus: { type: 'string' },
+        message: { type: 'string' }
+      }
+    }
+  })
+  async syncCashfreeVendorStatus(@Param('id') restaurantId: string) {
+    const syncResult = await this.cashfreeVendorService.getRestaurantVendorStatus(restaurantId);
+
+    if (!syncResult) {
+      return {
+        success: false,
+        message: 'No vendor found for this restaurant',
+      };
+    }
+
+    return {
+      success: true,
+      vendorId: syncResult.vendorId,
+      status: syncResult.status,
+      kycStatus: syncResult.kycStatus,
+      message: 'Vendor status synced successfully',
+    };
+  }
+
+  @Post(':id/cashfree/vendor/verify-bank')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiOkResponse({
+    description: 'Verify vendor bank account',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        vendorId: { type: 'string' },
+        verificationStatus: { type: 'string' },
+        error: { type: 'string' }
+      }
+    }
+  })
+  async verifyCashfreeVendorBankAccount(@Param('id') restaurantId: string) {
+    return this.cashfreeVendorService.verifyRestaurantBankAccount(restaurantId);
   }
 }

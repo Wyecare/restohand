@@ -1,0 +1,124 @@
+Cashfree Element SDK
+
+Open in ChatGPT
+
+​
+Cashfree.js
+Below are the methods that are available on the cashfree object. The three main steps of integrating Cashfree Element components:
+First step creates the card component using the create() method
+Second step mounts the component to a DOM element using mount() method
+Final step initiates the payment using the pay() method
+
+
+
+
+
+
+
+Component Lifecycle
+
+Step 1
+
+create()
+
+Step 2
+
+mount('#card-element')
+
+Step 3
+
+pay()
+
+Start Integration
+
+Create Card Component
+
+Card Component Created
+
+Mount Component
+
+Component Mounted in DOM
+
+Initiate Payment
+
+Payment Flow Started
+
+​
+checkout()
+The checkout method redirects the user to a Cashfree hosted page. See all the supported options here. You can find a full example here
+How to use
+let checkoutOptions = {
+	paymentSessionId: "payment-session-id",
+	returnUrl:
+		"https://test.cashfree.com/pgappsdemos/v3success.php?myorder={order_id}",
+};
+cashfree.checkout(checkoutOptions).then(function (result) {
+	if (result.error) {
+		alert(result.error.message);
+	}
+	if (result.redirect) {
+		console.log("Redirection");
+	}
+});
+Returns
+cashfree.checkout will return a Promise that resolves with either result.error when there is an error or result.redirect when there is redirection
+​
+create()
+Use create() to initialize a cashfree component for your HTML page.
+How to use
+Here is a small example demonstrating how to render a UPI collect component. We will see more detailed example in the UPI collect example.
+Refer to this page for all available components
+let options = {
+	values: {
+		upiId: "rohit@icici",
+	},
+};
+let component = cashfree.create("upiCollect", options);
+create takes two arguments. The first argument is the component name of type string. You can find all the names of the components we provide here.
+The second argument is of type object. It contains details about the behavior and look of the component. Find all the details for options object here
+Returns
+An instance of the component. A component has several methods that you can find here
+​
+mount()
+If you are building your own checkout page Cashfree provides a set of components. A component can be mounted in DOM container. Use mount() to mount the component.
+How to use
+Syntax: component.mount(querySelector)
+Example
+//let's create a div which will have our component
+const div = document.createElement("div");
+div.setAttribute("id", "componentContainer");
+document.body.appendChild(div);
+
+component.mount("#componentContainer");
+​
+pay()
+Use pay() to begin payment flow for a component. Not all components are payable. Check all the components here. The pay method takes in a paymentOption object.
+How to use
+let paymentOptions = {
+	paymentMethod: component,
+	paymentSessionId: "your-payment-session-id",
+	returnUrl: "https://example.com?order={order_id}",
+};
+cashfree.pay(paymentOptions).then(function (result) {
+	if (result.error) {
+		//there is an error
+		//message at result.error.message
+	}
+	if (result.redirect) {
+		//console.log("User would be redirected");
+	}
+	if (result.paymentDetails) {
+		//only when redirect = 'if_required' for UPI payment
+		//payment is successful
+		//message is at result.paymentDetails.paymentMessage
+	}
+});
+You can read more about payment options and their configuration here
+Returns
+cashfree.pay will return a Promise.
+Upon success, the promise will resolve with result.paymentMessage if the user has opted for a non redirection flow. example UPI, QR. Upon redirection, the promise will resolve with result.redirect If the payment fails, the Promise will resolve with an result.error. error.type will describe the failure. In some cases you can directly show the error.message to your user. Please refer here for the types
+cashfree.pay may take several seconds to complete. During that time, you should disable user interaction and show a waiting indicator like a spinner. If you receive an error result, you should be sure to show that error to the customer, re-enable user interaction, and hide the waiting indicator.
+​
+version()
+Get the version of the sdk. A string, which references the current version that the sdk is using. This will help you understand which version of cashfree.js your site is using. This is helpful in understanding features available for a version. By default we will always upgrade your sdk to the latest version. But in some cases your customer’s browser might cache the javascript for some amount of time. In that case your customers will not get the latest version. Checkout all versions here
+let version = cashfree.version();

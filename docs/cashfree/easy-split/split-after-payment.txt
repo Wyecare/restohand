@@ -1,0 +1,433 @@
+Split After Payment
+
+Open in ChatGPT
+
+To split payments to your vendors using Easy Split, you must first ensure the feature is activated for your Payment Gateway account. Fill out the Support Form or contact your account manager to enable it for you. The feature should be activated for your Test and Production environment.
+To split payments to vendors,
+Add Vendor
+Create Order
+Accept Payment
+Split Payment
+View Split Settlement Details
+Manage Refunds using Refund Splits
+Manage Adjustments
+Watch the video below to learn how money is collected and settlements are split for all incoming funds with multiple parties.
+
+​
+Add vendors
+To initiate payments to multiple vendors involved in a transaction, you need to first add their details, and specify the schedule option for each vendor. Each vendor can have a different schedule option based on their requirements. You must define it when you add the vendor details.
+You can add vendor details using the product dashboard, or using our Add Vendor API
+To process settlements to vendors, you must specify their bank account details or their UPI details.
+Ensure you have the right account details of the vendor to process settlements successfully. You can use our Secure ID to verify the vendor account details before initiating settlements.
+You can also edit and manage vendors using the Update Vendor Details API.
+Sample Request to Add Vendor
+curl --location 'https://sandbox.cashfree.com/pg/easy-split/vendors'
+--header 'x-client-id: {{clientId}}'
+--header 'x-client-secret: {{clientSecret}}'
+--header 'x-api-version: 2022-09-01'
+--header 'Content-Type: application/json'
+--data-raw '{
+  "vendor_id": "vendortest40",
+  "status": "ACTIVE",
+  "name": "customer",
+  "email": "[johndoe@cashfree.com]()",
+  "phone": "9876543210",
+  "verify_account": true,
+  "dashboard_access": true,
+  "schedule_option": 2,
+  "bank": {
+   "account_number": "026291800001191",
+ 	 "account_holder": "John Doe",
+ 	 "ifsc": "YESB0000262"
+  },
+  "kyc_details": {
+    "account_type": "Proprietorship",
+    "business_type": "Jewellery",
+    "uidai": "655675523712",
+    "gst": "29AAICP2912R1ZR",
+    "cin": "L00000Aa0000AaA000000",
+    "pan": "ABCPV1234D",
+    "passport_number": "L6892603"
+  }
+}'
+Sample Response
+{
+	"email": "[johndoe@cashfree.com]()",
+	"status": "IN_BENE_CREATION",
+	"bank": {
+		"account_number": "026291800001191",
+		"account_holder": "John Doe",
+		"ifsc": "YESB0000262"
+	},
+	"upi": null,
+	"phone": "9876543210",
+	"name": "customer",
+	"vendor_id": "vendortest40",
+	"schedule_option": {
+		"settlement_schedule_message": "T+2 settlement at 11:00 AM",
+		"schedule_id": 2,
+		"merchant_default": false
+	},
+	"kyc_details": {
+		"account_type": "Proprietorship",
+		"business_type": "Jewellery",
+		"documents": [
+			{
+				"doc_category": "PAN",
+				"doc_name": "PAN",
+				"doc_value": "ABCPV1234D",
+				"status": "VERIFIED",
+				"remarks": ""
+			},
+			{
+				"doc_category": "GSTIN",
+				"doc_name": "Merchant-Vendor Agreement",
+				"doc_value": "",
+				"status": "DUE_CURRENTLY",
+				"remarks": ""
+			}
+		]
+	},
+	"dashboard_access": true
+}
+​
+Create order
+After adding vendors you must create an order to accept payments from your customers. Use our Create Order API to do this.
+Sample Request
+curl --request POST
+     --url https://sandbox.cashfree.com/pg/orders
+     --header 'accept: application/json'
+     --header 'content-type: application/json'
+     --header 'x-api-version: 2022-09-01'
+     --data '
+{
+  "customer_details": {
+    "customer_id": "7112AAA812234",
+    "customer_phone": "9898989898"
+  },
+  "order_currency": "INR",
+  "order_amount": 10.34
+}
+'
+Sample Response
+{
+	"cf_order_id": 2149460581,
+	"created_at": "2023-08-11T18:02:46+05:30",
+	"customer_details": {
+		"customer_id": "409128494",
+		"customer_name": "Johmn Doe",
+		"customer_email": "[pmlpayme@ntsas.com]()",
+		"customer_phone": "9876543210"
+	},
+	"entity": "order",
+	"order_amount": 22,
+	"order_currency": "INR",
+	"order_expiry_time": "2023-09-09T18:02:46+05:30",
+	"order_id": "order_3242Tq4Edj9CC5RDcMeobmJOWOBJij",
+	"order_meta": {
+		"return_url": "https://example.com/return/{order_id}",
+		"notify_url": "https://example.com/notify",
+		"payment_methods": "cc"
+	},
+	"order_note": "some order note LIST",
+	"order_splits": [],
+	"order_status": "ACTIVE",
+	"order_tags": {
+		"name": "John",
+		"age": "19"
+	},
+	"payment_session_id": "session_a1VXIPJo8kh7IBigVXX8LgTMupQW_cu25FS8KwLwQLOmiHqbBxq5UhEilrhbDSKKHA6UAuOj9506aaHNlFAHEqYrHSEl9AVtYQN9LIIc4vkH",
+	"payments": {
+		"url": "https://sandbox.cashfree.com/pg/orders/order_3242Tq4Edj9CC5RDcMeobmJOWOBJij/payments"
+	},
+	"refunds": {
+		"url": "https://sandbox.cashfree.com/pg/orders/order_3242Tq4Edj9CC5RDcMeobmJOWOBJij/refunds"
+	},
+	"settlements": {
+		"url": "https://sandbox.cashfree.com/pg/orders/order_3242Tq4Edj9CC5RDcMeobmJOWOBJij/settlements"
+	},
+	"terminal_data": null
+}
+​
+Accept payments
+After orders are created you must use our Order Pay API to accept payments from your customers.
+Sample Request
+curl --request POST \
+     --url https://api.cashfree.com/pg/orders/pay \
+     --header 'Accept: application/json' \
+     --header 'Content-Type: application/json' \
+     --header 'x-api-version: 2022-01-01' \
+     --data '
+{
+     "payment_method": {
+          "upi": {
+               "channel": "collect",
+               "upi_id": "arun@okicici"
+          }
+     },
+     "order_token": "tScwuzJgZ0PJuVc1b"
+}
+Sample Response
+{
+	"payment_method": "upi",
+	"channel": "collect",
+	"action": "custom",
+	"data": {
+		"url": null,
+		"payload": null,
+		"content_type": null,
+		"method": null
+	},
+	"cf_payment_id": 971632209
+}
+​
+Split payment
+Before you split the details, ensure vendors involved in the transaction are added. After adding the vendor details you can initiate payment split to your vendors. To split the payment use Split After Payment API.
+You have the option to specify the split percentage-wise or amount-wise. The split amount is always calculated based on the order amount.
+Sample Request - Split details after collecting the payment
+curl --location 'https://sandbox.cashfree.com/pg/easy-split/orders/{order_id}/split'
+--header 'x-client-id: {{clientId}}'
+--header 'x-client-secret: {{clientSecret}}'
+--header 'x-api-version: 2022-09-01'
+--header 'Content-Type: application/json'
+--data '{
+    "split": [
+          {
+            "vendor_id": "test03",
+            "percentage": 50,
+            "tags": {
+                "product": "Dri-Fit trouser",
+                "size": "L",
+                "AWB": "NIKE12334"
+            }
+          },
+	  {
+            "vendor_id": "test04",
+            "percentage": 40,
+            "tags": {
+                "product": "Gym T-shirt",
+                "size": "M",
+                "AWB": "NIKE45673"
+            }
+          }
+    ],
+    "disable_split": true
+}'
+Sample Response
+//Case1: Split created successfully
+{
+	"message": "Order split created",
+	"status": "OK"
+}
+​
+Split settlements scenarios
+Scenario 1: Split After Payment Success
+The flow diagram below shows how a split happens if the payment is successful. It is a two step process.
+
+First Step: Customer completes the payment
+Step 1: The customer visits the merchant website or the application and adds goods from different vendors to the shopping cart. The customer proceeds to complete the payment.
+Step 1.1: The merchant receives the payment request from the customer and creates an order. The order details contain information such as order ID, order amount, and customer name. The merchant creates an order in the Cashfree Payment system.
+Step 1.2: Cashfree Payment Gateway receives the order details and creates a payment link for that order. This payment link is sent to the merchant.
+Step 1.3: The merchant receives the payment link and sends it to the customer to complete the payment.
+Step 1.4: The customer clicks the link and completes the payment. The amount is received by Cashfree Payment Gateway.
+Step 1.5: The merchant sends the payment details, and it is captured at Cashfree Payment Gateway end.
+Step 1.6: The payment details are stored in the Cashfree system and the payment status is sent to the merchant through payment webhooks.
+Step 1.7: The merchant notifies the payment status to the customer.
+Second Step: Easy Split processes the split
+Step 2: Once the payment is successful, the payment success webhook is triggered. The merchant shares the split details that contain the split information via the Split API to Cashfree Payment Gateway.
+Step 2.1: The split is created in the Cashfree system, and Easy Split processes the split based on the split information received from the merchant. The split information has details such as vendor ID, split type, and the amount or percentage to be split with the merchant and vendors.
+Step 2.2: Easy Split processes the vendor split amount first. The amount is settled to the vendor bank account based on the vendor schedule option. The vendor settlement webhook is initiated.
+Step 2.3: Easy Split processes the merchant split amount and settles the amount to the merchant bank account based on the schedule option. The merchant settlement webhook is initiated.
+Scenario 2: Split During Order Creation
+The flow diagram below shows how a split happens when an order is created irrespective of the payment status. It is a two-step process.
+
+First Step: Customer completes the payment
+Step 1: Customer visits the merchant website or the application and adds goods from different vendors to the shopping cart. The customer proceeds to complete the payment.
+Step 1.1: The merchant receives the payment request from the customer and creates an order. The order details contain split details such as order ID, order amount, and customer name. The merchant creates an order in the Cashfree Payment system.
+Step 1.2: Cashfree Payment Gateway receives the order details and creates a payment link for that order. This payment link is sent bck to the merchant.
+Step 1.3: The merchant receives the payment link and sends it to the customer to complete the payment.
+Step 1.4: The customer clicks the link and completes the payment. The amount is received by Cashfree Payment Gateway.
+Step 1.5: The payment details are stored in the Cashfree system, and the payment status is sent to the merchant through payment webhooks. Easy Split initiates the split irrespective of the payment status.
+Step 1.6: Cashfree Payments captures the payment details, and the payment status is shared to the merchant through payment webhooks.
+Step 1.7: The merchant sends the payment status to the customer.
+Second Step: Easy Split processes the split irrespective of the payment status
+Step 2: Once the payment is initiated, internal split calls take place. The amount is split based on the split information the merchant provides.
+Step 2.1: Easy Split processes the vendor split amount first and settles the amount to the vendor bank account based on the vendor schedule option. The vendor settlement webhook is initiated.
+Step 2.2: Easy Split processes the merchant split amount and settles the amount to the merchant bank account based on the merchant schedule option. The merchant settlement webhook is initiated.
+​
+Defer settlement time
+You can add delay at:
+Order Level
+Vendor Level
+​
+View split settlement details
+Settlements will be processed to vendors based on the schedule option defined for each vendor during vendor creation. The applicable service charges for the order - PG serviceCharge, PG serviceTax, splitServiceCharge, and splitServiceTax will be shown in the response.
+Use the Settlement Details API to view the settlements received.
+Sample Response
+{
+	"cursor": null,
+	"data": [
+		{
+			"amount": 900000,
+			"settlement_eligibility_time": "2024-01-08 11:30:00",
+			"merchant_order_id": "order_1527072afd7Hlp4lpVLiz7dj0P0i84r1X",
+			"tx_time": "2024-01-08 17:00:00",
+			"settled": "NO",
+			"entity_id": "14910180251",
+			"merchant_settlement_utr": "N/A",
+			"currency": "INR",
+			"sale_type": "CREDIT",
+			"customer_name": "Manideep",
+			"customer_email": "[manideep.ellur@cashfree.com]()",
+			"customer_phone": "8281554863",
+			"merchant_vendor_commission": "810000.00",
+			"split_service_charge": "900.00",
+			"split_service_tax": "162.00",
+			"pg_service_tax": "4698.90",
+			"pg_service_charge": "26105.00",
+			"pg_charge_postpaid": "1",
+			"merchant_settlement_id": "N/A",
+			"added_on": "2024-01-08 17:00:00",
+			"tags": "tags",
+			"entity_type": "transaction",
+			"settlement_initiated_on": "N/A",
+			"settlement_time": "N/A",
+			"order_splits": [
+				{
+					"split": [
+						{
+							"merchant_vendor_id": "vendor20Lakh",
+							"percentage": 90,
+							"tags": null
+						}
+					],
+					"created_at": "2024-01-08 17:00:01"
+				}
+			],
+			"eligible_split_balance": "0.00"
+		},
+		{
+			"amount": 810000,
+			"merchant_order_id": "order_1527072afd7Hlp4lpVLiz7dj0P0i84r1X",
+			"tx_time": "2024-01-08 17:00:00",
+			"settled": "YES",
+			"entity_id": "305293",
+			"merchant_vendor_id": "vendor20Lakh",
+			"currency": "INR",
+			"sale_type": "CREDIT",
+			"customer_name": "Manideep",
+			"customer_email": "[manideep.ellur@cashfree.com]()",
+			"customer_phone": "8281554863",
+			"added_on": "2024-01-08 17:00:01",
+			"entity_type": "vendor_commission",
+			"past_settlements": [
+				{
+					"settlement_id": 54878,
+					"settlement_initiated_on": "2024-01-08 17:14:38",
+					"status": "SUCCESS"
+				}
+			],
+			"vendor_split_service_charges": "0.00",
+			"vendor_split_service_tax": "0.00",
+			"vendor_settlement_time": "2024-01-08 17:14:39",
+			"vendor_settlement_initiated_on": "2024-01-08 17:14:38",
+			"vendor_settlement_eligibility_time": "2024-01-08 16:50:00",
+			"vendor_settlement_id": "54878",
+			"vendor_settlement_utr": "1704714278653975",
+			"vendor_commission": "810000.00",
+			"vendor_pg_service_charge": "0.00",
+			"vendor_pg_service_tax": "0.00"
+		}
+	],
+	"limit": 2
+}
+​
+Manage refunds
+To initiate partial or full refunds to your customers you can use our Create Refund API.
+Sample Request
+curl --request POST
+     --url https://sandbox.cashfree.com/pg/orders/order_id/refunds
+     --header 'accept: application/json'
+     --header 'content-type: application/json'
+     --header 'x-api-version: 2022-09-01'
+     --data '
+{
+  "refund_amount": 1,
+  "refund_id": "refund_00912",
+  "refund_note": "refund note for reference",
+  "refund_speed": "STANDARD"
+}
+'
+Sample Response
+[
+	{
+		"cf_payment_id": 918812,
+		"cf_refund_id": "refund_1553338",
+		"refund_id": "REF-123",
+		"order_id": "c6G-QMcbm1848",
+		"entity": "refund",
+		"refund_amount": 100.81,
+		"refund_currency": "INR",
+		"refund_note": "Refund for order #123",
+		"refund_status": "SUCCESS",
+		"refund_type": "MERCHANT_INITIATED",
+		"refund_splits": [],
+		"status_description": "In Progress",
+		"refund_arn": "RF12312",
+		"metadata": null,
+		"created_at": "2021-07-25T08:57:52+05:30",
+		"processed_at": "2021-07-25T12:57:52+05:30",
+		"refund_charge": 0,
+		"refund_mode": "STANDARD"
+	}
+]
+​
+Transfer balance
+To manage any adjustments with your vendors you can use our Vendor Adjustment API.
+Sample Request
+  curl --location 'https://sandbox.cashfree.com/pg/easy-split/vendors/{vendor_id}/transfer'
+--header 'x-client-id: {{clientId}}'
+--header 'x-client-secret: {{clientSecret}}'
+--header 'x-api-version: 2022-09-01'
+--header 'Content-Type: application/json'
+--data '{
+    "transfer_from": "VENDOR",
+    "transfer_type": "ADJUSTMENT",
+    "transfer_amount": 10,
+    "remark": "Testing",
+    "tags": {
+        "product": "Dri-Fit trouser",
+        "size": "L",
+        "AWB": "NIKE12334"
+    }
+}'
+Sample Response
+{
+	"transfer_details": {
+		"vendor_id": "test03",
+		"transfer_from": "VENDOR",
+		"transfer_type": "ADJUSTMENT",
+		"transfer_amount": 10,
+		"remark": "Testing",
+		"tags": {
+			"product": "Dri-Fit trouser",
+			"size": "L",
+			"AWB": "NIKE12334"
+		}
+	},
+	"balances": {
+		"merchant_id": 152707,
+		"vendor_id": "test03",
+		"merchant_available_amount": 1942,
+		"vendor_available_amount": 0,
+		"merchant_unsettled": 2442,
+		"vendor_unsettled": 4757.42
+	},
+	"charges": {
+		"service_charges": 2,
+		"service_tax": 0.36,
+		"amount": 10,
+		"billed_to": "MERCHANT",
+		"is_postpaid": true
+	}
+}

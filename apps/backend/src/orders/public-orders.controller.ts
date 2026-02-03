@@ -28,16 +28,14 @@ export class PublicOrdersController {
     description: 'Access token for the combined receipt',
   })
   @ApiOkResponse({ description: 'Accumulated receipt for multiple orders' })
-  async getCombinedReceiptPublic(
-    @Query('token') token: string
-  ): Promise<any> {
+  async getCombinedReceiptPublic(@Query('token') token: string): Promise<any> {
     if (!token) {
       throw new UnauthorizedException('Access token is required');
     }
 
     try {
       // Verify the JWT token
-      const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as any;
+      const payload = jwt.verify(token, process.env.JWT_SECRET!) as any;
 
       // Check if token is for combined receipt
       if (payload.type !== 'combined-receipt' || !payload.orderIds) {
@@ -57,7 +55,10 @@ export class PublicOrdersController {
       }
 
       // Create accumulated receipt with combined calculations
-      const accumulatedReceipt = this.createAccumulatedReceipt(validOrders, payload.tableNumber);
+      const accumulatedReceipt = this.createAccumulatedReceipt(
+        validOrders,
+        payload.tableNumber
+      );
       return accumulatedReceipt;
     } catch (error) {
       if (
@@ -75,13 +76,14 @@ export class PublicOrdersController {
     const allItems = [];
     const orderNumbers = [];
 
-    orders.forEach(order => {
+    orders.forEach((order) => {
       orderNumbers.push(order.orderNumber);
-      order.items.forEach(item => {
+      order.items.forEach((item) => {
         // Check if item already exists in accumulated list
-        const existingItem = allItems.find(accItem =>
-          accItem.name === item.name &&
-          accItem.pricing?.unitAmount === item.pricing?.unitAmount
+        const existingItem = allItems.find(
+          (accItem) =>
+            accItem.name === item.name &&
+            accItem.pricing?.unitAmount === item.pricing?.unitAmount
         );
 
         if (existingItem) {
@@ -99,7 +101,7 @@ export class PublicOrdersController {
 
     // Recalculate totals based on combined items (proper GST calculation)
     const subtotal = allItems.reduce((sum, item) => {
-      return sum + (item.pricing.unitAmount * item.quantity);
+      return sum + item.pricing.unitAmount * item.quantity;
     }, 0);
 
     // Calculate GST on combined subtotal (correct tax treatment)
@@ -116,7 +118,7 @@ export class PublicOrdersController {
 
     // Create accumulated receipt structure
     return {
-      id: `combined-${orders.map(o => o.id).join('-')}`,
+      id: `combined-${orders.map((o) => o.id).join('-')}`,
       type: 'combined-receipt',
       orderNumbers: orderNumbers,
       tableNumber: tableNumber,
@@ -153,15 +155,20 @@ export class PublicOrdersController {
 
     try {
       // Verify the JWT token
-      const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as any;
+      const payload = jwt.verify(token, process.env.JWT_SECRET!) as any;
 
       // Check if token is for this specific receipt
-      if (payload.type !== 'receipt' || payload.receiptNumber !== receiptNumber) {
+      if (
+        payload.type !== 'receipt' ||
+        payload.receiptNumber !== receiptNumber
+      ) {
         throw new UnauthorizedException('Invalid token for this receipt');
       }
 
       // Get the receipt
-      const receipt = await this.receiptDocumentService.findByReceiptNumber(receiptNumber);
+      const receipt = await this.receiptDocumentService.findByReceiptNumber(
+        receiptNumber
+      );
       if (!receipt) {
         throw new NotFoundException(`Receipt ${receiptNumber} not found`);
       }
@@ -169,13 +176,15 @@ export class PublicOrdersController {
       return {
         receiptNumber: receipt.receiptNumber,
         restaurantId: receipt.restaurantId,
-        restaurant: receipt.restaurantId ? {
-          name: receipt.restaurantId.name || 'Restaurant',
-          address: receipt.restaurantId.address,
-          phone: receipt.restaurantId.phone,
-          email: receipt.restaurantId.email,
-          gstin: receipt.restaurantId.gstin,
-        } : null,
+        restaurant: receipt.restaurantId
+          ? {
+              name: receipt.restaurantId.name || 'Restaurant',
+              address: receipt.restaurantId.address,
+              phone: receipt.restaurantId.phone,
+              email: receipt.restaurantId.email,
+              gstin: receipt.restaurantId.gstin,
+            }
+          : null,
         orderIds: receipt.orderIds,
         tableNumber: receipt.tableNumber,
         customerName: receipt.customerName,
@@ -228,7 +237,7 @@ export class PublicOrdersController {
 
     try {
       // Verify the JWT token
-      const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as any;
+      const payload = jwt.verify(token, process.env.JWT_SECRET!) as any;
 
       // Check if token is for this specific order
       if (payload.type !== 'receipt' || payload.orderId !== orderId) {
@@ -272,7 +281,7 @@ export class PublicOrdersController {
         type: 'receipt',
         iat: Math.floor(Date.now() / 1000),
       },
-      process.env.JWT_ACCESS_SECRET!,
+      process.env.JWT_SECRET!,
       { expiresIn: '30d' } // Token valid for 30 days
     );
 
@@ -311,7 +320,9 @@ export class PublicOrdersController {
     @Param('receiptNumber') receiptNumber: string
   ): Promise<any> {
     // Verify receipt exists
-    const receipt = await this.receiptDocumentService.findByReceiptNumber(receiptNumber);
+    const receipt = await this.receiptDocumentService.findByReceiptNumber(
+      receiptNumber
+    );
     if (!receipt) {
       throw new NotFoundException(`Receipt ${receiptNumber} not found`);
     }
@@ -323,7 +334,7 @@ export class PublicOrdersController {
         type: 'receipt',
         iat: Math.floor(Date.now() / 1000),
       },
-      process.env.JWT_ACCESS_SECRET!,
+      process.env.JWT_SECRET!,
       { expiresIn: '30d' } // Token valid for 30 days
     );
 

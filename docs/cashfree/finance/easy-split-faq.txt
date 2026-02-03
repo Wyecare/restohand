@@ -1,0 +1,37 @@
+What is Cashfree 10th Anniversary Offer?
+As part of Cashfree’s 10th Anniversary celebrations, we are offering a special limited-period discount on payment gateway pricing for new merchants. Instead of the standard 1.95% charges, new merchants who sign up between 18th September 2025 and 31st March 2026 will enjoy a reduced rate of 1.6%* on domestic transactions, including credit/debit cards, UPI, and net banking.
+
+This offer is applicable only to new merchants who complete their onboarding within the specified dates. The 1.6%* pricing will be valid for the merchants for 12 months from their signup date.
+
+Please note that this discount does not apply to international transactions, where standard rates remain unchanged. Complete terms and conditions can be found here.
+
+To avail the offer, simply register as a new merchant with Cashfree and complete onboarding between the offer dates; the reduced rates will be applied automatically. For any questions or support with onboarding, you can contact our team via the Cashfree dashboard.
+
+
+What exactly is Easy Split?
+Easy Split by Cashfree Payments is a split payment gateway for marketplaces that helps marketplaces accept payments from customers, deducts commissions and automatically settles payments to the vendors. Easy Split also takes care of customer refund processing and subsequent adjustment in vendor settlements.
+
+How is vendor settlement managed when there are multiple vendors linked to one transaction?
+At the time of adding a transaction, you can assign the appropriate numeric commission amount against each vendor that you add with Cashfree.
+
+Do I have to use Cashfree payment gateway to use Easy Split?
+Yes, when you create an Easy Split account, Cashfree Payment Gateway will be automatically activated for your account. All payments collected via the payment gateway are automatically split using the integrated payment flow including refund processing.
+
+How can I define vendor commission structure to split payments?
+You can specify an absolute value for the vendor's share in the overall transaction value. The remaining amount (Order Amount - Total Vendor’s share) is considered as your share.
+
+How can I process refunds and manage adjustments with vendors?
+You can provide a split while initiating refunds from API or Dashboard. As per your inputs, the corresponding vendor’s balance is debited. This will help take care of any receivables from your vendor.
+
+
+How can I process refunds and manage adjustments with vendors?
+You can provide a split while initiating refunds from API or Dashboard. As per your inputs, the corresponding vendor’s balance is debited. This will help take care of any receivables from your vendor.
+
+Can I change the vendor assigned to a transaction?
+If the transaction has been marked successful, you will not be able to change the vendor associated with the specific transaction.
+
+Can I have different settlement schedules for different vendors?
+Yes, this is possible by modifying vendor’s settlement preferences. By default, pending vendor balances get settled automatically as per the settlement schedule defined by you.
+
+How much time does it take to add a vendor?
+Using Easy Split, you can add any number of vendors instantly. Once a vendor is added, Easy Split automatically makes adjustments and settle amounts as per the defined commission structure and settlement cycle.

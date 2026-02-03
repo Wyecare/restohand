@@ -1,0 +1,96 @@
+Create a Subscription
+
+Open in ChatGPT
+
+Learn how to create and accept customer payment on a subscription.
+
+A subscription entity signifies the customer’s commitment to make regular payments, showing they actively use the service and pay on a recurring basis. To register a subscription, first obtain the customer’s authorisation. When you create a subscription, the response includes an authorisation link. Redirect the customer to this link to complete the authorisation process. Once the customer authorises, the subscription becomes active.
+Dashboard
+API
+To create a new subscription from the dashboard, Go to Subscriptions Dashboard > All Subscriptions > Create Subscription. Follow the steps as shown in the below image.
+
+You can also create multiple subscriptions at once using the dashboard. Go to Subscriptions Dashboard > Batch Subscriptions > Upload File to upload a file that contains all the information required for multiple subscriptions.
+​
+Authorisation lifecycle
+Before a subscription becomes ACTIVE, the customer must authorise it. Authorisation indicates that the customer has completed the initial payment (if applicable) and successfully subscribed. If the customer doesn’t complete payment within a certain timeframe, the subscription link will expire. Below is a visual diagram illustrating the different states during the authorisation process.
+
+
+
+
+
+
+
+Customer completes authorisation
+
+Cancelled by merchant
+
+Checkout link expires
+
+Bank approval successful
+
+Subscription expires
+
+Cancelled by merchant
+
+Authorisation unsuccessful
+
+initialised
+
+Initialised
+
+BANK_APPROVAL_PENDING
+
+CANCELLED
+
+LINK_EXPIRED
+
+ACTIVE
+
+COMPLETED
+
+​
+Authorisation lifecycle
+The table below explains the various states an authorisation can go through once it’s created:
+Authorisation State	Description
+INITIALISED	The system creates the authorisation request.
+PENDING	The customer needs to act on the authorisation request, and the bank must confirm it.
+SUCCESS	The customer successfully completes and approves the authorisation.
+FAILED	The authorisation request fails due to customer decline, timeout, or other errors.
+​
+Subscription lifecycle
+The table below describes the various states a subscription enters after creation:
+Subscription State	Description
+INITIALISED	The system creates the subscription but waits for customer authorisation.
+BANK APPROVAL PENDING	The customer authorises the subscription, but the bank confirmation is still pending. For NACH, it may take 24 to 48 hours for the bank to confirm the mandate.
+ACTIVE	The bank fully authorises the subscription, making it ready for payment collection.
+ON HOLD	The subscription goes on hold due to a failed recurring payment and resumes once reactivated. This applies to periodic mandates on NACH and Cards standing instructions payment methods.
+PAUSED	The merchant pauses the subscription, applicable only for active periodic subscriptions.
+COMPLETED	The subscription completes its cycle.
+CUSTOMER CANCELLED	The customer cancels the subscription at the bank. Canceled subscriptions can’t resume.
+CUSTOMER_PAUSED	The customer pauses the subscription from their UPI app; only the customer can resume it.
+EXPIRED	The subscription reaches its expiry date and stops processing payments.
+LINK EXPIRED	The authorisation link expires without successful completion by the customer; no further action is possible. This applies to non-seamless subscriptions created after May 4, 2023.
+CARD EXPIRED.	This status occurs when the active subscription’s authorised card has expired. No further charges will be processed. To continue the subscription, create a new one and authorise it using a valid card.
+CANCELLED	The merchant cancels the subscription.
+When a customer cancels a UPI Autopay subscription through a third-party application provider (TPAP), such as Google Pay or PhonePe, the status updates to Customer Cancelled within 30–45 minutes.
+​
+First Charge Date (FCD) for a subscription
+Merchants pass the subscription_first_charge_time (FCD) when they create a subscription. However, the earliest possible debit date depends on the payment mode and the time when the customer completes the authorisation.
+Cashfree does not modify the FCD provided by the merchant. Instead, we set the next_schedule_date to the nearest possible debit date based on the rules below. In such cases, the subscription is charged on the next_schedule_date instead of the merchant-provided FCD.
+Nearest possible first charge date
+Payment mode	Authorisation time	Nearest possible debit date
+UPI Autopay	Before 9:00 PM	T + 1
+UPI Autopay	After 9:00 PM	T + 2
+Cards	Before 9:00 PM	T + 1
+Cards	After 9:00 PM	T + 2
+eNACH	Anytime	T + 4
+T = Date on which the customer completes authorisation
+Example
+A merchant passes T + 1 as the FCD during subscription creation.
+The customer authorises using eNACH, and the earliest possible debit date for eNACH is T + 4.
+FCD (merchant input): remains T + 1
+next_schedule_date: automatically set to T + 4
+First debit: occurs on T + 4
+Was this page helpful?
+
+

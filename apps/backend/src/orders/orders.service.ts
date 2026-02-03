@@ -572,6 +572,7 @@ export class OrdersService {
       updateDoc.paymentStatus = dto.paymentStatus;
       if (dto.paymentStatus === PaymentStatus.Paid) {
         updateDoc.paidAt = new Date();
+        updateDoc.status = 'paid'; // Update order status to 'paid' when payment is completed
       }
     }
 
@@ -752,70 +753,6 @@ export class OrdersService {
           // Don't throw error - payment succeeded, receipt creation failure shouldn't block
         }
 
-        // CUSTOMER SESSION AUTO-CLOSE LOGIC
-        if (updated.tableId) {
-          try {
-            console.log('=== AUTO-CLOSE SESSION CHECK ===');
-            console.log(
-              'Checking if all table orders are paid for tableId:',
-              updated.tableId.toString()
-            );
-
-            // Check if all orders for this table are now paid
-            const tableOrders = await this.orderModel
-              .find({
-                restaurantId: updated.restaurantId,
-                tableId: updated.tableId,
-                status: { $ne: OrderStatus.Cancelled }, // Exclude cancelled orders
-              })
-              .lean();
-
-            console.log('Found table orders:', tableOrders.length);
-
-            const unpaidOrders = tableOrders.filter(
-              (order) => order.paymentStatus !== PaymentStatus.Paid
-            );
-
-            console.log('Unpaid orders remaining:', unpaidOrders.length);
-
-            if (unpaidOrders.length === 0 && tableOrders.length > 0) {
-              // All orders are paid - auto-close session for customer
-              console.log(
-                '🎯 All orders paid! Auto-closing customer session for table:',
-                updated.tableId.toString()
-              );
-
-              // We'll handle this by updating a session status field or creating a session closed record
-              // For now, we'll add a field to track session closure in the order
-              await this.orderModel.updateMany(
-                {
-                  restaurantId: updated.restaurantId,
-                  tableId: updated.tableId,
-                },
-                {
-                  $set: { sessionClosed: true, sessionClosedAt: new Date() },
-                }
-              );
-
-              this.logger.log(
-                `Customer session auto-closed for table ${updated.tableId} - all orders paid`
-              );
-              console.log('✅ Session auto-closed successfully');
-            } else {
-              console.log('Session remains active - unpaid orders still exist');
-            }
-
-            console.log('=== END SESSION CHECK ===');
-          } catch (error) {
-            console.log('=== SESSION AUTO-CLOSE ERROR ===');
-            console.log('Error:', error);
-            this.logger.error(
-              `Failed to auto-close session for table ${updated.tableId}:`,
-              error
-            );
-            // Don't throw - this is a nice-to-have feature
-          }
-        }
       }
 
       if (
@@ -848,6 +785,71 @@ export class OrdersService {
       taxInvoiceNumber: response.taxInvoiceNumber,
       updatedBy: updatedBy || null,
     });
+
+    // CUSTOMER SESSION AUTO-CLOSE LOGIC - Run for all paid orders regardless of skipNotification
+    if (updated.tableId && dto.paymentStatus === PaymentStatus.Paid) {
+      try {
+        console.log('=== AUTO-CLOSE SESSION CHECK ===');
+        console.log(
+          'Checking if all table orders are paid for tableId:',
+          updated.tableId.toString()
+        );
+
+        // Check if all orders for this table are now paid
+        const tableOrders = await this.orderModel
+          .find({
+            restaurantId: updated.restaurantId,
+            tableId: updated.tableId,
+            status: { $ne: OrderStatus.Cancelled }, // Exclude cancelled orders
+          })
+          .lean();
+
+        console.log('Found table orders:', tableOrders.length);
+
+        const unpaidOrders = tableOrders.filter(
+          (order) => order.paymentStatus !== PaymentStatus.Paid
+        );
+
+        console.log('Unpaid orders remaining:', unpaidOrders.length);
+
+        if (unpaidOrders.length === 0 && tableOrders.length > 0) {
+          // All orders are paid - auto-close session for customer
+          console.log(
+            '🎯 All orders paid! Auto-closing customer session for table:',
+            updated.tableId.toString()
+          );
+
+          // We'll handle this by updating a session status field or creating a session closed record
+          // For now, we'll add a field to track session closure in the order
+          await this.orderModel.updateMany(
+            {
+              restaurantId: updated.restaurantId,
+              tableId: updated.tableId,
+            },
+            {
+              $set: { sessionClosed: true, sessionClosedAt: new Date() },
+            }
+          );
+
+          this.logger.log(
+            `Customer session auto-closed for table ${updated.tableId} - all orders paid`
+          );
+          console.log('✅ Session auto-closed successfully');
+        } else {
+          console.log('Session remains active - unpaid orders still exist');
+        }
+
+        console.log('=== END SESSION CHECK ===');
+      } catch (error) {
+        console.log('=== SESSION AUTO-CLOSE ERROR ===');
+        console.log('Error:', error);
+        this.logger.error(
+          `Failed to auto-close session for table ${updated.tableId}:`,
+          error
+        );
+        // Don't throw - this is a nice-to-have feature
+      }
+    }
 
     // DIRECT TABLE STATUS UPDATE: Update table status when payment is completed
     if (
@@ -1181,6 +1183,236 @@ export class OrdersService {
       this.logger.log(
         `Order ${orderDoc._id} already marked as PAID, skipping update`
       );
+    }
+  }
+
+  async handleCashfreeWebhook(event: any): Promise<void> {
+    const eventType = event?.type;
+    if (!eventType) {
+      this.logger.warn('Cashfree webhook received without event type');
+      return;
+    }
+
+    this.logger.log(`Processing Cashfree webhook: ${eventType}`);
+
+    // Handle different Cashfree webhook events
+    switch (eventType) {
+      case 'PAYMENT_SUCCESS_WEBHOOK':
+      case 'PAYMENT_CHARGES_WEBHOOK':
+        await this.handleCashfreePaymentSuccess(event);
+        break;
+
+      case 'PAYMENT_FAILED_WEBHOOK':
+        await this.handleCashfreePaymentFailed(event);
+        break;
+
+      case 'PAYMENT_USER_DROPPED_WEBHOOK':
+        await this.handleCashfreePaymentDropped(event);
+        break;
+
+      default:
+        this.logger.warn(`Unknown Cashfree webhook event type: ${eventType}`);
+    }
+  }
+
+  async handleCashfreeSettlementWebhook(event: any): Promise<void> {
+    const eventType = event?.type;
+    if (!eventType) {
+      this.logger.warn('Cashfree settlement webhook received without event type');
+      return;
+    }
+
+    this.logger.log(`Processing Cashfree settlement webhook: ${eventType}`);
+
+    // Handle settlement events (for future use)
+    switch (eventType) {
+      case 'SETTLEMENT_SUCCESS_WEBHOOK':
+        this.logger.log('Settlement success event received');
+        break;
+      case 'SETTLEMENT_FAILED_WEBHOOK':
+        this.logger.log('Settlement failed event received');
+        break;
+      default:
+        this.logger.warn(`Unknown Cashfree settlement webhook event type: ${eventType}`);
+    }
+  }
+
+  private async handleCashfreePaymentSuccess(event: any): Promise<void> {
+    const orderData = event.data?.order;
+    const paymentData = event.data?.payment;
+
+    if (!orderData || !paymentData) {
+      this.logger.warn('Missing order or payment data in Cashfree payment success webhook');
+      return;
+    }
+
+    const cashfreeOrderId = orderData.order_id;
+    this.logger.log(`Processing Cashfree payment success for order: ${cashfreeOrderId}`);
+
+    // Check if this is a session payment
+    const isSessionPayment = cashfreeOrderId.includes('session_');
+
+    if (isSessionPayment) {
+      await this.handleCashfreeSessionPayment(orderData, paymentData);
+      await this.sendCashfreeCustomerPaymentNotifications(orderData, paymentData);
+    } else {
+      // Regular order payment - extract orderId from cashfreeOrderId
+      const orderId = cashfreeOrderId.replace('restohand_', '');
+      await this.handleOrderFullyPaid(orderId, {
+        order_id: cashfreeOrderId,
+        payment: paymentData
+      });
+    }
+  }
+
+  private async handleCashfreePaymentFailed(event: any): Promise<void> {
+    const orderData = event.data?.order;
+    const paymentData = event.data?.payment;
+
+    if (!orderData) {
+      this.logger.warn('Missing order data in Cashfree payment failed webhook');
+      return;
+    }
+
+    this.logger.log(`Cashfree payment failed for order: ${orderData.order_id}`);
+    // Handle payment failure - update order status, send notifications, etc.
+    // TODO: Implement based on business requirements
+  }
+
+  private async handleCashfreePaymentDropped(event: any): Promise<void> {
+    const orderData = event.data?.order;
+
+    if (!orderData) {
+      this.logger.warn('Missing order data in Cashfree payment dropped webhook');
+      return;
+    }
+
+    this.logger.log(`Cashfree payment dropped for order: ${orderData.order_id}`);
+    // Handle payment drop - update order status, clean up, etc.
+    // TODO: Implement based on business requirements
+  }
+
+  private async handleCashfreeSessionPayment(orderData: any, paymentData: any): Promise<void> {
+    try {
+      const cashfreeOrderId = orderData.order_id;
+      // Extract the session order ID (remove 'restohand_' prefix)
+      const sessionOrderId = cashfreeOrderId.replace('restohand_', '');
+
+      this.logger.log(`Looking for orders with Cashfree sessionOrderId: ${sessionOrderId}`);
+
+      // Find all orders in this session
+      const orders = await this.orderModel.find({
+        'paymentMeta.cashfree.sessionOrderId': sessionOrderId
+      });
+
+      if (orders.length === 0) {
+        this.logger.error(`No orders found for Cashfree session payment: ${cashfreeOrderId}`);
+        return;
+      }
+
+      this.logger.log(`Found ${orders.length} orders for Cashfree session: ${sessionOrderId}`);
+
+      for (const order of orders) {
+        // Extract payment method string from Cashfree's complex object
+        let paymentMethodString = 'upi'; // default
+        if (paymentData.payment_method) {
+          if (typeof paymentData.payment_method === 'string') {
+            paymentMethodString = paymentData.payment_method;
+          } else if (paymentData.payment_method.upi) {
+            paymentMethodString = 'upi';
+          } else if (paymentData.payment_method.card) {
+            paymentMethodString = 'card';
+          } else if (paymentData.payment_method.netbanking) {
+            paymentMethodString = 'netbanking';
+          } else if (paymentData.payment_method.wallet) {
+            paymentMethodString = 'wallet';
+          }
+        }
+
+        // Mark each order as paid
+        await this.updatePayment(
+          order.restaurantId.toString(),
+          order._id.toString(),
+          {
+            paymentStatus: PaymentStatus.Paid,
+            transactionId: paymentData.cf_payment_id?.toString(),
+            provider: 'cashfree',
+            paymentMethod: paymentMethodString,
+          },
+          null, // no updatedBy for customer payments
+          true  // skip notification to prevent duplicates
+        );
+      }
+
+      this.logger.log(`Cashfree session payment processed: ${orders.length} orders marked as paid`);
+    } catch (error) {
+      this.logger.error('Failed to handle Cashfree session payment:', error);
+    }
+  }
+
+  private async sendCashfreeCustomerPaymentNotifications(orderData: any, paymentData: any): Promise<void> {
+    try {
+      const cashfreeOrderId = orderData.order_id;
+      const sessionOrderId = cashfreeOrderId.replace('restohand_', '');
+
+      // Find all orders in this session
+      const orders = await this.orderModel.find({
+        'paymentMeta.cashfree.sessionOrderId': sessionOrderId
+      }).lean();
+
+      if (orders.length === 0) {
+        this.logger.warn(`No orders found for Cashfree payment notification: ${cashfreeOrderId}`);
+        return;
+      }
+
+      const firstOrder = orders[0];
+      const amount = paymentData.payment_amount; // Already in rupees for Cashfree
+
+      // Extract payment method string from Cashfree's complex object
+      let paymentMethod = 'upi'; // default
+      if (paymentData.payment_method) {
+        if (typeof paymentData.payment_method === 'string') {
+          paymentMethod = paymentData.payment_method;
+        } else if (paymentData.payment_method.upi) {
+          paymentMethod = 'upi';
+        } else if (paymentData.payment_method.card) {
+          paymentMethod = 'card';
+        } else if (paymentData.payment_method.netbanking) {
+          paymentMethod = 'netbanking';
+        } else if (paymentData.payment_method.wallet) {
+          paymentMethod = 'wallet';
+        }
+      }
+      const restaurantId = firstOrder.restaurantId.toString();
+      const orderIds = orders.map(o => o._id.toString());
+
+      // Get table details
+      let tableNumber = firstOrder.tableNumber;
+      let branchId = firstOrder.branchId?.toString();
+      let tableId = firstOrder.tableId?.toString();
+
+      // Send notification to managers, owners, and assigned waiters
+      await this.paymentNotificationService.sendPaymentConfirmationNotification(
+        restaurantId,
+        firstOrder._id.toString(), // Use first order ID as primary
+        firstOrder.orderNumber,
+        amount,
+        paymentMethod,
+        {
+          tableId,
+          tableNumber,
+          branchId,
+          isCustomerPayment: true,
+          customerName: firstOrder.customerName || 'Guest Customer',
+        }
+      );
+
+      this.logger.log(
+        `Cashfree customer payment notification sent for order ${firstOrder.orderNumber} ` +
+        `(${orders.length} orders, ₹${amount}, Table ${tableNumber})`
+      );
+    } catch (error) {
+      this.logger.error('Failed to send Cashfree customer payment notifications:', error);
     }
   }
 

@@ -9,15 +9,18 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import {
   useGetTableSessionPublicQuery,
-  useCreateSessionPaymentIntentMutation,
   restaurantsApi,
 } from '@/store/api/restaurantsApi';
 import { generateThermalReceiptPDF } from '@/components/ThermalReceiptPDF';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import {
-  useCreatePaymentIntentMutation,
   useVerifyPaymentMutation,
 } from '@/store/api/ordersApi';
+// CHANGE: Import Cashfree instead of Razorpay
+import {
+  useCreateCashfreeSessionPaymentIntentMutation,
+} from '@/store/api/cashfreeApi';
+import { initializeCashfree, openCashfreeCheckout } from '@/utils/cashfree';
 import {
   Plus,
   Receipt,
@@ -68,13 +71,6 @@ const getOrderStatusDisplay = (order: Order) => {
   };
 };
 
-// Razorpay type declaration
-declare global {
-  interface Window {
-    Razorpay?: any;
-  }
-}
-
 export default function CustomerTableSessionPage() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
@@ -82,8 +78,9 @@ export default function CustomerTableSessionPage() {
   const { toast } = useToast();
   const tableId = searchParams.get('tableId') || '';
 
+  // CHANGE: Use Cashfree instead of Razorpay
   const [createSessionPaymentIntent, { isLoading: isCreatingPayment }] =
-    useCreateSessionPaymentIntentMutation();
+    useCreateCashfreeSessionPaymentIntentMutation();
   const [verifyPayment] = useVerifyPaymentMutation();
   const [getConsolidatedBill] = restaurantsApi.useLazyGetConsolidatedBillQuery();
 
@@ -117,6 +114,16 @@ export default function CustomerTableSessionPage() {
     onEvent: handleSocketEvent,
     enabled: !!sessionData?.tableSession?.orders?.length,
   });
+
+  // CHANGE: Initialize Cashfree instead of Razorpay
+  useEffect(() => {
+    initializeCashfree({
+      mode: import.meta.env.VITE_CASHFREE_ENVIRONMENT === 'production' ? 'production' : 'sandbox'
+    }).catch(error => {
+      console.error('Failed to initialize Cashfree:', error);
+    });
+  }, []);
+
 
   // Extract data safely
   const tableSession = sessionData?.tableSession;
@@ -196,7 +203,7 @@ export default function CustomerTableSessionPage() {
     };
   }, [tableSession, orders, allOrdersPaid]);
 
-  // Handle session payment
+  // CHANGE: Handle session payment with Cashfree
   const handleSessionPayment = async () => {
     if (!tableId) {
       toast({
@@ -211,20 +218,45 @@ export default function CustomerTableSessionPage() {
       // Get consolidated bill data BEFORE payment to store for receipt
       const billResult = await getConsolidatedBill({ slug, tableId });
 
+      // CHANGE: Use Cashfree payment intent instead of Razorpay
       const paymentData = await createSessionPaymentIntent({
         slug,
         tableId,
+        sessionData: {
+          customerSessionId: sessionData?.tableSession?.customerSessionId || `session_${Date.now()}`,
+          customerDetails: {
+            customerName: 'Table Customer',
+            customerEmail: 'customer@example.com',
+            customerPhone: '9999999999',
+          }
+        }
       }).unwrap();
 
-      // Load Razorpay script if not already loaded
-      if (!window.Razorpay) {
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.onload = () => initializePayment(paymentData, billResult);
-        document.head.appendChild(script);
-      } else {
-        initializePayment(paymentData, billResult);
+      // Store complete bill data for receipt page BEFORE payment
+      try {
+        const billData = 'data' in billResult ? billResult.data : null;
+        localStorage.setItem(
+          'lastPaymentSession',
+          JSON.stringify({
+            slug,
+            tableId,
+            orderIds: paymentData.orderIds,
+            totalAmount: paymentData.totalAmount,
+            billData, // Store complete bill data for receipt
+            timestamp: new Date().toISOString(),
+            paymentProvider: 'cashfree'
+          })
+        );
+      } catch (error) {
+        console.error('Error storing payment session data:', error);
       }
+
+      // CHANGE: Use Cashfree checkout instead of Razorpay
+      await openCashfreeCheckout({
+        paymentSessionId: paymentData.paymentSessionId,
+        redirectTarget: '_self'
+      });
+
     } catch (error: any) {
       console.error('Payment intent creation failed:', error);
       toast({
@@ -236,106 +268,11 @@ export default function CustomerTableSessionPage() {
     }
   };
 
-  const initializePayment = (paymentData: any, billResult: any) => {
-    const options = {
-      key: paymentData.razorpayKey,
-      amount: paymentData.amount,
-      currency: paymentData.currency,
-      name: restaurant?.name || 'Restaurant',
-      description: `Table Session Payment - ${paymentData.orderCount} orders`,
-      order_id: paymentData.razorpayOrderId,
-      handler: async (response: any) => {
-        try {
-          // Verify payment for all orders in the session
-          for (const orderId of paymentData.orderIds) {
-            try {
-              await verifyPayment({
-                restaurantId: paymentData.restaurant.id,
-                orderId,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }).unwrap();
-            } catch (verifyError: any) {
-              // Handle race condition: webhook already verified payment
-              if (
-                verifyError?.data?.message?.includes('already verified') ||
-                verifyError?.data?.message?.includes('Payment already verified') ||
-                verifyError?.status === 400
-              ) {
-                console.log(`Order ${orderId} already verified by webhook - this is expected`);
-                // Continue processing - this is success, just verified by webhook
-              } else {
-                // Re-throw other errors
-                throw verifyError;
-              }
-            }
-          }
-
-          toast({
-            title: 'Payment Successful! 🎉',
-            description: `Session payment of ${formatCurrency(
-              paymentData.totalAmount
-            )} completed`,
-          });
-
-          // Generate combined receipt and navigate to it
-          try {
-            // Store complete bill data for receipt page
-            const billData = 'data' in billResult ? billResult.data : null;
-            localStorage.setItem(
-              'lastPaymentSession',
-              JSON.stringify({
-                slug,
-                tableId,
-                orderIds: paymentData.orderIds,
-                totalAmount: paymentData.totalAmount,
-                billData, // Store complete bill data for receipt
-                timestamp: new Date().toISOString(),
-              })
-            );
-
-            // Navigate to combined receipt page
-            setTimeout(() => {
-              navigate(`/c/${slug}/table/${tableId}/receipt`);
-            }, 2000);
-          } catch (error) {
-            console.error('Error storing payment session:', error);
-            // Still navigate even if localStorage fails
-            setTimeout(() => {
-              navigate(`/c/${slug}/table/${tableId}/receipt`);
-            }, 2000);
-          }
-        } catch (error: any) {
-          console.error('Payment verification failed:', error);
-          toast({
-            title: 'Payment Verification Failed',
-            description:
-              'Payment may have succeeded but verification failed. Please contact support.',
-            variant: 'destructive',
-          });
-        }
-      },
-      prefill: {
-        name: 'Guest Customer',
-      },
-      theme: {
-        color: '#6366f1',
-      },
-      modal: {
-        ondismiss: () => {
-          console.log('Payment modal closed by user');
-        },
-      },
-    };
-
-    const razorpay = new window.Razorpay(options);
-    razorpay.open();
-  };
-
   useEffect(() => {
-    refetch();
-  }, []);
+    if (slug && tableId) {
+      refetch();
+    }
+  }, [slug, tableId, refetch]);
 
   if (sessionLoading) {
     return (

@@ -1,0 +1,91 @@
+Scenarios
+
+Open in ChatGPT
+
+​
+Scenario 1: Create split during order creation
+The flow diagram below shows how a split happens when an order is created. It is a two-step process.
+
+Split by amount is not supported for vendor-prepaid charges. If the vendor is billed, you can only split the order by percentage.
+First Step: Customer completes the payment
+1
+Step 1: The customer visits the merchant website or the application and adds goods from different vendors to the shopping cart. The customer proceeds to complete the payment.
+
+1
+Step 1.1: The merchant receives the payment request from the customer and creates an order. The order details contain information such as order ID, order amount, split details and customer name. The merchant creates an order along with splits in the Cashfree Payment Gateway system.
+
+2
+Step 1.2: Cashfree Payment Gateway receives the order details and creates a payment link for that order. This payment link is sent to the merchant.
+
+3
+Step 1.3: The merchant receives the payment link and sends it to the customer to complete the payment.
+
+4
+Step 1.4: The customer clicks the link and completes the payment. The amount is received by Cashfree Payment Gateway.
+
+5
+Step 1.5: The payment details are captured at Cashfree Payment Gateway end.
+
+6
+Step 1.6: The payment details are stored in the Cashfree system and the payment status is sent to the merchant through payment webhooks.
+
+7
+Step 1.7: The merchant sends the payment status to the customer.
+
+8
+Step 1.8: The customer receives the payment status.
+
+Second Step: Easy Split processes the split internally
+1
+Step 2: Once the payment is initiated, internal split calls take place. The amount is split based on the split information the merchant provides.
+
+1
+Step 2.1: Easy Split processes the vendor split amount first and settles the amount to the vendor bank account based on the vendor schedule option. The vendor settlement webhook is initiated.
+
+2
+Step 2.2: Easy Split processes the merchant split amount and settles the amount to the merchant bank account based on the merchant schedule option. The merchant settlement webhook is initiated.
+
+​
+Scenario 2: Create split after payment success
+The flow diagram below shows how a split happens if the payment is successful. It is a two-step process.
+
+First Step: Customer completes the payment
+1
+Step 1: The customer visits the merchant website or the application and adds goods from different vendors to the shopping cart. The customer proceeds to complete the payment.
+
+1
+Step 1.1: The merchant receives the payment request from the customer and creates an order. The order details contain information such as order ID, order amount, and customer name. The merchant creates an order in the Cashfree Payment system.
+
+2
+Step 1.2: Cashfree Payment Gateway receives the order details and creates a payment link for that order. This payment link is sent to the merchant.
+
+3
+Step 1.3: The merchant receives the payment link and sends it to the customer to complete the payment.
+
+4
+Step 1.4: The customer clicks the link and completes the payment. The amount is received by Cashfree Payment Gateway.
+
+5
+Step 1.5: The payment details are captured at Cashfree Payment Gateway end.
+
+6
+Step 1.6: The payment details are stored in the Cashfree system and the payment status is sent to the merchant through payment webhooks.
+
+7
+Step 1.7: The merchant sends the payment status to the customer.
+
+8
+Step 1.8: The customer receives the payment status.
+
+Second Step: Easy Split processes the split after payment success
+1
+Step 2: Once the payment is successful, the payment success webhook is triggered. The merchant shares the split details that contain the split information via the Split API to Cashfree Payment Gateway.
+
+1
+Step 2.1: The split is created in the Cashfree system, and Easy Split processes the split based on the split information received from the merchant. The split information has details such as vendor ID, split type, and the amount or percentage to be split with the merchant and vendors.
+
+2
+Step 2.2: Easy Split processes the vendor split amount first. The amount is settled to the vendor bank account based on the vendor schedule option. The vendor settlement webhook is initiated.
+
+3
+Step 2.3: Easy Split processes the merchant split amount and settles the amount to the merchant bank account based on the merchant schedule option. The merchant settlement webhook is initiated.

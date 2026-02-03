@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
@@ -16,12 +16,14 @@ import { KitchenStationController } from './kitchen-station.controller';
 import { KitchenStationService } from './kitchen-station.service';
 import { PaymentsController } from '../payments/payments.controller';
 import { RazorpayService } from '../payments/razorpay.service';
+import { CashfreeModule } from '../payments/cashfree.module';
 
 @Module({
   imports: [
     AuthModule,
     UsersModule,
     GstModule,
+    forwardRef(() => CashfreeModule),
     MongooseModule.forFeature([
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: Branch.name, schema: BranchSchema },

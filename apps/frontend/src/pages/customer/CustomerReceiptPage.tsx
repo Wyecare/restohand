@@ -3,22 +3,135 @@ import { useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { Receipt } from '@/components/customer/Receipt';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Download, Star } from 'lucide-react';
+import { Download, Star, CheckCircle2, AlertTriangle } from 'lucide-react';
 import {
   useGetOrderPublicQuery,
   useGetCombinedReceiptPublicQuery,
   useGetReceiptByNumberPublicQuery,
 } from '@/store/api/ordersApi';
-import { useGetTableSessionPublicQuery, useGetConsolidatedBillQuery } from '@/store/api/restaurantsApi';
+import {
+  useGetTableSessionPublicQuery,
+  useGetConsolidatedBillQuery,
+} from '@/store/api/restaurantsApi';
 import { generateReceiptPDF } from '@/components/customer/ReceiptPDF';
 import { generateThermalReceiptPDF } from '@/components/ThermalReceiptPDF';
 import type { PublicRestaurant } from '@/store/api/types';
 
+/* ─── Styles injected once ─────────────────────────────────────────── */
+const STYLE = `
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+
+  .rh-receipt-root {
+    --clr-bg:        #f0ede8;
+    --clr-paper:     #faf9f7;
+    --clr-border:    #e2ddd6;
+    --clr-text:      #1a1a1a;
+    --clr-muted:     #7a756e;
+    --clr-accent:    #1a1a1a;
+    --clr-success:   #16a34a;
+    --clr-success-bg:#f0fdf4;
+    --clr-success-bd:#bbf7d0;
+    --clr-error:     #dc2626;
+    --clr-error-bg:  #fef2f2;
+    --clr-error-bd:  #fecaca;
+    --clr-star:      #e8a838;
+    --clr-btn-bg:    #1a1a1a;
+    --clr-btn-text:  #fff;
+    --clr-btn-hover: #333;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--clr-bg);
+    min-height: 100vh;
+  }
+
+  /* ── layout ── */
+  .rh-wrap          { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  /* ── header strip ── */
+  .rh-header        { text-align: center; padding: 28px 0 20px; }
+  .rh-header h1     { font-size: 22px; font-weight: 600; color: var(--clr-text); letter-spacing: -0.3px; margin: 0; }
+  .rh-header .rh-addr { font-size: 13px; color: var(--clr-muted); margin-top: 6px; line-height: 1.5; }
+  .rh-header .rh-meta-row { display: flex; justify-content: center; gap: 18px; margin-top: 10px; }
+  .rh-header .rh-meta-row span { font-size: 12px; color: var(--clr-muted); }
+  .rh-header .rh-meta-row strong { color: var(--clr-text); font-weight: 500; }
+
+  /* ── card ── */
+  .rh-card          { background: var(--clr-paper); border: 1px solid var(--clr-border); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+  .rh-card-title    { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; color: var(--clr-muted); margin: 0 0 14px; }
+
+  /* ── dividers ── */
+  .rh-divider       { border: none; border-top: 1px dashed var(--clr-border); margin: 14px 0; }
+  .rh-divider-solid { border: none; border-top: 1px solid var(--clr-border); margin: 10px 0; }
+
+  /* ── order number badge ── */
+  .rh-order-badge   { display: inline-block; background: #f0ede8; border: 1px solid var(--clr-border); border-radius: 5px; padding: 3px 9px; font-size: 12px; font-weight: 500; color: var(--clr-muted); font-family: 'DM Mono', monospace; margin-bottom: 10px; }
+
+  /* ── item row ── */
+  .rh-item-row      { display: flex; align-items: baseline; justify-content: space-between; padding: 5px 0; }
+  .rh-item-row      + .rh-item-row { border-top: 1px solid #f0ede8; }
+  .rh-item-left     { display: flex; align-items: baseline; gap: 8px; }
+  .rh-item-name     { font-size: 14px; color: var(--clr-text); font-weight: 400; }
+  .rh-item-qty      { font-size: 12px; color: var(--clr-muted); font-family: 'DM Mono', monospace; }
+  .rh-item-price    { font-size: 14px; color: var(--clr-text); font-weight: 500; font-family: 'DM Mono', monospace; }
+
+  /* ── summary rows ── */
+  .rh-sum-row       { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: var(--clr-muted); }
+  .rh-sum-row span:last-child { font-family: 'DM Mono', monospace; }
+  .rh-sum-row.rh-total { padding-top: 8px; margin-top: 4px; border-top: 2px solid var(--clr-text); font-size: 16px; font-weight: 600; color: var(--clr-text); }
+  .rh-sum-row.rh-total span:last-child { font-family: 'DM Mono', monospace; font-weight: 600; }
+
+  /* ── order sub-total ── */
+  .rh-order-subtotal { text-align: right; font-size: 12px; color: var(--clr-muted); margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--clr-border); }
+  .rh-order-subtotal strong { color: var(--clr-text); font-weight: 500; }
+
+  /* ── success banner ── */
+  .rh-success-banner { display: flex; align-items: center; gap: 10px; background: var(--clr-success-bg); border: 1px solid var(--clr-success-bd); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+  .rh-success-banner svg { flex-shrink: 0; color: var(--clr-success); }
+  .rh-success-banner .rh-sb-title { font-size: 14px; font-weight: 600; color: var(--clr-success); }
+  .rh-success-banner .rh-sb-sub   { font-size: 12px; color: #15803d; margin-top: 1px; }
+
+  /* ── error screen ── */
+  .rh-error-screen  { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 32px; text-align: center; font-family: 'DM Sans', system-ui, sans-serif; background: var(--clr-bg); }
+  .rh-error-screen svg { color: #ca8a04; margin-bottom: 16px; }
+  .rh-error-screen h1  { font-size: 20px; font-weight: 600; color: var(--clr-text); margin: 0 0 8px; }
+  .rh-error-screen p   { font-size: 14px; color: var(--clr-muted); margin: 0; max-width: 300px; line-height: 1.5; }
+  .rh-error-screen p+p { margin-top: 6px; font-size: 13px; }
+
+  /* ── loading screen ── */
+  .rh-loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 12px; font-family: 'DM Sans', system-ui, sans-serif; background: var(--clr-bg); }
+  .rh-loading-screen p { font-size: 14px; color: var(--clr-muted); margin: 0; }
+
+  /* ── download btn ── */
+  .rh-dl-btn        { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; background: var(--clr-btn-bg); color: var(--clr-btn-text); border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.15s; margin-bottom: 12px; }
+  .rh-dl-btn:hover  { background: var(--clr-btn-hover); }
+
+  /* ── feedback ── */
+  .rh-stars         { display: flex; gap: 4px; margin-top: 8px; }
+  .rh-star-btn      { background: none; border: none; cursor: pointer; padding: 2px; color: #d1ccc5; transition: color 0.15s; }
+  .rh-star-btn.active { color: var(--clr-star); }
+  .rh-star-btn:hover  { color: var(--clr-star); }
+  .rh-feedback-label { font-size: 13px; color: var(--clr-muted); margin: 14px 0 6px; display: block; }
+  .rh-feedback-ta   { width: 100%; border: 1px solid var(--clr-border); border-radius: 6px; padding: 10px 12px; font-size: 13px; color: var(--clr-text); font-family: inherit; resize: vertical; min-height: 72px; background: var(--clr-paper); outline: none; box-sizing: border-box; }
+  .rh-feedback-ta:focus { border-color: #a89f95; }
+  .rh-feedback-ta::placeholder { color: #b5b0a8; }
+  .rh-submit-btn    { display: flex; align-items: center; justify-content: center; width: 100%; padding: 11px; background: var(--clr-btn-bg); color: var(--clr-btn-text); border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; margin-top: 12px; transition: background 0.15s, opacity 0.15s; }
+  .rh-submit-btn:hover:not(:disabled)  { background: var(--clr-btn-hover); }
+  .rh-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── footer ── */
+  .rh-footer        { text-align: center; padding-top: 20px; }
+  .rh-footer p     { font-size: 12px; color: #b5b0a8; margin: 2px 0; }
+`;
+
+/* ─── Component ─────────────────────────────────────────────────────── */
 const CustomerReceiptPage = () => {
-  const { orderId, slug, tableId } = useParams<{ orderId?: string; slug?: string; tableId?: string }>();
+  const { orderId, slug, tableId } = useParams<{
+    orderId?: string;
+    slug?: string;
+    tableId?: string;
+  }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const token = searchParams.get('t') || searchParams.get('token'); // Support both 't' and 'token'
+  const token = searchParams.get('t') || searchParams.get('token');
   const shouldAutoPrint = searchParams.get('print') === 'true';
 
   const [feedback, setFeedback] = useState<{
@@ -31,16 +144,18 @@ const CustomerReceiptPage = () => {
     console.log('Submitting feedback:', feedback);
   };
 
-  // Check if this is a combined receipt route
   const isCombinedReceipt = location.pathname === '/combined-receipt';
 
-  // Check if this is a table bill route
-  const isTableBill = (location.pathname.includes('/table-bill/') || location.pathname.includes('/table/') && location.pathname.includes('/receipt')) && slug && tableId;
+  const isTableBill =
+    (location.pathname.includes('/table-bill/') ||
+      (location.pathname.includes('/table/') &&
+        location.pathname.includes('/receipt'))) &&
+    slug &&
+    tableId;
 
-  // Detect if orderId is actually a receipt number (contains letters)
   const isReceiptNumber = orderId && /[A-Z]/.test(orderId);
 
-  // Get order data using public endpoint with token (single order)
+  /* ── queries ── */
   const {
     data: order,
     isLoading: orderLoading,
@@ -50,7 +165,6 @@ const CustomerReceiptPage = () => {
     { skip: isCombinedReceipt || isReceiptNumber || !orderId || !token }
   );
 
-  // Get receipt data using receipt number
   const {
     data: receipt,
     isLoading: receiptLoading,
@@ -60,7 +174,6 @@ const CustomerReceiptPage = () => {
     { skip: isCombinedReceipt || !isReceiptNumber || !orderId || !token }
   );
 
-  // Get combined receipt data using public endpoint with token (accumulated receipt)
   const {
     data: combinedReceipt,
     isLoading: combinedLoading,
@@ -70,7 +183,6 @@ const CustomerReceiptPage = () => {
     { skip: !isCombinedReceipt || !token }
   );
 
-  // Get table session data for table bill (legacy)
   const {
     data: tableSessionData,
     isLoading: tableSessionLoading,
@@ -80,7 +192,6 @@ const CustomerReceiptPage = () => {
     { skip: !isTableBill }
   );
 
-  // Check localStorage for recent payment bill data first
   const [storedBillData, setStoredBillData] = useState<any>(null);
 
   useEffect(() => {
@@ -89,11 +200,12 @@ const CustomerReceiptPage = () => {
         const stored = localStorage.getItem('lastPaymentSession');
         if (stored) {
           const sessionData = JSON.parse(stored);
-          // Check if this matches current table and is recent (within 1 hour)
-          if (sessionData.slug === slug &&
-              sessionData.tableId === tableId &&
-              sessionData.billData &&
-              Date.now() - new Date(sessionData.timestamp).getTime() < 3600000) {
+          if (
+            sessionData.slug === slug &&
+            sessionData.tableId === tableId &&
+            sessionData.billData &&
+            Date.now() - new Date(sessionData.timestamp).getTime() < 3600000
+          ) {
             setStoredBillData(sessionData.billData);
           }
         }
@@ -103,7 +215,6 @@ const CustomerReceiptPage = () => {
     }
   }, [isTableBill, slug, tableId]);
 
-  // Get consolidated bill data with proper tax calculation (only if no stored data)
   const {
     data: consolidatedBillData,
     isLoading: consolidatedBillLoading,
@@ -114,497 +225,533 @@ const CustomerReceiptPage = () => {
   );
 
   const isLoading = isTableBill
-    ? (tableSessionLoading || consolidatedBillLoading)
+    ? tableSessionLoading || consolidatedBillLoading
     : isCombinedReceipt
     ? combinedLoading
     : isReceiptNumber
-      ? receiptLoading
-      : orderLoading;
+    ? receiptLoading
+    : orderLoading;
 
   const error = isTableBill
-    ? (tableSessionError || consolidatedBillError)
+    ? tableSessionError || consolidatedBillError
     : isCombinedReceipt
     ? combinedError
     : isReceiptNumber
-      ? receiptError
-      : orderError;
+    ? receiptError
+    : orderError;
 
   const orders = isTableBill
-    ? (tableSessionData?.tableSession?.orders || null)
+    ? tableSessionData?.tableSession?.orders || null
     : isCombinedReceipt
-    ? (combinedReceipt ? [combinedReceipt] : null)
+    ? combinedReceipt
+      ? [combinedReceipt]
+      : null
     : isReceiptNumber
-      ? (receipt ? [receipt] : null)
-      : (order ? [order] : null);
+    ? receipt
+      ? [receipt]
+      : null
+    : order
+    ? [order]
+    : null;
 
-  // Auto-download PDF when print=true parameter is present
+  /* ── auto-print ── */
   useEffect(() => {
-    if (shouldAutoPrint && !isLoading && !error && consolidatedBillData && isTableBill) {
+    if (
+      shouldAutoPrint &&
+      !isLoading &&
+      !error &&
+      consolidatedBillData &&
+      isTableBill
+    ) {
       const downloadPdf = async () => {
         try {
-          // Download bill directly from backend
           const billUrl = `/api/public/restaurants/${slug}/table/${tableId}/bill`;
           window.open(billUrl, '_blank');
-
-          // Close the window after a short delay to allow download to start
           setTimeout(() => {
             window.close();
           }, 1000);
-        } catch (error) {
-          console.error('Error downloading PDF:', error);
+        } catch (err) {
+          console.error('Error downloading PDF:', err);
         }
       };
-
       downloadPdf();
     }
-  }, [shouldAutoPrint, isLoading, error, consolidatedBillData, isTableBill, slug, tableId]);
+  }, [
+    shouldAutoPrint,
+    isLoading,
+    error,
+    consolidatedBillData,
+    isTableBill,
+    slug,
+    tableId,
+  ]);
 
+  /* ── loading ── */
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-4">
+      <div className="rh-receipt-root">
+        <style>{STYLE}</style>
+        <div className="rh-loading-screen">
           <LoadingSpinner size="lg" />
-          <p className="text-gray-600">Loading your bill...</p>
+          <p>Loading your receipt…</p>
         </div>
       </div>
     );
   }
 
+  /* ── TABLE BILL view ── */
   if (isTableBill && (consolidatedBillData || storedBillData)) {
-    // Use stored bill data if available, otherwise use API data
     const billData = storedBillData || consolidatedBillData;
     const { restaurant, bill } = billData;
 
-    // Type assertion for restaurant with extended fields
     const extendedRestaurant = restaurant as PublicRestaurant & {
-      address?: { line1: string; city: string; state: string; postalCode: string; country: string };
+      address?: {
+        line1: string;
+        city: string;
+        state: string;
+        postalCode: string;
+        country: string;
+      };
       phone?: string;
       gstin?: string;
     };
 
+    const formattedDate = new Date(bill.billGeneratedAt).toLocaleString(
+      'en-IN',
+      {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }
+    );
+
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          {/* Payment Success Message (when using stored data) */}
+      <div className="rh-receipt-root">
+        <style>{STYLE}</style>
+        <div className="rh-wrap">
+          {/* Success banner */}
           {storedBillData && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-center">
-              <div className="text-green-600 text-lg font-semibold mb-1">✅ Payment Successful!</div>
-              <div className="text-green-700 text-sm">Your payment has been processed successfully.</div>
+            <div className="rh-success-banner">
+              <CheckCircle2 size={20} />
+              <div>
+                <div className="rh-sb-title">Payment Successful</div>
+                <div className="rh-sb-sub">
+                  Your payment has been processed.
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Restaurant Header */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold text-gray-900">{extendedRestaurant.name}</h1>
+          {/* Restaurant header */}
+          <div className="rh-header">
+            <h1>{extendedRestaurant.name}</h1>
+            <div className="rh-addr">
               {extendedRestaurant.address && (
-                <div className="text-gray-600 mt-2">
-                  <p>{extendedRestaurant.address.line1}</p>
-                  <p>{extendedRestaurant.address.city}, {extendedRestaurant.address.state} {extendedRestaurant.address.postalCode}</p>
-                </div>
+                <>
+                  {extendedRestaurant.address.line1}
+                  <br />
+                  {extendedRestaurant.address.city},{' '}
+                  {extendedRestaurant.address.state}{' '}
+                  {extendedRestaurant.address.postalCode}
+                </>
               )}
+            </div>
+            <div className="rh-meta-row">
               {extendedRestaurant.phone && (
-                <p className="text-gray-600">Phone: {extendedRestaurant.phone}</p>
+                <span>
+                  📞 <strong>{extendedRestaurant.phone}</strong>
+                </span>
               )}
               {extendedRestaurant.gstin && (
-                <p className="text-gray-600">GSTIN: {extendedRestaurant.gstin}</p>
-              )}
-            </div>
-
-            <div className="border-t pt-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold">Table: {bill.tableNumber}</span>
-                <span className="text-sm text-gray-600">
-                  {new Date(bill.billGeneratedAt).toLocaleString()}
+                <span>
+                  GSTIN <strong>{extendedRestaurant.gstin}</strong>
                 </span>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Orders Section */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Order Details</h2>
+          {/* Table + date */}
+          <div
+            className="rh-card"
+            style={{
+              padding: '12px 18px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--clr-text)',
+              }}
+            >
+              Table {bill.tableNumber}
+            </span>
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--clr-muted)',
+                fontFamily: "'DM Mono', monospace",
+              }}
+            >
+              {formattedDate}
+            </span>
+          </div>
 
-            {bill.orders.map((order, index) => (
-              <div key={index} className="mb-6 last:mb-0">
-                <h3 className="font-medium text-gray-700 mb-3">Order #{order.orderNumber}</h3>
-                <div className="space-y-2">
-                  {order.items.map((item, itemIndex) => (
-                    <div key={itemIndex} className="flex justify-between items-center py-1">
-                      <div className="flex-1">
-                        <span className="text-gray-900">{item.name}</span>
-                        <span className="text-gray-600 ml-2">x {item.quantity}</span>
-                      </div>
-                      <span className="text-gray-900">₹{item.lineTotal.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t pt-2 mt-3 text-right">
-                  <span className="text-sm font-medium text-gray-700">
-                    Order Total: ₹{order.orderTotal.toFixed(2)}
+          {/* Orders */}
+          {bill.orders.map((orderItem: any, index: number) => (
+            <div className="rh-card" key={index}>
+              <div className="rh-order-badge">#{orderItem.orderNumber}</div>
+              {orderItem.items.map((item: any, itemIndex: number) => (
+                <div className="rh-item-row" key={itemIndex}>
+                  <div className="rh-item-left">
+                    <span className="rh-item-name">{item.name}</span>
+                    <span className="rh-item-qty">×{item.quantity}</span>
+                  </div>
+                  <span className="rh-item-price">
+                    ₹{item.lineTotal.toFixed(2)}
                   </span>
                 </div>
+              ))}
+              <div className="rh-order-subtotal">
+                Order total <strong>₹{orderItem.orderTotal.toFixed(2)}</strong>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
 
-          {/* Bill Summary */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Bill Summary</h2>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span>₹{bill.subtotal.toFixed(2)}</span>
+          {/* Bill summary */}
+          <div className="rh-card">
+            <div className="rh-card-title">Bill Summary</div>
+            <div className="rh-sum-row">
+              <span>Subtotal</span>
+              <span>₹{bill.subtotal.toFixed(2)}</span>
+            </div>
+            {bill.cgstAmount > 0 && (
+              <div className="rh-sum-row">
+                <span>CGST</span>
+                <span>₹{bill.cgstAmount.toFixed(2)}</span>
               </div>
-
-              {bill.cgstAmount > 0 && (
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>CGST:</span>
-                  <span>₹{bill.cgstAmount.toFixed(2)}</span>
-                </div>
-              )}
-
-              {bill.sgstAmount > 0 && (
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>SGST:</span>
-                  <span>₹{bill.sgstAmount.toFixed(2)}</span>
-                </div>
-              )}
-
-              {bill.igstAmount > 0 && (
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>IGST:</span>
-                  <span>₹{bill.igstAmount.toFixed(2)}</span>
-                </div>
-              )}
-
-              <div className="flex justify-between">
-                <span>Total Tax (GST):</span>
-                <span>₹{bill.taxAmount.toFixed(2)}</span>
+            )}
+            {bill.sgstAmount > 0 && (
+              <div className="rh-sum-row">
+                <span>SGST</span>
+                <span>₹{bill.sgstAmount.toFixed(2)}</span>
               </div>
-
-              <div className="border-t pt-2 font-bold text-lg flex justify-between">
-                <span>Grand Total:</span>
-                <span>₹{bill.totalAmount.toFixed(2)}</span>
+            )}
+            {bill.igstAmount > 0 && (
+              <div className="rh-sum-row">
+                <span>IGST</span>
+                <span>₹{bill.igstAmount.toFixed(2)}</span>
               </div>
+            )}
+            <div className="rh-sum-row">
+              <span>Total Tax</span>
+              <span>₹{bill.taxAmount.toFixed(2)}</span>
+            </div>
+            <div className="rh-sum-row rh-total">
+              <span>Grand Total</span>
+              <span>₹{bill.totalAmount.toFixed(2)}</span>
             </div>
           </div>
 
-          {/* Download Buttons */}
-          <div className="mb-6 space-y-3">
-            <Button
-              onClick={async () => {
-                try {
-                  // Use the bill data we already have (either stored or from API)
-                  const pdfBlob = await generateThermalReceiptPDF({
-                    restaurant: restaurant,
-                    bill: bill,
-                  });
-
-                  // Create download link
-                  const url = URL.createObjectURL(pdfBlob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `table-${bill.tableNumber}-bill.pdf`;
-                  document.body.appendChild(link);
-                  link.click();
-
-                  // Cleanup
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
-                } catch (error) {
-                  console.error('Error downloading bill:', error);
-                  alert('Failed to generate PDF. Please try again.');
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Download Official Bill
-            </Button>
-          </div>
-
-          {/* Feedback Section */}
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Star className="h-5 w-5 text-yellow-500" />
-              Rate Your Experience
-            </h2>
-
-            <div className="space-y-4">
-              {/* Star Rating */}
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">
-                  How was your dining experience?
-                </p>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() =>
-                        setFeedback((prev) => ({ ...prev, rating: star }))
-                      }
-                      className={`p-1 ${
-                        (feedback.rating || 0) >= star
-                          ? 'text-yellow-500'
-                          : 'text-gray-300 hover:text-yellow-400'
-                      }`}
-                    >
-                      <Star
-                        className={`h-6 w-6 ${
-                          (feedback.rating || 0) >= star ? 'fill-current' : ''
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Comment */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Share your feedback (optional)
-                </label>
-                <textarea
-                  value={feedback.comment || ''}
-                  onChange={(e) =>
-                    setFeedback((prev) => ({ ...prev, comment: e.target.value }))
-                  }
-                  placeholder="Tell us about your experience..."
-                  rows={3}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <Button
-                onClick={handleSubmitFeedback}
-                disabled={!feedback.rating}
-                className="w-full"
-              >
-                Submit Feedback
-              </Button>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="text-center mt-8 text-sm text-gray-500">
-            <p>Thank you for dining with us!</p>
-            <p className="mt-1">Powered by RestoHand</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || (!isTableBill && (!orders || orders.length === 0))) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-4 p-6">
-          <div className="text-red-500 text-6xl">⚠️</div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Receipt Not Found
-          </h1>
-          <p className="text-gray-600 max-w-md">
-            We couldn't find your receipt. The link may be expired or invalid.
-          </p>
-          <p className="text-sm text-gray-500">
-            Please ask your waiter for a new receipt QR code.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Extract restaurant info
-  const restaurantInfo = isTableBill && tableSessionData?.restaurant
-    ? {
-        name: tableSessionData.restaurant.name,
-        address: tableSessionData.restaurant.address,
-        phone: tableSessionData.restaurant.contactPhone,
-        email: tableSessionData.restaurant.contactEmail,
-        gstNumber: tableSessionData.restaurant.gstin,
-      }
-    : orders?.[0]
-    ? {
-        name: 'Restaurant', // Restaurant name not available in order response
-        address: undefined, // Restaurant address not included in order response
-        phone: undefined, // Restaurant contact not included in order response
-        email: undefined, // Restaurant email not included in order response
-        gstNumber: undefined, // Restaurant GST not included in order response
-      }
-    : undefined;
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Receipt Content */}
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <div className="receipt-content">
-        {orders.length > 1 ? (
-          // Combined receipt for multiple orders
-          <div className="space-y-6">
-            {/* Individual order receipts */}
-            {orders.map((order) => (
-              <div
-                key={order.id}
-                className="bg-white rounded-lg shadow-sm border p-6"
-              >
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  Order #{order.orderNumber}
-                </h3>
-                <Receipt order={order} restaurantInfo={restaurantInfo} />
-              </div>
-            ))}
-
-            {/* Combined totals */}
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                Total Bill
-              </h3>
-              <div className="space-y-2">
-                {(() => {
-                  const combinedSubtotal = orders.reduce((sum, order) => sum + (order.subTotalAmount || 0), 0);
-                  const combinedTax = orders.reduce((sum, order) => sum + (order.taxAmount || 0), 0);
-                  const combinedTotal = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-
-                  return (
-                    <>
-                      <div className="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span>₹{combinedSubtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Tax (GST):</span>
-                        <span>₹{combinedTax.toFixed(2)}</span>
-                      </div>
-                      <div className="border-t pt-2 font-bold text-lg flex justify-between">
-                        <span>Grand Total:</span>
-                        <span>₹{combinedTotal.toFixed(2)}</span>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        ) : (
-          // Single order receipt
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <Receipt order={orders[0]} restaurantInfo={restaurantInfo} />
-          </div>
-        )}
-        </div>
-
-        {/* Download Buttons */}
-        <div className="mb-6 space-y-3">
-          <Button
+          {/* Download */}
+          <button
+            className="rh-dl-btn"
             onClick={async () => {
               try {
-                // Generate PDF using @react-pdf/renderer
-                const pdfBlob = await generateReceiptPDF({
-                  order: (isCombinedReceipt || isTableBill) ? undefined : orders?.[0],
-                  orders: (isCombinedReceipt || isTableBill) ? orders : undefined,
-                  isCombinedReceipt: isCombinedReceipt || isTableBill,
-                  restaurantInfo,
+                const pdfBlob = await generateThermalReceiptPDF({
+                  restaurant,
+                  bill,
                 });
-
-                // Create download link
                 const url = URL.createObjectURL(pdfBlob);
                 const link = document.createElement('a');
                 link.href = url;
-
-                // Set filename
-                const fileName = isTableBill
-                  ? `table-${tableSessionData?.tableSession?.tableNumber || 'session'}-bill.pdf`
-                  : isCombinedReceipt
-                  ? `combined-receipt-${orders?.[0]?.tableNumber || 'table'}.pdf`
-                  : `receipt-${orders?.[0]?.orderNumber || 'order'}.pdf`;
-
-                link.download = fileName;
+                link.download = `table-${bill.tableNumber}-bill.pdf`;
                 document.body.appendChild(link);
                 link.click();
-
-                // Cleanup
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
-              } catch (error) {
-                console.error('Error generating PDF:', error);
+              } catch (err) {
+                console.error('Error downloading bill:', err);
                 alert('Failed to generate PDF. Please try again.');
               }
             }}
-            className="w-full flex items-center justify-center gap-2"
           >
-            <Download className="h-4 w-4" />
-            Download PDF
-          </Button>
+            <Download size={16} /> Download Bill
+          </button>
 
-        </div>
-
-        {/* Feedback Section */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <Star className="h-5 w-5 text-yellow-500" />
-            Rate Your Experience
-          </h2>
-
-          <div className="space-y-4">
-            {/* Star Rating */}
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">
-                How was your dining experience?
-              </p>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() =>
-                      setFeedback((prev) => ({ ...prev, rating: star }))
-                    }
-                    className={`p-1 ${
+          {/* Feedback */}
+          <div className="rh-card">
+            <div
+              className="rh-card-title"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Star size={14} fill="var(--clr-star)" color="var(--clr-star)" />{' '}
+              Rate Your Experience
+            </div>
+            <p
+              style={{
+                fontSize: 13,
+                color: 'var(--clr-muted)',
+                margin: '0 0 0',
+              }}
+            >
+              How was your dining experience?
+            </p>
+            <div className="rh-stars">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  className={`rh-star-btn ${
+                    (feedback.rating || 0) >= star ? 'active' : ''
+                  }`}
+                  onClick={() =>
+                    setFeedback((prev) => ({ ...prev, rating: star }))
+                  }
+                >
+                  <Star
+                    size={22}
+                    fill={
                       (feedback.rating || 0) >= star
-                        ? 'text-yellow-500'
-                        : 'text-gray-300 hover:text-yellow-400'
-                    }`}
-                  >
-                    <Star
-                      className={`h-6 w-6 ${
-                        (feedback.rating || 0) >= star ? 'fill-current' : ''
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
+                        ? 'var(--clr-star)'
+                        : 'none'
+                    }
+                  />
+                </button>
+              ))}
             </div>
-
-            {/* Comment */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Share your feedback (optional)
-              </label>
-              <textarea
-                value={feedback.comment || ''}
-                onChange={(e) =>
-                  setFeedback((prev) => ({ ...prev, comment: e.target.value }))
-                }
-                placeholder="Tell us about your experience..."
-                rows={3}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <Button
-              onClick={handleSubmitFeedback}
+            <label className="rh-feedback-label">
+              Anything else?{' '}
+              <span style={{ color: '#b5b0a8' }}>(optional)</span>
+            </label>
+            <textarea
+              className="rh-feedback-ta"
+              value={feedback.comment || ''}
+              onChange={(e) =>
+                setFeedback((prev) => ({ ...prev, comment: e.target.value }))
+              }
+              placeholder="Tell us about your experience…"
+            />
+            <button
+              className="rh-submit-btn"
               disabled={!feedback.rating}
-              className="w-full"
+              onClick={handleSubmitFeedback}
             >
               Submit Feedback
-            </Button>
+            </button>
           </div>
+
+          {/* Footer */}
+          <div className="rh-footer">
+            <p>Thank you for dining with us!</p>
+            <p>Powered by RestoHand</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── error / not found ── */
+  if (error || (!isTableBill && (!orders || orders.length === 0))) {
+    return (
+      <div className="rh-receipt-root">
+        <style>{STYLE}</style>
+        <div className="rh-error-screen">
+          <AlertTriangle size={48} />
+          <h1>Receipt Not Found</h1>
+          <p>
+            We couldn't find your receipt. The link may have expired or is
+            invalid.
+          </p>
+          <p>Please ask your server for a new receipt.</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── extract restaurant info (single / combined order view) ── */
+  const restaurantInfo =
+    isTableBill && tableSessionData?.restaurant
+      ? {
+          name: tableSessionData.restaurant.name,
+          address: tableSessionData.restaurant.address,
+          phone: tableSessionData.restaurant.contactPhone,
+          email: tableSessionData.restaurant.contactEmail,
+          gstNumber: tableSessionData.restaurant.gstin,
+        }
+      : orders?.[0]
+      ? {
+          name: 'Restaurant',
+          address: undefined,
+          phone: undefined,
+          email: undefined,
+          gstNumber: undefined,
+        }
+      : undefined;
+
+  /* ── aggregate totals helper ── */
+  const combinedSubtotal = orders!.reduce(
+    (s, o) => s + (o.subTotalAmount || 0),
+    0
+  );
+  const combinedTax = orders!.reduce((s, o) => s + (o.taxAmount || 0), 0);
+  const combinedTotal = orders!.reduce((s, o) => s + (o.totalAmount || 0), 0);
+
+  /* ── SINGLE / COMBINED ORDER view ── */
+  return (
+    <div className="rh-receipt-root">
+      <style>{STYLE}</style>
+      <div className="rh-wrap">
+        {/* Header */}
+        {restaurantInfo && (
+          <div className="rh-header">
+            <h1>{restaurantInfo.name}</h1>
+            {restaurantInfo.address && (
+              <div className="rh-addr">
+                {restaurantInfo.address.line1}
+                <br />
+                {restaurantInfo.address.city}, {restaurantInfo.address.state}{' '}
+                {restaurantInfo.address.postalCode}
+              </div>
+            )}
+            <div className="rh-meta-row">
+              {restaurantInfo.phone && (
+                <span>
+                  📞 <strong>{restaurantInfo.phone}</strong>
+                </span>
+              )}
+              {restaurantInfo.gstNumber && (
+                <span>
+                  GSTIN <strong>{restaurantInfo.gstNumber}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Individual orders */}
+        {orders!.map((orderItem) => (
+          <div className="rh-card" key={orderItem.id}>
+            <div className="rh-order-badge">#{orderItem.orderNumber}</div>
+            <Receipt order={orderItem} restaurantInfo={restaurantInfo} />
+          </div>
+        ))}
+
+        {/* Combined totals — only show when multiple orders */}
+        {orders!.length > 1 && (
+          <div className="rh-card">
+            <div className="rh-card-title">Bill Summary</div>
+            <div className="rh-sum-row">
+              <span>Subtotal</span>
+              <span>₹{combinedSubtotal.toFixed(2)}</span>
+            </div>
+            <div className="rh-sum-row">
+              <span>Tax (GST)</span>
+              <span>₹{combinedTax.toFixed(2)}</span>
+            </div>
+            <div className="rh-sum-row rh-total">
+              <span>Grand Total</span>
+              <span>₹{combinedTotal.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Download */}
+        <button
+          className="rh-dl-btn"
+          onClick={async () => {
+            try {
+              const pdfBlob = await generateReceiptPDF({
+                order:
+                  isCombinedReceipt || isTableBill ? undefined : orders?.[0],
+                orders: isCombinedReceipt || isTableBill ? orders : undefined,
+                isCombinedReceipt: isCombinedReceipt || isTableBill,
+                restaurantInfo,
+              });
+              const url = URL.createObjectURL(pdfBlob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = isTableBill
+                ? `table-${
+                    tableSessionData?.tableSession?.tableNumber || 'session'
+                  }-bill.pdf`
+                : isCombinedReceipt
+                ? `combined-receipt-${orders?.[0]?.tableNumber || 'table'}.pdf`
+                : `receipt-${orders?.[0]?.orderNumber || 'order'}.pdf`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            } catch (err) {
+              console.error('Error generating PDF:', err);
+              alert('Failed to generate PDF. Please try again.');
+            }
+          }}
+        >
+          <Download size={16} /> Download PDF
+        </button>
+
+        {/* Feedback */}
+        <div className="rh-card">
+          <div
+            className="rh-card-title"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Star size={14} fill="var(--clr-star)" color="var(--clr-star)" />{' '}
+            Rate Your Experience
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--clr-muted)', margin: 0 }}>
+            How was your dining experience?
+          </p>
+          <div className="rh-stars">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                className={`rh-star-btn ${
+                  (feedback.rating || 0) >= star ? 'active' : ''
+                }`}
+                onClick={() =>
+                  setFeedback((prev) => ({ ...prev, rating: star }))
+                }
+              >
+                <Star
+                  size={22}
+                  fill={
+                    (feedback.rating || 0) >= star ? 'var(--clr-star)' : 'none'
+                  }
+                />
+              </button>
+            ))}
+          </div>
+          <label className="rh-feedback-label">
+            Anything else? <span style={{ color: '#b5b0a8' }}>(optional)</span>
+          </label>
+          <textarea
+            className="rh-feedback-ta"
+            value={feedback.comment || ''}
+            onChange={(e) =>
+              setFeedback((prev) => ({ ...prev, comment: e.target.value }))
+            }
+            placeholder="Tell us about your experience…"
+          />
+          <button
+            className="rh-submit-btn"
+            disabled={!feedback.rating}
+            onClick={handleSubmitFeedback}
+          >
+            Submit Feedback
+          </button>
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-sm text-gray-500">
+        <div className="rh-footer">
           <p>Thank you for dining with us!</p>
-          <p className="mt-1">Powered by RestoHand</p>
+          <p>Powered by RestoHand</p>
         </div>
       </div>
     </div>

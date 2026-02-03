@@ -44,214 +44,366 @@ interface ThermalReceiptProps {
   };
 }
 
-// Thermal Receipt Styles (58mm width - small POS printer)
+// 58mm = ~164.4pt. We use that as page width, and let height be auto via a tall fixed value.
+const RECEIPT_WIDTH = 164.4;
+const RECEIPT_HEIGHT = 700; // tall enough; content won't stretch it
+const PAD = 8; // left/right padding in pts
+const INNER = RECEIPT_WIDTH - PAD * 2; // usable content width
+
 const styles = StyleSheet.create({
   page: {
-    width: '58mm',
-    padding: '1.5mm',
+    width: RECEIPT_WIDTH,
+    minHeight: RECEIPT_HEIGHT,
+    paddingHorizontal: PAD,
+    paddingTop: 10,
+    paddingBottom: 14,
     fontFamily: 'Courier',
-    fontSize: 7,
-    lineHeight: 1.1,
+    backgroundColor: '#fffef9',
   },
-  header: {
-    textAlign: 'center',
-    marginBottom: 8,
-    paddingBottom: 4,
-    borderBottom: '1pt dashed black',
-  },
-  restaurantName: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  restaurantDetails: {
-    fontSize: 6,
-    lineHeight: 1.0,
-  },
-  billInfo: {
-    textAlign: 'center',
-    marginBottom: 4,
-    fontSize: 6,
-  },
-  sectionDivider: {
-    borderBottom: '1pt dashed black',
-    marginVertical: 4,
-  },
-  items: {
+
+  // ── header ──
+  headerBlock: {
+    alignItems: 'center',
     marginBottom: 6,
   },
-  item: {
-    marginBottom: 3,
-  },
-  itemName: {
+  restaurantName: {
+    fontSize: 9,
     fontWeight: 'bold',
     textTransform: 'uppercase',
-    fontSize: 7,
+    letterSpacing: 0.6,
   },
-  itemDetails: {
+  headerSmall: {
+    fontSize: 5.5,
+    color: '#444',
+    textAlign: 'center',
+    lineHeight: 1.3,
+  },
+
+  // ── dashed / solid lines ──
+  dashedLine: {
+    borderBottomWidth: 0.8,
+    borderBottomColor: '#999',
+    borderBottomStyle: 'dashed',
+    marginVertical: 4,
+  },
+  solidLine: {
+    borderBottomWidth: 0.8,
+    borderBottomColor: '#000',
+    marginVertical: 2,
+  },
+  dottedLine: {
+    borderBottomWidth: 0.6,
+    borderBottomColor: '#aaa',
+    borderBottomStyle: 'dotted',
+    marginVertical: 3,
+  },
+
+  // ── bill info row ──
+  billInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    fontSize: 6,
-    marginTop: 1,
-  },
-  qtyRate: {
-    color: '#666',
-  },
-  amount: {
-    fontWeight: 'bold',
-  },
-  orderSeparator: {
-    textAlign: 'center',
-    marginVertical: 6,
-    fontSize: 6,
-    color: '#666',
-    borderTop: '1pt dotted #666',
-    borderBottom: '1pt dotted #666',
-    paddingVertical: 2,
-  },
-  totals: {
-    borderTop: '1pt dashed black',
-    paddingTop: 4,
-    marginTop: 6,
-  },
-  totalLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 1,
-  },
-  grandTotal: {
-    fontWeight: 'bold',
-    fontSize: 8,
-    borderTop: '1pt solid black',
-    borderBottom: '1pt solid black',
-    paddingVertical: 2,
-    marginTop: 3,
-  },
-  footer: {
-    textAlign: 'center',
-    marginTop: 6,
-    borderTop: '1pt dashed black',
-    paddingTop: 3,
-    fontSize: 5,
-  },
-  thankYou: {
-    fontWeight: 'bold',
     marginBottom: 2,
+  },
+  billInfoText: {
+    fontSize: 5.8,
+    color: '#333',
+  },
+
+  // ── order label ──
+  orderLabel: {
+    fontSize: 5.5,
+    color: '#666',
+    textAlign: 'center',
+    marginVertical: 3,
+  },
+
+  // ── item row ──
+  itemRow: {
+    marginBottom: 3,
+  },
+  itemNameLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  itemName: {
+    fontSize: 6.2,
+    fontWeight: 'bold',
+    color: '#111',
+    textTransform: 'uppercase',
+    flexShrink: 1,
+  },
+  itemTotal: {
+    fontSize: 6.2,
+    fontWeight: 'bold',
+    color: '#111',
+    flexShrink: 0,
+    marginLeft: 4,
+  },
+  itemDetail: {
+    fontSize: 5.4,
+    color: '#666',
+    marginTop: 0.8,
+  },
+
+  // ── summary rows ──
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 1.5,
+  },
+  summaryLabel: {
+    fontSize: 5.8,
+    color: '#444',
+  },
+  summaryValue: {
+    fontSize: 5.8,
+    color: '#444',
+  },
+
+  // ── grand total ──
+  grandTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 3,
+    marginBottom: 2,
+    paddingVertical: 2.5,
+    borderTopWidth: 1,
+    borderTopColor: '#000',
+    borderBottomWidth: 1,
+    borderBottomColor: '#000',
+  },
+  grandTotalLabel: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#000',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  grandTotalValue: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+
+  // ── footer ──
+  footer: {
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  footerThank: {
+    fontSize: 6,
+    fontWeight: 'bold',
+    color: '#333',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  footerPowered: {
+    fontSize: 5,
+    color: '#888',
+    marginTop: 2,
+  },
+
+  // ── jagged edge hint (top/bottom) ──
+  jagged: {
+    fontSize: 5,
+    color: '#ccc',
+    textAlign: 'center',
+    letterSpacing: -1,
+    lineHeight: 1,
   },
 });
 
-const formatCurrency = (amount: number) => `₹${amount.toFixed(2)}`;
-const formatDate = (date: string) => new Date(date).toLocaleString('en-IN');
+/* ── helpers ── */
+const fmt = (n: number) => `₹${n.toFixed(2)}`;
 
-const ThermalReceiptDocument: React.FC<ThermalReceiptProps> = ({ restaurant, bill }) => (
+const formatDate = (date: string) => {
+  const d = new Date(date);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return `${pad(d.getDate())}-${months[d.getMonth()]}-${d.getFullYear()}  ${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+};
+
+/* ── dot-leader row: fills space between label and value with dots ── */
+const DotRow = ({
+  label,
+  value,
+  bold = false,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+}) => {
+  // Approximate char width at fontSize ~5.8 in Courier ≈ 3.2pt per char
+  // Inner width = INNER ≈ 148.4pt → ~46 chars total
+  const MAX_CHARS = 46;
+  const dots = Math.max(2, MAX_CHARS - label.length - value.length);
+  const dotString = '.'.repeat(dots);
+  return (
+    <Text
+      style={{
+        fontSize: 5.8,
+        color: bold ? '#111' : '#444',
+        marginBottom: 1.2,
+      }}
+    >
+      {label}
+      <Text style={{ color: '#aaa' }}>{dotString}</Text>
+      <Text style={{ fontWeight: bold ? 'bold' : 'normal' }}>{value}</Text>
+    </Text>
+  );
+};
+
+/* ── item with dot leader between name and price ── */
+const ItemLine = ({
+  item,
+}: {
+  item: {
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  };
+}) => {
+  const MAX_CHARS = 46;
+  const nameStr = item.name.toUpperCase();
+  const priceStr = fmt(item.lineTotal);
+  const dots = Math.max(2, MAX_CHARS - nameStr.length - priceStr.length);
+
+  return (
+    <View style={styles.itemRow}>
+      <Text style={{ fontSize: 6.2, color: '#111' }}>
+        <Text style={{ fontWeight: 'bold' }}>{nameStr}</Text>
+        <Text style={{ color: '#bbb' }}>{'.'.repeat(dots)}</Text>
+        <Text style={{ fontWeight: 'bold' }}>{priceStr}</Text>
+      </Text>
+      <Text style={styles.itemDetail}>
+        {item.quantity} x {fmt(item.unitPrice)}
+      </Text>
+    </View>
+  );
+};
+
+/* ── main document ── */
+const ThermalReceiptDocument: React.FC<ThermalReceiptProps> = ({
+  restaurant,
+  bill,
+}) => (
   <Document>
-    <Page size="A4" style={styles.page}>
-      {/* Header */}
-      <View style={styles.header}>
+    <Page size={[RECEIPT_WIDTH, RECEIPT_HEIGHT]} style={styles.page}>
+      {/* top jagged edge illusion */}
+      <Text style={styles.jagged}>{'~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~'}</Text>
+
+      {/* Restaurant header */}
+      <View style={styles.headerBlock}>
         <Text style={styles.restaurantName}>{restaurant.name}</Text>
-        <View style={styles.restaurantDetails}>
+        <View style={{ marginTop: 3 }}>
           {restaurant.address && (
             <>
-              <Text>{restaurant.address.line1}</Text>
-              <Text>{restaurant.address.city}, {restaurant.address.state}</Text>
+              <Text style={styles.headerSmall}>{restaurant.address.line1}</Text>
+              <Text style={styles.headerSmall}>
+                {restaurant.address.city}, {restaurant.address.state}{' '}
+                {restaurant.address.postalCode}
+              </Text>
             </>
           )}
-          {restaurant.phone && <Text>Ph: {restaurant.phone}</Text>}
-          {restaurant.gstin && <Text>GSTIN: {restaurant.gstin}</Text>}
+          {restaurant.phone && (
+            <Text style={styles.headerSmall}>Ph: {restaurant.phone}</Text>
+          )}
+          {restaurant.gstin && (
+            <Text style={styles.headerSmall}>GSTIN: {restaurant.gstin}</Text>
+          )}
         </View>
       </View>
 
-      {/* Bill Info */}
-      <View style={styles.billInfo}>
-        <Text>TABLE: {bill.tableNumber}</Text>
-        <Text>{formatDate(bill.billGeneratedAt)}</Text>
+      <View style={styles.dashedLine} />
+
+      {/* Bill info */}
+      <View style={styles.billInfoRow}>
+        <Text style={styles.billInfoText}>Table: {bill.tableNumber}</Text>
+        <Text style={styles.billInfoText}>
+          {formatDate(bill.billGeneratedAt)}
+        </Text>
       </View>
 
-      <View style={styles.sectionDivider} />
+      <View style={styles.dashedLine} />
 
-      {/* Items */}
-      <View style={styles.items}>
-        {bill.orders.map((order, orderIndex) => (
-          <View key={orderIndex}>
-            {orderIndex > 0 && (
-              <View style={styles.orderSeparator}>
-                <Text>ORDER #{order.orderNumber}</Text>
-              </View>
-            )}
-            {order.items.map((item, itemIndex) => (
-              <View key={itemIndex} style={styles.item}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <View style={styles.itemDetails}>
-                  <Text style={styles.qtyRate}>
-                    {item.quantity} x {formatCurrency(item.unitPrice)}
-                  </Text>
-                  <Text style={styles.amount}>{formatCurrency(item.lineTotal)}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        ))}
-      </View>
+      {/* Orders + items */}
+      {bill.orders.map((order, orderIndex) => (
+        <View key={orderIndex}>
+          {/* Order label — show for every order */}
+          <Text style={styles.orderLabel}>
+            --- Order #{order.orderNumber} ---
+          </Text>
 
-      {/* Totals */}
-      <View style={styles.totals}>
-        <View style={styles.totalLine}>
-          <Text>Subtotal:</Text>
-          <Text>{formatCurrency(bill.subtotal)}</Text>
+          {order.items.map((item, itemIndex) => (
+            <ItemLine key={itemIndex} item={item} />
+          ))}
         </View>
+      ))}
 
-        {bill.cgstAmount > 0 && (
-          <View style={styles.totalLine}>
-            <Text>CGST:</Text>
-            <Text>{formatCurrency(bill.cgstAmount)}</Text>
-          </View>
-        )}
+      <View style={styles.dashedLine} />
 
-        {bill.sgstAmount > 0 && (
-          <View style={styles.totalLine}>
-            <Text>SGST:</Text>
-            <Text>{formatCurrency(bill.sgstAmount)}</Text>
-          </View>
-        )}
+      {/* Summary */}
+      <DotRow label="Subtotal" value={fmt(bill.subtotal)} />
 
-        {bill.igstAmount > 0 && (
-          <View style={styles.totalLine}>
-            <Text>IGST:</Text>
-            <Text>{formatCurrency(bill.igstAmount)}</Text>
-          </View>
-        )}
+      {bill.cgstAmount > 0 && (
+        <DotRow label="CGST" value={fmt(bill.cgstAmount)} />
+      )}
+      {bill.sgstAmount > 0 && (
+        <DotRow label="SGST" value={fmt(bill.sgstAmount)} />
+      )}
+      {bill.igstAmount > 0 && (
+        <DotRow label="IGST" value={fmt(bill.igstAmount)} />
+      )}
+      {bill.taxAmount > 0 && (
+        <DotRow label="Tax Total" value={fmt(bill.taxAmount)} />
+      )}
+      {bill.roundOffAmount !== 0 && (
+        <DotRow label="Round Off" value={fmt(bill.roundOffAmount)} />
+      )}
 
-        {bill.taxAmount > 0 && (
-          <View style={styles.totalLine}>
-            <Text>Total Tax:</Text>
-            <Text>{formatCurrency(bill.taxAmount)}</Text>
-          </View>
-        )}
-
-        {bill.roundOffAmount !== 0 && (
-          <View style={styles.totalLine}>
-            <Text>Round Off:</Text>
-            <Text>{formatCurrency(bill.roundOffAmount)}</Text>
-          </View>
-        )}
-
-        <View style={[styles.totalLine, styles.grandTotal]}>
-          <Text>TOTAL:</Text>
-          <Text>{formatCurrency(bill.totalAmount)}</Text>
-        </View>
+      {/* Grand total */}
+      <View style={styles.grandTotalRow}>
+        <Text style={styles.grandTotalLabel}>TOTAL</Text>
+        <Text style={styles.grandTotalValue}>{fmt(bill.totalAmount)}</Text>
       </View>
+
+      <View style={styles.dashedLine} />
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.thankYou}>THANK YOU FOR VISITING!</Text>
-        <Text>Powered by RestoHand</Text>
+        <Text style={styles.footerThank}>Thank you for visiting!</Text>
+        <Text style={styles.footerPowered}>Powered by Restohand</Text>
       </View>
+
+      {/* bottom jagged edge illusion */}
+      <Text style={[styles.jagged, { marginTop: 8 }]}>
+        {'~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~'}
+      </Text>
     </Page>
   </Document>
 );
 
-export const generateThermalReceiptPDF = async (data: ThermalReceiptProps): Promise<Blob> => {
+/* ── export ── */
+export const generateThermalReceiptPDF = async (
+  data: ThermalReceiptProps
+): Promise<Blob> => {
   const doc = <ThermalReceiptDocument {...data} />;
   const asPdf = pdf(doc);
   return await asPdf.toBlob();

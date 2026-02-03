@@ -27,6 +27,15 @@ export interface RestaurantOnboardingData {
   restaurantType?: 'regular' | 'premium';
   gstNumber?: string;
   panNumber?: string;
+  // Optional KYC fields for Cashfree Easy Split
+  bankAccount?: {
+    accountNumber: string;
+    ifscCode: string;
+    accountHolderName: string;
+  };
+  documents?: {
+    cin?: string; // For companies
+  };
 }
 
 @Injectable()
@@ -167,6 +176,35 @@ export class RestaurantOnboardingService {
             businessState: data.address.state,
             gstin: data.gstNumber,
           },
+        },
+
+        // Bank Account Details (optional)
+        ...(data.bankAccount && {
+          bankAccount: {
+            accountNumber: data.bankAccount.accountNumber,
+            ifscCode: data.bankAccount.ifscCode,
+            accountHolderName: data.bankAccount.accountHolderName,
+            accountType: 'current', // Default for businesses
+            isActive: true,
+            isVerified: false, // Will be verified during Cashfree vendor creation
+          },
+        }),
+
+        // Documents (optional)
+        ...(data.documents || data.panNumber || data.gstNumber) && {
+          documents: {
+            ...(data.panNumber && { pan: data.panNumber }),
+            ...(data.gstNumber && { gst: data.gstNumber }),
+            ...(data.documents?.cin && { cin: data.documents.cin }),
+          },
+        },
+
+        // Cashfree Configuration (placeholder)
+        cashfreeConfig: {
+          vendorId: null,
+          status: 'PENDING',
+          kycStatus: 'PENDING',
+          lastSyncAt: new Date(),
         },
 
         // Default settings

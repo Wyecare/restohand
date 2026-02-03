@@ -1,0 +1,138 @@
+Payment Gateway
+Accept payments in Indian Rupees (INR) and other 140+ foreign currencies with minimal integration effort and go live in no time.
+
+Create Account
+Contact Sales
+Payment Modes
+UPI
+UPI
+
+Visa
+Visa
+
+Mastercard
+Mastercard
+
+RuPay
+RuPay
+
+Maestro
+Maestro
+
+PhonePe
+PhonePe
+
+Net Banking
+Net Banking
+
+ICICI
+ICICI
+
+Airtel Money
+Airtel Money
+
+Jio Money
+Jio Money
+
+Amazon Pay
+Amazon Pay
+
+2.0%
+
+1.95%
+platform fee
+
+UPI on Credit Cards
+Starting at
+2.15%
+
+
+EMI
+Starting at
+1.90%
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Pay Later
+2.50%
+2.20%
+
+
+
+
+Virtual Bank Accounts
+Starting at
+₹20
+
+
+International Cards
+Starting at
+2.95%
+
+
+
+
+
+
+
+
+* Read Cashfree 10-year Anniversary offer T&Cs
+* Platform fee shall be a fee paid by the Merchant for services such as Hosted Checkout, Plugins, SDKs, Dashboard, and Generation of Reports. The Platform Fee shall be calculated on either total transactions or a certain number of transactions or a certain percentage of transactions of the total transaction as may be mutually agreed between the parties. Platform fee is a fee other than the fee charged on the transaction for payment instruments.
+
+3 Products free with our PG!
+Use our Payment Links, Payment Forms, and softPOS products to collect payments wherever your customers are at no additional cost!
+value added services
+Avail exclusive access to our premium services
+with an annual maintenance charge
+
+Dedicated Account Manager
+Dedicated Account Manager with fortnightly checkins to provide support and discuss business health
+
+Priority business support
+Priority business support with an assured response time of 30 mins
+
+faster resolution
+20% faster resolution to dispute management
+
+Already using payment gateway?
+icon1
+Instant Settlements
+icon2
+Paperless and same day onboarding
+icon4
+Easy to use dashboard
+icon3
+International payments in 30+ currencies
+icon5
+Instant refunds
+icon6
+E-commerce plugins
+icon7
+Dedicated account manager
+icon8
+Developer friendly integration kits
+icon9
+Now live on Juspay. Connect today

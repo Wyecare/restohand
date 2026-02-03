@@ -195,6 +195,54 @@ class PaymentConfig {
 const PaymentConfigSchema = SchemaFactory.createForClass(PaymentConfig);
 
 @Schema({ _id: false })
+class BankAccount {
+  @Prop({ type: String, required: true, trim: true })
+  accountNumber!: string;
+
+  @Prop({ type: String, required: true, trim: true })
+  ifscCode!: string;
+
+  @Prop({ type: String, required: true, trim: true })
+  accountHolderName!: string;
+
+  @Prop({ type: String, trim: true })
+  bankName?: string;
+
+  @Prop({ type: Boolean, default: false })
+  isVerified?: boolean;
+
+  @Prop({ type: Date })
+  verifiedAt?: Date;
+}
+
+const BankAccountSchema = SchemaFactory.createForClass(BankAccount);
+
+@Schema({ _id: false })
+class Documents {
+  @Prop({ type: String, trim: true })
+  pan?: string;
+
+  @Prop({ type: String, trim: true })
+  gst?: string;
+
+  @Prop({ type: String, trim: true })
+  cin?: string;
+
+  @Prop({ type: String, trim: true })
+  fssaiLicense?: string;
+
+  @Prop({ type: Array, default: [] })
+  uploadedDocuments?: Array<{
+    type: string;
+    url: string;
+    uploadedAt: Date;
+    verified: boolean;
+  }>;
+}
+
+const DocumentsSchema = SchemaFactory.createForClass(Documents);
+
+@Schema({ _id: false })
 class GstConfiguration {
   @Prop({
     type: String,
@@ -250,6 +298,86 @@ class BusinessDetails {
 
 const BusinessDetailsSchema = SchemaFactory.createForClass(BusinessDetails);
 
+@Schema({ _id: false })
+class CashfreeConfig {
+  @Prop({ type: String })
+  vendorId?: string;
+
+  @Prop({
+    type: String,
+    enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'IN_BENE_CREATION', 'PENDING'],
+  })
+  status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | 'IN_BENE_CREATION' | 'PENDING';
+
+  @Prop({ type: Date })
+  onboardedAt?: Date;
+
+  @Prop({ type: Date })
+  activatedAt?: Date;
+
+  @Prop({
+    type: String,
+    enum: ['PENDING', 'IN_DOCUMENT_REVIEW', 'COMPLETED', 'ON_HOLD', 'BLOCKED'],
+  })
+  kycStatus?: 'PENDING' | 'IN_DOCUMENT_REVIEW' | 'COMPLETED' | 'ON_HOLD' | 'BLOCKED';
+
+  @Prop({ type: Object })
+  scheduleOption?: {
+    scheduleId: number;
+    message: string;
+  };
+
+  @Prop({ type: Date })
+  lastSyncAt?: Date;
+
+  @Prop({
+    type: String,
+    enum: ['PENDING', 'VERIFIED', 'FAILED'],
+  })
+  bankVerificationStatus?: 'PENDING' | 'VERIFIED' | 'FAILED';
+
+  @Prop({ type: Date })
+  bankVerifiedAt?: Date;
+
+  @Prop({ type: String })
+  bankVerificationError?: string;
+
+  @Prop({ type: Array, default: [] })
+  settlementHistory?: Array<{
+    amount: number;
+    settledAt: Date;
+    settlementId: string;
+    status: string;
+  }>;
+}
+
+const CashfreeConfigSchema = SchemaFactory.createForClass(CashfreeConfig);
+
+@Schema({ _id: false })
+class MigrationStatus {
+  @Prop({ type: Boolean, default: false })
+  cashfreeVendorOnboarded?: boolean;
+
+  @Prop({ type: Date })
+  cashfreeOnboardedAt?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  subscriptionMigrated?: boolean;
+
+  @Prop({ type: Date })
+  subscriptionMigratedAt?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  razorpayDisabled?: boolean;
+
+  @Prop({ type: Date })
+  razorpayDisabledAt?: Date;
+
+  @Prop({ type: String })
+  migrationPhase?: 'not_started' | 'vendor_onboarded' | 'payment_testing' | 'subscription_migrated' | 'completed';
+}
+
+const MigrationStatusSchema = SchemaFactory.createForClass(MigrationStatus);
 
 @Schema({
   timestamps: true,
@@ -309,6 +437,18 @@ export class Restaurant {
 
   @Prop({ type: BusinessDetailsSchema })
   businessDetails?: BusinessDetails;
+
+  @Prop({ type: BankAccountSchema })
+  bankAccount?: BankAccount;
+
+  @Prop({ type: DocumentsSchema })
+  documents?: Documents;
+
+  @Prop({ type: CashfreeConfigSchema })
+  cashfreeConfig?: CashfreeConfig;
+
+  @Prop({ type: MigrationStatusSchema, default: () => ({}) })
+  migrationStatus?: MigrationStatus;
 
   @Prop({ type: String })
   ownerId?: string;

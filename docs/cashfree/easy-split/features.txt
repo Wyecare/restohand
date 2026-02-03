@@ -1,0 +1,51 @@
+Features
+
+Open in ChatGPT
+
+Feature	Resource	Description
+Add/Update Vendor	Configuration:
+For NEFT/IMPS bank transfer:
+a. Vendor unique ID
+b. Phone and Email ID
+c. Bank Account Holder Name
+d. Account Number
+e. IFSC
+f. Schedule Option
+
+For UPI Transfers:
+a. Vendor unique ID
+b. Phone and Email ID
+c. UPI VPA
+d. Schedule Option	You can add or update your vendor details by providing basic information about the vendor and their account details. Details can be shared either for bank transfer or for UPI VPA transfer.
+- Add/Update Vendor is implemented instantly.
+- Compliment add/update with bank verification, you can use Bank Account Verification APIs to avoid failures in settlement due to incorrect bank details.
+- You can configure schedule options for each vendor during add/update. For faster schedule options, raise a request to your account manager or Support Form.
+Split after payment success	Configuration:
+- Split by Amount
+- Split by Percentage
+- Order split Delay: 2 days (can be extended further if required)	- This will be active by default when Easy Split is enabled. The default configuration is as per the schedule option.
+- This feature allows to initiation of split after successful confirmation of payment by the customer.
+- Only successfully captured transactions can be settled to split accounts.
+- Perform split operation for the successful order within 2 days (can be extended further if required).
+- If the split is not provided in the configured window, the settlement will happen to your account by default.
+Transfer Vendor Balance	Configuration:
+1. Vendor Credit and Merchant Debit - Type: “CREDIT”
+2. Vendor Debit and Merchant Credit - Type: “DEBIT”	You can initiate manual Credit/Debit of a configured vendor-configured settlement account. This can only be done if the debit account has sufficient balance to transfer the respective payment.
+Refund before split	Configuration:
+- OrderID
+- Refund Amount	If the refund is initiated before the vendor split is shared, Cashfree Payments directly refunds the money to the customer payment instrument in the next settlement.
+Refund after split	Configuration:
+- OrderID
+- VendorID
+- Refund Amount
+- Refund Split by Amount or Percentage	If the refund is initiated after the vendor split is shared - The refund will be done from your and vendor’s settlement account according to the respective transaction split created.
+Deferred Settlement	Configuration:
+- OrderID
+- VendorID
+- Settlement Eligibility Date: Default 2 days (can be extended further if required)	- This feature has to be pre-configured to defer settlement to specific vendors (Contact your account manager to use this defer settlement).
+- This API allows you to assign a settlement eligibility date for an order and vendor combination.
+- Vendors post their settlement time will be settled in the next settlement.
+- Only successfully captured transactions can be settled to split accounts.
+Was this page helpful?
+
+

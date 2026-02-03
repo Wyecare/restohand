@@ -1,0 +1,1335 @@
+{
+	"info": {
+		"_postman_id": "e40243ca-7765-486a-a669-e27bd798d7e1",
+		"name": "Easy Split Postman Collection",
+		"description": "Easy Split automates the splitting of payments with vendors and partners on time. Collect payments from customers, and set up a flexible schedule options to disburse payments to your vendors. Get detailed reports on the transactions, settlements, refunds, vendor payments and adjustments.\n\n**You can perform the following tasks using Easy Split:**\n\n- Add and manage all your vendors efficiently.\n    \n- Split payments and settle them into multiple vendor accounts using the available schedule options cycles.\n    \n- Check on-demand vendor balance and settle the money into the vendor accounts instantly.\n    \n- Vendor reconciliation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "25503897"
+	},
+	"item": [
+		{
+			"name": "Vendors 2.0",
+			"item": [
+				{
+					"name": "Create Vendor [Bank Account]",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Client-Secret",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "X-Client-Id",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"vendor_id\": \"vendortest4o1\",\n    \"status\": \"ACTIVE\",\n    \"name\": \"customer\",\n    \"email\": \"johndoe@cashfree.com\",\n    \"phone\": \"9876543210\",\n    \"verify_account\": true,\n    \"dashboard_access\": true,\n    \"schedule_option\": 2,\n    \"bank\": {\n      \"account_number\": \"026291800001191\",\n  \t  \"account_holder\": \"John Doe\",\n  \t  \"ifsc\": \"YESB0000262\"\n    },\n    \"kyc_details\": {\n        \"account_type\": \"Proprietorship\",\n        \"business_type\": \"Jewellery\",\n        \"uidai\": \"655675523712\",\n        \"gst\": \"29AAICP2912R1ZR\",\n        \"cin\": \"L00000Aa0000AaA000000\",\n        \"pan\": \"ABCPV1234D\",\n        \"passport_number\": \"L6892603\"\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendors",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendors"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Vendor [UPI]",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Client-Secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "X-Client-Id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"vendor_id\": \"vendortest41\",\n    \"status\": \"ACTIVE\",\n    \"name\": \"customer\",\n    \"email\": \"johndoe@cashfree.com\",\n    \"phone\": \"9876543210\",\n    \"verify_account\": true,\n    \"dashboard_access\": true,\n    \"schedule_option\": 1,\n    \"upi\": {\n      \"vpa\": \"success@upi\",\n  \t  \"account_holder\": \"John Doe\"\n    },\n    \"kyc_details\": {\n        \"account_type\": \"Proprietorship\",\n        \"business_type\": \"Jewellery\",\n        \"uidai\": \"655675523712\",\n        \"gst\": \"29AAICP2912R1ZR\",\n        \"cin\": \"L00000Aa0000AaA000000\",\n        \"pan\": \"ABCPV1234D\",\n        \"passport_number\": \"L6892603\"\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendors",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendors"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Vendor [Bank Account]",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}",
+								"type": "text"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}",
+								"type": "text"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"DELETED\",\n    \"name\": \"customer\",\n    \"email\": \"johndoe@cashfree.com\",\n    \"phone\": \"9876543210\",\n    \"verify_account\": true,\n    \"dashboard_access\": true,\n    \"schedule_option\": 2,\n    \"kyc_details\": {\n        \"account_type\": \"Proprietorship\",\n        \"business_type\": \"Jewellery\",\n        \"uidai\": \"655675523712\",\n        \"gst\": \"29AAICP2912R1ZR\",\n        \"cin\": \"L00000Aa0000AaA000000\",\n        \"pan\": \"ABCPV1234D\",\n        \"passport_number\": \"L6892603\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendors/{vendor_id}",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendors",
+								"{vendor_id}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor All Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendors/{vendor_id}",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendors",
+								"{vendor_id}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Vendor Docs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"warning": "This is a duplicate header and will be overridden by the Content-Type header generated by Postman.",
+								"key": "Content-Type",
+								"value": "multipart/form-data"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "doc_type",
+									"value": "Merchant-Vendor Agreement",
+									"type": "text"
+								},
+								{
+									"key": "doc_category",
+									"value": "GSTIN",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "doc_value",
+									"value": "FGS",
+									"type": "text",
+									"disabled": true
+								}
+							]
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendor-docs/{vendor_id}",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendor-docs",
+								"{vendor_id}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor All Document Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendor-docs/{vendor_id}",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendor-docs",
+								"{vendor_id}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor Document Download",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendor-docs/{vendor_id}/download/{doc_name}",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendor-docs",
+								"{vendor_id}",
+								"download",
+								"{doc_name}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "This section consists of the new set of Vendor KYC APIs. Use these APIs to perform actions such as creating a vendor, updating vendor details, get vendor details, upload vendor KYC documents, get all vendor documents and so on."
+		},
+		{
+			"name": "Split Orders",
+			"item": [
+				{
+					"name": "Split at Order Level",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2021-05-21"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"order_amount\": 1000,\n    \"order_currency\": \"INR\",\n    \"customer_details\": {\n        \"customer_id\": \"Dana\",\n        \"customer_email\": \"elizabethangelin@hotmail.com\",\n        \"customer_phone\": \"9876543210\",\n        \"customer_name\": \"Multiple Splits\"\n    },\n    \"order_note\": \"Tshirt order\",\n    \"order_meta\": {\n        \"return_url\": \"\",\n        \"notify_url\": \"https://www.cashfree.com/pg/process_webhook\",\n        \"payment_methods\": \"cc,dc\"\n    }\n    // ,\"order_splits\": [\n    //     {\n    //         \"vendor_id\": \"test01\",\n    //         \"percentage\": 10,\n    //         \"tags\": {\n    //             \"product\": \"topwear\"\n    //         }\n    //     },\n    //     {\n    //         \"vendor_id\": \"test02\",\n    //         \"percentage\": 19,\n    //         \"tags\": {\n    //             \"product\": \"footwear\"\n    //         }\n    //     }\n    // ]\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/orders",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"orders"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Split After Payment [Create split]",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"split\": [\n          {\n            \"vendor_id\": \"test03\",\n            \"percentage\": 100,\n            \"tags\": {\n                \"product\": \"Dri-Fit trouser\",\n                \"size\": \"L\",\n                \"AWB\": \"NIKE12334\"\n            }\n          }\n    ],\n    \"disable_split\": true\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/orders/{order_id}/split",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"orders",
+								"{order_id}",
+								"split"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Split After Payment [End split]",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"disable_split\": true\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/orders/{order_id}/split",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"orders",
+								"{order_id}",
+								"split"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create static split",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product_type\": \"PG\",\n    \"terminal_id\" : \"0\",\n    \"terminal_reference_id\": \"ADD_INFO\",\n    \"active\": true,\n    \"scheme\": [\n            {\n                \"merchant_vendor_id\": \"EsTest1Success\",\n                \"percentage\": 10\n            }\n    ]\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/static-split",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"static-split"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Split and Settlement Details by OrderID v2.0",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "accept",
+								"value": "application/json"
+							},
+							{
+								"key": "content-type",
+								"value": "application/json"
+							},
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"filters\": {\n        \"start_date\": null,\n        \"end_date\": null,\n        \"order_ids\": [\n            \"order_1527072afd7Hlp4lpVLiz7dj0P0i84r1X\"\n        ]\n    },\n    \"pagination\": {\n        \"limit\": 10,\n        \"cursor\": null\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/split/order/vendor/recon",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"split",
+								"order",
+								"vendor",
+								"recon"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Refund with splits",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refund_amount\": 100.0,\n    \"refund_id\": \"\",\n    \"refund_note\": \"Jamee\",\n    \"refund_splits\": [\n          {\n            \"vendor_id\": \"test03\",\n            \"amount\": 10000000000,\n            \"tags\": {\n                \"product\": \"Dri-Fit trouser\",\n                \"size\": \"L\",\n                \"AWB\": \"NIKE12334\"\n            }\n          }\n    ],\n    \"refund_speed\": \"STANDARD\"\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/orders/{order_id}/refunds",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"orders",
+								"{order_id}",
+								"refunds"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "With Split Order APIs you can automatically split the orders with multiple vendors and manage settlements. When a transaction is received, based on the split instructions(split details) provided by the merchant, Cashfree Payments carries out the split.\n\nYou can split the orders into your vendors account either by mentioning the amount or the percentage. Apart from this, you can also view the split and settlement details by just providing the OrderID. To split payments to your vendors using Easy Split, you must first ensure the feature is activated for your Payment Gateway account."
+		},
+		{
+			"name": "Settlements",
+			"item": [
+				{
+					"name": "Get Settlement Cycle Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "https://test.cashfree.com/api/v2/easy-split/vendors/settlement-cycles",
+							"protocol": "https",
+							"host": [
+								"test",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"api",
+								"v2",
+								"easy-split",
+								"vendors",
+								"settlement-cycles"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Vendor Settlement Details by VendorID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "https://test.cashfree.com/api/v2/easy-split/vendors/{vendor_id}/settlements?page={page_no}&size={page_size}",
+							"protocol": "https",
+							"host": [
+								"test",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"api",
+								"v2",
+								"easy-split",
+								"vendors",
+								"{vendor_id}",
+								"settlements"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "{page_no}"
+								},
+								{
+									"key": "size",
+									"value": "{page_size}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Vendor Settlement Details by SettlementID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "https://test.cashfree.com/api/v2/easy-split/vendors/{vendor_id}/settlements/{settlementId}",
+							"protocol": "https",
+							"host": [
+								"test",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"api",
+								"v2",
+								"easy-split",
+								"vendors",
+								"{vendor_id}",
+								"settlements",
+								"{settlementId}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Vendor Adjustment v2.0",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transfer_from\": \"VENDOR\",\n    \"transfer_type\": \"ADJUSTMENT\",\n    \"transfer_amount\": 100,\n    \"remark\": \"Testing\",\n    \"tags\": {\n        \"product\": \"Dri-Fit trouser\",\n        \"size\": \"L\",\n        \"AWB\": \"NIKE12334\"\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendors/{vendor_id}/transfer",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendors",
+								"{vendor_id}",
+								"transfer"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Once you have created an order and your customer pays for the order, the amount is received by Cashfree Payments and processes the settlement into your bank account.\n\nWith the settlement APIs, you can view the schedule option details, vendor schedule option details and so on. You can also fetch the settlement details by just providing the SettlementID.\n\nApart from this, you can settle the payments instantly using the On-demand settlements option. This option allows you to receive the unsettled amount to your bank account instantly 24x7 including holidays."
+		},
+		{
+			"name": "On Demand Vendor Settlement - Amount Based",
+			"item": [
+				{
+					"name": "Get On Demand Balance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendors/{vendor_id}/balances",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendors",
+								"{vendor_id}",
+								"balances"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Charges",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/amount/10/charges?rateType=VENDOR_OD",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"amount",
+								"10",
+								"charges"
+							],
+							"query": [
+								{
+									"key": "rateType",
+									"value": "VENDOR_OD"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create On Demand Transfer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transfer_from\": \"VENDOR\",\n    \"transfer_type\": \"ON_DEMAND\",\n    \"transfer_amount\": 100,\n    \"remark\": \"Testing\",\n    \"tags\": {\n        \"product\": \"Dri-Fit trouser\",\n        \"size\": \"L\",\n        \"AWB\": \"NIKE12334\"\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/easy-split/vendors/{vendor_id}/transfer",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"easy-split",
+								"vendors",
+								"{vendor_id}",
+								"transfer"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "The On Demand Vendor Settlement APIs allows merchants to either send or receive payments from their vendors instantly 24x7. The settlements takes place in real-time. By this way you can avoid any payment delay to your merchants or vendors."
+		},
+		{
+			"name": "On Demand Settlements - Interval Based",
+			"item": [
+				{
+					"name": "Get On Demand Vendor Balance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							}
+						],
+						"url": {
+							"raw": "https://test.cashfree.com/api/v2/easy-split/vendor/{vendor_id}/balance?start=2022-09-01T00:00:00&end=2022-12-01T00:00:00",
+							"protocol": "https",
+							"host": [
+								"test",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"api",
+								"v2",
+								"easy-split",
+								"vendor",
+								"{vendor_id}",
+								"balance"
+							],
+							"query": [
+								{
+									"key": "start",
+									"value": "2022-09-01T00:00:00"
+								},
+								{
+									"key": "end",
+									"value": "2022-12-01T00:00:00"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Settle On Demand Vendor Balance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							}
+						],
+						"url": {
+							"raw": "https://test.cashfree.com/api/v2/easy-split/vendor/{vendor_id}/settle?start=2022-08-01T00:00:00&end=2022-08-18T12:37:00",
+							"protocol": "https",
+							"host": [
+								"test",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"api",
+								"v2",
+								"easy-split",
+								"vendor",
+								"{vendor_id}",
+								"settle"
+							],
+							"query": [
+								{
+									"key": "start",
+									"value": "2022-08-01T00:00:00"
+								},
+								{
+									"key": "end",
+									"value": "2022-08-18T12:37:00"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get On Demand Settlement Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Client-Secret",
+								"value": "{clientKey}",
+								"disabled": true
+							},
+							{
+								"key": "X-Client-Id",
+								"value": "{clientId}",
+								"disabled": true
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01",
+								"disabled": true
+							},
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}",
+								"type": "text"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://test.cashfree.com/api/v2/easy-split/vendor/on-demand/{requestId}",
+							"protocol": "https",
+							"host": [
+								"test",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"api",
+								"v2",
+								"easy-split",
+								"vendor",
+								"on-demand",
+								"{requestId}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "The On Demand Settlement APIs allows vendors to receive payments from customers instantly 24x7. The settlements takes place in real-time. By this way you can avoid any payment delay to your vendors."
+		},
+		{
+			"name": "Deferred Settlements",
+			"item": [
+				{
+					"name": "Set Vendor Settlement Eligibility Date for Orders",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"settlementEligibilityDate\": \"2021-09-05 08:13:00\"\n}"
+						},
+						"url": {
+							"raw": "https://test.cashfree.com/api/v2/easy-split/orders/{order_id}/settlement-eligibility/vendors/{vendor_id}",
+							"protocol": "https",
+							"host": [
+								"test",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"api",
+								"v2",
+								"easy-split",
+								"orders",
+								"{order_id}",
+								"settlement-eligibility",
+								"vendors",
+								"{vendor_id}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "This section consists of the deferred settlements APIs."
+		},
+		{
+			"name": "Webhooks",
+			"item": [
+				{
+					"name": "Vendor Status Change Webhook",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Vendor Settlement Webhook",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Reconciliation",
+			"item": [
+				{
+					"name": "View Split Order Details Using Settlement ID",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"pagination\": {\n        \"limit\": 10\n    },\n    \"filters\": {\n      \"settlement_id\": 54843\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/recon/vendor",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"recon",
+								"vendor"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Vendor Recon for a Time Period",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"pagination\": {\n          \"cursor\": null,\n          \"limit\": 25\n    },\n    \"filters\": {\n        \"start_date\": \"2023-08-18T00:00:00Z\",\n        \"end_date\": \"2023-08-19T23:59:59Z\"\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/recon/vendor",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"recon",
+								"vendor"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Vendor Recon Using Vendor ID & Time Interval",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-client-id",
+								"value": "{{clientId}}"
+							},
+							{
+								"key": "x-client-secret",
+								"value": "{{clientSecret}}"
+							},
+							{
+								"key": "x-api-version",
+								"value": "2022-09-01"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"pagination\": {\n        \"limit\": 15,\n        \"cursor\": null\n    },\n    \"filters\": {\n        \"merchant_vendor_id\": \"test03\",\n        \"start_date\": \"2023-08-18T00:00:00Z\",\n        \"end_date\": \"2023-08-19T23:59:59Z\"\n    }\n}"
+						},
+						"url": {
+							"raw": "https://sandbox.cashfree.com/pg/recon/vendor",
+							"protocol": "https",
+							"host": [
+								"sandbox",
+								"cashfree",
+								"com"
+							],
+							"path": [
+								"pg",
+								"recon",
+								"vendor"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "This section consists of the reconciliation APIs."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "clientId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "clientSecret",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

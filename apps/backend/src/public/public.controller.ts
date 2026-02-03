@@ -227,9 +227,11 @@ export class PublicController {
   @Post('restaurants/:slug/table/:tableId/session/payment-intent')
   async createSessionPaymentIntent(
     @Param('slug') slug: string,
-    @Param('tableId') tableId: string
+    @Param('tableId') tableId: string,
+    @Body() sessionData?: any
   ) {
-    return this.publicService.createSessionPaymentIntent(slug, tableId);
+    // MIGRATED TO CASHFREE: Use Cashfree session payment instead of Razorpay
+    return this.publicService.createCashfreeSessionPaymentIntent(slug, tableId, sessionData);
   }
 
   @Get('restaurants/:slug/table/:tableId/consolidated-bill')

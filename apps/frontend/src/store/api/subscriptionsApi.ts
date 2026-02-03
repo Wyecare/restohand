@@ -212,6 +212,15 @@ export interface RestaurantOnboardingData {
   businessType: 'sole_proprietorship' | 'partnership' | 'private_limited' | 'public_limited';
   gstNumber?: string;
   panNumber?: string;
+  // Optional KYC fields for Cashfree Easy Split
+  bankAccount?: {
+    accountNumber: string;
+    ifscCode: string;
+    accountHolderName: string;
+  };
+  documents?: {
+    cin?: string; // For companies
+  };
 }
 
 export const subscriptionsApi = baseApi.injectEndpoints({

@@ -27,6 +27,7 @@ import { OrdersService } from '../orders/orders.service';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { RazorpayService } from '../payments/razorpay.service';
+import { CashfreePaymentService } from '../payments/cashfree-payment.service';
 import { RestaurantOnboardingService } from '../restaurants/restaurant-onboarding.service';
 import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
 import { SmartGstService } from '../gst/smart-gst.service';
@@ -46,6 +47,7 @@ export class PublicService {
     private readonly tableModel: Model<RestaurantTableDocument>,
     private readonly ordersService: OrdersService,
     private readonly razorpayService: RazorpayService,
+    private readonly cashfreePaymentService: CashfreePaymentService,
     private readonly restaurantOnboardingService: RestaurantOnboardingService,
     private readonly customerSessionsService: CustomerSessionsService,
     private readonly smartGstService: SmartGstService
@@ -1255,6 +1257,17 @@ export class PublicService {
 
     await browser.close();
     return Buffer.from(pdfBuffer);
+  }
+
+  // MIGRATED TO CASHFREE: Session payment intent using Cashfree instead of Razorpay
+  async createCashfreeSessionPaymentIntent(slug: string, tableId: string, sessionData?: any) {
+    const dto = {
+      restaurantSlug: slug,
+      tableId: tableId,
+      customerSessionId: sessionData?.customerSessionId,
+      customerDetails: sessionData?.customerDetails,
+    };
+    return this.cashfreePaymentService.createSessionPaymentIntent(dto);
   }
 
 }

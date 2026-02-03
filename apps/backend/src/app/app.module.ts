@@ -6,6 +6,7 @@ import { databaseConfig } from '../config/database.config';
 import { envValidationSchema } from '../config/env.validation';
 import { firebaseConfig } from '../config/firebase.config';
 import { razorpayConfig } from '../config/razorpay.config';
+import { cashfreeConfig } from '../config/cashfree.config';
 import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { MenuCategoriesModule } from '../menu-categories/menu-categories.module';
@@ -32,6 +33,7 @@ import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.m
 import { PlansModule } from '../plans/plans.module';
 import { SuperAdminModule } from '../super-admin/super-admin.module';
 import { SeederModule } from '../database/seeders/seeder.module';
+import { CashfreeModule } from '../payments/cashfree.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -39,7 +41,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, firebaseConfig, razorpayConfig],
+      load: [appConfig, databaseConfig, firebaseConfig, razorpayConfig, cashfreeConfig],
       validationSchema: envValidationSchema,
       expandVariables: true,
     }),
@@ -73,6 +75,7 @@ import { AppService } from './app.service';
     PlansModule,
     SuperAdminModule,
     SeederModule,
+    CashfreeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

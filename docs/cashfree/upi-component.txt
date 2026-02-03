@@ -1,0 +1,151 @@
+UPI Component
+
+Open in ChatGPT
+
+Use the UPI Component to collect UPI information from the customer
+
+There are three UPI components as listed below:
+​
+upiCollect
+A component to accept user’s vpa/upi id
+​
+upiCollect
+UPI Collect Object
+Hide properties
+
+​
+placeholder
+string
+placeholder for enter vpa field
+​
+upiId
+string
+vpa/upi id of the customer
+Returned Value
+You can get the value of a component by calling component.data().value. All returned values of component.data() can be found here
+​
+upiCollect
+UPI Collect Object
+Hide properties
+
+​
+upiId
+string
+vpa/upi id of the customer
+Code snippet for upiCollect component
+
+let cashfree = Cashfree({
+  mode:"sandbox" //or production
+});
+let upiCollect = cashfree.create('upiCollect', {
+	values:{
+		upiId: 'janedoe1@okbankname'
+	}
+});
+upiCollect.on('loaderror', function(data){
+	console.log(data.error)
+})
+upiCollect.mount("#mount-here");
+upiCollect.on('ready', function(d){
+    console.log(upiCollect.data().value); //{upiId: 'janedoe1@okbankname'}
+    //or
+    //console.log(d.value) 
+});
+​
+upiApp
+A component to initiate UPI app/intent payment. Only works in mobile phones. If you mount it on desktop it will throw an error in loaderror
+Component will not mount on custom webview/inappbrowser Android. It will however mount in popular apps like Facebook, Instagram, Twitter. However, since iOS handles intent differently than android it will always mount in iOS
+​
+upiApp
+UPI App Object
+Hide properties
+
+​
+upiApp
+stringrequired
+name of the upi app
+​
+buttonText
+string
+Text for button, ex Google Pay for upiApp gpay
+​
+buttonIcon
+bool
+Indicate whether to show the app icon or not
+Returned Value
+You can get the value of a component by calling component.data().value. All returned values of component.data() can be found here
+​
+upiApp
+UPI App Object
+Hide properties
+
+​
+upiApp
+string
+name of the upi app
+Code snippet for the upiApp component
+
+let cashfree = Cashfree({
+  mode:"sandbox" //or production
+});
+let upiApp = cashfree.create('upiApp', {
+	values:{
+		upiApp: 'gpay',
+		buttonText: 'GPAY',
+		buttonIcon: true
+	}
+});
+upiApp.on('loaderror', function(data){
+	console.log(data.error)
+})
+upiApp.mount("#mount-here");
+upiApp.on('ready', function(d){
+    console.log(upiApp.data().value); //{upiApp: 'gpay'}
+    //or
+    //console.log(d.value) 
+});
+​
+upiQr
+A component to show a UPI qr code
+​
+upiQr
+UPI QR Object
+Hide properties
+
+​
+size
+stringrequired
+size of the qr code. ex “220px”
+Returned Value
+You can get the value of a component by calling component.data().value. All returned values of component.data() can be found here
+​
+upiQr
+UPI QR Object
+Hide properties
+
+​
+size
+string
+size of the qr code. ex “220px”
+Code snippet for upiQr component
+
+let cashfree = Cashfree({
+  mode:"sandbox" //or production
+});
+let upiQr = cashfree.create('upiQr', {
+	values:{
+		size: "220px"
+	}
+});
+upiQr.on('loaderror', function(data){
+	console.log(data.error)
+})
+upiQr.mount("#mount-here");
+upiQr.on('ready', function(d){
+    console.log(upiQr.data().value); //{size: '220px'}
+    //or
+    //console.log(d.value) 
+})
+Was this page helpful?
+
+

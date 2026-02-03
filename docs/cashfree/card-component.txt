@@ -1,0 +1,152 @@
+Cards Component
+
+Open in ChatGPT
+
+Use the Card Component to collect card information from the customer
+
+There are four card components as listed below:
+​
+cardNumber
+A component to accept card number.
+​
+cardNumber
+Card Number Object
+Hide properties
+
+​
+placeholder
+string
+placeholder for your card number field
+​
+hideBrandIcon
+booleandefault:"false"
+hide brand icons, default is false
+Returned Value
+You can get the value of a component by calling component.data().value. All returned values of component.data() can be found here
+​
+cardNumber
+Card Number Object
+Hide properties
+
+​
+brand
+string
+contains the brand of the card visa, amex, mastercard, rupay
+​
+cvvLength
+string
+contains the cvv length for the given brand eg 4 for amex
+Code Snippet for cardNumber component
+
+let cashfree = Cashfree({
+  mode:"sandbox" //or production
+});
+let card = cashfree.create('cardNumber', {
+	values:{
+		placeholder: "Enter card number"
+	}
+});
+card.on('loaderror', function(data){
+	console.log(data.error)
+})
+card.mount("#mount-here");
+card.on('ready', function(d){
+    console.log(card.data().value);  //{brand: 'visa', cvvLength: 3}
+    //or
+    //console.log(d.value) 
+})
+​
+cardHolder
+A component to accept card holder’s name. You can pass values to a component using options cashfree.create(‘componentName’, options)
+​
+cardNumber
+Card Number Object
+Hide properties
+
+​
+cardHolder
+string
+name of the card holder
+Returned Value
+You can get the value of a component by calling component.data().value. All returned values of component.data() can be found here
+​
+cardHolder
+Card Holder Object
+Hide properties
+
+​
+cardHolder
+string
+contains the name of the card holder
+Code Snippet for cardHolder component
+
+let cashfree = Cashfree({
+  mode:"sandbox" //or production
+});
+let cardHolder = cashfree.create('cardHolder', {
+	values:{
+		cardHolder: 'Jane Doe'
+	}
+});
+cardHolder.on('loaderror', function(data){
+	console.log(data.error)
+})
+cardHolder.mount("#mount-here");
+cardHolder.on('ready', function(d){
+    console.log(cardHolder.data().value)//{cardHolder: 'Jane Doe'}
+    //or
+    //console.log(d.value);  
+})
+​
+cardExpiry
+A component to accept card expiry. This component does not accept any parameters.
+Returned Value
+You can get the value of a component by calling component.data().value. All returned values of component.data() can be found here
+​
+cardExpiry
+Card Expiry Object
+Hide properties
+
+​
+cardExpiry
+string
+Returns the card expiry in MM/YY format.
+Code snippet for cardExpiry component
+
+let cashfree = Cashfree({
+  mode:"sandbox" //or production
+});
+let cardExpiry = cashfree.create('cardExpiry', {
+	values:{
+		//does not accept any value
+	}
+});
+cardExpiry.on('loaderror', function(data){
+	console.log(data.error)
+})
+cardExpiry.mount("#mount-here");
+cardCvv.on('ready', function(d){
+    console.log(cardCvv.data().value); //{cardExpiry: '12/26'}
+    //or
+    //console.log(d.value) 
+});
+​
+cardCvv
+A component to accept card cvv/cvc. This component does not accept any parameters.
+Returned Value
+This is a secure field and you cannot get values from this field.
+Code snippet for cardCVV component
+
+let cashfree = Cashfree({
+  mode:"sandbox" //or production
+});
+let cardCvv = cashfree.create('cardCvv', {});
+cardCvv.on('loaderror', function(data){
+	console.log(data.error)
+})
+cardCvv.mount("#mount-here");
+cardCvv.on('ready', function(d){
+    console.log(cardCvv.data().value); //{cardCvv: '123'}
+    //or
+    //console.log(d.value) 
+});

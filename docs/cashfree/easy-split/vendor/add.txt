@@ -1,0 +1,49 @@
+Add Vendor
+
+Open in ChatGPT
+
+Learn how to add vendors using the Merchant Dashboard or API, including single and batch uploads, KYC requirements, and vendor status workflows.
+
+Before you add a vendor, review the required documents that are applicable to different vendor types and business categories. They are mentioned in the tables below.
+To add a new vendor, follow the Dashboard or API instructions below.
+Dashboard
+API
+Use the Vendor APIs to create, update, and manage vendors programmatically. Before you use the Vendor APIs, ensure you have API keys generated from the Merchant Dashboard and the required permissions.
+Common vendor APIs:
+API endpoint	Method	Description
+/easy-split/vendors	POST	Create a new vendor. For more information, see Create Vendor API.
+/easy-split/vendors/{vendor_id}	GET	Retrieve vendor details by vendor ID. For more information, see Get Vendor API.
+/easy-split/vendors/{vendor_id}	PATCH	Update vendor fields (for example, settlement cycle or contact). For more information, see Update Vendor API.
+/easy-split/vendor-docs/{vendor_id}	POST	Upload KYC or supporting documents for the vendor. For more information, see Upload Vendor Docs.
+/easy-split/vendor-docs/{vendor_id}	GET	Check the upload and verification status of vendor documents. For more information, see Get Vendor Docs.
+For full API request/response schemas, refer to the linked API reference pages.
+​
+Available schedule options
+Use schedule option 8, 9, 14, or 17 to schedule instant settlements to your vendor account.
+Schedule options
+
+ID	Description
+1	T+1* settlement at 11:00 AM.
+2	T+2* settlement at 11:00 AM.
+3	All transactions from 4:45 PM T-1 to 10:45 AM T+0* settled at 11:15 AM T+0*, and, 10:45 AM T+0* to 4:45 PM T+0* at 5:15 PM T+0*.
+4	All transactions from 2:00 PM T-1 to 2:00 PM T+0 settled at 3:00 PM T+0*.
+5	All transactions till 5:30 PM at 6:00 PM.
+6	Instant settlement every hour between 7:00 AM and 5:00 PM on working days.
+7	Instant settlement every 3 hours between 8:00 AM and 5:00 PM on working days.
+8	Instant settlement every hour 24*7.
+9	Instant settlement every 3 hours 24*7.
+11	Weekly every 1st working day.
+12	Monthly every 1st working day.
+13	T+1* settlement at 09:00 AM.
+14	Instant settlement every 15 minutes 24*7.
+15	T+3* settlement at 11:00 AM.
+16	T+7* settlement at 11:00 AM.
+17	Instant settlement every minute 24*7.
+T+x*: Settlement cycle is subject to bank approval and can vary based on transaction type, business category/model, risk parameters, and other factors.
+​
+Vendor status workflow
+When you onboard a vendor from the dashboard or use the APIs, they go through various states. The following table describes the various vendor statuses during the onboarding process:
+| Vendor status | Descriptio
+Was this page helpful?
+
+

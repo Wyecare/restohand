@@ -26,6 +26,7 @@ import InventoryPage from '@/pages/InventoryPage';
 import RecipesPage from '@/pages/RecipesPage';
 import SubscriptionPage from '@/pages/SubscriptionPage';
 import BranchManagementPage from '@/pages/BranchManagementPage';
+import KycManagementPage from '@/pages/KycManagementPage';
 import { PdfMenuExtractionTab } from '@/pages/menu-management/tabs/PdfMenuExtractionTab';
 
 const AppRouter = () => {
@@ -98,6 +99,7 @@ const AppRouter = () => {
           {/* <Route path="recipes" element={<RecipesPage />} /> */}
           <Route path="reports" element={<ReportsPage />} />
           <Route path="subscription" element={<SubscriptionPage />} />
+          <Route path="kyc" element={<KycManagementPage />} />
           <Route path="settings" element={<SettingsPageNew />} />
           <Route path="settings/gst" element={<SettingsPageNew />} />
           <Route path="settings/gst/setup" element={<GstSetupWizard />} />

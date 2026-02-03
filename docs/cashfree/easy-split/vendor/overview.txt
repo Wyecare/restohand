@@ -1,0 +1,30 @@
+Overview
+
+Open in ChatGPT
+
+Easy Split automates payment splitting between you and your vendors. With Easy Split, you can:
+Onboard, manage and disburse payments to vendors
+Perform splits at order level and manage refunds from vendors smoothly
+Track all transactions through detailed reports covering:
+Settlements
+Refunds
+Requirements: Your Cashfree Payments account must use one of these collections products:
+Payment Gateway
+Payment Links/Forms
+Subscriptions
+To enable Easy Split, contact your account manager.
+​
+Workflow
+
+​
+Benefits
+Vendor Management
+Onboard vendors through API integration - Set up automated settlements
+Payment Splitting
+Split customer payments among vendors - Choose between instant settlements or custom schedules - Set order-level settlement timing for each vendor
+Reconciliation
+Track all transactions via API - Receive real-time webhook notifications for: - Payment status - Settlement status - Refund status
+Reports
+View transaction details - Track settlements - Monitor refunds - Review vendor payments - Access adjustment records
+Refund Processing
+Specify refund split ratios between you and vendors - Automatically adjust vendor settlements

@@ -1,0 +1,288 @@
+SDK Libraries
+
+Open in ChatGPT
+
+JS, React and Svelte component libraries for seamless integration of Cashfree Payment Gateway into your applications.
+
+Integrate Cashfree Payment Gateway into your web applications using our JS, React and Svelte SDKs. These component libraries simplify the payment workflow with prebuilt UI components and event handling. You can customise styling to match your app’s design and handle multiple payment methods with ease. Use these SDKs to build a secure, seamless, and developer-friendly payment experience.
+​
+JS library
+Offers a flexible and efficient payment experience with support for multiple payment methods, customisable styling, and robust event handling. The following payment methods are supported:
+Card payment
+EMI
+UPI QR code
+UPI app intent
+UPI collect
+Netbanking
+Wallets
+BNPL
+Cashfree hosted checkout
+To install the package use:
+
+CDN
+
+NPM
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+Import and set up the Cashfree card component
+To install the package use:
+
+HTML
+
+ReactJS
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Cashfree V3 Card</title>
+        <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
+    </head>
+    <body>
+        <div id="cardLayout" style="width:400px; padding: 20px; background:#f6f9fb">
+           <div id="cardNumber" style="margin-bottom: 10px;"></div>
+            <div id="cardHolder" style="margin-bottom: 10px;"></div>
+            <div style="display: flex; margin-bottom: 10px;">
+                <div id="cardExpiry" style="margin-right: 1rem"></div>
+                <div id="cardCvv"></div>
+            </div>
+            <div id="save" style="margin-bottom: 10px;"></div>
+            <button 
+                type="submit" id="payNow" 
+                style="width: 100%; height: 35px; cursor: pointer; border: 1px solid #2361d5; color: #2361d5; background: none; border-radius: 8px">
+                Pay Now
+            </button>
+            <p id="paymentMessage" style="color: #df1b41"></p>
+        </div>
+    </body>
+    <script>
+        const cashfree = Cashfree({
+            mode: "sandbox",
+        });
+
+        let paymentBtn = document.getElementById("payNow");
+        let paymentMessage = document.getElementById("paymentMessage");
+
+        let styleObject = {
+            fonts: [{
+                cssSrc: "https://fonts.googleapis.com/css2?family=Lato"
+            }],
+            base: {
+                fontSize: "16px",
+                fontFamily: "Lato",
+                backgroundColor: "#FFFFFF",
+                ":focus": {
+                    border: "1px solid #2361d5",
+                },
+                border: "1px solid #e6e6e6",
+                borderRadius: "5px",
+                padding: "16px",
+                color: "#000000",
+            },
+            invalid: {
+                color: "#df1b41",
+            },
+        };
+
+        let cardOptions = {
+            values: {
+                placeholder: "Enter Card Number",
+            },
+            style: styleObject,
+        };
+        let cardComponent = cashfree.create("cardNumber", cardOptions);
+        cardComponent.mount("#cardNumber");
+
+        let cvvOptions = {
+            style: styleObject,
+        };
+        let cvvComponent = cashfree.create("cardCvv", cvvOptions);
+        cvvComponent.mount("#cardCvv");
+
+        let cardHolderOptions = {
+            values: {
+                placeholder: "Enter Card Holder Name",
+            },
+            style: styleObject,
+        };
+        let cardHolder = cashfree.create("cardHolder", cardHolderOptions);
+        cardHolder.mount("#cardHolder");
+
+        let cardExpiryOptions = {
+            style: styleObject,
+        };
+        let cardExpiry = cashfree.create("cardExpiry", cardExpiryOptions);
+        cardExpiry.mount("#cardExpiry");
+
+        let saveOptions = {
+            values: {
+                label: "Save Card for later",
+            },
+            style: styleObject,
+        };
+        let save = cashfree.create("savePaymentInstrument", saveOptions);
+        save.mount("#save");
+
+        cardExpiry.on("change", function (data) {
+            toggleBtn();
+        });
+        cardHolder.on("change", function (data) {
+            toggleBtn();
+        });
+        cardComponent.on("change", function (data) {
+            cvvComponent.update({ cvvLength: data.value.cvvLength });
+            toggleBtn();
+        });
+        cvvComponent.on("change", function (data) {
+            toggleBtn();
+        });
+
+        function toggleBtn() {
+            if (
+                cardExpiry.isComplete() &&
+                cardHolder.isComplete() &&
+                cardComponent.isComplete() &&
+                cvvComponent.isComplete()
+            ) {
+                paymentBtn.disabled = false;
+            } else {
+                paymentBtn.disabled = true;
+            }
+        }
+
+        paymentBtn.addEventListener("click", function () {
+            paymentBtn.disabled = true;
+            cashfree.pay({
+                paymentMethod: cardComponent,
+                paymentSessionId: "your-payment-session-id",
+                savePaymentInstrument: save,
+            }).then(function (data) {
+                if (data != null && data.error) {
+                    paymentMessage.innerHTML = data.error.message;
+                }
+                paymentBtn.disabled = false;
+            });
+        });
+    </script>
+</html>
+​
+Svelte library
+Supports multiple payment methods, event handling, and customisable styling for a flexible and efficient payment experience. We support the following payment methods:
+Card Payment
+UPI QR Code
+UPI App Intent
+UPI Collect
+Netbanking
+Wallets
+Cashfree hosted checkout
+To install the package use:
+Shell
+npm install @cashfreepayments/pg-svelte
+Import and set up the Cashfree card component
+<script>
+	import {
+		Cashfree,
+		CardNumber,
+		CardHolder,
+		CardExpiry,
+		CardCVV,
+		SaveInstrument
+	} from '@cashfreepayments/pg-svelte';
+
+	// Track payment component state
+	let isReadyForPayment = false;
+
+	function checkState(e) {
+		// Check if all required fields are complete
+		isReadyForPayment = e.detail.isComplete;
+	}
+</script>
+
+<Cashfree bind:this={cashfreeCard} {mode} on:complete={checkState}>
+	<div class="form-container">
+		<div>
+			<label>Card Number</label>
+			<CardNumber class="input-text" placeholder="4111 XXXX XXXX 1111" />
+		</div>
+		<div>
+			<label>Card Holder Name</label>
+			<CardHolder class="input-text" />
+		</div>
+		<div class="expiry-cvv-container">
+			<div>
+				<label>Expiry</label>
+				<CardExpiry class="input-text" />
+			</div>
+			<div>
+				<label>CVV</label>
+				<CardCVV class="input-text" />
+			</div>
+		</div>
+		<div>
+			<SaveInstrument label="Save this card for future payments" />
+		</div>
+		<button on:click={doPayment} disabled={!isReadyForPayment}>Pay Now</button>
+	</div>
+</Cashfree>
+To learn more about this library, refer to Svelte GitHub repository.
+​
+React library
+A lightweight and modular React component library for integrating Cashfree Payment Gateway built on top of the Cashfree JS SDK with full support for card input fields like Card Number, Expiry and more.
+To install the package use:
+Shell
+npm install @cashfreepayments/pg-react
+Import and set up the Cashfree Card component
+import React, { useState } from "react";
+import {
+  Cashfree,
+  CardNumber,
+  CardHolder,
+  CardExpiry,
+  CardCVV,
+  SaveInstrument,
+} from "@cashfreepayments/pg-react";
+
+const App: React.FC = () => {
+  const [isComplete, setIsComplete] = useState(false);
+
+  const handlePay = () => {
+    alert("Payment processing...");
+    // Trigger your payment logic here
+  };
+
+  return (
+    <Cashfree
+      theme="pastel"
+      onComplete={(status) => {
+        setIsComplete(status); // this is your local app state
+      }}
+    >
+      <CardNumber />
+      <CardHolder />
+      <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+        <CardExpiry />
+        <CardCVV />
+      </div>
+      <SaveInstrument />
+      <div style={{ marginTop: "20px" }}>
+        <button
+          onClick={handlePay}
+          disabled={!isComplete}
+          style={{
+            padding: "12px 24px",
+            fontSize: "16px",
+            cursor: isComplete ? "pointer" : "not-allowed",
+            backgroundColor: isComplete ? "#2361d5" : "#a0a0a0",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            transition: "background-color 0.3s ease",
+          }}
+        >
+          Pay Now
+        </button>
+      </div>
+    </Cashfree>
+  );
+};
+
+export default App;

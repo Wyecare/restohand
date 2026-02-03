@@ -29,6 +29,7 @@ import { useListOrdersByBranchQuery } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { useBranchContext } from '@/contexts/BranchContext';
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
+import KycCompletionBanner from '@/components/KycCompletionBanner';
 import {
   RefreshCw,
   CreditCard,
@@ -149,6 +150,9 @@ const DashboardPage = () => {
           {tCommon('actions.refresh')}
         </Button>
       </div>
+
+      {/* KYC Completion Banner */}
+      <KycCompletionBanner />
 
       {/* Restaurant Quick Stats */}
       <MetricsGrid columns={3}>

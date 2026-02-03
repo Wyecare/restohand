@@ -1,0 +1,92 @@
+Supported Payment Methods
+
+Open in ChatGPT
+
+Learn the different payment methods that can be configured to accept payments from your customer.
+
+Cashfree Subscriptions currently support the following payment modes to collect payments from your customer:
+Bank account (e-Mandate + Physical mandate)
+UPI autopay
+Standing Instructions (SI) on cards (credit or debit) (Indian and International)
+Maximum subscription amounts allowed for different payment methods are mentioned below:
+Payment methods supported	Banks or card networks or UPI handles	Maximum subscription amount allowed
+eNACH	Check the list of NPCI-supported banks here	₹ 1,00,00,000
+UPI autopay	Check the list of banks and PSPs here	₹ 15,000 (without AFA) or ₹ 1,00,000 (with AFA)
+Card (Indian)	Visa, Mastercard, RuPay	₹ 15,000 (without AFA) or ₹ 1,00,00,000 (with AFA)
+Card (International)	Visa, Mastercard	₹ 1,00,00,000
+Physical mandates	Check the list of banks here	₹ 1,00,00,000
+AFA refers to Additional Factor Authentication, where the customer must authorise the debit by entering additional information.
+For UPI autopay: UPI PIN
+For Standing Instructions (SI) on cards: OTP or other 2FA as per issuing bank
+For UPI autopay: The customer is required to enter their UPI PIN to authorise the debit.
+The UPI approval must be completed within 30 minutes of receiving the link or PSP app notification.
+If the customer fails to authorise within this timeframe, Cashfree automatically retries the link or notification.
+For Standing Instructions (SI) on Indian cards: The customer must enter a One-Time Password (OTP) for authentication.
+This authorisation can be completed any time before 7:00 AM on the scheduled charge date.
+According to NACH guidelines, e-NACH is permitted only for individual accounts. This applies to both savings and current accounts with a single registered signatory. Corporate current accounts with multiple registered signatories must use physical NACH.
+There is no authorisation amount charged for e-NACH. The charge is zero (0).
+Supported payment frequencies
+Payment methods	Supported frequencies
+eNACH	Day, Week, Month, Year, and ad-hoc.
+UPI autopay	Day, Week, Month, Year, and ad-hoc.
+Card (Indian and International)	Day, Week, Month, Year, and ad-hoc.
+Physical NACH	Day, Week, Month, Year, and ad-hoc.
+​
+Bank account (e-Mandate)
+Customers can authorise the subscriptions using their bank account via net banking, debit card or Aadhaar. They must enter their bank account details and authorise the subscription. The payment gets debited automatically based on the plan selected.
+​
+To authorise using a bank account
+On the checkout page, customers must:
+Select Bank Account (e-Mandate) as the payment method.
+Select their bank and the preferred authorisation mode: Net Banking, debit card, or Aadhaar (depending on availability for the bank).
+Enter the required details, and approve the subscription.
+You can find the list of supported banks.
+​
+Bank account (Physical mandate)
+Customers can authorise the subscriptions using only their signature and bank account details. There is no requirement to have a debit card or net banking enabled to set up the mandate.
+The physical NACH form includes several fields that can be pre-filled to simplify the process. Leave the UMRN (Unique Mandate Reference Number) field blank when creating a mandate. Cashfree will provide values for the Sponsor Bank Code, Utility Code, and Authoriser Information.
+Refer to the sample physical mandate below.
+
+You can pre-fill the following fields:
+Date: The date when the form is filled.
+Frequency: Select an appropriate option based on your use case: Monthly, Quarterly, Half-yearly, Yearly, or As and when presented.
+Amount: The mandate amount to be debited.
+Debit type: Select Fixed Amount for recurring payments or Maximum Amount for on-demand debits.
+Reference 1 and Reference 2 (optional): Use these fields to add internal remarks, subscription IDs, or other identifiers relevant to your system.
+Period of mandate: Enter the mandate duration, from the first debit date to the subscription end date. To keep the mandate active until cancelled, select Until Cancelled.
+After you pre-fill these fields, share the form with the customer. Ask the customer to complete their bank account details and signature. This helps reduce manual errors and improves the overall experience.
+When you receive the completed form, do one of the following:
+Use the Bulk Physical Mandate feature on the Cashfree dashboard to upload the details, or
+Integrate using the following Cashfree APIs:
+Step 1: Create subscription: Use this API to create a subscription for your customer that includes providing customer and mandate details. If the mandate details such as amount and frequency are the same for all your customers you can create a plan before creating a subscription. The response will give you the list of supported banks applicable for physical mandate.
+Step 2: Upload file: Use the Upload File API to upload the physical Nach registration forms that contain your customer’s bank account details, mandate details and signature. You will receive a file ID in the response, this needs to be used in the next step.
+Step 3: Create auth seamless physical mandate: Use the Create Auth Seamless Physical Mandate API to create an authorisation request for your customer. For physical mandates, this API informs Cashfree Payments that the NACH form should be submitted to the bank for mandate registration in production.
+Banks supported
+You can find the list of supported banks here.
+​
+Debit or credit card (Issued in India)
+Customers can authorise the subscriptions using their debit or credit card. They must enter their card details to authorise the subscription similar to a regular one-time online payment. The payment is automatically debited based on the plan selected. All issuing banks are supported for credit and debit card payments.
+Standing Instructions (SI) on cards are supported on Visa, Mastercard and RuPay cards.
+​
+Debit or credit card (Issued outside India)
+Customers can authorise the subscriptions using their debit or credit card. They must enter their card details to authorise the subscription similar to a regular one-time online payment. The payment is automatically debited based on the plan selected. All issuing banks are supported for credit and debit card payments and 140+ currencies are supported.
+Standing Instructions (SI) on international cards are supported on Visa & Mastercard cards.
+​
+UPI autopay
+Payments for subscriptions via UPI give customers the flexibility to pay using any UPI application. Customers must first enter their UPI VPA and authorise the subscription.
+For mandates where debit amount is greater than Rs. 15,000, customers will need to enter their UPI PIN on the collect request triggered to their VPA. No such customer input is required for debit amount less than Rs. 15,000.
+As per NPCI guidelines, starting August 1, 2025, UPI autopay transactions will be processed only during non-peak hours: before 10:00 AM, between 1:00 PM and 5:00 PM, or after 9:30 PM. For more information, refer to the new guidelines.
+As per recent RBI guidelines, for mutual fund payments, credit card payments, and insurance premium payments, no customer input is required for debit amounts up to ₹1,00,000.
+Intent apps supported by subscriptions
+The table below lists the intent applications supported by subscriptions:
+Apps	Android Intent	iOS Intent
+Paytm	✔️	✔️
+GPay	✔️	✔️
+PhonePe	✔️	✔️
+AmazonPay	✔️	✔️
+UPI autopay is supported for all methods via Intent Flow, Collect Flow, and QR Flow.
+Was this page helpful?
+
+
+Yes
+
