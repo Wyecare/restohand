@@ -26,6 +26,7 @@ import {
   Shield,
   Users,
   Settings,
+  CreditCard,
 } from 'lucide-react';
 
 interface NavLink {
@@ -59,6 +60,11 @@ const superAdminLinks: NavLink[] = [
     titleKey: 'navigation.superAdmins',
     href: '/super-admins',
     icon: Shield,
+  },
+  {
+    titleKey: 'navigation.subscriptionPlans',
+    href: '/subscription-plans',
+    icon: CreditCard,
   },
 ];
 

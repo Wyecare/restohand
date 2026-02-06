@@ -6,6 +6,9 @@ import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restauran
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateSuperAdminDto } from './dtos/create-super-admin.dto';
+import { CreateCashfreePlanDto } from './dtos/create-cashfree-plan.dto';
+import { UpdateCashfreePlanDto } from './dtos/update-cashfree-plan.dto';
+import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -15,7 +18,8 @@ export class SuperAdminService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Restaurant.name) private restaurantModel: Model<RestaurantDocument>,
-    @InjectModel(Order.name) private orderModel: Model<OrderDocument>
+    @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
+    private readonly subscriptionPlansService: SubscriptionPlansService
   ) {}
 
   async getDashboardOverview() {
@@ -365,5 +369,127 @@ export class SuperAdminService {
       { $sort: { revenue: -1 } },
       { $limit: 10 }
     ]);
+  }
+
+  // ============= CASHFREE SUBSCRIPTION PLAN MANAGEMENT =============
+
+  async getCashfreeSubscriptionPlans() {
+    try {
+      const response = await this.subscriptionPlansService.getAllPlans();
+      this.logger.log(`Retrieved ${response.length || 0} subscription plans`);
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve subscription plans: ${error.message}`, error.stack);
+      throw new Error(`Failed to retrieve subscription plans: ${error.message}`);
+    }
+  }
+
+  async getCashfreeSubscriptionPlan(planId: string) {
+    try {
+      const response = await this.subscriptionPlansService.getPlanById(planId);
+      this.logger.log(`Retrieved subscription plan: ${planId}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve plan ${planId}: ${error.message}`, error.stack);
+      throw new NotFoundException(`Plan not found: ${error.message}`);
+    }
+  }
+
+  async createCashfreeSubscriptionPlan(createPlanDto: CreateCashfreePlanDto, adminId: string) {
+    try {
+      // Convert the DTO to match our service's expected format
+      const planData = {
+        plan_id: createPlanDto.plan_name.toLowerCase().replace(/[^a-z0-9]/g, '_'), // Generate plan_id from name
+        plan_name: createPlanDto.plan_name,
+        plan_type: createPlanDto.plan_type,
+        plan_recurring_amount: createPlanDto.plan_amount,
+        plan_max_amount: createPlanDto.plan_max_amount,
+        plan_max_cycles: createPlanDto.plan_max_cycles,
+        plan_intervals: createPlanDto.plan_intervals,
+        plan_currency: createPlanDto.plan_currency,
+        plan_interval_type: createPlanDto.plan_interval_type,
+        plan_note: createPlanDto.plan_note,
+
+        // Our custom fields
+        tier: createPlanDto.plan_metadata?.tier,
+        display_name: createPlanDto.plan_metadata?.display_name || createPlanDto.plan_name,
+        description: createPlanDto.plan_note,
+        features: createPlanDto.plan_metadata?.features ? createPlanDto.plan_metadata.features.split(',') : [],
+        is_popular: createPlanDto.plan_metadata?.is_popular || false,
+        metadata: createPlanDto.plan_metadata
+      };
+
+      const response = await this.subscriptionPlansService.createPlan(planData, adminId);
+      this.logger.log(`Subscription plan created: ${response._id} by admin ${adminId}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to create subscription plan: ${error.message}`, error.stack);
+      throw new Error(`Failed to create subscription plan: ${error.message}`);
+    }
+  }
+
+  async updateCashfreeSubscriptionPlan(planId: string, updatePlanDto: UpdateCashfreePlanDto, adminId: string) {
+    try {
+      const updateData: any = {};
+
+      if (updatePlanDto.plan_amount !== undefined) {
+        updateData.plan_recurring_amount = updatePlanDto.plan_amount;
+      }
+      if (updatePlanDto.plan_max_amount !== undefined) {
+        updateData.plan_max_amount = updatePlanDto.plan_max_amount;
+      }
+      if (updatePlanDto.plan_note !== undefined) {
+        updateData.plan_note = updatePlanDto.plan_note;
+        updateData.description = updatePlanDto.plan_note;
+      }
+      if (updatePlanDto.plan_metadata !== undefined) {
+        updateData.metadata = updatePlanDto.plan_metadata;
+        if (updatePlanDto.plan_metadata.tier) {
+          updateData.tier = updatePlanDto.plan_metadata.tier;
+        }
+        if (updatePlanDto.plan_metadata.display_name) {
+          updateData.display_name = updatePlanDto.plan_metadata.display_name;
+        }
+        if (updatePlanDto.plan_metadata.is_popular !== undefined) {
+          updateData.is_popular = updatePlanDto.plan_metadata.is_popular;
+        }
+        if (updatePlanDto.plan_metadata.features) {
+          updateData.features = updatePlanDto.plan_metadata.features.split(',');
+        }
+      }
+
+      const response = await this.subscriptionPlansService.updatePlan(planId, updateData, adminId);
+      this.logger.log(`Subscription plan updated: ${planId} by admin ${adminId}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to update subscription plan ${planId}: ${error.message}`, error.stack);
+      throw new Error(`Failed to update subscription plan: ${error.message}`);
+    }
+  }
+
+  async deleteCashfreeSubscriptionPlan(planId: string, adminId: string) {
+    try {
+      const response = await this.subscriptionPlansService.deletePlanFromDatabase(planId, adminId);
+      this.logger.log(`Subscription plan deleted from database only: ${planId} by admin ${adminId}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to delete subscription plan ${planId}: ${error.message}`, error.stack);
+      throw new Error(`Failed to delete subscription plan: ${error.message}`);
+    }
+  }
+
+  async getRecommendedCashfreePlanTemplates() {
+    return await this.subscriptionPlansService.getRecommendedTemplates();
+  }
+
+  async importCashfreePlan(cashfreePlanId: string, adminId: string) {
+    try {
+      const response = await this.subscriptionPlansService.importCashfreePlan(cashfreePlanId, adminId);
+      this.logger.log(`Imported Cashfree plan: ${cashfreePlanId} by admin ${adminId}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`Failed to import Cashfree plan ${cashfreePlanId}: ${error.message}`, error.stack);
+      throw new Error(`Failed to import Cashfree plan: ${error.message}`);
+    }
   }
 }

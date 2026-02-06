@@ -34,6 +34,7 @@ import { PlansModule } from '../plans/plans.module';
 import { SuperAdminModule } from '../super-admin/super-admin.module';
 import { SeederModule } from '../database/seeders/seeder.module';
 import { CashfreeModule } from '../payments/cashfree.module';
+import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -76,6 +77,7 @@ import { AppService } from './app.service';
     SuperAdminModule,
     SeederModule,
     CashfreeModule,
+    SubscriptionPlansModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -70,6 +70,10 @@ export const baseApi = createApi({
     'CallWaiter',
     'Branches',
     'CashfreeVendor',
+    'SubscriptionPlan',
+    'CashfreeSubscription',
+    'CashfreeSubscriptionPlan',
+    'CashfreePaymentHistory',
   ],
   endpoints: () => ({}),
 });

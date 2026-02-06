@@ -42,6 +42,7 @@ export const baseApi = createApi({
     'Settlement',
     'Analytics',
     'SuperAdmin',
+    'SubscriptionPlan',
   ],
   endpoints: () => ({}),
 });

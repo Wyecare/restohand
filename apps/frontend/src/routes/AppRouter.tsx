@@ -24,7 +24,7 @@ import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
 import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
 import InventoryPage from '@/pages/InventoryPage';
 import RecipesPage from '@/pages/RecipesPage';
-import SubscriptionPage from '@/pages/SubscriptionPage';
+import CashfreeSubscriptionPage from '@/pages/CashfreeSubscriptionPage';
 import BranchManagementPage from '@/pages/BranchManagementPage';
 import KycManagementPage from '@/pages/KycManagementPage';
 import { PdfMenuExtractionTab } from '@/pages/menu-management/tabs/PdfMenuExtractionTab';
@@ -98,7 +98,8 @@ const AppRouter = () => {
           <Route path="branches" element={<BranchManagementPage />} />
           {/* <Route path="recipes" element={<RecipesPage />} /> */}
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="subscription" element={<SubscriptionPage />} />
+          <Route path="subscription" element={<CashfreeSubscriptionPage />} />
+          <Route path="subscription/payment-success" element={<CashfreeSubscriptionPage />} />
           <Route path="kyc" element={<KycManagementPage />} />
           <Route path="settings" element={<SettingsPageNew />} />
           <Route path="settings/gst" element={<SettingsPageNew />} />

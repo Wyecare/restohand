@@ -1,0 +1,103 @@
+HTML Content 
+
+<div class="container">
+        <div class="row">
+            <div class="col">
+                <div class="row">
+                    <h2>Demo of Cashfree Subscriptions</h2>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col col-lg-8 col-sm-12">
+                <div class="row">
+                    <h4>Subscriptions Session ID</h4>
+					
+                    <div class="col">
+                        <textarea name="" id="subsSessionId" class="form-control"></textarea>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col ">
+                        <p class="alert" id="paymentMessage">
+
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col col-lg-4 col-sm-10">
+                <div class=" ">
+                    <div class="card w-100"  >
+                        <div class="card-body w-100 pb-0">
+                            <h5 class="card-title">
+                               Subscriptions Checkout
+                            </h5>
+
+                            <div class="row">
+                                <div class="col-12 submit-div col" bfor="qr">
+                                    <button class="btn btn-block btn-full w-100 btn-primary" id="subsCheckout">
+                                        Submit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+CSS Content 
+
+.card {
+  box-shadow: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px;
+  padding-bottom: 0px;
+  border-radius: 14px;
+  float: right;
+}
+
+.container{
+  border-radius: 20px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 20px;
+  border: 1px solid #ddd;
+}
+
+h4{
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.submit-div {
+  text-align: center;
+  padding: 20px;
+  border-top: 1px solid #efefef;
+}
+
+
+JS 
+
+const paymentMessage = document.getElementById("paymentMessage");
+
+const cashfree = Cashfree({
+  mode: "sandbox"
+});
+
+document.getElementById("subsCheckout").addEventListener("click", function(){
+  paymentMessage.innerText = "";
+  paymentMessage.classList.remove("alert-danger");
+  paymentMessage.classList.remove("alert-success");
+
+  cashfree.subscriptionsCheckout({
+    subsSessionId: document.getElementById("subsSessionId").value,
+    redirectTarget: "_blank"
+  }).then(function(result){
+    if(result.error){
+      document.getElementById("paymentMessage").innerHTML = (result.error.message)
+    }
+  })
+})

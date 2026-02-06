@@ -1,0 +1,34 @@
+{
+  "navigation": {
+    "navigation": "Navigation",
+    "dashboard": "Dashboard",
+    "restaurants": "Restaurants",
+    "settlements": "Settlements",
+    "analytics": "Analytics",
+    "superAdmins": "Super Admins",
+    "subscriptionPlans": "Subscription Plans"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No"
+  }
+}

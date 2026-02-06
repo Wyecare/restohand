@@ -1,96 +1,344 @@
-Create a Subscription
+Create a plan
+View complete documentation
+A plan allows your customer to identify the features you offer along with your pricing. You can create plans as per the pricing you support for your services. For each plan, you can set a pre-decided frequency and amount with which they’ll be charged.
+Example: Netflix Plans - Premium, Basic, Standard, Mobile. Each plan differs and caters for a particular set of audiences.
 
-Open in ChatGPT
 
-Learn how to create and accept customer payment on a subscription.
 
-A subscription entity signifies the customer’s commitment to make regular payments, showing they actively use the service and pay on a recurring basis. To register a subscription, first obtain the customer’s authorisation. When you create a subscription, the response includes an authorisation link. Redirect the customer to this link to complete the authorisation process. Once the customer authorises, the subscription becomes active.
-Dashboard
-API
-To create a new subscription from the dashboard, Go to Subscriptions Dashboard > All Subscriptions > Create Subscription. Follow the steps as shown in the below image.
+https://sandbox.cashfree.com/pg/plans
 
-You can also create multiple subscriptions at once using the dashboard. Go to Subscriptions Dashboard > Batch Subscriptions > Upload File to upload a file that contains all the information required for multiple subscriptions.
+curl --request POST \
+  --url https://sandbox.cashfree.com/pg/plans \
+  --header 'Content-Type: application/json' \
+  --header 'x-api-version: 2025-01-01' \
+  --header 'x-client-id: <api-key>' \
+  --header 'x-client-secret: <api-key>' \
+  --data '
+{
+  "plan_id": "plan_12345",
+  "plan_name": "Plan 12345",
+  "plan_type": "PERIODIC",
+  "plan_currency": "INR",
+  "plan_recurring_amount": 10,
+  "plan_max_amount": 100,
+  "plan_max_cycles": 10,
+  "plan_intervals": 2,
+  "plan_interval_type": "WEEK",
+  "plan_note": "Test Plan"
+}
+'
+
+
+{
+  "plan_currency": "INR",
+  "plan_id": "144436-03471-JD_TEST",
+  "plan_interval_type": "WEEK",
+  "plan_intervals": 1,
+  "plan_max_amount": 1,
+  "plan_max_cycles": 4,
+  "plan_name": "abscede",
+  "plan_note": "lsdkdn",
+  "plan_recurring_amount": 1,
+  "plan_status": "ACTIVE",
+  "plan_type": "PERIODIC"
+}
+
+400:
+{
+  "message": "bad URL, please check API documentation",
+  "help": "Check latest errors and resolution from Merchant Dashboard API logs: https://bit.ly/4glEd0W Help Document: https://bit.ly/4eeZYO9",
+  "code": "request_failed",
+  "type": "invalid_request_error"
+}
+
+401:
+{
+  "message": "authentication Failed",
+  "code": "request_failed",
+  "type": "authentication_error"
+}
+
+Authorizations
+
+XClientID & XClientSecret
+XClientID & XClientSecret
 ​
-Authorisation lifecycle
-Before a subscription becomes ACTIVE, the customer must authorise it. Authorisation indicates that the customer has completed the initial payment (if applicable) and successfully subscribed. If the customer doesn’t complete payment within a certain timeframe, the subscription link will expire. Below is a visual diagram illustrating the different states during the authorisation process.
-
-
-
-
-
-
-
-Customer completes authorisation
-
-Cancelled by merchant
-
-Checkout link expires
-
-Bank approval successful
-
-Subscription expires
-
-Cancelled by merchant
-
-Authorisation unsuccessful
-
-initialised
-
-Initialised
-
-BANK_APPROVAL_PENDING
-
-CANCELLED
-
-LINK_EXPIRED
-
-ACTIVE
-
-COMPLETED
+x-client-id
+stringheaderrequired
+Client app ID. You can find your app id in the Merchant Dashboard.
 
 ​
-Authorisation lifecycle
-The table below explains the various states an authorisation can go through once it’s created:
-Authorisation State	Description
-INITIALISED	The system creates the authorisation request.
-PENDING	The customer needs to act on the authorisation request, and the bank must confirm it.
-SUCCESS	The customer successfully completes and approves the authorisation.
-FAILED	The authorisation request fails due to customer decline, timeout, or other errors.
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret key in the Merchant Dashboard.
+
+Headers
 ​
-Subscription lifecycle
-The table below describes the various states a subscription enters after creation:
-Subscription State	Description
-INITIALISED	The system creates the subscription but waits for customer authorisation.
-BANK APPROVAL PENDING	The customer authorises the subscription, but the bank confirmation is still pending. For NACH, it may take 24 to 48 hours for the bank to confirm the mandate.
-ACTIVE	The bank fully authorises the subscription, making it ready for payment collection.
-ON HOLD	The subscription goes on hold due to a failed recurring payment and resumes once reactivated. This applies to periodic mandates on NACH and Cards standing instructions payment methods.
-PAUSED	The merchant pauses the subscription, applicable only for active periodic subscriptions.
-COMPLETED	The subscription completes its cycle.
-CUSTOMER CANCELLED	The customer cancels the subscription at the bank. Canceled subscriptions can’t resume.
-CUSTOMER_PAUSED	The customer pauses the subscription from their UPI app; only the customer can resume it.
-EXPIRED	The subscription reaches its expiry date and stops processing payments.
-LINK EXPIRED	The authorisation link expires without successful completion by the customer; no further action is possible. This applies to non-seamless subscriptions created after May 4, 2023.
-CARD EXPIRED.	This status occurs when the active subscription’s authorised card has expired. No further charges will be processed. To continue the subscription, create a new one and authorise it using a valid card.
-CANCELLED	The merchant cancels the subscription.
-When a customer cancels a UPI Autopay subscription through a third-party application provider (TPAP), such as Google Pay or PhonePe, the status updates to Customer Cancelled within 30–45 minutes.
+x-api-version
+stringdefault:2025-01-01required
+API version to be used
+
 ​
-First Charge Date (FCD) for a subscription
-Merchants pass the subscription_first_charge_time (FCD) when they create a subscription. However, the earliest possible debit date depends on the payment mode and the time when the customer completes the authorisation.
-Cashfree does not modify the FCD provided by the merchant. Instead, we set the next_schedule_date to the nearest possible debit date based on the rules below. In such cases, the subscription is charged on the next_schedule_date instead of the merchant-provided FCD.
-Nearest possible first charge date
-Payment mode	Authorisation time	Nearest possible debit date
-UPI Autopay	Before 9:00 PM	T + 1
-UPI Autopay	After 9:00 PM	T + 2
-Cards	Before 9:00 PM	T + 1
-Cards	After 9:00 PM	T + 2
-eNACH	Anytime	T + 4
-T = Date on which the customer completes authorisation
-Example
-A merchant passes T + 1 as the FCD during subscription creation.
-The customer authorises using eNACH, and the earliest possible debit date for eNACH is T + 4.
-FCD (merchant input): remains T + 1
-next_schedule_date: automatically set to T + 4
-First debit: occurs on T + 4
+x-request-id
+string
+Request ID for the API call. Can be used to resolve tech issues. Communicate this in your tech related queries to Cashfree.
+
+​
+x-idempotency-key
+string<UUID>
+An idempotency key is a unique identifier you include with your API call.
+If the request fails or times out, you can safely retry it using the same key to avoid duplicate actions.
+
+Body
+application/json
+Request parameters to create a new plan.
+
+​
+plan_id
+stringrequired
+Unique ID to identify the plan. Only alpha-numerics, dot, hyphen and underscore allowed.
+
+Required string length: 1 - 40
+​
+plan_name
+stringrequired
+Name of the plan.
+
+Required string length: 1 - 40
+​
+plan_type
+stringrequired
+Type of the plan. Possible values - PERIODIC, ON_DEMAND.
+
+​
+plan_max_amount
+number<float64>required
+Maximum amount for the plan.
+
+​
+plan_currency
+string
+Currency of the plan. For plans in non-INR currency, please refer to supported currencies.
+
+​
+plan_recurring_amount
+number<float64>
+Recurring amount for the plan. Required for PERIODIC plan_type.
+
+​
+plan_max_cycles
+integer
+Maximum number of payment cycles for the plan.
+
+​
+plan_intervals
+integer
+Number of billing cycles between charges. For instance, if set to 2 and the interval type is 'week', the service will be billed every 2 weeks. Similarly, if set to 3 and the interval type is 'month', the service will be billed every 3 months. Required for PERIODIC plan_type.
+
+​
+plan_interval_type
+string
+Interval type for the plan. Possible values - DAY, WEEK, MONTH, YEAR.
+
+​
+plan_note
+string
+Note for the plan.
+
+Response
+
+200
+
+application/json
+Success response for creating a plan.
+
+​
+plan_currency
+string
+Currency for the plan.
+
+​
+plan_id
+string
+Plan ID provided by merchant.
+
+​
+plan_interval_type
+string
+Interval type for the plan.
+
+​
+plan_intervals
+integer
+Number of intervals for the plan.
+
+​
+plan_max_amount
+number<float64>
+Maximum amount for the plan.
+
+​
+plan_max_cycles
+integer
+Maximum number of payment cycles for the plan.
+
+​
+plan_name
+string
+Name of the plan.
+
+​
+plan_note
+string
+Note for the plan.
+
+​
+plan_recurring_amount
+number<float64>
+Recurring amount for the plan.
+
+​
+plan_status
+string
+Status of the plan.
+
+​
+plan_type
+string
+Type of the plan.
+
 Was this page helpful?
+
+
+
+
+https://sandbox.cashfree.com/pg/plans/{plan_id}
+
+curl --request GET \
+  --url https://sandbox.cashfree.com/pg/plans/{plan_id} \
+  --header 'x-api-version: 2025-01-01' \
+  --header 'x-client-id: <api-key>' \
+  --header 'x-client-secret: <api-key>'
+
+  {
+  "plan_currency": "INR",
+  "plan_id": "144436-03471-JD_TEST",
+  "plan_interval_type": "WEEK",
+  "plan_intervals": 1,
+  "plan_max_amount": 1,
+  "plan_max_cycles": 4,
+  "plan_name": "abscede",
+  "plan_note": "lsdkdn",
+  "plan_recurring_amount": 1,
+  "plan_status": "ACTIVE",
+  "plan_type": "PERIODIC"
+}
+
+
+Authorizations
+
+XClientID & XClientSecret
+XClientID & XClientSecret
+​
+x-client-id
+stringheaderrequired
+Client app ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret key in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2025-01-01required
+API version to be used
+
+​
+x-request-id
+string
+Request ID for the API call. Can be used to resolve tech issues. Communicate this in your tech related queries to Cashfree.
+
+​
+x-idempotency-key
+string<UUID>
+An idempotency key is a unique identifier you include with your API call.
+If the request fails or times out, you can safely retry it using the same key to avoid duplicate actions.
+
+Path Parameters
+​
+plan_id
+stringrequired
+Provide the plan ID for which the details have to be fetched.
+
+Response
+
+200
+
+application/json
+Success response for fetching a plan.
+
+​
+plan_currency
+string
+Currency for the plan.
+
+​
+plan_id
+string
+Plan ID provided by merchant.
+
+​
+plan_interval_type
+string
+Interval type for the plan.
+
+​
+plan_intervals
+integer
+Number of intervals for the plan.
+
+​
+plan_max_amount
+number<float64>
+Maximum amount for the plan.
+
+​
+plan_max_cycles
+integer
+Maximum number of payment cycles for the plan.
+
+​
+plan_name
+string
+Name of the plan.
+
+​
+plan_note
+string
+Note for the plan.
+
+​
+plan_recurring_amount
+number<float64>
+Recurring amount for the plan.
+
+​
+plan_status
+string
+Status of the plan.
+
+​
+plan_type
+string
+Type of the plan.
+
+Was this page helpful?
+
+
+Yes
+
+No
 
 

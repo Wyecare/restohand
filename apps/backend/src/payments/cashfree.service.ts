@@ -494,4 +494,538 @@ export class CashfreeService {
       baseUrl: this.baseUrl,
     };
   }
+
+  // ============= SUBSCRIPTION PLAN MANAGEMENT =============
+
+  /**
+   * Create a subscription plan
+   */
+  async createSubscriptionPlan(planData: {
+    plan_id: string;
+    plan_name: string;
+    plan_type: string;
+    plan_recurring_amount?: number;
+    plan_max_amount: number;
+    plan_max_cycles?: number;
+    plan_intervals?: number;
+    plan_currency?: string;
+    plan_interval_type?: string;
+    plan_note?: string;
+  }): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/pg/plans`;
+
+      this.logger.log(`Creating Cashfree subscription plan: ${planData.plan_name}`);
+      this.logger.log(`Plan data being sent to Cashfree:`, JSON.stringify(planData, null, 2));
+
+      const headers = {
+        'x-client-id': this.cashfreeConfig.clientId,
+        'x-client-secret': this.cashfreeConfig.clientSecret,
+        'Content-Type': 'application/json',
+        'x-api-version': '2022-09-01',
+      };
+
+      this.logger.log(`Request URL: ${url}`);
+      this.logger.log(`Request headers:`, JSON.stringify(headers, null, 2));
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(planData),
+      });
+
+      const responseData = await response.json() as any;
+
+      this.logger.log(`Cashfree response status: ${response.status}`);
+      this.logger.log(`Cashfree response data:`, JSON.stringify(responseData, null, 2));
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree plan creation failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Plan creation failed: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Cashfree plan created successfully: ${planData.plan_name}`);
+      return responseData;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to create Cashfree plan:`, error);
+      throw new InternalServerErrorException(
+        `Failed to create subscription plan: ${errorMessage}`
+      );
+    }
+  }
+
+  /**
+   * Get a single subscription plan from Cashfree
+   */
+  async getSubscriptionPlan(planId: string): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/pg/plans/${planId}`;
+
+      this.logger.log(`Fetching Cashfree subscription plan: ${planId}`);
+
+      const headers = {
+        'x-client-id': this.cashfreeConfig.clientId,
+        'x-client-secret': this.cashfreeConfig.clientSecret,
+        'x-api-version': '2025-01-01',
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree plan fetch failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Failed to fetch plan: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Fetched Cashfree plan: ${planId}`);
+      return responseData;
+    } catch (error) {
+      this.logger.error(`Failed to fetch Cashfree plan ${planId}:`, error);
+      throw new InternalServerErrorException(
+        `Failed to fetch subscription plan: ${error.message}`
+      );
+    }
+  }
+
+
+  /**
+   * Update a subscription plan
+   */
+  async updateSubscriptionPlan(
+    planId: string,
+    updateData: {
+      plan_amount?: number;
+      plan_max_amount?: number;
+      plan_note?: string;
+      plan_metadata?: Record<string, any>;
+    }
+  ): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/subscriptions/plans/${planId}`;
+
+      this.logger.log(`Updating Cashfree subscription plan: ${planId}`);
+
+      const headers = {
+        'X-Client-Id': this.cashfreeConfig.clientId,
+        'X-Client-Secret': this.cashfreeConfig.clientSecret,
+        'Content-Type': 'application/json',
+        'x-api-version': '2023-08-01',
+      };
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(updateData),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree plan update failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Plan update failed: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Cashfree plan updated successfully: ${planId}`);
+      return responseData;
+    } catch (error) {
+      this.logger.error(`Failed to update Cashfree plan:`, error);
+      throw new InternalServerErrorException(
+        `Failed to update subscription plan: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Delete a subscription plan
+   */
+  async deleteSubscriptionPlan(planId: string): Promise<void> {
+    try {
+      const url = `${this.baseUrl}/subscriptions/plans/${planId}`;
+
+      this.logger.log(`Deleting Cashfree subscription plan: ${planId}`);
+
+      const headers = {
+        'X-Client-Id': this.cashfreeConfig.clientId,
+        'X-Client-Secret': this.cashfreeConfig.clientSecret,
+        'x-api-version': '2023-08-01',
+      };
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        const responseData = await response.json();
+        this.logger.error(
+          `Cashfree plan deletion failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Plan deletion failed: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Cashfree plan deleted successfully: ${planId}`);
+    } catch (error) {
+      this.logger.error(`Failed to delete Cashfree plan:`, error);
+      throw new InternalServerErrorException(
+        `Failed to delete subscription plan: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Create customer for subscriptions
+   */
+  async createCustomer(customerData: {
+    customer_id: string;
+    customer_email: string;
+    customer_phone: string;
+    customer_name: string;
+  }): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/pg/customers`;
+
+      this.logger.log(`Creating Cashfree customer: ${customerData.customer_id}`);
+
+      const headers = {
+        'x-client-id': this.cashfreeConfig.clientId,
+        'x-client-secret': this.cashfreeConfig.clientSecret,
+        'Content-Type': 'application/json',
+        'x-api-version': '2025-01-01',
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(customerData),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree customer creation failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Customer creation failed: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Cashfree customer created successfully: ${customerData.customer_id}`);
+      return responseData;
+    } catch (error) {
+      this.logger.error(`Failed to create Cashfree customer:`, error);
+      throw new InternalServerErrorException(
+        `Failed to create customer: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Create subscription for customer
+   */
+  async createSubscription(subscriptionData: {
+    subscription_id: string;
+    customer_id: string;
+    plan_id: string;
+    customer_details: {
+      customer_email: string;
+      customer_phone: string;
+      customer_name: string;
+    };
+    authorization_amount: number;
+    return_url: string;
+  }): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/pg/subscriptions`;
+
+      this.logger.log(`Creating Cashfree subscription: ${subscriptionData.subscription_id}`);
+
+      const headers = {
+        'x-client-id': this.cashfreeConfig.clientId,
+        'x-client-secret': this.cashfreeConfig.clientSecret,
+        'Content-Type': 'application/json',
+        'x-api-version': '2025-01-01',
+      };
+
+      // Format data according to Cashfree API requirements with authorization details
+      const payload = {
+        subscription_id: subscriptionData.subscription_id,
+        customer_details: {
+          customer_id: subscriptionData.customer_id,
+          customer_email: subscriptionData.customer_details.customer_email,
+          customer_phone: subscriptionData.customer_details.customer_phone,
+          customer_name: subscriptionData.customer_details.customer_name,
+        },
+        plan_details: {
+          plan_id: subscriptionData.plan_id,
+        },
+        authorization_details: {
+          authorization_amount: subscriptionData.authorization_amount / 100, // Convert paise to rupees
+          authorization_amount_refund: true,
+          payment_methods: ['card', 'upi', 'enach', 'pnach']
+        },
+        subscription_meta: {
+          return_url: subscriptionData.return_url,
+          notification_channel: ['EMAIL', 'SMS']
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree subscription creation failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Subscription creation failed: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Cashfree subscription created successfully: ${subscriptionData.subscription_id}`);
+      this.logger.log(`Cashfree response data: ${JSON.stringify(responseData, null, 2)}`);
+      return responseData;
+    } catch (error) {
+      this.logger.error(`Failed to create Cashfree subscription:`, error);
+      throw new InternalServerErrorException(
+        `Failed to create subscription: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Cancel subscription
+   */
+  async cancelSubscription(cancelData: {
+    subscription_id: string;
+  }): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/pg/subscriptions/${cancelData.subscription_id}/manage`;
+
+      this.logger.log(`Cancelling Cashfree subscription: ${cancelData.subscription_id}`);
+
+      const headers = {
+        'x-client-id': this.cashfreeConfig.clientId,
+        'x-client-secret': this.cashfreeConfig.clientSecret,
+        'Content-Type': 'application/json',
+        'x-api-version': '2025-01-01',
+      };
+
+      const payload = {
+        subscription_id: cancelData.subscription_id,
+        action: 'CANCEL',
+        action_details: {}
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree subscription cancellation failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Subscription cancellation failed: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Cashfree subscription cancelled successfully: ${cancelData.subscription_id}`);
+      return responseData;
+    } catch (error) {
+      this.logger.error(`Failed to cancel Cashfree subscription:`, error);
+      throw new InternalServerErrorException(
+        `Failed to cancel subscription: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Get subscription payment history
+   */
+  async getSubscriptionPayments(subscriptionId: string): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/pg/subscriptions/${subscriptionId}/payments`;
+
+      this.logger.log(`Fetching Cashfree subscription payments: ${subscriptionId}`);
+
+      const headers = {
+        'x-client-id': this.cashfreeConfig.clientId,
+        'x-client-secret': this.cashfreeConfig.clientSecret,
+        'x-api-version': '2025-01-01',
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree subscription payments fetch failed: ${response.status}`,
+          responseData
+        );
+        return {
+          payments: [],
+          cycles: [],
+        };
+      }
+
+      this.logger.log(`Fetched Cashfree subscription payments: ${subscriptionId}`);
+      return responseData;
+    } catch (error) {
+      this.logger.error(`Failed to fetch Cashfree subscription payments:`, error);
+      return {
+        payments: [],
+        cycles: [],
+      };
+    }
+  }
+
+  /**
+   * Retry failed subscription payment
+   */
+  async retrySubscriptionPayment(retryData: {
+    subscription_id: string;
+    return_url: string;
+  }): Promise<any> {
+    try {
+      const url = `${this.baseUrl}/pg/subscriptions/${retryData.subscription_id}/retry`;
+
+      this.logger.log(`Retrying Cashfree subscription payment: ${retryData.subscription_id}`);
+
+      const headers = {
+        'x-client-id': this.cashfreeConfig.clientId,
+        'x-client-secret': this.cashfreeConfig.clientSecret,
+        'Content-Type': 'application/json',
+        'x-api-version': '2025-01-01',
+      };
+
+      const payload = {
+        return_url: retryData.return_url,
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        this.logger.error(
+          `Cashfree subscription payment retry failed: ${response.status}`,
+          responseData
+        );
+        throw new InternalServerErrorException(
+          `Payment retry failed: ${responseData.message || 'Unknown error'}`
+        );
+      }
+
+      this.logger.log(`Cashfree subscription payment retry initiated: ${retryData.subscription_id}`);
+      return responseData;
+    } catch (error) {
+      this.logger.error(`Failed to retry Cashfree subscription payment:`, error);
+      throw new InternalServerErrorException(
+        `Failed to retry subscription payment: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Create subscription authorization (AUTH type payment)
+   */
+  async createSubscriptionAuth(authData: {
+    subscription_id: string;
+    payment_id: string;
+    subscription_session_id: string;
+    payment_method?: 'upi' | 'card' | 'enach' | 'pnach';
+    upi_channel?: 'link' | 'collect' | 'qrcode';
+    upi_id?: string;
+  }): Promise<any> {
+    try {
+      this.logger.log(`Creating subscription auth for subscription: ${authData.subscription_id}`);
+
+      let paymentMethodData: any = {};
+
+      if (authData.payment_method === 'card') {
+        // For card authorization - use minimal structure
+        paymentMethodData = {
+          card: {
+            channel: 'link'
+          }
+        };
+      } else {
+        // Default to UPI
+        paymentMethodData = {
+          upi: {
+            channel: authData.upi_channel || 'link'
+          }
+        };
+
+        // Add upi_id only for collect channel
+        if (authData.upi_channel === 'collect' && authData.upi_id) {
+          paymentMethodData.upi.upi_id = authData.upi_id;
+        }
+      }
+
+      const requestData = {
+        subscription_id: authData.subscription_id,
+        payment_id: authData.payment_id,
+        payment_type: 'AUTH',
+        subscription_session_id: authData.subscription_session_id,
+        payment_method: paymentMethodData
+      };
+
+      this.logger.log(`Subscription auth request data:`, JSON.stringify(requestData, null, 2));
+
+      const response = await this.makeRequest('POST', '/pg/subscriptions/pay', requestData);
+
+      this.logger.log(`Subscription auth response:`, JSON.stringify(response, null, 2));
+      return response;
+    } catch (error: any) {
+      this.logger.error(`Failed to create subscription auth:`, error);
+      throw new InternalServerErrorException(
+        `Failed to create subscription auth: ${error.message}`
+      );
+    }
+  }
 }

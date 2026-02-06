@@ -27,11 +27,15 @@ import { AuthModule } from '../auth/auth.module';
 // Import OrdersModule for OrdersService
 import { OrdersModule } from '../orders/orders.module';
 
+// Import SubscriptionsModule for CashfreeSubscriptionService
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+
 @Module({
   imports: [
     ConfigModule.forFeature(cashfreeConfig),
     AuthModule, // Import AuthModule for JWT guards
     forwardRef(() => OrdersModule), // Import OrdersModule for OrdersService
+    forwardRef(() => SubscriptionsModule), // Import SubscriptionsModule for CashfreeSubscriptionService
     MongooseModule.forFeature([
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: Order.name, schema: OrderSchema },
@@ -42,6 +46,7 @@ import { OrdersModule } from '../orders/orders.module';
     CashfreeVendorService,
     CashfreePaymentService,
     // Note: OrdersService comes from OrdersModule import
+    // Note: CashfreeSubscriptionService comes from SubscriptionsModule import
   ],
   controllers: [
     CashfreeWebhooksController,

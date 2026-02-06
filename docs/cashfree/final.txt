@@ -1,0 +1,430 @@
+Raise a Charge or Create an Auth
+
+Open in ChatGPT
+
+Use this API to create an auth or to raise a charge.
+
+POST
+
+https://sandbox.cashfree.com/pg
+/
+subscriptions
+/
+pay
+
+Try it
+In the sandbox environment, authorisation-related responses for eNACH, card, and UPI differ from those in production.
+You must generate the URL in production by concatenating it with the payload data in JSON format. The following are example responses for all Seamless Auth modes in the production environment.
+
+
+curl --request POST \
+  --url https://sandbox.cashfree.com/pg/subscriptions/pay \
+  --header 'Content-Type: application/json' \
+  --header 'x-api-version: 2025-01-01' \
+  --header 'x-client-id: TEST10864334577fd3fefd9c5223e12343346801' \
+  --header 'x-client-secret: cfsk_ma_test_abe5fe564088a52c090d3424e07da611_e09c97b4' \
+  --data '
+{
+  "subscription_id": "test-subscription-id",
+  "payment_id": "test-payment-id",
+  "payment_amount": 10,
+  "payment_schedule_date": "2025-06-01T16:40:00",
+  "payment_remarks": "2nd EMI payment",
+  "payment_type": "CHARGE",
+  "payment_method": {
+    "upi": {
+      "upi_id": "john@upi",
+      "channel": "collect"
+    }
+  }
+}
+'
+
+{
+  "action": "custom",
+  "cf_payment_id": "123456",
+  "channel": "qrcode",
+  "data": {
+    "url": "https://dummy-url.com/upi/qrcode",
+    "payload": {
+      "paymentType": "UPI",
+      "upiIntentData": {
+        "androidAuthAppLinks": {
+          "GPAY": "https://dummy-url.com/upi/gpay",
+          "PHONEPE": "https://dummy-url.com/upi/phonepe"
+        },
+        "iosAuthAppLinks": {
+          "GPAY": "https://dummy-url.com/upi/gpay",
+          "PHONEPE": "https://dummy-url.com/upi/phonepe"
+        }
+      }
+    },
+    "content_type": "application/json",
+    "method": "post"
+  },
+  "payment_amount": 1,
+  "payment_id": "PAY-123456",
+  "payment_method": "upi",
+  "payment_status": "PENDING",
+  "payment_type": "AUTH",
+  "subscription_id": "SUBSCRIPTION-123"
+}
+
+
+
+card method:
+
+{
+  "action": "custom",
+  "cf_payment_id": "39394805",
+  "channel": "link",
+  "data": {
+    "url": "https://centinelapi.cardinalcommerce.com/V2/Cruise/StepUp",
+    "payload": {
+      "JWT": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4MjcxZmJlMS1mOTU5LTQwMTgtOTc1OC01MzZkMWRkNzM2NjIiLCJpYXQiOjE3NDc2NDI4NjIsImlzcyI6IjYxNDIwNjg4OTMzODI1Njc1MDg0ZGI2ZiIsImV4cCI6MTc0NzY0NjQ2MiwiT3JnVW5pdElkIjoiNjRkNjA3ZGFmZjUzNDk2MWYxNjk0YWZjIiwiUGF5bG9hZCI6eyJBQ1NVcmwiOiJodHRwczovL3NlY3VyZWljaWNpLWNyMS5pY2ljaWJhbmsuY29tL3YxL2Fjcy9zZXJ2aWNlcy9icm93c2VyL2NyZXEvTC84MTEyLzMzNzAxNTBlLTM0OGEtMTFmMC05NTliLTJiYjZmODk2ZjIzOCIsIlBheWxvYWQiOiJleUp0WlhOellXZGxWSGx3WlNJNklrTlNaWEVpTENKdFpYTnpZV2RsVm1WeWMybHZiaUk2SWpJdU1pNHdJaXdpZEdoeVpXVkVVMU5sY25abGNsUnlZVzV6U1VRaU9pSTRZV1ZtT1RCaU15MW1ZakU0TFRRME5qa3RPREF3TVMwMk1tVm1ZakEwWW1RMk56TWlMQ0poWTNOVWNtRnVjMGxFSWpvaU16TTNNREUxTUdVdE16UTRZUzB4TVdZd0xUazFPV0l0TW1KaU5tWTRPVFptTWpNNElpd2lZMmhoYkd4bGJtZGxWMmx1Wkc5M1UybDZaU0k2SWpBeUluMCIsIlRyYW5zYWN0aW9uSWQiOiJUNGVtNEdidnBubGwzQWViakNKMSJ9LCJPYmplY3RpZnlQYXlsb2FkIjp0cnVlLCJSZXR1cm5VcmwiOiJodHRwczovL3d3dy5jYXNoZnJlZS5jb20vc3Vic2NyaXB0aW9uL2NhcmRfcmV0dXJuLzE1MTk5NzA3P3NiY2RhdGE9bHM5SmlOMUl6VUlKaU9pY0diaEpDTGlRMVZLSmlPaUFYZTBKeWUualY5MTNOd2NUTzVFVE54b2pJa2xFYTBWWFlpc25PaXdrVVY5bFRTVkZWRkoxWEhCMVhJUlZWQkp5ZS5CM2txOWhMeXdvY2hlV1U3QV9yT2tmQ2tTVl9TUEw3NzZxcl9mVHY2RG85MmwifQ.BeWYE8vslkOLZVWJd4mJ4MU1eu682fpp2Va7IvzdL9U",
+      "MD": "3881717951"
+    },
+    "content_type": "application/json",
+    "method": "post"
+  },
+  "payment_amount": 1,
+  "payment_currency": "INR",
+  "payment_id": "test12343234887",
+  "payment_method": "card",
+  "payment_status": "PENDING",
+  "payment_type": "AUTH",
+  "subscription_id": "jd-rupay-test106"
+}
+
+
+enach 
+{
+  "action": "custom",
+  "cf_payment_id": "39394843",
+  "channel": "link",
+  "data": {
+    "url": "https://enach.npci.org.in/onmags/sendRequest",
+    "payload": {
+      "AuthMode": "NetBanking",
+      "BankID": "ICIC",
+      "CheckSumVal": "Ril5otPjBl/Y44z3a0HAsSce2NlDqO1iEpP3pIBuKGYJplXVLuIQ1azxNB2aSJkx7...",
+      "MandateReqDoc": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Document xmlns=\"http://npci.org/onmags/schema\">...</Document>"
+    },
+    "content_type": "application/json",
+    "method": "post"
+  },
+  "payment_amount": 1,
+  "payment_currency": "INR",
+  "payment_id": "test12343234888",
+  "payment_method": "enach",
+  "payment_status": "PENDING",
+  "payment_type": "AUTH",
+  "subscription_id": "jd-enach-test107"
+}
+
+upi link
+{
+  "action": "custom",
+  "cf_payment_id": "40756575",
+  "channel": "link",
+  "data": {
+    "url": "https://payments.cashfree.com/subscriptions/checkout/timer",
+    "payload": {
+      "paymentType": "UPI",
+      "upiIntentData": {
+        "androidAuthAppLinks": {
+          "AMAZONPAY": "intent://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00#Intent;scheme=upi;package=in.amazon.mShop.android.shopping;end",
+          "BHIM": "intent://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00#Intent;scheme=upi;package=in.org.npci.upiapp;end",
+          "DEFAULT": "upi://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00",
+          "GPAY": "gpay://upi/mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end",
+          "PAYTM": "paytmmp://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00#Intent;scheme=upi;package=net.one97.paytm;end",
+          "PHONEPE": "phonepe://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00#Intent;scheme=upi;package=com.phonepe.app;end"
+        },
+        "iosAuthAppLinks": {
+          "BHIM": "bhim://upi://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00",
+          "GPAY": "tez://upi/mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00",
+          "PAYTM": "paytmmp://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00",
+          "PHONEPE": "phonepe://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413545205666653&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00"
+        }
+      }
+    },
+    "content_type": "application/json",
+    "method": "post"
+  },
+  "payment_amount": 10,
+  "payment_id": "PAY-1749025491584-4289ae9a",
+  "payment_method": "upi",
+  "payment_status": "PENDING",
+  "payment_type": "AUTH",
+  "subscription_id": "SUB_TEST_1749025465390"
+}
+
+upi collect 
+
+{
+  "action": "custom",
+  "cf_payment_id": "40756761",
+  "channel": "collect",
+  "data": {
+    "url": "https://payments.cashfree.com/subscriptions/checkout/timer",
+    "payload": {
+      "paymentType": "UPI"
+    },
+    "content_type": "application/json",
+    "method": ""
+  },
+  "payment_amount": 10,
+  "payment_id": "PAY-1749025606422-791be52e",
+  "payment_method": "upi",
+  "payment_status": "PENDING",
+  "payment_type": "AUTH",
+  "subscription_id": "SUB_TEST_1749025465390"
+}
+
+upi qrcode 
+
+{
+  "action": "custom",
+  "cf_payment_id": "40757018",
+  "channel": "qrcode",
+  "data": {
+    "url": "",
+    "payload": {
+      "paymentType": "UPI",
+      "qrData": "upi://mandate?pa=branchautopay.cf@icici&pn=Branch&tr=EZM2025060413592105685824&am=10.00&cu=INR&orgid=400011&mc=7322&purpose=14&tn=Cashfree%20Payments&validitystart=04062025&validityend=04062055&amrule=MAX&recur=ASPRESENTED&rev=N&share=Y&block=N&txnType=CREATE&mode=13&fam=10.00"
+    },
+    "content_type": "application/json",
+    "method": "post"
+  },
+  "payment_amount": 10,
+  "payment_id": "PAY-1749025760541-4c158190",
+  "payment_method": "upi",
+  "payment_status": "PENDING",
+  "payment_type": "AUTH",
+  "subscription_id": "SUB_TEST_1749025465390"
+}
+
+physical nach auth 
+
+{
+	"action": "post",
+	"cf_payment_id": "47720375",
+	"channel": "post",
+	"data": {
+		"url": "https://api.cashfree.com/pg/view/gateway/subscriptions/testkriti12upi12ANUG5689TFVNB357123",
+		"payload": null,
+		"content_type": "",
+		"method": null
+	},
+	"payment_amount": 0,
+	"payment_currency": "INR",
+	"payment_id": "PAY-1749025760541-4c158190",
+	"payment_method": "pnach",
+	"payment_status": "PENDING",
+	"payment_tags": null,
+	"payment_type": "AUTH",
+	"subscription_id": "SUB_TEST_1749025465390"
+}
+
+Authorizations
+
+XClientID & XClientSecret
+XClientID & XClientSecret
+​
+x-client-id
+stringheaderrequired
+Client app ID. You can find your app id in the Merchant Dashboard.
+
+​
+x-client-secret
+stringheaderrequired
+Client secret key. You can find your secret key in the Merchant Dashboard.
+
+Headers
+​
+x-api-version
+stringdefault:2025-01-01required
+API version to be used
+
+​
+x-request-id
+string
+Request ID for the API call. Can be used to resolve tech issues. Communicate this in your tech related queries to Cashfree.
+
+​
+x-idempotency-key
+string<UUID>
+An idempotency key is a unique identifier you include with your API call.
+If the request fails or times out, you can safely retry it using the same key to avoid duplicate actions.
+
+Body
+application/json
+Request body to create a subscription payment.
+
+The request to be passed for the create subscription payment API.
+
+​
+subscription_id
+stringrequired
+A unique ID passed by merchant for identifying the subscription.
+
+​
+payment_id
+stringrequired
+A unique ID passed by merchant for identifying the subscription payment.
+
+​
+payment_type
+stringrequired
+Payment type. Can be AUTH or CHARGE.
+
+​
+subscription_session_id
+string
+Session ID for the subscription. Required only for Auth.
+
+​
+payment_amount
+number<float64>
+The charge amount of the payment. Required in case of charge.
+
+​
+payment_schedule_date
+string
+The date on which the payment is scheduled to be processed. This field is required for UPI and CARD payment modes. Cashfree stores timestamps in IST, but you can provide them in a valid ISO 8601 time format.
+For IST this 2025-06-01T10:20:12+05:30 translates to 2025-06-01 10:20:12.
+For UTC this 2025-06-01T10:20:12Z translates to 2025-06-01 15:50:12+05:30.
+
+Please note that only the date component is considered. Any time value provided will be ignored.
+
+​
+payment_remarks
+string
+Payment remarks.
+
+payment_method
+CreateSubscriptionPaymentRequestUpi · object
+payment method upi.
+
+
+Hide child attributes
+
+​
+payment_method.upi
+object
+Hide child attributes
+
+​
+payment_method.upi.channel
+string
+Channel. can be link, qrcode, or collect
+
+​
+payment_method.upi.upi_id
+string
+Example:
+{
+  "upi": {
+    "channel": "link",
+    "upi_id": "john.doe@bank"
+  }
+}
+
+payment_method
+CreateSubscriptionPaymentRequestEnach · object
+payment method enach.
+
+CreateSubscriptionPaymentRequestUpi
+CreateSubscriptionPaymentRequestEnach
+CreateSubscriptionPaymentRequestPnach
+CreateSubscriptionPaymentRequestCard
+Hide child attributes
+
+​
+payment_method.enach
+object
+Show child attributes
+
+Example:
+{
+  "enach": {
+    "account_bank_code": "XYZ",
+    "account_holder_name": "John Doe",
+    "account_ifsc": "XYZ1234567",
+    "account_number": "123456789012",
+    "account_type": "SAVINGS",
+    "auth_mode": "debit_card",
+    "channel": "link"
+  }
+}
+Response
+
+200
+
+application/json
+response of created payment.
+
+The response returned is Create Subscription Auth or Charge APIs.
+
+​
+cf_payment_id
+string
+Cashfree subscription payment reference number
+
+​
+failure_details
+object
+Hide child attributes
+
+​
+failure_details.failure_reason
+string
+Failure reason of the payment if the payment_status is failed.
+
+​
+payment_amount
+number<float64>
+The charge amount of the payment.
+
+​
+payment_id
+string
+A unique ID passed by merchant for identifying the transaction.
+
+​
+payment_initiated_date
+string<ISO8601>
+The date on which the payment was initiated. We store timestamps in IST.
+
+Example:
+"2025-06-01T10:20:12+05:30"
+
+​
+payment_status
+string
+Status of the payment.
+
+​
+payment_type
+string
+Payment type. Can be AUTH or CHARGE.
+
+Example:
+"CHARGE"
+
+​
+subscription_id
+string
+A unique ID passed by merchant for identifying the subscription.
+
+​
+data
+object
+Contains a payload for auth app links in case of AUTH. For charge, the payload is empty.
+
+​
+payment_method
+string
+Payment method used for the authorisation.
+
+

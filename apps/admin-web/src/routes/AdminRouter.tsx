@@ -14,6 +14,7 @@ import RestaurantDetailsPage from '@/pages/RestaurantDetailsPage';
 import SettlementsPage from '@/pages/SettlementsPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import SuperAdminsPage from '@/pages/SuperAdminsPage';
+import SubscriptionPlansPage from '@/pages/SubscriptionPlansPage';
 import SettingsPage from '@/pages/SettingsPage';
 import ProfilePage from '@/pages/ProfilePage';
 
@@ -53,6 +54,7 @@ const AdminRouter = () => {
           <Route path="settlements" element={<SettlementsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="super-admins" element={<SuperAdminsPage />} />
+          <Route path="subscription-plans" element={<SubscriptionPlansPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

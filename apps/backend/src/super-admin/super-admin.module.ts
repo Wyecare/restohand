@@ -6,6 +6,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { Order, OrderSchema } from '../orders/schemas/order.schema';
 import { AuthModule } from '../auth/auth.module';
+import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AuthModule } from '../auth/auth.module';
       { name: Order.name, schema: OrderSchema },
     ]),
     AuthModule,
+    SubscriptionPlansModule,
   ],
   controllers: [SuperAdminController],
   providers: [SuperAdminService],
