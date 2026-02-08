@@ -249,6 +249,10 @@ module "run_api" {
     }
   )
 
+  additional_env_vars = {
+    CASHFREE_ENVIRONMENT = "sandbox"
+  }
+
   depends_on = [
     module.networking,
     module.secrets
