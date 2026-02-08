@@ -15,6 +15,7 @@ import {
 } from '../restaurants/schemas/restaurant.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { ConfigService } from '@nestjs/config';
+import { SmartGstService } from '../gst/smart-gst.service';
 
 export interface CreatePaymentIntentDto {
   orderId: string;
@@ -70,7 +71,8 @@ export class CashfreePaymentService {
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     private readonly cashfreeService: CashfreeService,
     private readonly cashfreeVendorService: CashfreeVendorService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    private readonly smartGstService: SmartGstService
   ) {}
 
   /**
@@ -259,11 +261,50 @@ export class CashfreePaymentService {
         );
       }
 
-      // Calculate total amount
-      const totalAmount = unpaidOrders.reduce(
-        (sum, order) => sum + (order.totalAmount || 0),
-        0
-      );
+      // Calculate total amount using Smart GST service for accurate tax-included pricing
+      let totalAmount = 0;
+      try {
+        // Consolidate all items from unpaid orders for tax calculation
+        const consolidatedItems = [];
+        for (const order of unpaidOrders) {
+          for (const item of order.items) {
+            if (item.menuItemId && item.pricing?.unitAmount) {
+              consolidatedItems.push({
+                menuItemId: item.menuItemId.toString(),
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.pricing.unitAmount,
+                discountAmount: item.pricing.discountAmount || 0,
+              });
+            }
+          }
+        }
+
+        if (consolidatedItems.length > 0) {
+          // Use Smart GST service for accurate tax-included calculation
+          const taxCalculation = await this.smartGstService.calculateOrderGst(
+            restaurant.id,
+            consolidatedItems,
+            unpaidOrders[0].customerState || 'KA'
+          );
+
+          totalAmount = taxCalculation.summary.totalAmount;
+          this.logger.log(`Recalculated total with taxes: ${totalAmount}`);
+        } else {
+          // Fallback to order totals if no valid items
+          totalAmount = unpaidOrders.reduce(
+            (sum, order) => sum + (order.totalAmount || 0),
+            0
+          );
+          this.logger.warn(`Using fallback calculation: ${totalAmount}`);
+        }
+      } catch (error) {
+        this.logger.error('Failed to recalculate totals, using order amounts', error);
+        totalAmount = unpaidOrders.reduce(
+          (sum, order) => sum + (order.totalAmount || 0),
+          0
+        );
+      }
 
       // Debug log to see what we're working with
       this.logger.log(

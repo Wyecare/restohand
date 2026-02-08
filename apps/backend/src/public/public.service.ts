@@ -544,14 +544,14 @@ export class PublicService {
       return await this.formatTableSession(orders, restaurantSlug, true);
     }
 
-    // Session is active - find only active orders (including paid orders which should be visible in session)
+    // Session is active - find only unpaid orders to prevent customers from paying twice
     const activeStatuses = [
       OrderStatus.Pending,
       OrderStatus.Accepted,
       OrderStatus.InProgress,
       OrderStatus.Ready,
       OrderStatus.Completed,
-      'paid', // Include paid orders in active sessions for customer visibility
+      // REMOVED 'paid' status - paid orders should not appear in active sessions
     ];
 
     const orders = await this.orderModel
@@ -559,7 +559,7 @@ export class PublicService {
         restaurantId: new Types.ObjectId(restaurantId),
         tableId: new Types.ObjectId(tableId),
         status: { $in: activeStatuses },
-        // Include both paid and unpaid orders as they're part of the session
+        paymentStatus: { $ne: PaymentStatus.Paid }, // Explicitly exclude paid orders
       })
       .sort({ createdAt: 1 }); // Oldest first to show order sequence
       // Removed .lean() to fix selectedModifiers serialization issue
