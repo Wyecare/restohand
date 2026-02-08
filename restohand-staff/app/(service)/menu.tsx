@@ -6,6 +6,7 @@ import {
 import {
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
+  useCalculateCartTotalMutation,
 } from '@/store/api/ordersApi';
 import {
   useGetRestaurantQuery,
@@ -40,6 +41,17 @@ interface CartEntry {
     currency?: string;
   };
   quantity: number;
+  activePriceTagId?: string;
+  selectedModifiers?: Array<{
+    modifierId: string;
+    modifierName: string;
+    selectedOptions: Array<{
+      optionId: string;
+      optionName: string;
+      priceAdjustment: number;
+      quantity?: number;
+    }>;
+  }>;
 }
 
 const formatCurrency = (amount: number) =>
@@ -88,6 +100,7 @@ export default function ServiceMenuScreen() {
   const [createOrder] = useCreateOrderMutation();
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateMenuItem] = useUpdateMenuItemMutation();
+  const [calculateCartTotal] = useCalculateCartTotalMutation();
 
   // Component state
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -121,6 +134,8 @@ export default function ServiceMenuScreen() {
     title: string;
     message: string;
   } | null>(null);
+  const [calculatedCart, setCalculatedCart] = useState<any>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   // Check for existing active orders (multiple orders per table)
   const activeExistingOrders = useMemo(() => {
@@ -238,29 +253,73 @@ export default function ServiceMenuScreen() {
     (sum, e) => sum + e.quantity,
     0
   );
-  const totalAmount = Object.values(cart).reduce(
+  // Use calculated cart total if available, otherwise fallback to frontend calculation
+  const totalAmount = calculatedCart?.totalAmount ?? Object.values(cart).reduce(
     (sum, e) => sum + e.quantity * e.pricing.amount,
     0
   );
 
+  // Function to calculate cart totals using backend
+  const recalculateCart = async (newCart: Record<string, CartEntry>) => {
+    if (!restaurant || Object.keys(newCart).length === 0) {
+      setCalculatedCart(null);
+      return;
+    }
+
+    setIsCalculating(true);
+    try {
+      const cartItems = Object.values(newCart).map(entry => ({
+        menuItemId: entry.id,
+        name: entry.name,
+        quantity: entry.quantity,
+        pricing: {
+          unitAmount: entry.pricing.amount,
+          currency: entry.pricing.currency || 'INR',
+        },
+        activePriceTagId: entry.activePriceTagId,
+        selectedModifiers: entry.selectedModifiers,
+      }));
+
+      const result = await calculateCartTotal({
+        restaurantId: restaurant.id,
+        tableId: selectedTable?.id,
+        tableNumber: selectedTable?.tableNumber,
+        items: cartItems,
+      }).unwrap();
+
+      setCalculatedCart(result);
+    } catch (error) {
+      console.error('Failed to calculate cart total:', error);
+      setCalculatedCart(null);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
   // Cart management functions
   const handleAdd = (id: string, name: string, pricing: any) => {
-    setCart((prev) => ({
-      ...prev,
-      [id]: { id, name, pricing, quantity: (prev[id]?.quantity ?? 0) + 1 },
-    }));
+    const newCart = {
+      ...cart,
+      [id]: { id, name, pricing, quantity: (cart[id]?.quantity ?? 0) + 1 },
+    };
+    setCart(newCart);
+    recalculateCart(newCart);
   };
 
   const handleRemove = (id: string) => {
-    setCart((prev) => {
-      const current = prev[id];
-      if (!current) return prev;
-      if (current.quantity === 1) {
-        const { [id]: _, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [id]: { ...current, quantity: current.quantity - 1 } };
-    });
+    const current = cart[id];
+    if (!current) return;
+
+    let newCart: Record<string, CartEntry>;
+    if (current.quantity === 1) {
+      const { [id]: _, ...rest } = cart;
+      newCart = rest;
+    } else {
+      newCart = { ...cart, [id]: { ...current, quantity: current.quantity - 1 } };
+    }
+
+    setCart(newCart);
+    recalculateCart(newCart);
   };
 
   // Place order function
@@ -271,6 +330,16 @@ export default function ServiceMenuScreen() {
       setSuccessModalData({
         title: 'Cart is empty',
         message: 'Add items to place an order'
+      });
+      setShowSuccessModal(true);
+      return;
+    }
+
+    // Ensure cart is calculated before placing order
+    if (!calculatedCart) {
+      setSuccessModalData({
+        title: 'Calculating prices...',
+        message: 'Please wait while we calculate the total'
       });
       setShowSuccessModal(true);
       return;
@@ -288,6 +357,8 @@ export default function ServiceMenuScreen() {
           unitAmount: entry.pricing.amount,
           currency: entry.pricing.currency ?? 'INR',
         },
+        activePriceTagId: entry.activePriceTagId,
+        selectedModifiers: entry.selectedModifiers,
       })),
     };
 
@@ -295,6 +366,7 @@ export default function ServiceMenuScreen() {
     try {
       const order = await createOrder(payload).unwrap();
       setCart({});
+      setCalculatedCart(null);
 
       await refetchTables();
 
@@ -1035,7 +1107,7 @@ export default function ServiceMenuScreen() {
           <TouchableOpacity
             style={[styles.cartButton, { backgroundColor: theme.brand }]}
             onPress={handlePlaceOrder}
-            disabled={isPlacingOrder}
+            disabled={isPlacingOrder || isCalculating}
           >
             <View style={styles.cartButtonContent}>
               <View style={styles.cartInfo}>
@@ -1045,7 +1117,7 @@ export default function ServiceMenuScreen() {
                 <View style={styles.cartDetails}>
                   <Text style={styles.cartItems}>{totalItems} items</Text>
                   <Text style={styles.cartTotal}>
-                    {formatCurrency(totalAmount)}
+                    {isCalculating ? 'Calculating...' : formatCurrency(totalAmount)}
                   </Text>
                 </View>
               </View>

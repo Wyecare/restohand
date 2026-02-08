@@ -52,7 +52,7 @@ export const menuApi = baseApi.injectEndpoints({
       {
         restaurant: PublicRestaurant;
         menu: PublicMenuPayload;
-        activeOrder?: PublicOrder;
+        tableSession?: any; // Table session data if available
       },
       { slug: string; table?: string; tableId?: string }
     >({
@@ -60,7 +60,8 @@ export const menuApi = baseApi.injectEndpoints({
         url: `/public/restaurants/${slug}/menu`,
         params: {
           ...(table && { table }),
-          ...(tableId && { tableId })
+          ...(tableId && { tableId }),
+          includeUnavailable: true, // Staff should see all items
         },
       }),
       providesTags: ["MenuCategory"],
@@ -148,26 +149,6 @@ export const menuApi = baseApi.injectEndpoints({
               { type: "MenuItem" as const, id: `LIST-${restaurantId}` },
             ]
           : [{ type: "MenuItem" as const, id: `LIST-${restaurantId}` }],
-    }),
-
-    updateMenuItem: builder.mutation<
-      MenuItem,
-      {
-        restaurantId: string;
-        itemId: string;
-        updates: Partial<MenuItem>;
-      }
-    >({
-      query: ({ restaurantId, itemId, updates }) => ({
-        url: `/restaurants/${restaurantId}/menu/items/${itemId}`,
-        method: "PATCH",
-        body: updates,
-      }),
-      invalidatesTags: (_result, _error, { restaurantId, itemId }) => [
-        { type: "MenuItem" as const, id: itemId },
-        { type: "MenuItem" as const, id: `LIST-${restaurantId}` },
-        { type: "MenuCategory" as const, id: "LIST" },
-      ],
     }),
 
     updateMenuItem: builder.mutation<

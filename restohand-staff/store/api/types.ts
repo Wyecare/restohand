@@ -77,6 +77,17 @@ export interface OrderItem {
   taxAmount: number;
   notes?: string;
   status?: 'pending' | 'preparing' | 'ready';
+  activePriceTagId?: string;
+  selectedModifiers?: Array<{
+    modifierId: string;
+    modifierName: string;
+    selectedOptions: Array<{
+      optionId: string;
+      optionName: string;
+      priceAdjustment: number;
+      quantity?: number;
+    }>;
+  }>;
   customizations?: {
     addons?: Array<{ id: string; name: string; price: number }>;
     variants?: Array<{ id: string; name: string; price: number }>;
@@ -295,5 +306,79 @@ export interface PublicOrder {
     quantity: number;
     pricing: MenuItemPricing;
     gst?: OrderItemGst;
+  }>;
+}
+
+// Menu Item Pricing Type (matching customer frontend exactly)
+export interface MenuItemPricing {
+  amount: number;
+  currency: string;
+  isTaxInclusive?: boolean;
+}
+
+// Cart Calculation Types (matching customer frontend exactly)
+export interface CalculateCartTotalPayload {
+  restaurantId: string;
+  tableId?: string;
+  tableNumber?: string;
+  items: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    pricing: {
+      unitAmount: number;
+      currency: string;
+      taxAmount?: number;
+      discountAmount?: number;
+    };
+    activePriceTagId?: string;
+    selectedModifiers?: Array<{
+      modifierId: string;
+      modifierName: string;
+      selectedOptions: Array<{
+        optionId: string;
+        optionName: string;
+        priceAdjustment: number;
+        quantity?: number;
+      }>;
+    }>;
+    notes?: string;
+  }>;
+  notes?: string;
+  customerInfo?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+}
+
+export interface CalculateCartTotalResponse {
+  subtotal: number;
+  taxAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  discountAmount: number;
+  roundOffAmount: number;
+  totalAmount: number;
+  itemDetails: Array<{
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    taxAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    activePriceTagId?: string;
+    selectedModifiers?: Array<{
+      modifierName: string;
+      selectedOptions: Array<{
+        optionName: string;
+        priceAdjustment: number;
+      }>;
+    }>;
+    notes?: string;
   }>;
 }

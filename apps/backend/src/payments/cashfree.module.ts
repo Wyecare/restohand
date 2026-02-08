@@ -30,12 +30,16 @@ import { OrdersModule } from '../orders/orders.module';
 // Import SubscriptionsModule for CashfreeSubscriptionService
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
+// Import GstModule for SmartGstService
+import { GstModule } from '../gst/gst.module';
+
 @Module({
   imports: [
     ConfigModule.forFeature(cashfreeConfig),
     AuthModule, // Import AuthModule for JWT guards
     forwardRef(() => OrdersModule), // Import OrdersModule for OrdersService
     forwardRef(() => SubscriptionsModule), // Import SubscriptionsModule for CashfreeSubscriptionService
+    GstModule, // Import GstModule for SmartGstService
     MongooseModule.forFeature([
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: Order.name, schema: OrderSchema },

@@ -1,5 +1,5 @@
 import { baseApi } from "./baseApi";
-import type { Order, PaginatedResponse } from "./types";
+import type { Order, PaginatedResponse, CalculateCartTotalPayload, CalculateCartTotalResponse } from "./types";
 
 export interface ListOrdersParams {
   restaurantId: string;
@@ -39,6 +39,17 @@ export interface CreateOrderPayload {
       taxAmount?: number;
       discountAmount?: number;
     };
+    activePriceTagId?: string;
+    selectedModifiers?: Array<{
+      modifierId: string;
+      modifierName: string;
+      selectedOptions: Array<{
+        optionId: string;
+        optionName: string;
+        priceAdjustment: number;
+        quantity?: number;
+      }>;
+    }>;
     notes?: string;
   }[];
 }
@@ -142,6 +153,19 @@ export const ordersApi = baseApi.injectEndpoints({
       }),
       // No caching for QR generation
     }),
+
+    // Cart calculation endpoint (matching customer frontend exactly)
+    calculateCartTotal: builder.mutation<
+      CalculateCartTotalResponse,
+      CalculateCartTotalPayload
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/calculate-cart-total`,
+        method: "POST",
+        body,
+      }),
+      // No cache invalidation needed for calculation
+    }),
   }),
   overrideExisting: false,
 });
@@ -154,4 +178,5 @@ export const {
   useUpdateOrderPaymentMutation,
   useGenerateReceiptQrQuery,
   useGenerateCombinedReceiptQrMutation,
+  useCalculateCartTotalMutation,
 } = ordersApi;
