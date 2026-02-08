@@ -26,6 +26,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { GstService } from './gst.service';
+import { SmartGstService } from './smart-gst.service';
 import { CreateGstRateDto } from './dtos/create-gst-rate.dto';
 import { UpdateGstRateDto } from './dtos/update-gst-rate.dto';
 import { CreateHsnCodeDto } from './dtos/create-hsn-code.dto';
@@ -44,7 +45,10 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('restaurants/:restaurantId/gst')
 export class GstController {
-  constructor(private readonly gstService: GstService) {}
+  constructor(
+    private readonly gstService: GstService,
+    private readonly smartGstService: SmartGstService
+  ) {}
 
   // GST Rates Management
   @Post('rates')
@@ -200,11 +204,25 @@ export class GstController {
       throw new ForbiddenException('Unauthorized access to restaurant GST calculation');
     }
 
-    return this.gstService.calculateOrderTax(
+    // Transform items to match Smart GST service interface
+    const orderItems = dto.items.map(item => ({
+      menuItemId: item.menuItemId,
+      name: item.name,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discountAmount: 0 // No discount in cart calculation
+    }));
+
+    const { items, summary } = await this.smartGstService.calculateOrderGst(
       restaurantId,
-      dto.items,
+      orderItems,
       dto.customerState
     );
+
+    return {
+      items,
+      summary
+    };
   }
 }
 

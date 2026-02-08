@@ -39,7 +39,7 @@ export function CategoriesSidebar({
   const navigate = useNavigate();
 
   const handleCategoryClick = (categoryId: string) => {
-    navigate(`/menu/categories/${categoryId}`);
+    navigate(`/menu/items/categories/${categoryId}`);
     onCategoryClick?.();
   };
 

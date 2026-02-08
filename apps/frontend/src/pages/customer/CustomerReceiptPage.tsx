@@ -14,7 +14,7 @@ import {
   useGetConsolidatedBillQuery,
 } from '@/store/api/restaurantsApi';
 import { generateReceiptPDF } from '@/components/customer/ReceiptPDF';
-import { generateThermalReceiptPDF } from '@/components/ThermalReceiptPDF';
+import { generateProfessionalInvoicePDF } from '@/components/ProfessionalInvoicePDF';
 import type { PublicRestaurant } from '@/store/api/types';
 
 /* ─── Styles injected once ─────────────────────────────────────────── */
@@ -464,10 +464,62 @@ const CustomerReceiptPage = () => {
             className="rh-dl-btn"
             onClick={async () => {
               try {
-                const pdfBlob = await generateThermalReceiptPDF({
-                  restaurant,
-                  bill,
-                });
+                // Transform data for professional invoice
+                const invoiceData = {
+                  restaurant: {
+                    name: restaurant.name,
+                    legalEntity: restaurant.name?.toUpperCase(),
+                    address: restaurant.address,
+                    phone: restaurant.phone,
+                    email: restaurant.email,
+                    gstin: restaurant.gstin || 'UNREGISTERED',
+                    fssai: 'Not Available',
+                    pan: 'Not Available',
+                    cin: 'Not Available',
+                  },
+                  customer: {
+                    name: 'Guest Customer',
+                    address: `Table ${bill.tableNumber}`,
+                    gstin: 'UNREGISTERED',
+                  },
+                  invoice: {
+                    number: `INV-${Date.now().toString().slice(-8)}`,
+                    date: new Date().toISOString(),
+                    orderId: bill.orders[0]?.orderNumber || '',
+                    orderNumber: bill.orders[0]?.orderNumber || '',
+                    tableNumber: bill.tableNumber,
+                    paymentMethod: 'Digital payment',
+                  },
+                  bill: {
+                    ...bill,
+                    discountAmount: 0,
+                    orders: bill.orders.map(order => ({
+                      ...order,
+                      items: order.items.map(item => {
+                        const totalItems = bill.orders.reduce((sum, o) => sum + o.items.length, 0) || 1;
+                        const itemCgst = (bill.cgstAmount || 0) / totalItems;
+                        const itemSgst = (bill.sgstAmount || 0) / totalItems;
+                        const itemIgst = (bill.igstAmount || 0) / totalItems;
+                        const taxIncludedTotal = item.lineTotal + itemCgst + itemSgst + itemIgst;
+
+                        return {
+                          ...item,
+                          grossValue: item.lineTotal,
+                          discount: 0,
+                          netValue: item.lineTotal,
+                          cgstAmount: itemCgst,
+                          sgstAmount: itemSgst,
+                          igstAmount: itemIgst,
+                          lineTotal: taxIncludedTotal, // This will show tax-included total in final column
+                          hsnCode: '996331',
+                        };
+                      }),
+                    })),
+                    amountInWords: `${bill.totalAmount.toFixed(2)} Only`,
+                  },
+                };
+
+                const pdfBlob = await generateProfessionalInvoicePDF(invoiceData);
                 const url = URL.createObjectURL(pdfBlob);
                 const link = document.createElement('a');
                 link.href = url;

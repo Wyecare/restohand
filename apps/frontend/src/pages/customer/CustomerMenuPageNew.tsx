@@ -738,6 +738,7 @@ export default function CustomerMenuPageNew() {
     name: string;
     price: number;
     modifiers: any[];
+    activePriceTagId?: string;
   } | null>(null);
 
   const [cartCalculation, setCartCalculation] = useState<{
@@ -916,6 +917,7 @@ export default function CustomerMenuPageNew() {
       name: selectedMenuItem.name,
       quantity: 1,
       price: totalPrice,
+      activePriceTagId: selectedMenuItem.activePriceTagId,
       selectedModifiers: selections,
       notes: notes,
     };
@@ -955,6 +957,7 @@ export default function CustomerMenuPageNew() {
         name,
         price: getEffectivePrice({ pricing, activePriceTag }),
         modifiers: modifiers,
+        activePriceTagId: activePriceTag?.id,
       });
       setModifierModalOpen(true);
     } else {
@@ -976,6 +979,7 @@ export default function CustomerMenuPageNew() {
             name,
             quantity: 1,
             price: getEffectivePrice({ pricing, activePriceTag }),
+            activePriceTagId: activePriceTag?.id,
           },
         ]);
       }
@@ -1036,6 +1040,8 @@ export default function CustomerMenuPageNew() {
             unitAmount: item.price,
             currency: 'INR',
           },
+          activePriceTagId: item.activePriceTagId,
+          selectedModifiers: item.selectedModifiers || [],
         })),
       }).unwrap();
 

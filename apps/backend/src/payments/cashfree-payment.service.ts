@@ -160,6 +160,11 @@ export class CashfreePaymentService {
         `Cashfree payment intent created: ${cashfreeOrder.paymentSessionId} for order ${dto.orderId}`
       );
 
+      const environment = this.configService.get('NODE_ENV');
+      const cashfreeBaseUrl = environment === 'production'
+        ? 'https://cashfree.com/pg/view/sessions'
+        : 'https://sandbox.cashfree.com/pg/view/sessions';
+
       return {
         paymentSessionId: cashfreeOrder.paymentSessionId,
         cashfreeOrderId: cashfreeOrder.orderId,
@@ -175,6 +180,7 @@ export class CashfreePaymentService {
           vendorId && canReceiveSettlements
             ? 'split_payment'
             : 'manual_settlement',
+        checkoutUrl: `${cashfreeBaseUrl}/${cashfreeOrder.paymentSessionId}`,
       };
     } catch (error) {
       this.logger.error(
@@ -335,8 +341,13 @@ export class CashfreePaymentService {
       this.logger.log(
         `Session payment intent created: ${
           cashfreeOrder.paymentSessionId
-        } for ${unpaidOrders.length} orders, total: ₹${totalAmount / 100}`
+        } for ${unpaidOrders.length} orders, total: ₹${totalAmount}`
       );
+
+      const environment = this.configService.get('NODE_ENV');
+      const cashfreeBaseUrl = environment === 'production'
+        ? 'https://cashfree.com/pg/view/sessions'
+        : 'https://sandbox.cashfree.com/pg/view/sessions';
 
       return {
         paymentSessionId: cashfreeOrder.paymentSessionId,
@@ -356,6 +367,7 @@ export class CashfreePaymentService {
           vendorId && canReceiveSettlements
             ? 'split_payment'
             : 'manual_settlement',
+        checkoutUrl: `${cashfreeBaseUrl}/${cashfreeOrder.paymentSessionId}`,
       };
     } catch (error) {
       this.logger.error(`Failed to create session payment intent:`, error);
@@ -460,9 +472,7 @@ export class CashfreePaymentService {
       );
 
       this.logger.log(
-        `Payment split completed for ${orders.length} orders. Restaurant: ₹${
-          restaurantAmount / 100
-        }, Platform: ₹${platformCommission / 100}`
+        `Payment split completed for ${orders.length} orders. Restaurant: ₹${restaurantAmount}, Platform: ₹${platformCommission}`
       );
 
       return {

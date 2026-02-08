@@ -753,6 +753,7 @@ export const restaurantsApi = baseApi.injectEndpoints({
       },
       {
         restaurantId: string;
+        tableId?: string;
         tableNumber?: string;
         items: Array<{
           menuItemId: string;
@@ -764,6 +765,17 @@ export const restaurantsApi = baseApi.injectEndpoints({
             taxAmount?: number;
             discountAmount?: number;
           };
+          activePriceTagId?: string;
+          selectedModifiers?: Array<{
+            modifierId: string;
+            modifierName: string;
+            selectedOptions: Array<{
+              optionId: string;
+              optionName: string;
+              priceAdjustment: number;
+              quantity?: number;
+            }>;
+          }>;
           notes?: string;
         }>;
         notes?: string;

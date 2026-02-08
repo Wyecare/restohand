@@ -1768,48 +1768,81 @@ export class OrdersService {
       };
     });
 
-    const { items: computedItems, summary } =
-      await this.gstService.calculateOrderTax(
-        restaurantId,
-        calculationInput,
-        customerState
-      );
+    // Transform to Smart GST service format
+    const smartGstItems: OrderItemGstData[] = calculationInput.map(item => ({
+      menuItemId: item.menuItemId,
+      name: item.name,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discountAmount: item.discountAmount
+    }));
+
+    const { items: computedItems, summary } = await this.smartGstService.calculateOrderGst(
+      restaurantId,
+      smartGstItems,
+      customerState
+    );
 
     const orderItems = computedItems.map((computed, index) => {
       const requestItem = dto.items[index];
       const menuItem = menuMap.get(requestItem.menuItemId)!;
       const currency = menuItem.pricing?.currency ?? 'INR';
+      const grossAmount = computed.unitPrice * computed.quantity;
 
       return {
-        menuItemId: menuItem._id,
+        menuItemId: menuItem._id.toString(),
         name: computed.name,
         quantity: computed.quantity,
         pricing: {
-          unitAmount: this.roundToTwo(computed.unitPrice),
+          unitAmount: computed.unitPrice,
           currency,
-          taxAmount: this.roundToTwo(computed.totalTaxAmount),
-          discountAmount: this.roundToTwo(computed.discountAmount),
+          taxAmount: computed.totalTaxAmount,
+          discountAmount: computed.discountAmount,
         },
         gst: {
           hsnCode: computed.hsnCode,
-          gstRateId: computed.gstRateId,
+          gstRateId: undefined, // Smart GST doesn't use gstRateId
           gstRate: computed.gstRate,
-          cgstAmount: this.roundToTwo(computed.cgstAmount),
-          sgstAmount: this.roundToTwo(computed.sgstAmount),
-          igstAmount: this.roundToTwo(computed.igstAmount),
-          totalTaxAmount: this.roundToTwo(computed.totalTaxAmount),
-          taxableAmount: this.roundToTwo(computed.taxableAmount),
-          totalWithTax: this.roundToTwo(computed.totalWithTax),
-          grossAmount: this.roundToTwo(computed.grossAmount),
-          isTaxInclusive: computed.isTaxInclusive,
+          cgstAmount: computed.cgstAmount,
+          sgstAmount: computed.sgstAmount,
+          igstAmount: computed.igstAmount,
+          totalTaxAmount: computed.totalTaxAmount,
+          taxableAmount: computed.taxableAmount,
+          totalWithTax: computed.totalWithTax,
+          grossAmount: grossAmount,
+          isTaxInclusive: false, // Smart GST always calculates exclusive
         },
+        selectedModifiers: (requestItem.selectedModifiers || []).map(mod => ({
+          modifierId: mod.modifierId,
+          modifierName: mod.modifierName,
+          selectedOptions: mod.selectedOptions.map(opt => ({
+            optionId: opt.optionId,
+            optionName: opt.optionName,
+            priceAdjustment: opt.priceAdjustment,
+            quantity: opt.quantity || 1
+          }))
+        })),
+        activePriceTagId: requestItem.activePriceTagId,
         notes: requestItem.notes,
       };
     });
 
+    // Transform Smart GST summary to expected TaxCalculation format
+    const transformedSummary: TaxCalculation = {
+      grossAmount: summary.subtotal + summary.discountAmount,
+      discountAmount: summary.discountAmount,
+      subtotal: summary.taxableAmount,
+      cgstAmount: summary.cgstAmount,
+      sgstAmount: summary.sgstAmount,
+      igstAmount: summary.igstAmount,
+      totalTaxAmount: summary.totalTaxAmount,
+      totalAmount: summary.totalAmount,
+      taxType: summary.taxType,
+    };
+
     return {
       items: orderItems,
-      summary,
+      summary: transformedSummary,
     };
   }
 

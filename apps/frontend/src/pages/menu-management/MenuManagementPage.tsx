@@ -30,55 +30,30 @@ export function MenuManagementPage() {
 
   // Auto-redirect to first category if on base /menu route
   useEffect(() => {
-    if (categories.length > 0) {
+    if (categories.length > 0 && location.pathname === '/menu') {
       navigate(`/menu/items/${categories[0]._id || categories[0].id}`, {
         replace: true,
       });
     }
-  }, [categories]);
+  }, [categories, location.pathname, navigate]);
 
   return (
     <div className=" mx-auto px-1 py-1">
       <Routes>
         {/* Base redirect */}
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to={
-                categories[0]
-                  ? `/menu/items/${categories[0]._id || categories[0].id}`
-                  : '/menu/items'
-              }
-              replace
-            />
-          }
-        />
 
         {/* Items routes - previously under /menu/categories */}
         <Route path="/items" element={<CategoriesView />} />
-        <Route path="/items/:categoryId" element={<CategoriesView />} />
+        <Route
+          path="/items/categories/:categoryId"
+          element={<CategoriesView />}
+        />
 
         {/* Modifiers route */}
         <Route path="/modifiers" element={<ModifiersView />} />
 
         {/* Price tags route */}
         <Route path="/price-tags" element={<PriceTagsView />} />
-
-        {/* Fallback */}
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to={
-                categories[0]
-                  ? `/menu/items/${categories[0]._id || categories[0].id}`
-                  : '/menu/items'
-              }
-              replace
-            />
-          }
-        />
       </Routes>
     </div>
   );

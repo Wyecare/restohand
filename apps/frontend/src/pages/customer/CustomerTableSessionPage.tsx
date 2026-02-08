@@ -11,7 +11,64 @@ import {
   useGetTableSessionPublicQuery,
   restaurantsApi,
 } from '@/store/api/restaurantsApi';
-import { generateThermalReceiptPDF } from '@/components/ThermalReceiptPDF';
+import { generateProfessionalInvoicePDF } from '@/components/ProfessionalInvoicePDF';
+
+// Helper function to convert numbers to words
+const convertToWords = (amount: number): string => {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const convertHundreds = (n: number): string => {
+    let result = '';
+    if (n >= 100) {
+      result += ones[Math.floor(n / 100)] + ' Hundred ';
+      n %= 100;
+    }
+    if (n >= 20) {
+      result += tens[Math.floor(n / 10)] + ' ';
+      n %= 10;
+    } else if (n >= 10) {
+      result += teens[n - 10] + ' ';
+      n = 0;
+    }
+    if (n > 0) {
+      result += ones[n] + ' ';
+    }
+    return result.trim();
+  };
+
+  if (amount === 0) return 'Zero Rupees Only';
+
+  let rupees = Math.floor(amount);
+  const paise = Math.round((amount - rupees) * 100);
+
+  let result = '';
+
+  if (rupees >= 10000000) {
+    result += convertHundreds(Math.floor(rupees / 10000000)) + ' Crore ';
+    rupees %= 10000000;
+  }
+  if (rupees >= 100000) {
+    result += convertHundreds(Math.floor(rupees / 100000)) + ' Lakh ';
+    rupees %= 100000;
+  }
+  if (rupees >= 1000) {
+    result += convertHundreds(Math.floor(rupees / 1000)) + ' Thousand ';
+    rupees %= 1000;
+  }
+  if (rupees > 0) {
+    result += convertHundreds(rupees);
+  }
+
+  result += result.trim() ? ' Rupees' : 'Rupees';
+
+  if (paise > 0) {
+    result += ' And ' + convertHundreds(paise) + ' Paisa';
+  }
+
+  return result + ' Only';
+};
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { useVerifyPaymentMutation } from '@/store/api/ordersApi';
 import { useCreateCashfreeSessionPaymentIntentMutation } from '@/store/api/cashfreeApi';
@@ -767,10 +824,62 @@ export default function CustomerTableSessionPage() {
                   const result = await getConsolidatedBill({ slug, tableId });
 
                   if ('data' in result && result.data) {
-                    const pdfBlob = await generateThermalReceiptPDF({
-                      restaurant: result.data.restaurant,
-                      bill: result.data.bill,
-                    });
+                    // Transform data for professional invoice
+                    const invoiceData = {
+                      restaurant: {
+                        name: result.data.restaurant.name,
+                        legalEntity: result.data.restaurant.name?.toUpperCase(),
+                        address: result.data.restaurant.address,
+                        phone: result.data.restaurant.phone,
+                        email: result.data.restaurant.email,
+                        gstin: result.data.restaurant.gstin || 'UNREGISTERED',
+                        fssai: 'Not Available',
+                        pan: 'Not Available',
+                        cin: 'Not Available',
+                      },
+                      customer: {
+                        name: 'Guest Customer',
+                        address: `Table ${tableSession.tableNumber}`,
+                        gstin: 'UNREGISTERED',
+                      },
+                      invoice: {
+                        number: `INV-${Date.now().toString().slice(-8)}`,
+                        date: new Date().toISOString(),
+                        orderId: tableSession.orders[0]?.id || '',
+                        orderNumber: tableSession.orders[0]?.orderNumber || '',
+                        tableNumber: tableSession.tableNumber,
+                        paymentMethod: 'Digital payment',
+                      },
+                      bill: {
+                        ...result.data.bill,
+                        discountAmount: 0,
+                        orders: result.data.bill.orders.map((order: any) => ({
+                          ...order,
+                          items: order.items.map((item: any) => {
+                            const totalItems = result.data?.bill?.orders.reduce((sum, o) => sum + o.items.length, 0) || 1;
+                            const itemCgst = (result.data?.bill?.cgstAmount || 0) / totalItems;
+                            const itemSgst = (result.data?.bill?.sgstAmount || 0) / totalItems;
+                            const itemIgst = (result.data?.bill?.igstAmount || 0) / totalItems;
+                            const taxIncludedTotal = item.lineTotal + itemCgst + itemSgst + itemIgst;
+
+                            return {
+                              ...item,
+                              grossValue: item.lineTotal,
+                              discount: 0,
+                              netValue: item.lineTotal,
+                              cgstAmount: itemCgst,
+                              sgstAmount: itemSgst,
+                              igstAmount: itemIgst,
+                              lineTotal: taxIncludedTotal, // This will show tax-included total in final column
+                              hsnCode: '996331',
+                            };
+                          }),
+                        })),
+                        amountInWords: convertToWords(result.data.bill.totalAmount),
+                      },
+                    };
+
+                    const pdfBlob = await generateProfessionalInvoicePDF(invoiceData);
 
                     const url = URL.createObjectURL(pdfBlob);
                     const link = document.createElement('a');
