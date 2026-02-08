@@ -27,15 +27,21 @@ import {
   Utensils,
   Download,
   ShoppingCart,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
 import type { Order } from '@/store/api/types';
+import type {
+  ModifierSelection,
+  OptionSelection,
+} from '@/store/slices/cartSlice';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 
 const getOrderStatusDisplay = (order: Order) => {
@@ -46,7 +52,7 @@ const getOrderStatusDisplay = (order: Order) => {
       icon: CheckCircle,
       text: 'Ready',
       color: 'text-green-600',
-      bgColor: 'bg-green-50 border-green-200',
+      bgColor: 'bg-green-50',
     };
   }
 
@@ -55,7 +61,7 @@ const getOrderStatusDisplay = (order: Order) => {
       icon: ChefHat,
       text: 'Cooking',
       color: 'text-orange-600',
-      bgColor: 'bg-orange-50 border-orange-200',
+      bgColor: 'bg-orange-50',
     };
   }
 
@@ -63,187 +69,191 @@ const getOrderStatusDisplay = (order: Order) => {
     icon: Clock,
     text: 'Ordered',
     color: 'text-blue-600',
-    bgColor: 'bg-blue-50 border-blue-200',
+    bgColor: 'bg-blue-50',
   };
 };
 
-/* ── Styles injected once ── */
+/* ── Compact Styles ── */
 const STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500;600&display=swap');
 
   .rh-cart-root {
-    --clr-bg:        #f0ede8;
-    --clr-paper:     #faf9f7;
-    --clr-border:    #e2ddd6;
-    --clr-text:      #1a1a1a;
-    --clr-muted:     #7a756e;
-    --clr-accent:    #1a1a1a;
+    --clr-bg:        #f8f9fa;
+    --clr-paper:     #ffffff;
+    --clr-border:    #e5e7eb;
+    --clr-text:      #111827;
+    --clr-muted:     #6b7280;
     --clr-success:   #16a34a;
     --clr-success-bg:#f0fdf4;
-    --clr-success-bd:#bbf7d0;
     --clr-warning:   #ea580c;
     --clr-warning-bg:#fff7ed;
-    --clr-warning-bd:#fed7aa;
     --clr-info:      #0284c7;
     --clr-info-bg:   #f0f9ff;
-    --clr-info-bd:   #bae6fd;
-    --clr-btn-primary: #1a1a1a;
-    --clr-btn-primary-hover: #333;
-    --clr-btn-success: #16a34a;
-    --clr-btn-success-hover: #15803d;
     font-family: 'DM Sans', system-ui, sans-serif;
     background: var(--clr-bg);
     min-height: 100vh;
+    padding-bottom: 32px;
   }
 
   .rh-cart-wrap {
     max-width: 520px;
     margin: 0 auto;
-    padding: 20px 16px 48px;
+    padding: 16px;
   }
 
-  /* ── header ── */
+  /* Compact Header */
   .rh-cart-header {
     text-align: center;
-    padding: 20px 0 16px;
+    padding: 12px 0;
+    margin-bottom: 12px;
   }
   .rh-cart-header h1 {
-    font-size: 24px;
-    font-weight: 600;
+    font-size: 20px;
+    font-weight: 700;
     color: var(--clr-text);
-    letter-spacing: -0.4px;
     margin: 0 0 4px;
   }
   .rh-cart-header p {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--clr-muted);
     margin: 0;
   }
 
-  /* ── card ── */
+  /* Card */
   .rh-cart-card {
     background: var(--clr-paper);
     border: 1px solid var(--clr-border);
-    border-radius: 10px;
-    padding: 18px;
+    border-radius: 12px;
+    padding: 16px;
     margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
 
-  /* ── status banner ── */
+  /* Compact Status Banner */
   .rh-status-banner {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    text-align: center;
-    padding: 18px;
+    gap: 12px;
+    padding: 14px;
+    text-align: left;
   }
   .rh-status-icon {
-    font-size: 36px;
-    margin-bottom: 8px;
+    font-size: 32px;
+    flex-shrink: 0;
+  }
+  .rh-status-content {
+    flex: 1;
+    min-width: 0;
   }
   .rh-status-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0 0 3px;
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 2px;
   }
   .rh-status-subtitle {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--clr-muted);
     margin: 0;
   }
-  .rh-status-banner.success { border-color: var(--clr-success-bd); background: var(--clr-success-bg); }
+  .rh-status-banner.success { background: var(--clr-success-bg); border-color: #bbf7d0; }
   .rh-status-banner.success .rh-status-title { color: var(--clr-success); }
-  .rh-status-banner.warning { border-color: var(--clr-warning-bd); background: var(--clr-warning-bg); }
+  .rh-status-banner.warning { background: var(--clr-warning-bg); border-color: #fed7aa; }
   .rh-status-banner.warning .rh-status-title { color: var(--clr-warning); }
-  .rh-status-banner.info { border-color: var(--clr-info-bd); background: var(--clr-info-bg); }
+  .rh-status-banner.info { background: var(--clr-info-bg); border-color: #bae6fd; }
   .rh-status-banner.info .rh-status-title { color: var(--clr-info); }
 
-  /* ── summary row ── */
+  /* Summary */
   .rh-summary-row {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
+    padding: 6px 0;
     font-size: 13px;
     color: var(--clr-muted);
   }
   .rh-summary-row span:last-child {
     font-family: 'DM Mono', monospace;
-  }
-  .rh-summary-row.bold {
     font-weight: 500;
-    color: var(--clr-text);
   }
 
-  /* ── total section ── */
+  /* Total Section - More Compact */
   .rh-total-section {
-    text-align: center;
-    border-top: 1px solid var(--clr-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 2px solid var(--clr-border);
     padding-top: 12px;
-    margin-top: 10px;
+    margin-top: 12px;
+  }
+  .rh-total-left {
+    text-align: left;
   }
   .rh-total-label {
-    font-size: 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--clr-muted);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
   .rh-total-amount {
-    font-size: 28px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: 700;
     color: var(--clr-text);
     font-family: 'DM Mono', monospace;
-    letter-spacing: -0.5px;
-    margin-bottom: 8px;
   }
   .rh-total-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 500;
-    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 10px;
     border-radius: 6px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
   .rh-total-badge.pending {
-    background: var(--clr-warning-bg);
-    color: var(--clr-warning);
-    border: 1px solid var(--clr-warning-bd);
+    background: #fff7ed;
+    color: #ea580c;
+    border: 1px solid #fed7aa;
   }
   .rh-total-badge.paid {
-    background: var(--clr-success-bg);
-    color: var(--clr-success);
-    border: 1px solid var(--clr-success-bd);
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
   }
 
-  /* ── action buttons ── */
+  /* Action Buttons - Horizontal on Desktop */
   .rh-btn-group {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 10px;
     margin-bottom: 12px;
+  }
+  @media (min-width: 520px) {
+    .rh-btn-group.multi {
+      grid-template-columns: 1fr 1fr;
+    }
   }
   .rh-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 13px 18px;
-    font-size: 14px;
-    font-weight: 500;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 700;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.15s, transform 0.05s;
+    transition: all 0.2s;
   }
   .rh-btn:active {
     transform: scale(0.98);
   }
   .rh-btn.primary {
-    background: var(--clr-btn-success);
+    background: #16a34a;
     color: white;
   }
   .rh-btn.primary:hover {
-    background: var(--clr-btn-success-hover);
+    background: #15803d;
   }
   .rh-btn.primary:disabled {
     opacity: 0.5;
@@ -255,111 +265,109 @@ const STYLE = `
     border: 1px solid var(--clr-border);
   }
   .rh-btn.secondary:hover {
-    background: #f5f3f0;
+    background: #f3f4f6;
   }
   .rh-btn.accent {
-    background: var(--clr-btn-primary);
+    background: #111827;
     color: white;
   }
   .rh-btn.accent:hover {
-    background: var(--clr-btn-primary-hover);
+    background: #1f2937;
   }
 
-  /* ── section title ── */
+  /* Section Title */
   .rh-section-title {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     color: var(--clr-text);
     margin: 0 0 10px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
 
-  /* ── order card ── */
+  /* Compact Order Card */
   .rh-order-card {
     background: var(--clr-paper);
     border: 1px solid var(--clr-border);
-    border-radius: 8px;
-    padding: 14px;
+    border-radius: 10px;
+    padding: 12px;
     margin-bottom: 10px;
   }
   .rh-order-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     margin-bottom: 10px;
   }
   .rh-order-left {
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-  .rh-order-status-icon {
-    flex-shrink: 0;
+    flex: 1;
+    min-width: 0;
   }
   .rh-order-number {
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--clr-text);
-    margin: 0 0 2px;
+    margin: 0;
   }
   .rh-order-status-text {
-    font-size: 12px;
+    font-size: 11px;
     margin: 0;
+    font-weight: 600;
   }
   .rh-order-right {
     text-align: right;
+    flex-shrink: 0;
   }
   .rh-order-amount {
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--clr-text);
     font-family: 'DM Mono', monospace;
     margin-bottom: 4px;
   }
   .rh-order-payment-badge {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 500;
-    padding: 2px 8px;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 3px 8px;
     border-radius: 5px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
   .rh-order-payment-badge.pending {
-    background: var(--clr-warning-bg);
-    color: var(--clr-warning);
-    border: 1px solid var(--clr-warning-bd);
+    background: #fff7ed;
+    color: #ea580c;
   }
   .rh-order-payment-badge.paid {
-    background: var(--clr-success-bg);
-    color: var(--clr-success);
-    border: 1px solid var(--clr-success-bd);
+    background: #f0fdf4;
+    color: #16a34a;
   }
 
-  /* ── toggle items button ── */
+  /* Toggle Button */
   .rh-toggle-btn {
     width: 100%;
     padding: 8px;
     font-size: 12px;
-    font-weight: 500;
-    background: #f5f3f0;
+    font-weight: 600;
+    background: #f3f4f6;
     color: var(--clr-text);
     border: 1px solid var(--clr-border);
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: all 0.15s;
   }
   .rh-toggle-btn:hover {
-    background: #ebe8e3;
+    background: #e5e7eb;
   }
 
-  /* ── order items list ── */
+  /* Items List */
   .rh-items-list {
     margin-top: 10px;
     padding-top: 10px;
@@ -368,39 +376,42 @@ const STYLE = `
   .rh-item-row {
     display: flex;
     justify-content: space-between;
-    padding: 4px 0;
+    gap: 12px;
+    padding: 6px 0;
     font-size: 13px;
   }
   .rh-item-name {
-    font-weight: 500;
+    font-weight: 600;
     color: var(--clr-text);
   }
   .rh-item-qty {
     color: var(--clr-muted);
-    margin-left: 6px;
     font-size: 12px;
+    margin-top: 2px;
   }
   .rh-item-total {
     font-family: 'DM Mono', monospace;
     color: var(--clr-text);
+    font-weight: 600;
+    flex-shrink: 0;
   }
 
-  /* ── help text ── */
+  /* Help Section */
   .rh-help-section {
     text-align: center;
     padding-top: 16px;
   }
   .rh-help-section p {
-    font-size: 12px;
-    color: #b5b0a8;
+    font-size: 11px;
+    color: #9ca3af;
     margin: 4px 0;
   }
   .rh-help-section strong {
     color: var(--clr-text);
-    font-weight: 500;
+    font-weight: 600;
   }
 
-  /* ── loading / error screens ── */
+  /* Loading/Error */
   .rh-loading-screen, .rh-error-screen {
     display: flex;
     flex-direction: column;
@@ -411,8 +422,8 @@ const STYLE = `
     padding: 32px;
   }
   .rh-loading-screen img {
-    width: 192px;
-    height: 192px;
+    width: 160px;
+    height: 160px;
     border-radius: 16px;
     margin-bottom: 16px;
   }
@@ -426,7 +437,7 @@ const STYLE = `
   }
   .rh-error-screen h2 {
     font-size: 20px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--clr-text);
     margin: 0 0 8px;
   }
@@ -508,7 +519,7 @@ export default function CustomerTableSessionPage() {
     if (sessionClosed) {
       return {
         title: 'Order Completed',
-        subtitle: 'Thank you for your visit!',
+        subtitle: 'Thank you!',
         className: 'success',
         icon: '🎉',
       };
@@ -517,7 +528,7 @@ export default function CustomerTableSessionPage() {
     if (allOrdersPaid) {
       return {
         title: 'All Paid',
-        subtitle: 'Your cart is fully settled',
+        subtitle: 'Cart fully settled',
         className: 'success',
         icon: '✅',
       };
@@ -537,7 +548,7 @@ export default function CustomerTableSessionPage() {
         title: `${readyOrders.length} Order${
           readyOrders.length > 1 ? 's' : ''
         } Ready`,
-        subtitle: 'Please collect your food',
+        subtitle: 'Collect your food',
         className: 'success',
         icon: '🍽️',
       };
@@ -589,9 +600,6 @@ export default function CustomerTableSessionPage() {
           },
         },
       }).unwrap();
-
-      console.log('Payment data received:', paymentData);
-      console.log('Payment session ID:', paymentData?.paymentSessionId);
 
       try {
         const billData = 'data' in billResult ? billResult.data : null;
@@ -672,19 +680,7 @@ export default function CustomerTableSessionPage() {
         animate={{ opacity: 1 }}
         className="rh-cart-wrap"
       >
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rh-cart-header"
-        >
-          <h1>Table {tableSession.tableNumber}</h1>
-          <p>
-            {restaurant.name} • {orderCount} Order{orderCount > 1 ? 's' : ''}
-          </p>
-        </motion.div>
-
-        {/* Status Banner */}
+        {/* Status Banner - Horizontal Layout */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -694,8 +690,10 @@ export default function CustomerTableSessionPage() {
             className={`rh-cart-card rh-status-banner ${sessionStatus.className}`}
           >
             <div className="rh-status-icon">{sessionStatus.icon}</div>
-            <h2 className="rh-status-title">{sessionStatus.title}</h2>
-            <p className="rh-status-subtitle">{sessionStatus.subtitle}</p>
+            <div className="rh-status-content">
+              <h2 className="rh-status-title">{sessionStatus.title}</h2>
+              <p className="rh-status-subtitle">{sessionStatus.subtitle}</p>
+            </div>
           </div>
         </motion.div>
 
@@ -708,50 +706,34 @@ export default function CustomerTableSessionPage() {
           <div className="rh-cart-card">
             <div style={{ marginBottom: 8 }}>
               <div className="rh-summary-row">
-                <span>Order Amount</span>
+                <span>Subtotal</span>
                 <span>
                   {formatCurrency(totals.subTotalAmount || totals.totalAmount)}
                 </span>
               </div>
               {totals.taxAmount > 0 && (
-                <>
-                  {totals.cgstAmount > 0 && (
-                    <div className="rh-summary-row" style={{ fontSize: 12 }}>
-                      <span>CGST</span>
-                      <span>{formatCurrency(totals.cgstAmount)}</span>
-                    </div>
-                  )}
-                  {totals.sgstAmount > 0 && (
-                    <div className="rh-summary-row" style={{ fontSize: 12 }}>
-                      <span>SGST</span>
-                      <span>{formatCurrency(totals.sgstAmount)}</span>
-                    </div>
-                  )}
-                  {totals.igstAmount > 0 && (
-                    <div className="rh-summary-row" style={{ fontSize: 12 }}>
-                      <span>IGST</span>
-                      <span>{formatCurrency(totals.igstAmount)}</span>
-                    </div>
-                  )}
-                  <div className="rh-summary-row">
-                    <span>Total Tax</span>
-                    <span>{formatCurrency(totals.taxAmount)}</span>
-                  </div>
-                </>
+                <div className="rh-summary-row">
+                  <span>Tax</span>
+                  <span>{formatCurrency(totals.taxAmount)}</span>
+                </div>
               )}
             </div>
 
             <div className="rh-total-section">
-              <p className="rh-total-label">Cart Total</p>
-              <p className="rh-total-amount">
-                {formatCurrency(totals.totalAmount)}
-              </p>
-              {hasUnpaidOrders && (
-                <span className="rh-total-badge pending">Payment Pending</span>
-              )}
-              {allOrdersPaid && (
-                <span className="rh-total-badge paid">✓ Fully Paid</span>
-              )}
+              <div className="rh-total-left">
+                <p className="rh-total-label">Total</p>
+                <p className="rh-total-amount">
+                  {formatCurrency(totals.totalAmount)}
+                </p>
+              </div>
+              <div>
+                {hasUnpaidOrders && (
+                  <span className="rh-total-badge pending">Pending</span>
+                )}
+                {allOrdersPaid && (
+                  <span className="rh-total-badge paid">Paid</span>
+                )}
+              </div>
             </div>
           </div>
         </motion.div>
@@ -761,71 +743,75 @@ export default function CustomerTableSessionPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="rh-btn-group"
         >
           {hasUnpaidOrders && !sessionClosed && (
-            <button
-              className="rh-btn primary"
-              onClick={handleSessionPayment}
-              disabled={isCreatingPayment}
-            >
-              <CreditCard size={18} />
-              {isCreatingPayment
-                ? 'Processing...'
-                : `Pay Now — ${formatCurrency(totals.totalAmount)}`}
-            </button>
+            <div className="rh-btn-group" style={{ marginBottom: 12 }}>
+              <button
+                className="rh-btn primary"
+                onClick={handleSessionPayment}
+                disabled={isCreatingPayment}
+              >
+                <CreditCard size={16} />
+                {isCreatingPayment
+                  ? 'Processing...'
+                  : `Pay ${formatCurrency(totals.totalAmount)}`}
+              </button>
+            </div>
           )}
 
-          <button
-            className="rh-btn secondary"
-            onClick={async () => {
-              try {
-                const result = await getConsolidatedBill({ slug, tableId });
+          <div className={`rh-btn-group ${!sessionClosed ? 'multi' : ''}`}>
+            <button
+              className="rh-btn secondary"
+              onClick={async () => {
+                try {
+                  const result = await getConsolidatedBill({ slug, tableId });
 
-                if ('data' in result && result.data) {
-                  const pdfBlob = await generateThermalReceiptPDF({
-                    restaurant: result.data.restaurant,
-                    bill: result.data.bill,
+                  if ('data' in result && result.data) {
+                    const pdfBlob = await generateThermalReceiptPDF({
+                      restaurant: result.data.restaurant,
+                      bill: result.data.bill,
+                    });
+
+                    const url = URL.createObjectURL(pdfBlob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `table-${tableSession.tableNumber}-bill.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                  } else {
+                    throw new Error(
+                      result.error?.toString() || 'Failed to get bill data'
+                    );
+                  }
+                } catch (error) {
+                  console.error('Error downloading bill:', error);
+                  toast({
+                    title: 'Download Failed',
+                    description:
+                      'Unable to download the bill. Please try again.',
+                    variant: 'destructive',
                   });
-
-                  const url = URL.createObjectURL(pdfBlob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `table-${tableSession.tableNumber}-bill.pdf`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
-                } else {
-                  throw new Error(
-                    result.error?.toString() || 'Failed to get bill data'
-                  );
                 }
-              } catch (error) {
-                console.error('Error downloading bill:', error);
-                toast({
-                  title: 'Download Failed',
-                  description: 'Unable to download the bill. Please try again.',
-                  variant: 'destructive',
-                });
-              }
-            }}
-          >
-            <Download size={16} />
-            Download Bill — {formatCurrency(totals.totalAmount)}
-          </button>
-
-          {!sessionClosed && (
-            <button
-              className="rh-btn accent"
-              onClick={() =>
-                navigate(`/c/${slug}?tableId=${tableId}&addMore=true`)
-              }
+              }}
             >
-              <Plus size={16} />
-              Order More Items
+              <Download size={14} />
+              Bill
             </button>
-          )}
+
+            {!sessionClosed && (
+              <button
+                className="rh-btn accent"
+                onClick={() =>
+                  navigate(`/c/${slug}?tableId=${tableId}&addMore=true`)
+                }
+              >
+                <Plus size={14} />
+                Order More
+              </button>
+            )}
+          </div>
         </motion.div>
 
         {/* Call Waiter */}
@@ -859,9 +845,7 @@ export default function CustomerTableSessionPage() {
               <div key={order.id} className="rh-order-card">
                 <div className="rh-order-header">
                   <div className="rh-order-left">
-                    <div className="rh-order-status-icon">
-                      <StatusIcon size={20} className={statusDisplay.color} />
-                    </div>
+                    <StatusIcon size={18} className={statusDisplay.color} />
                     <div>
                       <h4 className="rh-order-number">#{order.orderNumber}</h4>
                       <p
@@ -875,13 +859,13 @@ export default function CustomerTableSessionPage() {
                     <p className="rh-order-amount">
                       {formatCurrency(order.totalAmount)}
                     </p>
-                    {order.paymentStatus === 'paid' ? (
-                      <span className="rh-order-payment-badge paid">Paid</span>
-                    ) : (
-                      <span className="rh-order-payment-badge pending">
-                        Pending
-                      </span>
-                    )}
+                    <span
+                      className={`rh-order-payment-badge ${
+                        order.paymentStatus === 'paid' ? 'paid' : 'pending'
+                      }`}
+                    >
+                      {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                    </span>
                   </div>
                 </div>
 
@@ -895,13 +879,13 @@ export default function CustomerTableSessionPage() {
                 >
                   {showOrderDetails === order.id ? (
                     <>
-                      <X size={14} />
+                      <ChevronUp size={14} />
                       Hide Items
                     </>
                   ) : (
                     <>
-                      <Utensils size={14} />
-                      View Items ({order.items.length})
+                      <ChevronDown size={14} />
+                      View {order.items.length} Items
                     </>
                   )}
                 </button>
@@ -920,16 +904,96 @@ export default function CustomerTableSessionPage() {
                           key={`${item.name}-${index}`}
                           className="rh-item-row"
                         >
-                          <div>
-                            <span className="rh-item-name">{item.name}</span>
-                            <span className="rh-item-qty">
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                marginBottom: 4,
+                              }}
+                            >
+                              <span className="rh-item-name">{item.name}</span>
+                              {item.activePriceTagId && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs px-1.5 py-0.5 bg-green-50 text-green-700 border-green-200"
+                                >
+                                  Special
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="rh-item-qty">
                               ₹{item.pricing.unitAmount} × {item.quantity}
-                            </span>
+                            </div>
+                            {item.selectedModifiers &&
+                              item.selectedModifiers.length > 0 && (
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: '#6b7280',
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  {item.selectedModifiers.map(
+                                    (
+                                      modifier: ModifierSelection,
+                                      modIndex: number
+                                    ) => (
+                                      <div key={modIndex}>
+                                        <span style={{ fontWeight: 600 }}>
+                                          {modifier.modifierName}:
+                                        </span>{' '}
+                                        {modifier.selectedOptions.map(
+                                          (
+                                            option: OptionSelection,
+                                            optIndex: number
+                                          ) => (
+                                            <span key={optIndex}>
+                                              {option.optionName}
+                                              {option.priceAdjustment !== 0 && (
+                                                <span
+                                                  style={{
+                                                    color: '#16a34a',
+                                                    marginLeft: 4,
+                                                  }}
+                                                >
+                                                  (+₹
+                                                  {option.priceAdjustment.toFixed(
+                                                    2
+                                                  )}
+                                                  )
+                                                </span>
+                                              )}
+                                              {optIndex <
+                                                modifier.selectedOptions
+                                                  .length -
+                                                  1 && ', '}
+                                            </span>
+                                          )
+                                        )}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              )}
+                            {item.notes && (
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: '#6b7280',
+                                  marginTop: 4,
+                                  fontStyle: 'italic',
+                                }}
+                              >
+                                Note: {item.notes}
+                              </div>
+                            )}
                           </div>
                           <span className="rh-item-total">
                             ₹
                             {(item.pricing.unitAmount * item.quantity).toFixed(
-                              0
+                              2
                             )}
                           </span>
                         </div>
@@ -950,10 +1014,9 @@ export default function CustomerTableSessionPage() {
           className="rh-help-section"
         >
           <p>
-            Need help? Show your table number{' '}
-            <strong>{tableSession.tableNumber}</strong> to staff
+            Table <strong>{tableSession.tableNumber}</strong> • Updates
+            automatically
           </p>
-          <p>This page updates automatically</p>
         </motion.div>
       </motion.div>
     </div>

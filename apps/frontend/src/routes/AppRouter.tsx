@@ -13,7 +13,6 @@ import OnboardingPage from '@/pages/OnboardingPage';
 import StaffPage from '@/pages/StaffPage';
 import TablesPage from '@/pages/TablesPage';
 import CommandCenterPage from '@/pages/CommandCenterPage';
-// Staff components moved to StaffRouter for domain separation
 import ForbiddenPage from '@/pages/ForbiddenPage';
 import ReportsPage from '@/pages/ReportsPage';
 import ReceiptPage from '@/pages/ReceiptPage';
@@ -58,10 +57,6 @@ const AppRouter = () => {
           }
         />
 
-        {/* Staff routes moved to StaffRouter for domain separation */}
-
-        {/* Policy pages - moved to CustomerRouter for QR domain access */}
-
         {/* Public receipt routes */}
         <Route path="/receipts" element={<ReceiptLookupPage />} />
         <Route path="/receipts/:orderNumber" element={<ReceiptPage />} />
@@ -87,29 +82,28 @@ const AppRouter = () => {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="orders" element={<OrdersPage />} />
-          {/* CHANGED: Added /* to enable nested routing */}
+
+          {/* Menu routes with nested structure */}
           <Route path="menu/*" element={<MenuManagementPage />} />
-          <Route path="/extract-menu" element={<PdfMenuExtractionTab />} />
+          <Route path="extract-menu" element={<PdfMenuExtractionTab />} />
+
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables" element={<TablesPage />} />
           <Route path="command-center" element={<CommandCenterPage />} />
           <Route path="customer-qr" element={<CustomerQrPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="branches" element={<BranchManagementPage />} />
-          {/* <Route path="recipes" element={<RecipesPage />} /> */}
           <Route path="reports" element={<ReportsPage />} />
           <Route path="subscription" element={<CashfreeSubscriptionPage />} />
-          <Route path="subscription/payment-success" element={<CashfreeSubscriptionPage />} />
+          <Route
+            path="subscription/payment-success"
+            element={<CashfreeSubscriptionPage />}
+          />
           <Route path="kyc" element={<KycManagementPage />} />
           <Route path="settings" element={<SettingsPageNew />} />
           <Route path="settings/gst" element={<SettingsPageNew />} />
           <Route path="settings/gst/setup" element={<GstSetupWizard />} />
-          {/* floor plan */}
-          {/* <Route path="floor-plan" element={<FloorPlanDashboardPage />} />
-          <Route path="floor-plan/config" element={<FloorPlanConfigPage />} /> */}
         </Route>
-
-        {/* Staff routes removed from admin - handled by StaffRouter */}
 
         {/* Error / Fallback */}
         <Route

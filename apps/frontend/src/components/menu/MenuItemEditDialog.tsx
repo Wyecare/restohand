@@ -260,7 +260,7 @@ export function MenuItemEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-[95vw] sm:max-w-xl md:max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl p-4">
         <DialogHeader>
-          <DialogTitle>Edit Menu Item</DialogTitle>
+          <DialogTitle>Edit Menu Item..</DialogTitle>
           <DialogDescription>
             Update details and images for this menu item.
           </DialogDescription>

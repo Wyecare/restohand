@@ -30,6 +30,15 @@ interface ThermalReceiptProps {
         quantity: number;
         unitPrice: number;
         lineTotal: number;
+        activePriceTagId?: string;
+        selectedModifiers?: Array<{
+          modifierName: string;
+          selectedOptions: Array<{
+            optionName: string;
+            priceAdjustment: number;
+          }>;
+        }>;
+        notes?: string;
       }>;
       orderTotal: number;
     }>;
@@ -44,10 +53,10 @@ interface ThermalReceiptProps {
   };
 }
 
-// 58mm = ~164.4pt. We use that as page width, and let height be auto via a tall fixed value.
-const RECEIPT_WIDTH = 164.4;
+// Increased width for better readability: 80mm = ~226.8pt
+const RECEIPT_WIDTH = 226.8;
 const RECEIPT_HEIGHT = 700; // tall enough; content won't stretch it
-const PAD = 8; // left/right padding in pts
+const PAD = 12; // left/right padding in pts
 const INNER = RECEIPT_WIDTH - PAD * 2; // usable content width
 
 const styles = StyleSheet.create({
@@ -251,7 +260,7 @@ const DotRow = ({
 }) => {
   // Approximate char width at fontSize ~5.8 in Courier ≈ 3.2pt per char
   // Inner width = INNER ≈ 148.4pt → ~46 chars total
-  const MAX_CHARS = 46;
+  const MAX_CHARS = 62;
   const dots = Math.max(2, MAX_CHARS - label.length - value.length);
   const dotString = '.'.repeat(dots);
   return (
@@ -278,9 +287,18 @@ const ItemLine = ({
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+    activePriceTagId?: string;
+    selectedModifiers?: Array<{
+      modifierName: string;
+      selectedOptions: Array<{
+        optionName: string;
+        priceAdjustment: number;
+      }>;
+    }>;
+    notes?: string;
   };
 }) => {
-  const MAX_CHARS = 46;
+  const MAX_CHARS = 62;
   const nameStr = item.name.toUpperCase();
   const priceStr = fmt(item.lineTotal);
   const dots = Math.max(2, MAX_CHARS - nameStr.length - priceStr.length);
@@ -289,12 +307,47 @@ const ItemLine = ({
     <View style={styles.itemRow}>
       <Text style={{ fontSize: 6.2, color: '#111' }}>
         <Text style={{ fontWeight: 'bold' }}>{nameStr}</Text>
+        {item.activePriceTagId && (
+          <Text style={{ color: '#008000' }}> (SPECIAL)</Text>
+        )}
         <Text style={{ color: '#bbb' }}>{'.'.repeat(dots)}</Text>
         <Text style={{ fontWeight: 'bold' }}>{priceStr}</Text>
       </Text>
       <Text style={styles.itemDetail}>
         {item.quantity} x {fmt(item.unitPrice)}
       </Text>
+
+      {/* Modifiers */}
+      {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+        <View style={{ marginLeft: 8, marginTop: 2 }}>
+          {item.selectedModifiers.map((modifier, modIndex) => (
+            <View key={modIndex}>
+              <Text style={{ fontSize: 5.5, color: '#555' }}>
+                + {modifier.modifierName.toUpperCase()}:
+              </Text>
+              {modifier.selectedOptions.map((option, optIndex) => (
+                <Text
+                  key={optIndex}
+                  style={{ fontSize: 5.5, color: '#777', marginLeft: 4 }}
+                >
+                  - {option.optionName.toUpperCase()}
+                  {option.priceAdjustment > 0 &&
+                    ` (+${fmt(option.priceAdjustment)})`}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Notes */}
+      {item.notes && (
+        <View style={{ marginLeft: 8, marginTop: 2 }}>
+          <Text style={{ fontSize: 5.5, color: '#666', fontStyle: 'italic' }}>
+            NOTE: {item.notes.toUpperCase()}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };

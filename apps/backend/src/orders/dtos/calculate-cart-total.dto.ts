@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
+  IsMongoId,
   IsOptional,
   IsString,
   MaxLength,
@@ -12,11 +13,10 @@ import { CreateOrderItemDto } from './create-order-item.dto';
 import { CustomerInfoDto } from './create-order-with-payment.dto';
 
 export class CalculateCartTotalDto {
-  @ApiProperty({ example: 'T5', required: false })
+  @ApiProperty({ example: '66f0e5ec2ed1f1a1c4f9c7e4', required: false })
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  tableNumber?: string;
+  @IsMongoId()
+  tableId?: string;
 
   @ApiProperty({ type: [CreateOrderItemDto] })
   @IsArray()

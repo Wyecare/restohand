@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import {
   Routes,
   Route,
   Navigate,
-  useParams,
   useNavigate,
+  useLocation,
 } from 'react-router-dom';
-import { ChefHat } from 'lucide-react';
 import { CategoriesView } from './components/CategoriesView';
+import { ModifiersView } from './components/ModifiersView';
+import { PriceTagsView } from './components/PriceTagsView';
 import { useListMenuCategoriesByBranchQuery } from '@/store/api/restaurantsApi';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useBranchContext } from '@/contexts/BranchContext';
@@ -17,43 +18,67 @@ export function MenuManagementPage() {
   const { user } = useJwtAuth();
   const { currentBranch } = useBranchContext();
   const navigate = useNavigate();
-
+  const location = useLocation();
   const restaurantId = user?.restaurantId;
   const branchId = currentBranch?._id;
 
   const queryParams =
     restaurantId && branchId ? { restaurantId, branchId } : skipToken;
-
   const { data: categoriesData } =
     useListMenuCategoriesByBranchQuery(queryParams);
   const categories = categoriesData?.data || [];
 
   // Auto-redirect to first category if on base /menu route
   useEffect(() => {
-    if (categories.length > 0 && window.location.pathname === '/menu') {
-      navigate(`/menu/categories/${categories[0]._id || categories[0].id}`, {
+    if (categories.length > 0) {
+      navigate(`/menu/items/${categories[0]._id || categories[0].id}`, {
         replace: true,
       });
     }
-  }, [categories, navigate]);
+  }, [categories]);
 
   return (
-    <div className="min-h-screen">
+    <div className=" mx-auto px-1 py-1">
       <Routes>
+        {/* Base redirect */}
         <Route
           path="/"
           element={
             <Navigate
               to={
                 categories[0]
-                  ? `/menu/categories/${categories[0]._id || categories[0].id}`
-                  : '/menu/categories/new'
+                  ? `/menu/items/${categories[0]._id || categories[0].id}`
+                  : '/menu/items'
               }
               replace
             />
           }
         />
-        <Route path="/categories/:categoryId" element={<CategoriesView />} />
+
+        {/* Items routes - previously under /menu/categories */}
+        <Route path="/items" element={<CategoriesView />} />
+        <Route path="/items/:categoryId" element={<CategoriesView />} />
+
+        {/* Modifiers route */}
+        <Route path="/modifiers" element={<ModifiersView />} />
+
+        {/* Price tags route */}
+        <Route path="/price-tags" element={<PriceTagsView />} />
+
+        {/* Fallback */}
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={
+                categories[0]
+                  ? `/menu/items/${categories[0]._id || categories[0].id}`
+                  : '/menu/items'
+              }
+              replace
+            />
+          }
+        />
       </Routes>
     </div>
   );

@@ -14,12 +14,18 @@ import {
   useDeleteMenuCategoryMutation,
   useDeleteMenuItemMutation,
 } from '@/store/api/restaurantsApi';
+import {
+  useDeleteMenuModifierMutation,
+} from '@/store/api/menuModifiersApi';
+import {
+  useDeleteMenuPriceTagMutation,
+} from '@/store/api/menuPriceTagsApi';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 
 interface DeleteConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  target: { type: 'category' | 'item'; data: any } | null;
+  target: { type: 'category' | 'item' | 'modifier' | 'priceTag'; data: any } | null;
 }
 
 export function DeleteConfirmDialog({
@@ -33,8 +39,10 @@ export function DeleteConfirmDialog({
 
   const [deleteCategory, { isLoading: isDeletingCategory }] = useDeleteMenuCategoryMutation();
   const [deleteMenuItem, { isLoading: isDeletingItem }] = useDeleteMenuItemMutation();
+  const [deleteModifier, { isLoading: isDeletingModifier }] = useDeleteMenuModifierMutation();
+  const [deletePriceTag, { isLoading: isDeletingPriceTag }] = useDeleteMenuPriceTagMutation();
 
-  const isDeleting = isDeletingCategory || isDeletingItem;
+  const isDeleting = isDeletingCategory || isDeletingItem || isDeletingModifier || isDeletingPriceTag;
 
   const handleDelete = async () => {
     if (!target || !restaurantId) return;
@@ -49,7 +57,7 @@ export function DeleteConfirmDialog({
           title: 'Deleted',
           description: 'Category deleted successfully',
         });
-      } else {
+      } else if (target.type === 'item') {
         await deleteMenuItem({
           restaurantId,
           itemId: target.data.id,
@@ -57,6 +65,24 @@ export function DeleteConfirmDialog({
         toast({
           title: 'Deleted',
           description: 'Menu item deleted successfully',
+        });
+      } else if (target.type === 'modifier') {
+        await deleteModifier({
+          restaurantId,
+          modifierId: target.data.id,
+        }).unwrap();
+        toast({
+          title: 'Deleted',
+          description: 'Modifier deleted successfully',
+        });
+      } else if (target.type === 'priceTag') {
+        await deletePriceTag({
+          restaurantId,
+          priceTagId: target.data.id,
+        }).unwrap();
+        toast({
+          title: 'Deleted',
+          description: 'Price tag deleted successfully',
         });
       }
       onOpenChange(false);
@@ -81,11 +107,27 @@ export function DeleteConfirmDialog({
                 <strong>{target.data?.name}</strong>"? This action cannot be
                 undone and will also delete all menu items in this category.
               </>
-            ) : (
+            ) : target?.type === 'item' ? (
               <>
                 Are you sure you want to delete the menu item "
                 <strong>{target?.data?.name}</strong>"? This action cannot be
                 undone.
+              </>
+            ) : target?.type === 'modifier' ? (
+              <>
+                Are you sure you want to delete the modifier "
+                <strong>{target?.data?.name}</strong>"? This action cannot be
+                undone and will remove it from all associated menu items.
+              </>
+            ) : target?.type === 'priceTag' ? (
+              <>
+                Are you sure you want to delete the price tag "
+                <strong>{target?.data?.name}</strong>"? This action cannot be
+                undone and will remove special pricing for all associated items.
+              </>
+            ) : (
+              <>
+                Are you sure you want to delete this item? This action cannot be undone.
               </>
             )}
           </AlertDialogDescription>

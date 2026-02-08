@@ -738,6 +738,44 @@ export const restaurantsApi = baseApi.injectEndpoints({
       invalidatesTags: ['Order'],
     }),
 
+    calculateCartTotal: builder.mutation<
+      {
+        subtotal: number;
+        taxAmount: number;
+        cgstAmount: number;
+        sgstAmount: number;
+        igstAmount: number;
+        discountAmount: number;
+        roundOffAmount: number;
+        total: number;
+        totalAmount: number;
+        totalItems: number;
+      },
+      {
+        restaurantId: string;
+        tableNumber?: string;
+        items: Array<{
+          menuItemId: string;
+          name: string;
+          quantity: number;
+          pricing: {
+            unitAmount: number;
+            currency: string;
+            taxAmount?: number;
+            discountAmount?: number;
+          };
+          notes?: string;
+        }>;
+        notes?: string;
+      }
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/calculate-cart-total`,
+        method: 'POST',
+        body,
+      }),
+    }),
+
     createPublicPaymentIntent: builder.mutation<
       {
         razorpayKey: string;
@@ -827,6 +865,15 @@ export const restaurantsApi = baseApi.injectEndpoints({
               quantity: number;
               unitPrice: number;
               lineTotal: number;
+              activePriceTagId?: string;
+              selectedModifiers?: Array<{
+                modifierName: string;
+                selectedOptions: Array<{
+                  optionName: string;
+                  priceAdjustment: number;
+                }>;
+              }>;
+              notes?: string;
             }>;
             orderTotal: number;
           }>;
@@ -1201,6 +1248,7 @@ export const {
   useCancelPublicOrderMutation,
   useGetTableSessionPublicQuery,
   useCreatePublicOrderMutation,
+  useCalculateCartTotalMutation,
   useCreatePublicPaymentIntentMutation,
   useAddItemsToPublicOrderMutation,
   useCreateCustomerSessionMutation,

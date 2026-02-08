@@ -57,8 +57,37 @@ class OrderItemGst {
   isTaxInclusive!: boolean;
 }
 
+@Schema({ _id: false })
+class OptionSelection {
+  @Prop({ type: String, required: true })
+  optionId!: string;
+
+  @Prop({ type: String, required: true, trim: true })
+  optionName!: string;
+
+  @Prop({ type: Number, required: true })
+  priceAdjustment!: number;
+
+  @Prop({ type: Number, default: 1 })
+  quantity!: number;
+}
+
+@Schema({ _id: false })
+class ModifierSelection {
+  @Prop({ type: String, required: true })
+  modifierId!: string;
+
+  @Prop({ type: String, required: true, trim: true })
+  modifierName!: string;
+
+  @Prop({ type: [OptionSelection], default: [] })
+  selectedOptions!: OptionSelection[];
+}
+
 const OrderItemPricingSchema = SchemaFactory.createForClass(OrderItemPricing);
 const OrderItemGstSchema = SchemaFactory.createForClass(OrderItemGst);
+const OptionSelectionSchema = SchemaFactory.createForClass(OptionSelection);
+const ModifierSelectionSchema = SchemaFactory.createForClass(ModifierSelection);
 
 @Schema({ _id: false })
 class OrderItem {
@@ -76,6 +105,12 @@ class OrderItem {
 
   @Prop({ type: OrderItemGstSchema, required: false })
   gst?: OrderItemGst;
+
+  @Prop({ type: String })
+  activePriceTagId?: string;
+
+  @Prop({ type: [ModifierSelectionSchema], default: [] })
+  selectedModifiers!: ModifierSelection[];
 
   @Prop({ type: String, trim: true })
   notes?: string;

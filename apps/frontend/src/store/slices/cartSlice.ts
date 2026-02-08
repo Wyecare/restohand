@@ -1,5 +1,18 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export interface OptionSelection {
+  optionId: string;
+  optionName: string;
+  priceAdjustment: number;
+  quantity?: number;
+}
+
+export interface ModifierSelection {
+  modifierId: string;
+  modifierName: string;
+  selectedOptions: OptionSelection[];
+}
+
 export interface CartItem {
   id: string;
   name: string;
@@ -10,6 +23,9 @@ export interface CartItem {
   categoryName: string;
   description?: string;
   image?: string;
+  activePriceTagId?: string;
+  selectedModifiers?: ModifierSelection[];
+  notes?: string;
   customizations?: {
     addons?: Array<{
       id: string;
@@ -97,6 +113,8 @@ const cartSlice = createSlice({
       const newItem = action.payload;
       const existingIndex = state.items.findIndex(item =>
         item.menuItemId === newItem.menuItemId &&
+        item.activePriceTagId === newItem.activePriceTagId &&
+        JSON.stringify(item.selectedModifiers) === JSON.stringify(newItem.selectedModifiers) &&
         JSON.stringify(item.customizations) === JSON.stringify(newItem.customizations)
       );
 
@@ -241,10 +259,20 @@ const cartSlice = createSlice({
   },
 });
 
-// Helper function to calculate item price including customizations
+// Helper function to calculate item price including customizations and modifiers
 function calculateItemPrice(item: Partial<CartItem>): number {
   let price = item.price || 0;
 
+  // Add modifier price adjustments
+  if (item.selectedModifiers) {
+    for (const modifier of item.selectedModifiers) {
+      for (const option of modifier.selectedOptions) {
+        price += option.priceAdjustment * (option.quantity || 1);
+      }
+    }
+  }
+
+  // Legacy customizations support (keeping for backward compatibility)
   if (item.customizations?.addons) {
     price += item.customizations.addons.reduce((sum, addon) => sum + addon.price, 0);
   }
@@ -274,6 +302,7 @@ export const {
 } = cartSlice.actions;
 
 export default cartSlice.reducer;
+export type { OptionSelection, ModifierSelection };
 
 // Selectors
 export const selectCartItems = (state: { cart: CartState }) => state.cart.items;
@@ -292,7 +321,27 @@ export const selectCartRestaurant = (state: { cart: CartState }) => ({
 export const selectCartForCheckout = (state: { cart: CartState }) => ({
   items: state.cart.items.map(item => ({
     menuItemId: item.menuItemId,
+    name: item.name,
     quantity: item.quantity,
+    pricing: {
+      unitAmount: calculateItemPrice(item),
+      currency: 'INR',
+      discountAmount: 0,
+      taxAmount: 0
+    },
+    activePriceTagId: item.activePriceTagId,
+    selectedModifiers: item.selectedModifiers?.map(modifier => ({
+      modifierId: modifier.modifierId,
+      modifierName: modifier.modifierName,
+      selectedOptions: modifier.selectedOptions.map(option => ({
+        optionId: option.optionId,
+        optionName: option.optionName,
+        priceAdjustment: option.priceAdjustment,
+        quantity: option.quantity || 1
+      }))
+    })),
+    notes: item.notes,
+    // Legacy customizations for backward compatibility
     customizations: item.customizations,
   })),
   customerInfo: state.cart.customerInfo,

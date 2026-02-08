@@ -1,14 +1,16 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
+import { ModifierSelectionModal } from '@/components/customer/ModifierSelectionModal';
 import {
   useGetPublicMenuQuery,
   useCreateCustomerSessionMutation,
   useCreatePublicOrderMutation,
+  useCalculateCartTotalMutation,
 } from '@/store/api/restaurantsApi';
 import { useAddItemsToOrderMutation } from '@/store/api/ordersApi';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
@@ -22,6 +24,7 @@ import {
   ShoppingBag,
   Receipt,
   RefreshCcw,
+  ChevronRight,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
@@ -56,85 +59,140 @@ type AugmentedMenuItem = PublicMenuCategory['items'][number] & {
 
 /* ── Styles ── */
 const STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap');
 
   .rh-menu-root {
-    --clr-bg:        #f0ede8;
-    --clr-paper:     #faf9f7;
-    --clr-border:    #e2ddd6;
-    --clr-text:      #1a1a1a;
-    --clr-muted:     #7a756e;
-    --clr-accent:    #1a1a1a;
-    --clr-primary:   #1a1a1a;
+    --clr-bg:        #f8f9fa;
+    --clr-paper:     #ffffff;
+    --clr-border:    #e5e7eb;
+    --clr-text:      #111827;
+    --clr-muted:     #6b7280;
+    --clr-accent:    #111827;
+    --clr-primary:   #111827;
     --clr-primary-fg:#fff;
     font-family: 'DM Sans', system-ui, sans-serif;
     background: var(--clr-bg);
     min-height: 100vh;
-    padding-bottom: 140px;
+    padding-bottom: 100px;
   }
 
-  /* ── header ── */
+  /* ── COMPACT HEADER ── */
   .rh-menu-header {
     position: sticky;
     top: 0;
     z-index: 30;
-    background: rgba(250, 249, 247, 0.97);
+    background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--clr-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   }
   .rh-menu-header-inner {
     max-width: 640px;
     margin: 0 auto;
-    padding: 14px 16px;
+    padding: 10px 16px 8px;
   }
-  .rh-menu-top-row {
+
+  /* Top Row - Restaurant Name + Actions */
+  .rh-menu-top-compact {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 10px;
+    gap: 8px;
+    margin-bottom: 8px;
   }
-  .rh-menu-title-area {
-    flex: 1;
-  }
-  .rh-menu-title {
-    font-size: 22px;
-    font-weight: 600;
+  .rh-restaurant-name {
+    font-size: 16px;
+    font-weight: 700;
     color: var(--clr-text);
     letter-spacing: -0.3px;
-    margin: 0 0 2px;
-  }
-  .rh-menu-subtitle {
-    font-size: 12px;
-    color: var(--clr-muted);
     margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
   }
-  .rh-search-toggle {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+  .rh-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .rh-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
     background: var(--clr-paper);
     border: 1px solid var(--clr-border);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all 0.15s;
+    color: var(--clr-text);
   }
-  .rh-search-toggle:hover {
-    background: #f5f3f0;
+  .rh-icon-btn:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+  }
+  .rh-icon-btn.active {
+    background: var(--clr-primary);
+    border-color: var(--clr-primary);
+    color: var(--clr-primary-fg);
   }
 
-  /* ── search bar ── */
+  /* Mini Session Banner */
+  .rh-mini-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .rh-mini-banner-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #16a34a;
+    flex-shrink: 0;
+  }
+  .rh-mini-banner-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: #166534;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rh-mini-banner-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #166534;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  /* Search Bar */
   .rh-search-bar-wrap {
     position: relative;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
   .rh-search-input {
     width: 100%;
-    height: 40px;
-    padding-left: 38px;
-    padding-right: 38px;
+    height: 36px;
+    padding-left: 36px;
+    padding-right: 36px;
     border: 1px solid var(--clr-border);
     border-radius: 8px;
     background: var(--clr-paper);
@@ -144,14 +202,14 @@ const STYLE = `
     outline: none;
   }
   .rh-search-input:focus {
-    border-color: #a89f95;
+    border-color: #9ca3af;
   }
   .rh-search-input::placeholder {
-    color: #b5b0a8;
+    color: #9ca3af;
   }
   .rh-search-icon {
     position: absolute;
-    left: 12px;
+    left: 10px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--clr-muted);
@@ -161,8 +219,8 @@ const STYLE = `
     right: 6px;
     top: 50%;
     transform: translateY(-50%);
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     background: none;
     border: none;
     cursor: pointer;
@@ -170,82 +228,24 @@ const STYLE = `
     align-items: center;
     justify-content: center;
     color: var(--clr-muted);
-    border-radius: 6px;
+    border-radius: 4px;
     transition: background 0.15s;
   }
   .rh-search-clear:hover {
-    background: #ebe8e3;
+    background: #f3f4f6;
   }
 
-  /* ── banner (session / order) ── */
-  .rh-banner {
-    background: var(--clr-paper);
-    border: 1px solid var(--clr-border);
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .rh-banner-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .rh-banner-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #16a34a;
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-  .rh-banner-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--clr-text);
-  }
-  .rh-banner-meta {
-    font-size: 11px;
-    color: var(--clr-muted);
-    margin-left: 6px;
-  }
-  .rh-banner-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 10px;
-    font-size: 11px;
-    font-weight: 500;
-    background: #f5f3f0;
-    color: var(--clr-text);
-    border: 1px solid var(--clr-border);
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: background 0.15s;
-  }
-  .rh-banner-btn:hover {
-    background: #ebe8e3;
-  }
-
-  /* ── categories ── */
+  /* Categories - Compact Pills */
   .rh-categories-wrap {
-    border-top: 1px solid var(--clr-border);
-    padding-top: 10px;
-    padding-bottom: 4px;
+    padding-bottom: 8px;
   }
   .rh-category-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 500;
+    gap: 5px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
     border-radius: 20px;
     cursor: pointer;
     transition: all 0.15s;
@@ -260,43 +260,44 @@ const STYLE = `
     border-color: var(--clr-primary);
   }
   .rh-category-pill:hover:not(.active) {
-    background: #f5f3f0;
+    background: #f3f4f6;
   }
 
-  /* ── menu grid ── */
+  /* Menu Grid */
   .rh-menu-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
     max-width: 640px;
     margin: 0 auto;
-    padding: 0 16px;
+    padding: 0 16px 16px;
   }
 
-  /* ── menu item card ── */
+  /* Menu Item Card */
   .rh-item-card {
     background: var(--clr-paper);
     border: 1px solid var(--clr-border);
-    border-radius: 10px;
-    padding: 8px;
+    border-radius: 12px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
-    transition: all 0.15s;
+    transition: all 0.2s;
   }
   .rh-item-card:hover {
-    border-color: #b5b0a8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-color: #9ca3af;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
   }
 
-  /* ── item image ── */
+  /* Item Image */
   .rh-item-image-wrap {
     position: relative;
     width: 100%;
     aspect-ratio: 1;
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
-    background: linear-gradient(135deg, #f0ede8, #e8e4df);
-    margin-bottom: 8px;
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    margin-bottom: 10px;
   }
   .rh-item-image {
     position: absolute;
@@ -311,90 +312,96 @@ const STYLE = `
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 36px;
-    opacity: 0.3;
+    font-size: 40px;
+    opacity: 0.25;
   }
   .rh-item-popular-badge {
     position: absolute;
-    top: 6px;
-    right: 6px;
-    background: #facc15;
+    top: 8px;
+    right: 8px;
+    background: #fbbf24;
     border-radius: 50%;
-    padding: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    padding: 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   }
   .rh-item-tags {
     position: absolute;
-    bottom: 6px;
-    left: 6px;
+    bottom: 8px;
+    left: 8px;
     display: flex;
     gap: 4px;
   }
   .rh-item-tag {
     background: rgba(255,255,255,0.95);
     backdrop-filter: blur(4px);
-    border-radius: 4px;
-    padding: 2px 5px;
+    border-radius: 6px;
+    padding: 3px 6px;
     font-size: 11px;
+    font-weight: 500;
   }
 
-  /* ── item details ── */
+  /* Item Details */
   .rh-item-details {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 0 4px;
   }
   .rh-item-name {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--clr-text);
     line-height: 1.3;
-    margin: 0 0 6px;
+    margin: 0 0 8px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
   .rh-item-price {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
     color: var(--clr-text);
     font-family: 'DM Mono', monospace;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  .rh-item-price-old {
+    font-size: 13px;
+    text-decoration: line-through;
+    color: var(--clr-muted);
+    margin-right: 6px;
   }
 
-  /* ── add button / quantity controls ── */
+  /* Add Button / Quantity Controls */
   .rh-add-btn {
     width: 100%;
-    height: 30px;
-    border-radius: 15px;
+    height: 34px;
+    border-radius: 8px;
     background: var(--clr-primary);
     color: var(--clr-primary-fg);
     border: none;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: all 0.2s;
   }
   .rh-add-btn:hover {
-    background: #333;
+    background: #1f2937;
+    transform: scale(1.02);
   }
   .rh-qty-controls {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
+    justify-content: space-between;
     background: var(--clr-primary);
-    border-radius: 15px;
-    padding: 4px 6px;
-    height: 30px;
+    border-radius: 8px;
+    padding: 5px 8px;
+    height: 34px;
   }
   .rh-qty-btn {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
     background: rgba(255,255,255,0.2);
     border: none;
     cursor: pointer;
@@ -408,17 +415,17 @@ const STYLE = `
     background: rgba(255,255,255,0.3);
   }
   .rh-qty-value {
-    min-width: 20px;
+    min-width: 24px;
     text-align: center;
-    font-weight: 600;
-    font-size: 13px;
+    font-weight: 700;
+    font-size: 14px;
     color: var(--clr-primary-fg);
   }
 
-  /* ── floating cart ── */
+  /* Floating Cart */
   .rh-floating-cart {
     position: fixed;
-    bottom: 20px;
+    bottom: 16px;
     left: 16px;
     right: 16px;
     z-index: 40;
@@ -428,9 +435,9 @@ const STYLE = `
     margin: 0 auto;
     background: var(--clr-paper);
     border: 2px solid var(--clr-primary);
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
   }
   .rh-cart-row {
     display: flex;
@@ -439,40 +446,43 @@ const STYLE = `
     gap: 16px;
   }
   .rh-cart-info h4 {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 700;
     color: var(--clr-text);
-    margin: 0 0 3px;
+    margin: 0 0 2px;
   }
   .rh-cart-info p {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--clr-muted);
     margin: 0;
+    font-weight: 500;
   }
   .rh-cart-btn {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 11px 20px;
+    padding: 12px 20px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     background: var(--clr-primary);
     color: var(--clr-primary-fg);
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: all 0.2s;
+    flex-shrink: 0;
   }
   .rh-cart-btn:hover {
-    background: #333;
+    background: #1f2937;
+    transform: scale(1.02);
   }
   .rh-cart-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  /* ── empty state ── */
+  /* Empty State */
   .rh-empty-state {
     text-align: center;
     padding: 64px 32px;
@@ -483,7 +493,7 @@ const STYLE = `
   }
   .rh-empty-title {
     font-size: 18px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--clr-text);
     margin: 0 0 8px;
   }
@@ -493,22 +503,22 @@ const STYLE = `
     margin: 0 0 16px;
   }
   .rh-empty-btn {
-    padding: 8px 16px;
+    padding: 10px 20px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     background: var(--clr-paper);
     color: var(--clr-text);
     border: 1px solid var(--clr-border);
     border-radius: 8px;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: all 0.15s;
   }
   .rh-empty-btn:hover {
-    background: #f5f3f0;
+    background: #f3f4f6;
   }
 
-  /* ── loading / error screens ── */
+  /* Loading / Error Screens */
   .rh-loading-screen, .rh-error-screen {
     display: flex;
     flex-direction: column;
@@ -519,14 +529,15 @@ const STYLE = `
     padding: 32px;
   }
   .rh-loading-screen img {
-    width: 192px;
-    height: 192px;
+    width: 160px;
+    height: 160px;
     border-radius: 16px;
     margin-bottom: 16px;
   }
   .rh-loading-screen p {
     font-size: 14px;
     color: var(--clr-muted);
+    font-weight: 500;
   }
   .rh-error-icon {
     font-size: 64px;
@@ -534,7 +545,7 @@ const STYLE = `
   }
   .rh-error-title {
     font-size: 20px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--clr-text);
     margin: 0 0 8px;
   }
@@ -549,17 +560,17 @@ const STYLE = `
     gap: 8px;
     padding: 10px 20px;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     background: var(--clr-paper);
     color: var(--clr-text);
     border: 1px solid var(--clr-border);
     border-radius: 8px;
     cursor: pointer;
     font-family: inherit;
-    transition: background 0.15s;
+    transition: all 0.15s;
   }
   .rh-error-btn:hover {
-    background: #f5f3f0;
+    background: #f3f4f6;
   }
 `;
 
@@ -707,8 +718,40 @@ export default function CustomerMenuPageNew() {
       name: string;
       quantity: number;
       price: number;
+      activePriceTagId?: string;
+      selectedModifiers?: Array<{
+        modifierId: string;
+        modifierName: string;
+        selectedOptions: Array<{
+          optionId: string;
+          optionName: string;
+          priceAdjustment: number;
+          quantity: number;
+        }>;
+      }>;
     }>
   >([]);
+
+  const [modifierModalOpen, setModifierModalOpen] = useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<{
+    id: string;
+    name: string;
+    price: number;
+    modifiers: any[];
+  } | null>(null);
+
+  const [cartCalculation, setCartCalculation] = useState<{
+    subtotal: number;
+    taxAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    discountAmount: number;
+    roundOffAmount: number;
+    total: number;
+    totalAmount: number;
+    totalItems: number;
+  } | null>(null);
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -731,6 +774,8 @@ export default function CustomerMenuPageNew() {
     useCreatePublicOrderMutation();
   const [addItemsToOrder, { isLoading: isAddingItems }] =
     useAddItemsToOrderMutation();
+  const [calculateCartTotal, { isLoading: isCalculatingCart }] =
+    useCalculateCartTotalMutation();
 
   const restaurant = data?.restaurant;
   const menu = data?.menu;
@@ -863,12 +908,24 @@ export default function CustomerMenuPageNew() {
   const hasActiveOrder = !!activeOrderFromAPI;
   const hasTableSession = !!currentSession && !!tableIdFromUrl;
 
-  const handleAddToCart = (
-    id: string,
-    name: string,
-    pricing: MenuItemPricing
-  ) => {
-    const existingIndex = cart.findIndex((item) => item.menuItemId === id);
+  const handleModifierConfirm = (selections: any[], totalPrice: number, notes?: string) => {
+    if (!selectedMenuItem) return;
+
+    const cartItem = {
+      menuItemId: selectedMenuItem.id,
+      name: selectedMenuItem.name,
+      quantity: 1,
+      price: totalPrice,
+      selectedModifiers: selections,
+      notes: notes,
+    };
+
+    const existingIndex = cart.findIndex((item) => {
+      return (
+        item.menuItemId === selectedMenuItem.id &&
+        JSON.stringify(item.selectedModifiers) === JSON.stringify(selections)
+      );
+    });
 
     if (existingIndex >= 0) {
       setCart((prev) =>
@@ -879,15 +936,49 @@ export default function CustomerMenuPageNew() {
         )
       );
     } else {
-      setCart((prev) => [
-        ...prev,
-        {
-          menuItemId: id,
-          name,
-          quantity: 1,
-          price: pricing.amount,
-        },
-      ]);
+      setCart((prev) => [...prev, cartItem]);
+    }
+
+    setSelectedMenuItem(null);
+  };
+
+  const handleAddToCart = (
+    id: string,
+    name: string,
+    pricing: MenuItemPricing,
+    modifiers: any[] = [],
+    activePriceTag: any = null
+  ) => {
+    if (modifiers.length > 0) {
+      setSelectedMenuItem({
+        id,
+        name,
+        price: getEffectivePrice({ pricing, activePriceTag }),
+        modifiers: modifiers,
+      });
+      setModifierModalOpen(true);
+    } else {
+      const existingIndex = cart.findIndex((item) => item.menuItemId === id);
+
+      if (existingIndex >= 0) {
+        setCart((prev) =>
+          prev.map((item, index) =>
+            index === existingIndex
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          )
+        );
+      } else {
+        setCart((prev) => [
+          ...prev,
+          {
+            menuItemId: id,
+            name,
+            quantity: 1,
+            price: getEffectivePrice({ pricing, activePriceTag }),
+          },
+        ]);
+      }
     }
   };
 
@@ -915,14 +1006,51 @@ export default function CustomerMenuPageNew() {
     return item ? item.quantity : 0;
   };
 
-  const cartTotal = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const getEffectivePrice = (item: any): number => {
+    if (item.activePriceTag && item.activePriceTag.effectivePrice) {
+      return item.activePriceTag.effectivePrice;
+    }
+    return item.pricing.amount;
+  };
+
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartTotal = cartCalculation?.totalAmount || 0;
+
+  const updateCartCalculation = useCallback(async () => {
+    if (cart.length === 0) {
+      setCartCalculation(null);
+      return;
+    }
+
+    if (!restaurant?.id) return;
+
+    try {
+      const result = await calculateCartTotal({
+        restaurantId: restaurant.id,
+        tableId: tableIdFromUrl || undefined,
+        items: cart.map((item) => ({
+          menuItemId: item.menuItemId,
+          name: item.name,
+          quantity: item.quantity,
+          pricing: {
+            unitAmount: item.price,
+            currency: 'INR',
+          },
+        })),
+      }).unwrap();
+
+      setCartCalculation(result);
+    } catch (error) {
+      console.error('Failed to calculate cart total:', error);
+    }
+  }, [cart, restaurant?.id, tableIdFromUrl, calculateCartTotal]);
+
+  useEffect(() => {
+    updateCartCalculation();
+  }, [updateCartCalculation]);
 
   const handlePlaceOrder = async () => {
-    if (!restaurant || cart.length === 0) return;
+    if (!restaurant || cart.length === 0 || !cartCalculation) return;
 
     const orderItems = cart.map((item) => ({
       menuItemId: item.menuItemId,
@@ -1061,28 +1189,79 @@ export default function CustomerMenuPageNew() {
     <div className="rh-menu-root">
       <style>{STYLE}</style>
 
-      {/* Header */}
+      {/* COMPACT HEADER */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="rh-menu-header"
       >
         <div className="rh-menu-header-inner">
-          <div className="rh-menu-top-row">
-            <div className="rh-menu-title-area">
-              <h1 className="rh-menu-title">{restaurant?.name || 'Menu'}</h1>
-              <p className="rh-menu-subtitle">
-                {allProducts.length} items
-                {tableFromUrl && ` • Table ${tableFromUrl}`}
-              </p>
+          {/* Top Row */}
+          <div className="rh-menu-top-compact">
+            <h1 className="rh-restaurant-name">{restaurant?.name || 'Menu'}</h1>
+            <div className="rh-header-actions">
+              <button
+                className={`rh-icon-btn ${showSearch ? 'active' : ''}`}
+                onClick={() => setShowSearch(!showSearch)}
+              >
+                {showSearch ? <X size={16} /> : <Search size={16} />}
+              </button>
             </div>
-            <button
-              className="rh-search-toggle"
-              onClick={() => setShowSearch(!showSearch)}
-            >
-              {showSearch ? <X size={18} /> : <Search size={18} />}
-            </button>
           </div>
+
+          {/* Mini Session Banner */}
+          <AnimatePresence>
+            {hasTableSession && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="rh-mini-banner"
+              >
+                <div className="rh-mini-banner-dot"></div>
+                <span className="rh-mini-banner-text">
+                  Table {currentSession?.tableNumber} • Session Active
+                </span>
+                <button
+                  className="rh-mini-banner-btn"
+                  onClick={() =>
+                    navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`)
+                  }
+                >
+                  View <ChevronRight size={10} />
+                </button>
+              </motion.div>
+            )}
+            {hasActiveOrder && !hasTableSession && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="rh-mini-banner"
+              >
+                <div className="rh-mini-banner-dot"></div>
+                <span className="rh-mini-banner-text">
+                  Order #{activeOrderFromAPI?.orderNumber} • In Progress
+                </span>
+                <button
+                  className="rh-mini-banner-btn"
+                  onClick={handleViewOrder}
+                >
+                  View <ChevronRight size={10} />
+                </button>
+              </motion.div>
+            )}
+
+            {restaurant && tableFromUrl && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <CallWaiterButton
+                  tableId={tableFromUrl}
+                  restaurantId={restaurant.id}
+                  orderId={activeOrderFromAPI?.id}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Search Bar */}
           <AnimatePresence>
@@ -1100,77 +1279,16 @@ export default function CustomerMenuPageNew() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="rh-search-input"
+                  autoFocus
                 />
                 {searchQuery && (
                   <button
                     className="rh-search-clear"
                     onClick={() => setSearchQuery('')}
                   >
-                    <X size={16} />
+                    <X size={14} />
                   </button>
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Session Banner */}
-          <AnimatePresence>
-            {hasTableSession && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="rh-banner"
-              >
-                <div className="rh-banner-left">
-                  <div className="rh-banner-dot"></div>
-                  <span className="rh-banner-label">
-                    Table {currentSession?.tableNumber || 'Unknown'}
-                  </span>
-                  <span className="rh-banner-meta">Session Active</span>
-                </div>
-                <button
-                  className="rh-banner-btn"
-                  onClick={() =>
-                    navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`)
-                  }
-                >
-                  <Receipt size={12} />
-                  View Cart
-                </button>
-              </motion.div>
-            )}
-            {hasActiveOrder && !hasTableSession && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="rh-banner"
-              >
-                <div className="rh-banner-left">
-                  <div className="rh-banner-dot"></div>
-                  <span className="rh-banner-label">
-                    Order #{activeOrderFromAPI?.orderNumber}
-                  </span>
-                  <span className="rh-banner-meta">In Progress</span>
-                </div>
-                <button className="rh-banner-btn" onClick={handleViewOrder}>
-                  <Receipt size={12} />
-                  View
-                </button>
-              </motion.div>
-            )}
-
-            {restaurant && tableFromUrl && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <CallWaiterButton
-                  tableId={tableFromUrl}
-                  restaurantId={restaurant.id}
-                  orderId={activeOrderFromAPI?.id}
-                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1178,7 +1296,7 @@ export default function CustomerMenuPageNew() {
           {/* Categories */}
           <div className="rh-categories-wrap">
             <ScrollArea className="w-full">
-              <div style={{ display: 'flex', gap: 8, paddingBottom: 4 }}>
+              <div style={{ display: 'flex', gap: 6, paddingBottom: 2 }}>
                 {availableCategories.map((category) => (
                   <button
                     key={category.id}
@@ -1192,8 +1310,8 @@ export default function CustomerMenuPageNew() {
                         src={category.imageUrl}
                         alt={category.name}
                         style={{
-                          width: 18,
-                          height: 18,
+                          width: 16,
+                          height: 16,
                           borderRadius: '50%',
                           objectFit: 'cover',
                         }}
@@ -1219,7 +1337,7 @@ export default function CustomerMenuPageNew() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.05 }}
-        style={{ padding: '16px 0' }}
+        style={{ paddingTop: 16 }}
       >
         {displayItems.length === 0 ? (
           <div className="rh-empty-state">
@@ -1265,16 +1383,16 @@ export default function CustomerMenuPageNew() {
                     )}
                     {item._isPopular && (
                       <div className="rh-item-popular-badge">
-                        <Sparkles size={14} color="white" fill="white" />
+                        <Sparkles size={12} color="white" fill="white" />
                       </div>
                     )}
                     {(item._isSpicy || item._isQuick) && (
                       <div className="rh-item-tags">
                         {item._isSpicy && (
-                          <span className="rh-item-tag">🌶️</span>
+                          <span className="rh-item-tag">🌶️ Spicy</span>
                         )}
                         {item._isQuick && (
-                          <span className="rh-item-tag">⚡</span>
+                          <span className="rh-item-tag">⚡ Quick</span>
                         )}
                       </div>
                     )}
@@ -1283,9 +1401,18 @@ export default function CustomerMenuPageNew() {
                   {/* Details */}
                   <div className="rh-item-details">
                     <h3 className="rh-item-name">{item.name}</h3>
-                    <p className="rh-item-price">
-                      {formatCurrency(item.pricing.amount)}
-                    </p>
+                    <div className="rh-item-price">
+                      {item.activePriceTag ? (
+                        <>
+                          <span className="rh-item-price-old">
+                            {formatCurrency(item.pricing.amount)}
+                          </span>
+                          {formatCurrency(getEffectivePrice(item))}
+                        </>
+                      ) : (
+                        formatCurrency(item.pricing.amount)
+                      )}
+                    </div>
 
                     {/* Add / Qty Controls */}
                     {quantity > 0 ? (
@@ -1300,7 +1427,13 @@ export default function CustomerMenuPageNew() {
                         <button
                           className="rh-qty-btn"
                           onClick={() =>
-                            handleAddToCart(item.id, item.name, item.pricing)
+                            handleAddToCart(
+                              item.id,
+                              item.name,
+                              item.pricing,
+                              item.modifiers,
+                              item.activePriceTag
+                            )
                           }
                         >
                           <Plus size={14} />
@@ -1310,7 +1443,13 @@ export default function CustomerMenuPageNew() {
                       <button
                         className="rh-add-btn"
                         onClick={() =>
-                          handleAddToCart(item.id, item.name, item.pricing)
+                          handleAddToCart(
+                            item.id,
+                            item.name,
+                            item.pricing,
+                            item.modifiers,
+                            item.activePriceTag
+                          )
                         }
                       >
                         Add
@@ -1338,20 +1477,28 @@ export default function CustomerMenuPageNew() {
                 <div className="rh-cart-info">
                   <h4>{hasActiveOrder ? 'Add to Order' : 'Place Order'}</h4>
                   <p>
-                    {cartItemCount} items • {formatCurrency(cartTotal)}
+                    {cartItemCount} items •{' '}
+                    {isCalculatingCart
+                      ? 'Calculating...'
+                      : formatCurrency(cartTotal)}
                   </p>
                 </div>
                 <button
                   className="rh-cart-btn"
                   onClick={handlePlaceOrder}
-                  disabled={isPlacingOrder || isAddingItems}
+                  disabled={
+                    isPlacingOrder ||
+                    isAddingItems ||
+                    isCalculatingCart ||
+                    !cartCalculation
+                  }
                 >
                   {isPlacingOrder || isAddingItems ? (
                     <LoadingSpinner className="h-4 w-4" />
                   ) : (
                     <ShoppingBag size={16} />
                   )}
-                  {hasActiveOrder ? 'Add Items' : 'Place Order'}
+                  {hasActiveOrder ? 'Add' : 'Order'}
                 </button>
               </div>
             </div>
@@ -1425,6 +1572,19 @@ export default function CustomerMenuPageNew() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modifier Selection Modal */}
+      {selectedMenuItem && (
+        <ModifierSelectionModal
+          open={modifierModalOpen}
+          onOpenChange={setModifierModalOpen}
+          menuItemId={selectedMenuItem.id}
+          menuItemName={selectedMenuItem.name}
+          basePrice={selectedMenuItem.price}
+          modifiers={selectedMenuItem.modifiers}
+          onConfirm={handleModifierConfirm}
+        />
+      )}
     </div>
   );
 }

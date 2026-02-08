@@ -684,16 +684,26 @@ export class OrdersController {
 
     // CRITICAL FIX: Get branch ID from table to prevent cross-branch pricing
     let branchId: string | undefined;
-    if (dto.tableNumber?.trim()) {
-      branchId = await this.getBranchIdFromTable(
-        restaurantId,
-        dto.tableNumber.trim()
-      );
-      if (!branchId) {
+    let tableNumber: string | undefined;
+
+    if (dto.tableId?.trim()) {
+      // Use tableId to get table info (preferred method)
+      const table = await this.tableModel
+        .findOne({
+          _id: dto.tableId.trim(),
+          restaurantId,
+          isActive: true,
+        })
+        .lean();
+
+      if (!table) {
         throw new BadRequestException(
-          `Table ${dto.tableNumber} not found or inactive`
+          `Table with ID ${dto.tableId} not found or inactive`
         );
       }
+
+      branchId = table.branchId?.toString();
+      tableNumber = table.tableNumber;
     }
 
     // CRITICAL FIX: Validate all items belong to the correct branch
@@ -701,7 +711,7 @@ export class OrdersController {
       const itemIds = dto.items.map((item) => item.menuItemId);
       const isValid = await this.validateItemsBelongToBranch(
         restaurantId,
-        itemIds,
+        [...new Set(itemIds)], // Unique item IDs for efficient query
         branchId
       );
       if (!isValid) {
@@ -713,7 +723,8 @@ export class OrdersController {
 
     // Reuse the same logic as order creation for exact calculation
     const createOrderDto: CreateOrderDto = {
-      tableNumber: dto.tableNumber,
+      tableId: dto.tableId,
+      tableNumber: tableNumber,
       items: dto.items,
       notes: dto.notes,
       customerName: dto.customerInfo?.name,
@@ -741,7 +752,7 @@ export class OrdersController {
           menuItemId: item.menuItemId,
           name: item.name,
           quantity: item.quantity,
-          unitPrice: item.pricing.unitAmount,
+          unitPrice: item.unitPrice,
           lineTotal: item.lineTotal,
           taxAmount: item.taxAmount,
         })) || [],

@@ -53,6 +53,9 @@ export class MenuItemsService {
       overrideGstRate: dto.overrideGstRate,
     };
 
+    // Calculate dietary information from ingredients
+    const dietaryInfo = this.calculateDietaryInfo(dto.ingredients || []);
+
     const created = await this.menuItemModel.create({
       ...dto,
       restaurantId,
@@ -64,6 +67,8 @@ export class MenuItemsService {
       exemptFromGst: finalGstConfig.exemptFromGst,
       useStateVat: finalGstConfig.useStateVat,
       categoryConfidence: finalGstConfig.categoryConfidence,
+      // Dietary information (computed from ingredients)
+      ...dietaryInfo,
     });
     return this.toDto(created);
   }
@@ -242,49 +247,34 @@ export class MenuItemsService {
     id: string,
     dto: UpdateMenuItemDto
   ): Promise<MenuItemResponseDto> {
-    const restaurant = await this.restaurantModel
-      .findById(restaurantId)
-      .lean();
-    if (!restaurant) {
-      throw new NotFoundException(
-        `Restaurant ${restaurantId} not found`
-      );
-    }
-
-    const useDefaultGst = restaurant.applyDefaultGstToMenuItems ?? false;
     const updateData: Record<string, unknown> = {
       ...dto,
     };
 
-    if (dto.hsnCode !== undefined) {
-      updateData.hsnCode = dto.hsnCode?.trim();
+    // Recalculate dietary information if ingredients were updated
+    if (dto.ingredients) {
+      const dietaryInfo = this.calculateDietaryInfo(dto.ingredients);
+      Object.assign(updateData, dietaryInfo);
     }
 
-    if (useDefaultGst) {
-      const defaultGst = await this.getDefaultGstRateOrThrow(restaurantId);
-      updateData.gstRateId = defaultGst.gstRateId;
-      updateData.gstRate = defaultGst.gstRate;
-    } else {
-      if (dto.gstRateId !== undefined) {
-        if (dto.gstRateId) {
-          const gstMetadata = await this.resolveGstRate(
-            restaurantId,
-            dto.gstRateId
-          );
-          updateData.gstRateId = gstMetadata?.gstRateId ?? dto.gstRateId;
-          if (dto.gstRate === undefined && gstMetadata?.gstRate !== undefined) {
-            updateData.gstRate = gstMetadata.gstRate;
-          }
-        } else {
-          updateData.gstRateId = undefined;
-        }
-      }
+    // Handle GST updates with smart configuration
+    if (dto.foodCategory || dto.overrideGstRate !== undefined) {
+      const gstConfig = await this.smartGstService.autoConfigureMenuItemGst({
+        name: dto.name,
+        description: dto.description,
+        restaurantId,
+        foodCategory: dto.foodCategory,
+      });
 
-      if (dto.gstRate !== undefined) {
-        updateData.gstRate = dto.gstRate;
-        if (dto.gstRateId === undefined) {
-          updateData.gstRateId = undefined;
-        }
+      if (dto.overrideGstRate === undefined) {
+        updateData.gstRate = gstConfig.gstRate;
+        updateData.hsnCode = gstConfig.hsnCode;
+        updateData.exemptFromGst = gstConfig.exemptFromGst;
+        updateData.useStateVat = gstConfig.useStateVat;
+        updateData.categoryConfidence = gstConfig.categoryConfidence;
+      } else {
+        updateData.overrideGstRate = dto.overrideGstRate;
+        updateData.gstRate = dto.overrideGstRate;
       }
     }
 
@@ -429,6 +419,56 @@ export class MenuItemsService {
     };
   }
 
+  private calculateDietaryInfo(ingredients: any[]): {
+    isVegan: boolean;
+    isVegetarian: boolean;
+    isGlutenFree: boolean;
+    isDairyFree: boolean;
+    hasNuts: boolean;
+    allergens: string[];
+  } {
+    if (!ingredients || ingredients.length === 0) {
+      return {
+        isVegan: false,
+        isVegetarian: false,
+        isGlutenFree: false,
+        isDairyFree: false,
+        hasNuts: false,
+        allergens: [],
+      };
+    }
+
+    let isVegan = true;
+    let isVegetarian = true;
+    let isGlutenFree = true;
+    let isDairyFree = true;
+    let hasNuts = false;
+    const allergens = new Set<string>();
+
+    for (const ingredient of ingredients) {
+      if (!ingredient.isVegan) isVegan = false;
+      if (!ingredient.isVegetarian) isVegetarian = false;
+      if (!ingredient.isGlutenFree) isGlutenFree = false;
+      if (!ingredient.isDairyFree) isDairyFree = false;
+
+      if (ingredient.allergens) {
+        ingredient.allergens.forEach((allergen: string) => {
+          allergens.add(allergen.toLowerCase());
+          if (allergen.toLowerCase().includes('nut')) hasNuts = true;
+        });
+      }
+    }
+
+    return {
+      isVegan,
+      isVegetarian,
+      isGlutenFree,
+      isDairyFree,
+      hasNuts,
+      allergens: Array.from(allergens),
+    };
+  }
+
   private toDto(doc: MenuItemDocument): MenuItemResponseDto {
     return {
       id: doc._id.toString(),
@@ -446,9 +486,35 @@ export class MenuItemsService {
       isAvailable: doc.isAvailable,
       displayOrder: doc.displayOrder,
       imageUrls: doc.imageUrls,
+
+      // Enhanced POS Features
+      nutritionalInfo: doc.nutritionalInfo,
+      ingredients: doc.ingredients,
+      applicableModifiers: doc.applicableModifiers?.map(id => id.toString()) || [],
+      activePriceTagId: doc.activePriceTagId,
+
+      // Dietary Information
+      isVegan: doc.isVegan,
+      isVegetarian: doc.isVegetarian,
+      isGlutenFree: doc.isGlutenFree,
+      isDairyFree: doc.isDairyFree,
+      hasNuts: doc.hasNuts,
+      allergens: doc.allergens,
+
+      // Preparation Information
+      prepTimeMinutes: doc.prepTimeMinutes,
+      preparationDifficulty: doc.preparationDifficulty,
+      kitchenStations: doc.kitchenStations,
+
+      // GST fields
+      foodCategory: doc.foodCategory,
       hsnCode: doc.hsnCode,
-      gstRateId: doc.gstRateId,
       gstRate: doc.gstRate,
+      overrideGstRate: doc.overrideGstRate,
+      exemptFromGst: doc.exemptFromGst,
+      useStateVat: doc.useStateVat,
+      categoryConfidence: doc.categoryConfidence,
+
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };

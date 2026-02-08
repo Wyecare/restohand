@@ -12,7 +12,15 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSidebar } from '@/components/ui/sidebar';
@@ -33,12 +41,19 @@ import {
   CreditCard,
   Building2,
   Shield,
+  ChevronRight,
 } from 'lucide-react';
+
+interface SubNavItem {
+  titleKey: string;
+  href: string;
+}
 
 interface NavLink {
   titleKey: string;
   href: string;
   icon: React.ElementType;
+  items?: SubNavItem[];
 }
 
 const managerLinks: NavLink[] = [
@@ -48,7 +63,16 @@ const managerLinks: NavLink[] = [
     icon: LayoutDashboard,
   },
   { titleKey: 'navigation.orders', href: '/orders', icon: ShoppingBag },
-  { titleKey: 'navigation.menu', href: '/menu', icon: UtensilsCrossed },
+  {
+    titleKey: 'navigation.menu',
+    href: '/menu',
+    icon: UtensilsCrossed,
+    items: [
+      { titleKey: 'navigation.items', href: '/menu/items' },
+      { titleKey: 'navigation.modifiers', href: '/menu/modifiers' },
+      { titleKey: 'navigation.priceTags', href: '/menu/price-tags' },
+    ],
+  },
   { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
   { titleKey: 'navigation.branches', href: '/branches', icon: Building2 },
   // { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
@@ -109,6 +133,13 @@ export default function Sidebar() {
     return false;
   };
 
+  const isParentActive = (link: NavLink) => {
+    if (link.items) {
+      return link.items.some((item) => isRouteActive(item.href));
+    }
+    return isRouteActive(link.href);
+  };
+
   return (
     <SidebarContainer
       collapsible="icon"
@@ -149,6 +180,49 @@ export default function Sidebar() {
                 {navLinks.map((link) => {
                   const Icon = link.icon;
 
+                  // If the link has nested items, render as collapsible
+                  if (link.items && link.items.length > 0) {
+                    return (
+                      <Collapsible
+                        key={link.href}
+                        asChild
+                        defaultOpen={isParentActive(link)}
+                        className="group/collapsible"
+                      >
+                        <SidebarMenuItem>
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton
+                              tooltip={t(link.titleKey)}
+                              isActive={isParentActive(link)}
+                              className="hover:text-foreground active:text-foreground hover:bg-primary/10 active:bg-primary/10"
+                            >
+                              <Icon className="size-4" />
+                              <span>{t(link.titleKey)}</span>
+                              <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <SidebarMenuSub>
+                              {link.items.map((subItem) => (
+                                <SidebarMenuSubItem key={subItem.href}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={isRouteActive(subItem.href)}
+                                  >
+                                    <Link to={subItem.href}>
+                                      <span>{t(subItem.titleKey)}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
+                          </CollapsibleContent>
+                        </SidebarMenuItem>
+                      </Collapsible>
+                    );
+                  }
+
+                  // Regular link without nested items
                   return (
                     <SidebarMenuItem key={link.href}>
                       <SidebarMenuButton

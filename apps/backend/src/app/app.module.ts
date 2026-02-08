@@ -11,6 +11,8 @@ import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
 import { MenuCategoriesModule } from '../menu-categories/menu-categories.module';
 import { MenuItemsModule } from '../menu-items/menu-items.module';
+import { MenuModifiersModule } from '../menu-modifiers/menu-modifiers.module';
+import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
 import { OrdersModule } from '../orders/orders.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { AuthModule } from '../auth/auth.module';
@@ -58,6 +60,8 @@ import { AppService } from './app.service';
     PublicModule,
     MenuCategoriesModule,
     MenuItemsModule,
+    MenuModifiersModule,
+    MenuPriceTagsModule,
     OrdersModule,
     RestaurantTablesModule,
     GstModule,

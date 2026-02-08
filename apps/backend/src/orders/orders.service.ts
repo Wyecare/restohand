@@ -50,6 +50,7 @@ import {
 } from '../gst/gst.service';
 import { ReceiptDocumentService } from './receipt-document.service';
 import { PaymentNotificationService } from './payment-notification.service';
+import { MenuPriceTagsService } from '../menu-price-tags/menu-price-tags.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
@@ -76,7 +77,8 @@ export class OrdersService {
     private readonly razorpayService: RazorpayService,
     private readonly tableStatusService: TableStatusService,
     private readonly receiptDocumentService: ReceiptDocumentService,
-    private readonly paymentNotificationService: PaymentNotificationService
+    private readonly paymentNotificationService: PaymentNotificationService,
+    private readonly menuPriceTagsService: MenuPriceTagsService
   ) {}
 
   async create(
@@ -103,11 +105,19 @@ export class OrdersService {
       .select('_id')
       .lean();
 
-    const availableItemIds = new Set(availableMenuItems.map(item => item._id.toString()));
-    const unavailableItems = menuItemIds.filter(id => !availableItemIds.has(id));
+    const availableItemIds = new Set(
+      availableMenuItems.map((item) => item._id.toString())
+    );
+    const unavailableItems = menuItemIds.filter(
+      (id) => !availableItemIds.has(id)
+    );
 
     if (unavailableItems.length > 0) {
-      throw new BadRequestException(`The following menu items are not available: ${unavailableItems.join(', ')}`);
+      throw new BadRequestException(
+        `The following menu items are not available: ${unavailableItems.join(
+          ', '
+        )}`
+      );
     }
 
     // Prepare order items for GST calculation
@@ -178,13 +188,13 @@ export class OrdersService {
       progress: OrderProgressStage.NotStarted,
       paymentMethod,
       subTotalAmount: totalAmount, // Sum of all item prices
-      grossAmount: totalAmount,   // Same as subtotal (no tax at order level)
+      grossAmount: totalAmount, // Same as subtotal (no tax at order level)
       discountAmount: 0,
-      taxAmount: 0,               // No tax at individual order level
-      cgstAmount: 0,              // Tax will be calculated at session payment level
+      taxAmount: 0, // No tax at individual order level
+      cgstAmount: 0, // Tax will be calculated at session payment level
       sgstAmount: 0,
       igstAmount: 0,
-      totalAmount: totalAmount,   // Order total without tax
+      totalAmount: totalAmount, // Order total without tax
       roundOffAmount: 0,
     });
 
@@ -250,8 +260,6 @@ export class OrdersService {
       response.paymentIntentUrl = `upi://pay?${params.toString()}`;
     }
 
-    console.log(created, 'whats created');
-
     // Create or update receipt document for this table order
     // if (created.tableId) {
     //   try {
@@ -308,14 +316,25 @@ export class OrdersService {
     // Use restaurant's state for customer state
     const customerState = restaurant.address?.state;
 
-    // Prepare order items for GST calculation
-    const orderItems: OrderItemGstData[] = dto.items.map((item) => ({
-      menuItemId: item.menuItemId,
-      name: '', // Will be filled from menu item
-      quantity: item.quantity,
-      unitPrice: item.pricing?.unitAmount || 0,
-      discountAmount: item.pricing?.discountAmount || 0,
-    }));
+    // Prepare order items for GST calculation with modifiers and price tags
+    const orderItems: OrderItemGstData[] = await Promise.all(
+      dto.items.map(async (item) => {
+        const effectivePrice = await this.calculateEffectiveItemPrice(
+          restaurantId,
+          item.menuItemId,
+          item.activePriceTagId,
+          item.selectedModifiers || []
+        );
+
+        return {
+          menuItemId: item.menuItemId,
+          name: '', // Will be filled from menu item
+          quantity: item.quantity,
+          unitPrice: effectivePrice,
+          discountAmount: item.pricing?.discountAmount || 0,
+        };
+      })
+    );
 
     // Calculate GST using smart service
     const { items, summary } = await this.smartGstService.calculateOrderGst(
@@ -623,7 +642,10 @@ export class OrdersService {
         // Get staff member name if payment was marked by staff
         let staffMemberName: string | undefined;
         if (updatedBy) {
-          const staffMember = await this.userModel.findById(updatedBy).select('name').lean();
+          const staffMember = await this.userModel
+            .findById(updatedBy)
+            .select('name')
+            .lean();
           staffMemberName = staffMember?.name;
         }
 
@@ -642,9 +664,14 @@ export class OrdersService {
           }
         );
 
-        this.logger.log(`Payment notification sent for order ${updated.orderNumber}`);
+        this.logger.log(
+          `Payment notification sent for order ${updated.orderNumber}`
+        );
       } catch (notificationError) {
-        this.logger.error(`Failed to send payment notification for order ${updated.orderNumber}:`, notificationError);
+        this.logger.error(
+          `Failed to send payment notification for order ${updated.orderNumber}:`,
+          notificationError
+        );
         // Don't fail the payment update if notification fails
       }
 
@@ -752,7 +779,6 @@ export class OrdersService {
           );
           // Don't throw error - payment succeeded, receipt creation failure shouldn't block
         }
-
       }
 
       if (
@@ -1218,7 +1244,9 @@ export class OrdersService {
   async handleCashfreeSettlementWebhook(event: any): Promise<void> {
     const eventType = event?.type;
     if (!eventType) {
-      this.logger.warn('Cashfree settlement webhook received without event type');
+      this.logger.warn(
+        'Cashfree settlement webhook received without event type'
+      );
       return;
     }
 
@@ -1233,7 +1261,9 @@ export class OrdersService {
         this.logger.log('Settlement failed event received');
         break;
       default:
-        this.logger.warn(`Unknown Cashfree settlement webhook event type: ${eventType}`);
+        this.logger.warn(
+          `Unknown Cashfree settlement webhook event type: ${eventType}`
+        );
     }
   }
 
@@ -1242,25 +1272,32 @@ export class OrdersService {
     const paymentData = event.data?.payment;
 
     if (!orderData || !paymentData) {
-      this.logger.warn('Missing order or payment data in Cashfree payment success webhook');
+      this.logger.warn(
+        'Missing order or payment data in Cashfree payment success webhook'
+      );
       return;
     }
 
     const cashfreeOrderId = orderData.order_id;
-    this.logger.log(`Processing Cashfree payment success for order: ${cashfreeOrderId}`);
+    this.logger.log(
+      `Processing Cashfree payment success for order: ${cashfreeOrderId}`
+    );
 
     // Check if this is a session payment
     const isSessionPayment = cashfreeOrderId.includes('session_');
 
     if (isSessionPayment) {
       await this.handleCashfreeSessionPayment(orderData, paymentData);
-      await this.sendCashfreeCustomerPaymentNotifications(orderData, paymentData);
+      await this.sendCashfreeCustomerPaymentNotifications(
+        orderData,
+        paymentData
+      );
     } else {
       // Regular order payment - extract orderId from cashfreeOrderId
       const orderId = cashfreeOrderId.replace('restohand_', '');
       await this.handleOrderFullyPaid(orderId, {
         order_id: cashfreeOrderId,
-        payment: paymentData
+        payment: paymentData,
       });
     }
   }
@@ -1283,34 +1320,47 @@ export class OrdersService {
     const orderData = event.data?.order;
 
     if (!orderData) {
-      this.logger.warn('Missing order data in Cashfree payment dropped webhook');
+      this.logger.warn(
+        'Missing order data in Cashfree payment dropped webhook'
+      );
       return;
     }
 
-    this.logger.log(`Cashfree payment dropped for order: ${orderData.order_id}`);
+    this.logger.log(
+      `Cashfree payment dropped for order: ${orderData.order_id}`
+    );
     // Handle payment drop - update order status, clean up, etc.
     // TODO: Implement based on business requirements
   }
 
-  private async handleCashfreeSessionPayment(orderData: any, paymentData: any): Promise<void> {
+  private async handleCashfreeSessionPayment(
+    orderData: any,
+    paymentData: any
+  ): Promise<void> {
     try {
       const cashfreeOrderId = orderData.order_id;
       // Extract the session order ID (remove 'restohand_' prefix)
       const sessionOrderId = cashfreeOrderId.replace('restohand_', '');
 
-      this.logger.log(`Looking for orders with Cashfree sessionOrderId: ${sessionOrderId}`);
+      this.logger.log(
+        `Looking for orders with Cashfree sessionOrderId: ${sessionOrderId}`
+      );
 
       // Find all orders in this session
       const orders = await this.orderModel.find({
-        'paymentMeta.cashfree.sessionOrderId': sessionOrderId
+        'paymentMeta.cashfree.sessionOrderId': sessionOrderId,
       });
 
       if (orders.length === 0) {
-        this.logger.error(`No orders found for Cashfree session payment: ${cashfreeOrderId}`);
+        this.logger.error(
+          `No orders found for Cashfree session payment: ${cashfreeOrderId}`
+        );
         return;
       }
 
-      this.logger.log(`Found ${orders.length} orders for Cashfree session: ${sessionOrderId}`);
+      this.logger.log(
+        `Found ${orders.length} orders for Cashfree session: ${sessionOrderId}`
+      );
 
       for (const order of orders) {
         // Extract payment method string from Cashfree's complex object
@@ -1340,28 +1390,37 @@ export class OrdersService {
             paymentMethod: paymentMethodString,
           },
           null, // no updatedBy for customer payments
-          true  // skip notification to prevent duplicates
+          true // skip notification to prevent duplicates
         );
       }
 
-      this.logger.log(`Cashfree session payment processed: ${orders.length} orders marked as paid`);
+      this.logger.log(
+        `Cashfree session payment processed: ${orders.length} orders marked as paid`
+      );
     } catch (error) {
       this.logger.error('Failed to handle Cashfree session payment:', error);
     }
   }
 
-  private async sendCashfreeCustomerPaymentNotifications(orderData: any, paymentData: any): Promise<void> {
+  private async sendCashfreeCustomerPaymentNotifications(
+    orderData: any,
+    paymentData: any
+  ): Promise<void> {
     try {
       const cashfreeOrderId = orderData.order_id;
       const sessionOrderId = cashfreeOrderId.replace('restohand_', '');
 
       // Find all orders in this session
-      const orders = await this.orderModel.find({
-        'paymentMeta.cashfree.sessionOrderId': sessionOrderId
-      }).lean();
+      const orders = await this.orderModel
+        .find({
+          'paymentMeta.cashfree.sessionOrderId': sessionOrderId,
+        })
+        .lean();
 
       if (orders.length === 0) {
-        this.logger.warn(`No orders found for Cashfree payment notification: ${cashfreeOrderId}`);
+        this.logger.warn(
+          `No orders found for Cashfree payment notification: ${cashfreeOrderId}`
+        );
         return;
       }
 
@@ -1384,7 +1443,7 @@ export class OrdersService {
         }
       }
       const restaurantId = firstOrder.restaurantId.toString();
-      const orderIds = orders.map(o => o._id.toString());
+      const orderIds = orders.map((o) => o._id.toString());
 
       // Get table details
       let tableNumber = firstOrder.tableNumber;
@@ -1409,10 +1468,13 @@ export class OrdersService {
 
       this.logger.log(
         `Cashfree customer payment notification sent for order ${firstOrder.orderNumber} ` +
-        `(${orders.length} orders, ₹${amount}, Table ${tableNumber})`
+          `(${orders.length} orders, ₹${amount}, Table ${tableNumber})`
       );
     } catch (error) {
-      this.logger.error('Failed to send Cashfree customer payment notifications:', error);
+      this.logger.error(
+        'Failed to send Cashfree customer payment notifications:',
+        error
+      );
     }
   }
 
@@ -2239,11 +2301,17 @@ export class OrdersService {
       }
 
       // Update order payment status (skip notification to avoid duplicate)
-      await this.updatePayment(order.restaurantId.toString(), orderId, {
-        paymentStatus: PaymentStatus.Paid,
-        transactionId: paymentId,
-        provider: 'razorpay',
-      }, null, true); // skipNotification = true
+      await this.updatePayment(
+        order.restaurantId.toString(),
+        orderId,
+        {
+          paymentStatus: PaymentStatus.Paid,
+          transactionId: paymentId,
+          provider: 'razorpay',
+        },
+        null,
+        true
+      ); // skipNotification = true
 
       // Record payment captured event
       await this.recordEvent(
@@ -2333,10 +2401,16 @@ export class OrdersService {
 
       // Ensure order is marked as fully paid (skip notification to avoid duplicate)
       if (order.paymentStatus !== PaymentStatus.Paid) {
-        await this.updatePayment(order.restaurantId.toString(), orderId, {
-          paymentStatus: PaymentStatus.Paid,
-          provider: 'razorpay',
-        }, null, true); // skipNotification = true
+        await this.updatePayment(
+          order.restaurantId.toString(),
+          orderId,
+          {
+            paymentStatus: PaymentStatus.Paid,
+            provider: 'razorpay',
+          },
+          null,
+          true
+        ); // skipNotification = true
       }
 
       // Record order fully paid event
@@ -2504,11 +2578,17 @@ export class OrdersService {
       // Mark order as paid if it's not already (skip notification to avoid duplicate)
       const order = await this.orderModel.findById(orderId);
       if (order && order.paymentStatus !== PaymentStatus.Paid) {
-        await this.updatePayment(order.restaurantId.toString(), orderId, {
-          paymentStatus: PaymentStatus.Paid,
-          transactionId: invoiceData.payment_id,
-          provider: 'razorpay',
-        }, null, true); // skipNotification = true
+        await this.updatePayment(
+          order.restaurantId.toString(),
+          orderId,
+          {
+            paymentStatus: PaymentStatus.Paid,
+            transactionId: invoiceData.payment_id,
+            provider: 'razorpay',
+          },
+          null,
+          true
+        ); // skipNotification = true
       }
 
       await this.recordEvent(
@@ -2582,7 +2662,10 @@ export class OrdersService {
     }
   }
 
-  private async handleSessionPayment(orderData: any, paymentData: any): Promise<void> {
+  private async handleSessionPayment(
+    orderData: any,
+    paymentData: any
+  ): Promise<void> {
     try {
       const notes = orderData.notes || {};
       const orderIds = notes.orderIds ? notes.orderIds.split(',') : [];
@@ -2600,17 +2683,22 @@ export class OrdersService {
             paymentMethod: paymentData.method || 'upi',
           },
           null, // no updatedBy for customer payments
-          true  // skip notification to prevent duplicates
+          true // skip notification to prevent duplicates
         );
       }
 
-      this.logger.log(`Session payment processed: ${orderIds.length} orders marked as paid`);
+      this.logger.log(
+        `Session payment processed: ${orderIds.length} orders marked as paid`
+      );
     } catch (error) {
       this.logger.error('Failed to handle session payment:', error);
     }
   }
 
-  private async sendCustomerPaymentNotifications(orderData: any, paymentData: any): Promise<void> {
+  private async sendCustomerPaymentNotifications(
+    orderData: any,
+    paymentData: any
+  ): Promise<void> {
     try {
       const notes = orderData.notes || {};
       const restaurantId = notes.restaurantId;
@@ -2620,14 +2708,18 @@ export class OrdersService {
       const paymentMethod = paymentData.method || 'upi';
 
       if (!restaurantId || orderIds.length === 0) {
-        this.logger.warn('Missing restaurantId or orderIds in customer payment webhook');
+        this.logger.warn(
+          'Missing restaurantId or orderIds in customer payment webhook'
+        );
         return;
       }
 
       // Get order details for the first order (for order number and table info)
       const firstOrder = await this.orderModel.findById(orderIds[0]).lean();
       if (!firstOrder) {
-        this.logger.warn(`Order ${orderIds[0]} not found for customer payment notification`);
+        this.logger.warn(
+          `Order ${orderIds[0]} not found for customer payment notification`
+        );
         return;
       }
 
@@ -2640,7 +2732,7 @@ export class OrdersService {
           const tableModel = this.orderModel.db.collection('restauranttables');
           const table = await tableModel.findOne({
             _id: new require('mongoose').Types.ObjectId(tableId),
-            restaurantId: new require('mongoose').Types.ObjectId(restaurantId)
+            restaurantId: new require('mongoose').Types.ObjectId(restaurantId),
           });
 
           if (table) {
@@ -2648,7 +2740,10 @@ export class OrdersService {
             branchId = branchId || table.branchId?.toString();
           }
         } catch (error) {
-          this.logger.error('Error fetching table details for notification:', error);
+          this.logger.error(
+            'Error fetching table details for notification:',
+            error
+          );
         }
       }
 
@@ -2670,10 +2765,72 @@ export class OrdersService {
 
       this.logger.log(
         `Customer payment notification sent for order ${firstOrder.orderNumber} ` +
-        `(${orderIds.length} orders, ₹${amount}, Table ${tableNumber})`
+          `(${orderIds.length} orders, ₹${amount}, Table ${tableNumber})`
       );
     } catch (error) {
-      this.logger.error('Failed to send customer payment notifications:', error);
+      this.logger.error(
+        'Failed to send customer payment notifications:',
+        error
+      );
     }
+  }
+
+  private async calculateEffectiveItemPrice(
+    restaurantId: string,
+    menuItemId: string,
+    activePriceTagId?: string,
+    selectedModifiers: any[] = []
+  ): Promise<number> {
+    // Get base menu item price
+    const menuItem = await this.menuItemModel
+      .findById(menuItemId)
+      .select('pricing')
+      .lean();
+    if (!menuItem) {
+      throw new NotFoundException(`Menu item ${menuItemId} not found`);
+    }
+
+    let basePrice = menuItem.pricing.amount;
+
+    // Apply price tag pricing if available
+    if (activePriceTagId) {
+      const priceTag = await this.menuPriceTagsService.findOne(
+        restaurantId,
+        activePriceTagId
+      );
+      if (priceTag && priceTag.isActive) {
+        const itemPrice = priceTag.itemPrices?.find(
+          (ip) => ip.menuItemId === menuItemId
+        );
+        if (itemPrice && itemPrice.isActive) {
+          switch (itemPrice.discountType) {
+            case 'fixed':
+              basePrice = itemPrice.price;
+              break;
+            case 'percentage_off':
+              basePrice =
+                menuItem.pricing.amount *
+                (1 - (itemPrice.discountValue || 0) / 100);
+              break;
+            case 'amount_off':
+              basePrice = Math.max(
+                0,
+                menuItem.pricing.amount - (itemPrice.discountValue || 0)
+              );
+              break;
+          }
+        }
+      }
+    }
+
+    // Add modifier adjustments
+    let modifierTotal = 0;
+    for (const modifier of selectedModifiers) {
+      for (const option of modifier.selectedOptions) {
+        modifierTotal += option.priceAdjustment * (option.quantity || 1);
+      }
+    }
+
+    return basePrice + modifierTotal;
   }
 }

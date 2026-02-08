@@ -46,6 +46,7 @@ import { GstModule } from '../gst/gst.module';
 import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     RestaurantTablesModule,
     CallWaiterModule,
     SubscriptionsModule,
+    MenuPriceTagsModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Restaurant.name, schema: RestaurantSchema },

@@ -18,6 +18,14 @@ import {
   MenuItem,
   MenuItemDocument,
 } from '../menu-items/schemas/menu-item.schema';
+import {
+  MenuModifier,
+  MenuModifierDocument,
+} from '../menu-modifiers/schemas/menu-modifier.schema';
+import {
+  MenuPriceTag,
+  MenuPriceTagDocument,
+} from '../menu-price-tags/schemas/menu-price-tag.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import {
   RestaurantTable,
@@ -41,6 +49,10 @@ export class PublicService {
     private readonly categoryModel: Model<MenuCategoryDocument>,
     @InjectModel(MenuItem.name)
     private readonly itemModel: Model<MenuItemDocument>,
+    @InjectModel(MenuModifier.name)
+    private readonly modifierModel: Model<MenuModifierDocument>,
+    @InjectModel(MenuPriceTag.name)
+    private readonly priceTagModel: Model<MenuPriceTagDocument>,
     @InjectModel(Order.name)
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(RestaurantTable.name)
@@ -123,13 +135,90 @@ export class PublicService {
       itemQuery.branchId = new Types.ObjectId(branchId);
     }
 
-    const [categories, items] = await Promise.all([
+    const [categories, items, modifiers, priceTags] = await Promise.all([
       this.categoryModel
         .find(categoryQuery)
         .sort({ displayOrder: 1, createdAt: 1 })
         .lean(),
       this.itemModel.find(itemQuery).sort({ displayOrder: 1, name: 1 }).lean(),
+      // Fetch active modifiers for this restaurant/branch
+      this.modifierModel.find({
+        restaurantId: new Types.ObjectId(restaurantId),
+        ...(branchId ? { branchId: new Types.ObjectId(branchId) } : {}),
+        isActive: true,
+      }).sort({ displayOrder: 1 }).lean(),
+      // Fetch active price tags for this restaurant/branch
+      this.priceTagModel.find({
+        restaurantId: new Types.ObjectId(restaurantId),
+        ...(branchId ? { branchId: new Types.ObjectId(branchId) } : {}),
+        isActive: true,
+      }).sort({ displayOrder: 1 }).lean(),
     ]);
+
+    // Helper function to get modifiers and active price tag for an item
+    const getItemEnhancements = (itemId: string, menuItem: any) => {
+      // Find applicable modifiers for this item
+      const applicableModifiers = modifiers.filter(modifier =>
+        (modifier.applicableMenuItems && modifier.applicableMenuItems.some(id => id.toString() === itemId)) ||
+        (!modifier.applicableMenuItems || modifier.applicableMenuItems.length === 0) // If no specific items, applies to all
+      ).map(modifier => ({
+        id: modifier._id.toString(),
+        name: modifier.name,
+        description: modifier.description,
+        selectionType: modifier.selectionType,
+        minSelections: modifier.minSelections,
+        maxSelections: modifier.maxSelections,
+        isRequired: modifier.isRequired,
+        displayOrder: modifier.displayOrder,
+        options: (modifier.options || []).map(option => ({
+          id: option.id || option._id?.toString(),
+          name: option.name,
+          description: option.description,
+          priceAdjustment: option.priceAdjustment,
+          currency: option.currency,
+          isAvailable: option.isAvailable,
+          displayOrder: option.displayOrder,
+          imageUrl: option.imageUrl,
+          calories: option.calories,
+          allergens: option.allergens,
+        })),
+      }));
+
+      // Find active price tag for this item - ONLY use the admin's explicit choice
+      let activePriceTag = null;
+
+      // Only use the activePriceTagId set by admin - no priority logic, no fallbacks
+      if (menuItem.activePriceTagId) {
+        activePriceTag = priceTags.find(priceTag =>
+          priceTag._id.toString() === menuItem.activePriceTagId.toString() && priceTag.isActive
+        );
+      }
+
+      // No fallback - if no activePriceTagId is explicitly set, then no price tag is active
+
+      return {
+        modifiers: applicableModifiers,
+        activePriceTag: activePriceTag ? (() => {
+          // Find the specific pricing for this item
+          const itemPricing = activePriceTag.itemPrices.find(itemPrice =>
+            itemPrice.menuItemId.toString() === itemId && itemPrice.isActive
+          );
+
+          const effectivePrice = itemPricing?.price || 0;
+          const originalPrice = menuItem.pricing.amount;
+          const actualDiscountValue = originalPrice - effectivePrice;
+
+          return {
+            id: activePriceTag._id.toString(),
+            name: activePriceTag.name,
+            discountType: itemPricing?.discountType || 'fixed',
+            discountValue: actualDiscountValue, // Actual discount amount
+            effectivePrice: effectivePrice, // The final price after discount
+            validUntil: activePriceTag.validUntil,
+          };
+        })() : null,
+      };
+    };
 
     const grouped = categories.map((category) => ({
       id: category._id.toString(),
@@ -140,7 +229,27 @@ export class PublicService {
         .filter(
           (item) => item.categoryId?.toString() === category._id.toString()
         )
-        .map((item) => ({
+        .map((item) => {
+          const enhancements = getItemEnhancements(item._id.toString(), item);
+          return {
+            id: item._id.toString(),
+            name: item.name,
+            description: item.description,
+            pricing: item.pricing,
+            tags: item.tags,
+            imageUrls: item.imageUrls,
+            isAvailable: item.isAvailable,
+            modifiers: enhancements.modifiers,
+            activePriceTag: enhancements.activePriceTag,
+          };
+        }),
+    }));
+
+    const uncategorisedItems = items
+      .filter((item) => !item.categoryId)
+      .map((item) => {
+        const enhancements = getItemEnhancements(item._id.toString(), item);
+        return {
           id: item._id.toString(),
           name: item.name,
           description: item.description,
@@ -148,20 +257,10 @@ export class PublicService {
           tags: item.tags,
           imageUrls: item.imageUrls,
           isAvailable: item.isAvailable,
-        })),
-    }));
-
-    const uncategorisedItems = items
-      .filter((item) => !item.categoryId)
-      .map((item) => ({
-        id: item._id.toString(),
-        name: item.name,
-        description: item.description,
-        pricing: item.pricing,
-        tags: item.tags,
-        imageUrls: item.imageUrls,
-        isAvailable: item.isAvailable,
-      }));
+          modifiers: enhancements.modifiers,
+          activePriceTag: enhancements.activePriceTag,
+        };
+      });
 
     return {
       categories: grouped,
@@ -233,6 +332,9 @@ export class PublicService {
         quantity: item.quantity,
         pricing: item.pricing,
         gst: item.gst,
+        activePriceTagId: item.activePriceTagId,
+        selectedModifiers: item.selectedModifiers,
+        notes: item.notes,
       })),
     };
   }
@@ -291,6 +393,9 @@ export class PublicService {
         quantity: item.quantity,
         pricing: item.pricing,
         gst: item.gst,
+        activePriceTagId: item.activePriceTagId,
+        selectedModifiers: item.selectedModifiers,
+        notes: item.notes,
       })),
     };
   }
@@ -397,6 +502,9 @@ export class PublicService {
         quantity: item.quantity,
         pricing: item.pricing,
         gst: item.gst,
+        activePriceTagId: item.activePriceTagId,
+        selectedModifiers: item.selectedModifiers,
+        notes: item.notes,
       })),
     };
   }
@@ -425,8 +533,8 @@ export class PublicService {
           tableId: new Types.ObjectId(tableId),
           status: { $ne: OrderStatus.Cancelled }, // Exclude only cancelled orders
         })
-        .sort({ createdAt: 1 })
-        .lean();
+        .sort({ createdAt: 1 });
+        // Removed .lean() to fix selectedModifiers serialization issue
 
       if (!orders.length) {
         return null;
@@ -436,12 +544,14 @@ export class PublicService {
       return await this.formatTableSession(orders, restaurantSlug, true);
     }
 
-    // Session is active - find only active orders
+    // Session is active - find only active orders (including paid orders which should be visible in session)
     const activeStatuses = [
       OrderStatus.Pending,
       OrderStatus.Accepted,
       OrderStatus.InProgress,
       OrderStatus.Ready,
+      OrderStatus.Completed,
+      'paid', // Include paid orders in active sessions for customer visibility
     ];
 
     const orders = await this.orderModel
@@ -451,8 +561,8 @@ export class PublicService {
         status: { $in: activeStatuses },
         // Include both paid and unpaid orders as they're part of the session
       })
-      .sort({ createdAt: 1 }) // Oldest first to show order sequence
-      .lean();
+      .sort({ createdAt: 1 }); // Oldest first to show order sequence
+      // Removed .lean() to fix selectedModifiers serialization issue
 
     if (!orders.length) {
       return null;
@@ -467,7 +577,7 @@ export class PublicService {
     sessionClosed: boolean = false
   ) {
     // Transform orders into public format
-    const sessionOrders = orders.map((order) => ({
+    const sessionOrders = await Promise.all(orders.map(async (order) => ({
       id: order._id.toString(),
       restaurantSlug,
       orderNumber: order.orderNumber,
@@ -490,13 +600,28 @@ export class PublicService {
       createdAt: order.createdAt,
       readyAt: order.readyAt,
       paidAt: order.paidAt,
-      items: order.items.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        pricing: item.pricing,
-        gst: item.gst,
+      items: await Promise.all(order.items.map(async (item) => {
+        // Get original menu item price if there's an active price tag
+        let originalPrice = item.pricing.unitAmount;
+        if (item.activePriceTagId) {
+          const menuItem = await this.itemModel.findById(item.menuItemId).lean();
+          if (menuItem) {
+            originalPrice = menuItem.pricing.amount;
+          }
+        }
+
+        return {
+          name: item.name,
+          quantity: item.quantity,
+          pricing: item.pricing,
+          originalPrice: originalPrice,
+          gst: item.gst,
+          activePriceTagId: item.activePriceTagId,
+          selectedModifiers: item.selectedModifiers,
+          notes: item.notes,
+        };
       })),
-    }));
+    })));
 
     // Calculate proper session-level tax using Smart GST
     let sessionTotals = {
@@ -545,18 +670,72 @@ export class PublicService {
         };
       }
     } catch (error) {
-      console.warn('Failed to calculate session tax, falling back to order totals:', error);
-      // Fallback to summing order totals if tax calculation fails
-      orders.forEach((order) => {
-        sessionTotals.subTotalAmount += order.subTotalAmount ?? order.totalAmount;
-        sessionTotals.taxAmount += order.taxAmount ?? 0;
-        sessionTotals.cgstAmount += order.cgstAmount ?? 0;
-        sessionTotals.sgstAmount += order.sgstAmount ?? 0;
-        sessionTotals.igstAmount += order.igstAmount ?? 0;
-        sessionTotals.discountAmount += order.discountAmount ?? 0;
-        sessionTotals.roundOffAmount += order.roundOffAmount ?? 0;
-        sessionTotals.totalAmount += order.totalAmount;
-      });
+      console.warn('Failed to calculate session tax, falling back to recalculation:', error);
+      // Fallback: If Smart GST fails, try recalculating taxes from scratch
+      try {
+        const consolidatedItems = [];
+        let hasValidItems = false;
+
+        for (const order of orders) {
+          for (const item of order.items) {
+            if (item.menuItemId && item.pricing?.unitAmount) {
+              consolidatedItems.push({
+                menuItemId: item.menuItemId.toString(),
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.pricing.unitAmount,
+                discountAmount: item.pricing.discountAmount || 0,
+              });
+              hasValidItems = true;
+            }
+          }
+        }
+
+        if (hasValidItems) {
+          // Retry with more robust error handling
+          const taxCalculation = await this.smartGstService.calculateOrderGst(
+            orders[0].restaurantId.toString(),
+            consolidatedItems,
+            orders[0].customerState
+          );
+
+          sessionTotals = {
+            subTotalAmount: taxCalculation.summary.subtotal,
+            taxAmount: taxCalculation.summary.totalTaxAmount,
+            cgstAmount: taxCalculation.summary.cgstAmount,
+            sgstAmount: taxCalculation.summary.sgstAmount,
+            igstAmount: taxCalculation.summary.igstAmount,
+            discountAmount: 0,
+            roundOffAmount: 0,
+            totalAmount: taxCalculation.summary.totalAmount,
+          };
+        } else {
+          // Final fallback to order totals
+          orders.forEach((order) => {
+            sessionTotals.subTotalAmount += order.subTotalAmount ?? order.totalAmount;
+            sessionTotals.taxAmount += order.taxAmount ?? 0;
+            sessionTotals.cgstAmount += order.cgstAmount ?? 0;
+            sessionTotals.sgstAmount += order.sgstAmount ?? 0;
+            sessionTotals.igstAmount += order.igstAmount ?? 0;
+            sessionTotals.discountAmount += order.discountAmount ?? 0;
+            sessionTotals.roundOffAmount += order.roundOffAmount ?? 0;
+            sessionTotals.totalAmount += order.totalAmount;
+          });
+        }
+      } catch (fallbackError) {
+        console.error('Complete tax calculation failure, using order totals:', fallbackError);
+        // Final fallback to order totals
+        orders.forEach((order) => {
+          sessionTotals.subTotalAmount += order.subTotalAmount ?? order.totalAmount;
+          sessionTotals.taxAmount += order.taxAmount ?? 0;
+          sessionTotals.cgstAmount += order.cgstAmount ?? 0;
+          sessionTotals.sgstAmount += order.sgstAmount ?? 0;
+          sessionTotals.igstAmount += order.igstAmount ?? 0;
+          sessionTotals.discountAmount += order.discountAmount ?? 0;
+          sessionTotals.roundOffAmount += order.roundOffAmount ?? 0;
+          sessionTotals.totalAmount += order.totalAmount;
+        });
+      }
     }
 
     return {
@@ -957,6 +1136,15 @@ export class PublicService {
         quantity: item.quantity,
         unitPrice: item.pricing.unitAmount,
         lineTotal: item.pricing.unitAmount * item.quantity,
+        activePriceTagId: item.activePriceTagId,
+        selectedModifiers: item.selectedModifiers?.map((modifier) => ({
+          modifierName: modifier.modifierName,
+          selectedOptions: modifier.selectedOptions.map((option) => ({
+            optionName: option.optionName,
+            priceAdjustment: option.priceAdjustment,
+          })),
+        })),
+        notes: item.notes,
       })),
       orderTotal: order.items.reduce((sum, item) =>
         sum + (item.pricing.unitAmount * item.quantity), 0),
