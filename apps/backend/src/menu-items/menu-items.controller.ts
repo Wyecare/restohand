@@ -29,6 +29,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
+// Subscription enforcement imports
+import { SubscriptionLimitGuard } from '../subscription-plans/guards/subscription-limit.guard';
+import { RequireMenuItemLimit } from '../subscription-plans/decorators/subscription-limit.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BranchPermissionsService } from '../users/branch-permissions.service';
 import { CreateMenuItemDto } from './dtos/create-menu-item.dto';
@@ -68,6 +71,8 @@ export class MenuItemsController {
   ) {}
 
   @Post()
+  @UseGuards(SubscriptionLimitGuard) // Add subscription limit guard
+  @RequireMenuItemLimit() // Require menu item limit check
   @ApiParam({ name: 'restaurantId' })
   @ApiCreatedResponse({ type: MenuItemResponseDto })
   async create(

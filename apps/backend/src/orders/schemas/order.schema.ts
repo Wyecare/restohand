@@ -291,3 +291,8 @@ OrderSchema.index({ branchId: 1, status: 1 });
 OrderSchema.index({ branchId: 1, createdAt: -1 });
 OrderSchema.index({ tableId: 1, status: 1 });
 OrderSchema.index({ tableId: 1, paymentStatus: 1 });
+
+// Session-related performance indexes
+OrderSchema.index({ customerSessionId: 1, restaurantId: 1 });
+OrderSchema.index({ restaurantId: 1, customerSessionId: 1, createdAt: -1 });
+OrderSchema.index({ customerSessionId: 1, paymentStatus: 1 });

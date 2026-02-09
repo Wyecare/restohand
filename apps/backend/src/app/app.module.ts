@@ -32,6 +32,7 @@ import { BranchesModule } from '../branches/branches.module';
 import { MigrationModule } from '../migrations/migration.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
+import { RestaurantSessionsModule } from '../restaurant-sessions/restaurant-sessions.module';
 import { PlansModule } from '../plans/plans.module';
 import { SuperAdminModule } from '../super-admin/super-admin.module';
 import { SeederModule } from '../database/seeders/seeder.module';
@@ -77,11 +78,12 @@ import { AppService } from './app.service';
     MigrationModule,
     WebhooksModule,
     CustomerSessionsModule,
+    RestaurantSessionsModule,
     PlansModule,
     SuperAdminModule,
     SeederModule,
     CashfreeModule,
-    SubscriptionPlansModule,
+    SubscriptionPlansModule.forRoot(), // Make global to avoid circular dependencies
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -49,6 +49,8 @@ import {
   useListOrdersByBranchQuery,
   useUpdateOrderStatusMutation,
   useUpdateOrderPaymentMutation,
+  useCreateSessionReceiptMutation,
+  useGenerateSessionReceiptQrMutation,
 } from '@/store/api/ordersApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
@@ -127,6 +129,8 @@ export default function OrdersPage() {
   const { data, isLoading, refetch } = useListOrdersByBranchQuery(queryArgs);
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateOrderPayment] = useUpdateOrderPaymentMutation();
+  const [createSessionReceipt] = useCreateSessionReceiptMutation();
+  const [generateSessionReceiptQr] = useGenerateSessionReceiptQrMutation();
 
   useOrdersSocket({ onEvent: refetch, enabled: !!restaurantId });
 
@@ -218,6 +222,49 @@ export default function OrdersPage() {
   const handleViewReceipt = (orderId: string) => {
     setSelectedOrderId(orderId);
     setReceiptModalOpen(true);
+  };
+
+  const handleSessionReceipt = async (order: Order) => {
+    if (!order.customerSessionId) {
+      toast({
+        title: 'Error',
+        description: 'No customer session found for this order',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!restaurantId) {
+      toast({
+        title: 'Error',
+        description: 'Restaurant ID not found',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const result = await generateSessionReceiptQr({
+        restaurantId,
+        customerSessionId: order.customerSessionId,
+        tableNumber: order.tableNumber,
+      }).unwrap();
+
+      // Open receipt URL in new tab
+      window.open(result.receiptUrl, '_blank');
+
+      toast({
+        title: 'Session Receipt Generated',
+        description: 'Session receipt has been opened in a new tab',
+      });
+    } catch (error) {
+      console.error('Session receipt error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate session receipt',
+        variant: 'destructive',
+      });
+    }
   };
 
   const orders = data?.data ?? [];
@@ -319,15 +366,28 @@ export default function OrdersPage() {
               </Button>
             )}
             {row.original.paymentStatus === 'paid' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleViewReceipt(row.original.id)}
-                className="flex items-center gap-1"
-              >
-                <Receipt className="h-3.5 w-3.5" />
-                View Receipt
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleViewReceipt(row.original.id)}
+                  className="flex items-center gap-1"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  View Receipt
+                </Button>
+                {row.original.customerSessionId && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => handleSessionReceipt(row.original)}
+                    className="flex items-center gap-1"
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    Session Receipt
+                  </Button>
+                )}
+              </>
             )}
             {row.original.status !== 'cancelled' &&
               row.original.status !== 'completed' &&
@@ -346,7 +406,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [handleStatusUpdate, handleMarkPaid, handleCancelOrder, handleViewReceipt]
+    [handleStatusUpdate, handleMarkPaid, handleCancelOrder, handleViewReceipt, handleSessionReceipt]
   );
 
   const table = useReactTable({

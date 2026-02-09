@@ -43,6 +43,10 @@ import {
   Shield,
   ChevronRight,
 } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
+
+const logoDark = '/logo_black.png';
+const logoWhite = '/logo_white.png';
 
 interface SubNavItem {
   titleKey: string;
@@ -105,6 +109,8 @@ export default function Sidebar() {
   const session = useAppSelector(selectAuthSession);
   const roles = useAppSelector(selectUserRoles);
   const { t } = useCommonTranslation();
+
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (isMobile) setOpenMobile(false);
@@ -250,29 +256,19 @@ export default function Sidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton className="hover:bg-transparent group-data-[collapsible=icon]:px-0!">
-              {/* Logo - always visible */}
-              <div className="flex-shrink-0">
-                <img
-                  src="/wyecare-logo.png"
-                  alt="Wyecare Solutions"
-                  className="size-8 object-contain"
-                />
-              </div>
-
               {/* Text - only visible when expanded */}
-              <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-                <span className="text-sm font-semibold text-foreground">
-                  Restohand POS
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  from Wyecare Solutions
-                </span>
+              <div className="flex flex-col group-data-[collapsible=icon]:hidden w-full ">
+                <img
+                  src={theme === 'light' ? logoDark : logoWhite}
+                  alt="RestoHand Logo"
+                  className="h-6 w-fit mx-auto"
+                />
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
           {/* Policy Links - only visible when expanded */}
-          <div className="group-data-[collapsible=icon]:hidden">
+          {/* <div className="group-data-[collapsible=icon]:hidden">
             <SidebarMenuItem>
               <div className="px-3 py-2 space-y-1">
                 <div className="flex flex-wrap gap-2 text-xs">
@@ -314,7 +310,7 @@ export default function Sidebar() {
                 </div>
               </div>
             </SidebarMenuItem>
-          </div>
+          </div> */}
         </SidebarMenu>
       </SidebarFooter>
     </SidebarContainer>

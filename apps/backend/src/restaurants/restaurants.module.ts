@@ -21,7 +21,7 @@ import { CashfreeModule } from '../payments/cashfree.module';
 @Module({
   imports: [
     AuthModule,
-    UsersModule,
+    forwardRef(() => UsersModule), // Break circular dependency with UsersModule
     GstModule,
     forwardRef(() => CashfreeModule),
     MongooseModule.forFeature([

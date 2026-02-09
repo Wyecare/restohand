@@ -26,7 +26,7 @@ export class SubscriptionPlansService {
         plan_name: createPlanDto.plan_name,
         plan_type: createPlanDto.plan_type,
         plan_currency: createPlanDto.plan_currency || 'INR',
-        plan_recurring_amount: createPlanDto.plan_recurring_amount,
+        plan_recurring_amount: createPlanDto.plan_amount,
         plan_max_amount: createPlanDto.plan_max_amount,
         plan_max_cycles: createPlanDto.plan_max_cycles,
         plan_intervals: createPlanDto.plan_intervals,
@@ -40,6 +40,13 @@ export class SubscriptionPlansService {
         description: createPlanDto.description,
         features: createPlanDto.features || [],
         is_popular: createPlanDto.is_popular || false,
+
+        // Business model required fields
+        usage_limits: createPlanDto.usage_limits,
+        pricing: createPlanDto.pricing,
+        feature_access: createPlanDto.feature_access,
+        target_market: createPlanDto.target_market,
+
         metadata: createPlanDto.metadata || {},
 
         // Audit fields
@@ -54,6 +61,12 @@ export class SubscriptionPlansService {
       // Use MongoDB ObjectId for unique Cashfree plan_id
       const uniquePlanId = `restohand_${savedPlan._id.toString()}`;
 
+      // DEBUG: Log the DTO values
+      this.logger.log(`DEBUG DTO Values:`);
+      this.logger.log(`createPlanDto.plan_amount: ${createPlanDto.plan_amount}`);
+      this.logger.log(`createPlanDto.plan_max_amount: ${createPlanDto.plan_max_amount}`);
+      this.logger.log(`createPlanDto.plan_type: ${createPlanDto.plan_type}`);
+
       // Prepare Cashfree plan data - Convert paisa to rupees for Cashfree
       const cashfreePlanData = {
         plan_id: uniquePlanId,
@@ -61,14 +74,15 @@ export class SubscriptionPlansService {
         plan_type: createPlanDto.plan_type,
         plan_max_amount: Math.round(createPlanDto.plan_max_amount / 100), // Convert paisa to rupees
         plan_currency: createPlanDto.plan_currency || 'INR',
-        ...(createPlanDto.plan_type === 'PERIODIC' && {
-          plan_recurring_amount: Math.round(createPlanDto.plan_recurring_amount / 100), // Convert paisa to rupees
-          plan_intervals: createPlanDto.plan_intervals,
-          plan_interval_type: createPlanDto.plan_interval_type,
-        }),
+        plan_recurring_amount: Math.round(createPlanDto.plan_amount / 100), // Convert paisa to rupees
+        plan_intervals: createPlanDto.plan_intervals,
+        plan_interval_type: createPlanDto.plan_interval_type,
         ...(createPlanDto.plan_max_cycles && { plan_max_cycles: createPlanDto.plan_max_cycles }),
-        ...(createPlanDto.plan_note && { plan_note: createPlanDto.plan_note }),
+        ...(createPlanDto.plan_note && { plan_note: createPlanDto.plan_note.replace(/[^\w\s.-]/g, ' ').trim() }),
       };
+
+      // DEBUG: Log the final cashfree data
+      this.logger.log(`DEBUG Final Cashfree Data: ${JSON.stringify(cashfreePlanData, null, 2)}`);
 
       // Create plan in Cashfree
       let cashfreeResponse;
@@ -214,164 +228,79 @@ export class SubscriptionPlansService {
 
   async getRecommendedTemplates() {
     return [
-      // BASIC PLAN - "STARTER"
+      // STARTER PLAN - ₹999/month + 2% transaction fee
       {
-        id: 'basic_monthly_starter',
-        name: 'Basic Starter (Monthly)',
-        plan_id: 'restohand_basic_starter_monthly',
-        plan_name: 'Basic Starter Monthly Plan',
+        id: 'starter_monthly',
+        name: 'Starter (Monthly)',
+        plan_id: 'restohand_starter_monthly',
+        plan_name: 'Restohand Starter Monthly Plan',
         plan_type: 'PERIODIC',
-        plan_recurring_amount: 59900, // ₹599
-        plan_max_amount: 59900,
+        plan_recurring_amount: 99900, // ₹999
+        plan_max_amount: 99900,
         plan_max_cycles: 12,
         plan_intervals: 1,
         plan_currency: 'INR',
         plan_interval_type: 'MONTH',
-        plan_note: 'Basic plan with essential QR dining features - Monthly billing at Rs 599. Perfect for small cafes and single-location restaurants.',
-        tier: 'basic',
-        display_name: 'Basic Starter',
-        description: 'Most affordable smart POS in market - Perfect for small cafes, single-location restaurants, street food vendors',
+        plan_note: 'Starter plan for small cafes and QSRs - ₹999/month + 2% transaction fee',
+        tier: 'starter',
+        display_name: 'Starter',
+        description: 'Perfect for small cafes, QSRs, and family restaurants (40-60 seats)',
         features: [
           'qr_menu_ordering',
           'digital_receipts',
           'basic_pos',
           'order_management',
-          'upi_card_payments',
-          'basic_reports',
-          'email_chat_support'
+          'real_time_analytics'
         ],
         is_popular: false,
+        usage_limits: {
+          max_branches: 1,
+          max_tables: 20,
+          max_staff: 5,
+          max_menu_items: 75
+        },
+        pricing: {
+          base_subscription_fee: 99900, // ₹999 in paisa
+          transaction_fee_percentage: 2.0,
+          currency: 'INR'
+        },
+        feature_access: {
+          qr_menu_ordering: true,
+          digital_receipts: true,
+          basic_pos: true,
+          order_management: true,
+          real_time_analytics: true,
+          advanced_analytics: false,
+          customer_crm: false,
+          inventory_management: false,
+          multi_location_management: false,
+          priority_support: false,
+          custom_integrations: false,
+          api_access: false,
+          white_label_options: false
+        },
+        target_market: {
+          segment: 'Small cafes, QSRs, family restaurants',
+          ideal_size: '40-60 seats',
+          use_cases: [
+            'QR-based self-ordering',
+            'Digital payment acceptance',
+            'Basic order management',
+            'E-receipts',
+            'Real-time order tracking'
+          ]
+        },
         metadata: {
-          max_locations: 1,
-          max_tables: 15,
-          max_staff: 3,
-          max_monthly_orders: 500,
-          target_segment: 'Small cafes, street food vendors',
-          key_benefit: '50% cheaper than competitors'
+          target_segment: 'Small cafes, QSRs, family restaurants',
+          key_benefit: 'Complete POS + QR ordering solution'
         }
       },
+      // PROFESSIONAL PLAN - ₹2,999/month + 2% transaction fee ⭐ MOST POPULAR
       {
-        id: 'basic_annual_starter',
-        name: 'Basic Starter (Annual)',
-        plan_id: 'restohand_basic_starter_annual',
-        plan_name: 'Basic Starter Annual Plan',
-        plan_type: 'PERIODIC',
-        plan_recurring_amount: 499900, // ₹4,999 (30% discount)
-        plan_max_amount: 499900,
-        plan_max_cycles: 5,
-        plan_intervals: 1,
-        plan_currency: 'INR',
-        plan_interval_type: 'YEAR',
-        plan_note: 'Basic plan with annual billing - Save 30% at Rs 4999 per year. Perfect for cost-conscious small restaurants.',
-        tier: 'basic',
-        display_name: 'Basic Starter (Annual - Save 30%)',
-        description: 'Annual savings on basic features - Perfect for budget-conscious small restaurants',
-        features: [
-          'qr_menu_ordering',
-          'digital_receipts',
-          'basic_pos',
-          'order_management',
-          'upi_card_payments',
-          'basic_reports',
-          'email_chat_support'
-        ],
-        is_popular: false,
-        metadata: {
-          max_locations: 1,
-          max_tables: 15,
-          max_staff: 3,
-          max_monthly_orders: 500,
-          savings_percent: 30,
-          target_segment: 'Budget-conscious small restaurants'
-        }
-      },
-
-      // PROFESSIONAL PLAN - "GROWTH" ⭐ MOST POPULAR
-      {
-        id: 'professional_monthly_growth',
-        name: 'Professional Growth (Monthly)',
-        plan_id: 'restohand_professional_growth_monthly',
-        plan_name: 'Professional Growth Monthly Plan',
-        plan_type: 'PERIODIC',
-        plan_recurring_amount: 149900, // ₹1,499
-        plan_max_amount: 149900,
-        plan_max_cycles: 12,
-        plan_intervals: 1,
-        plan_currency: 'INR',
-        plan_interval_type: 'MONTH',
-        plan_note: 'Professional plan with advanced features - Monthly billing at Rs 1499. Best value for scaling businesses with multi-location support.',
-        tier: 'professional',
-        display_name: 'Professional Growth',
-        description: 'Best value for scaling businesses - Growing restaurants, multi-location chains, QSRs',
-        features: [
-          'unlimited_orders',
-          'advanced_analytics',
-          'inventory_management',
-          'staff_management',
-          'kitchen_display_system',
-          'multi_location_dashboard',
-          'whatsapp_integration',
-          'zomato_swiggy_sync',
-          'customer_database',
-          'marketing_tools',
-          'priority_phone_support'
-        ],
-        is_popular: true,
-        metadata: {
-          max_locations: 5,
-          max_tables: 100,
-          max_staff: 15,
-          max_monthly_orders: -1, // unlimited
-          target_segment: 'Growing restaurants, multi-location chains',
-          key_benefit: '85% cheaper than competitors + delivery platform integration'
-        }
-      },
-      {
-        id: 'professional_annual_growth',
-        name: 'Professional Growth (Annual)',
-        plan_id: 'restohand_professional_growth_annual',
-        plan_name: 'Professional Growth Annual Plan',
-        plan_type: 'PERIODIC',
-        plan_recurring_amount: 1249900, // ₹12,499 (31% discount)
-        plan_max_amount: 1249900,
-        plan_max_cycles: 5,
-        plan_intervals: 1,
-        plan_currency: 'INR',
-        plan_interval_type: 'YEAR',
-        plan_note: 'Professional plan with annual billing - Save 31% at Rs 12499 per year. Best value for professional features with annual savings.',
-        tier: 'professional',
-        display_name: 'Professional Growth (Annual - Save 31%)',
-        description: 'Best value annually - Professional features with significant annual savings',
-        features: [
-          'unlimited_orders',
-          'advanced_analytics',
-          'inventory_management',
-          'staff_management',
-          'kitchen_display_system',
-          'multi_location_dashboard',
-          'whatsapp_integration',
-          'zomato_swiggy_sync',
-          'customer_database',
-          'marketing_tools',
-          'priority_phone_support'
-        ],
-        is_popular: true,
-        metadata: {
-          max_locations: 5,
-          max_tables: 100,
-          max_staff: 15,
-          max_monthly_orders: -1, // unlimited
-          savings_percent: 31,
-          target_segment: 'Cost-conscious scaling businesses'
-        }
-      },
-
-      // ENTERPRISE PLAN - "SCALE"
-      {
-        id: 'enterprise_monthly_scale',
-        name: 'Enterprise Scale (Monthly)',
-        plan_id: 'restohand_enterprise_scale_monthly',
-        plan_name: 'Enterprise Scale Monthly Plan',
+        id: 'professional_monthly',
+        name: 'Professional (Monthly)',
+        plan_id: 'restohand_professional_monthly',
+        plan_name: 'Restohand Professional Monthly Plan',
         plan_type: 'PERIODIC',
         plan_recurring_amount: 299900, // ₹2,999
         plan_max_amount: 299900,
@@ -379,77 +308,211 @@ export class SubscriptionPlansService {
         plan_intervals: 1,
         plan_currency: 'INR',
         plan_interval_type: 'MONTH',
-        plan_note: 'Enterprise plan with complete restaurant tech stack - Monthly billing at Rs 2999. Perfect for large restaurant chains and hotels.',
-        tier: 'enterprise',
-        display_name: 'Enterprise Scale',
-        description: 'Complete restaurant tech stack - Large restaurant chains, fine dining, hotels',
+        plan_note: 'Professional plan for growing restaurants - ₹2,999/month + 2% transaction fee',
+        tier: 'professional',
+        display_name: 'Professional',
+        description: 'Best for multi-location chains and mid-size restaurants (100-130 seats)',
         features: [
-          'unlimited_everything',
-          'advanced_inventory_multi_location',
-          'franchise_management',
-          'custom_api_integrations',
-          'advanced_reports_bi',
-          'customer_loyalty_program',
-          'table_reservation_system',
-          'recipe_cost_management',
-          'procurement_vendor_management',
-          'predictive_analytics',
-          'dedicated_account_manager',
-          '24x7_phone_support',
-          'custom_white_label_branding'
+          'qr_menu_ordering',
+          'digital_receipts',
+          'basic_pos',
+          'order_management',
+          'real_time_analytics',
+          'advanced_analytics',
+          'customer_crm',
+          'inventory_management',
+          'multi_location_management'
         ],
-        is_popular: false,
+        is_popular: true,
+        usage_limits: {
+          max_branches: 3,
+          max_tables: 50,
+          max_staff: 15,
+          max_menu_items: 200
+        },
+        pricing: {
+          base_subscription_fee: 299900, // ₹2,999 in paisa
+          transaction_fee_percentage: 2.0,
+          currency: 'INR'
+        },
+        feature_access: {
+          qr_menu_ordering: true,
+          digital_receipts: true,
+          basic_pos: true,
+          order_management: true,
+          real_time_analytics: true,
+          advanced_analytics: true,
+          customer_crm: true,
+          inventory_management: true,
+          multi_location_management: true,
+          priority_support: true,
+          custom_integrations: false,
+          api_access: false,
+          white_label_options: false
+        },
+        target_market: {
+          segment: 'Multi-location chains, mid-size restaurants',
+          ideal_size: '100-130 seats',
+          use_cases: [
+            'Multi-branch management',
+            'Advanced analytics & reports',
+            'Customer relationship management',
+            'Inventory tracking',
+            'Priority customer support'
+          ]
+        },
         metadata: {
-          max_locations: -1, // unlimited
-          max_tables: -1, // unlimited
-          max_staff: -1, // unlimited
-          max_monthly_orders: -1, // unlimited
-          target_segment: 'Large chains, fine dining, hotels',
-          key_benefit: '75% cheaper than enterprise solutions'
+          target_segment: 'Multi-location chains, mid-size restaurants',
+          key_benefit: 'Complete business management solution'
         }
       },
+      // ENTERPRISE PLAN - ₹5,999/month + 2% transaction fee
       {
-        id: 'enterprise_annual_scale',
-        name: 'Enterprise Scale (Annual)',
-        plan_id: 'restohand_enterprise_scale_annual',
-        plan_name: 'Enterprise Scale Annual Plan',
+        id: 'enterprise_monthly',
+        name: 'Enterprise (Monthly)',
+        plan_id: 'restohand_enterprise_monthly',
+        plan_name: 'Restohand Enterprise Monthly Plan',
         plan_type: 'PERIODIC',
-        plan_recurring_amount: 2499900, // ₹24,999 (31% discount)
-        plan_max_amount: 2499900,
-        plan_max_cycles: 5,
+        plan_recurring_amount: 599900, // ₹5,999
+        plan_max_amount: 599900,
+        plan_max_cycles: 12,
         plan_intervals: 1,
         plan_currency: 'INR',
-        plan_interval_type: 'YEAR',
-        plan_note: 'Enterprise plan with annual billing - Save 31% at Rs 24999 per year. Complete solution for large restaurant operations.',
+        plan_interval_type: 'MONTH',
+        plan_note: 'Enterprise plan for large chains and franchises - ₹5,999/month + 2% transaction fee',
         tier: 'enterprise',
-        display_name: 'Enterprise Scale (Annual - Save 31%)',
-        description: 'Complete enterprise solution with annual savings - Maximum value for large operations',
+        display_name: 'Enterprise',
+        description: 'For large chains, fine dining groups, and franchises',
         features: [
-          'unlimited_everything',
-          'advanced_inventory_multi_location',
-          'franchise_management',
-          'custom_api_integrations',
-          'advanced_reports_bi',
-          'customer_loyalty_program',
-          'table_reservation_system',
-          'recipe_cost_management',
-          'procurement_vendor_management',
-          'predictive_analytics',
-          'dedicated_account_manager',
-          '24x7_phone_support',
-          'custom_white_label_branding'
+          'qr_menu_ordering',
+          'digital_receipts',
+          'basic_pos',
+          'order_management',
+          'real_time_analytics',
+          'advanced_analytics',
+          'customer_crm',
+          'inventory_management',
+          'multi_location_management',
+          'custom_integrations',
+          'api_access',
+          'white_label_options'
         ],
         is_popular: false,
+        usage_limits: {
+          max_branches: -1, // Unlimited
+          max_tables: -1, // Unlimited
+          max_staff: -1, // Unlimited
+          max_menu_items: -1 // Unlimited
+        },
+        pricing: {
+          base_subscription_fee: 599900, // ₹5,999 in paisa
+          transaction_fee_percentage: 2.0,
+          currency: 'INR'
+        },
+        feature_access: {
+          qr_menu_ordering: true,
+          digital_receipts: true,
+          basic_pos: true,
+          order_management: true,
+          real_time_analytics: true,
+          advanced_analytics: true,
+          customer_crm: true,
+          inventory_management: true,
+          multi_location_management: true,
+          priority_support: true,
+          custom_integrations: true,
+          api_access: true,
+          white_label_options: true
+        },
+        target_market: {
+          segment: 'Large chains, fine dining groups, franchises',
+          ideal_size: 'Unlimited locations',
+          use_cases: [
+            'Franchise management',
+            'White-label solutions',
+            'Custom API integrations',
+            'Advanced business intelligence',
+            'Dedicated account management'
+          ]
+        },
         metadata: {
-          max_locations: -1, // unlimited
-          max_tables: -1, // unlimited
-          max_staff: -1, // unlimited
-          max_monthly_orders: -1, // unlimited
-          savings_percent: 31,
-          target_segment: 'Enterprise with annual commitment'
+          target_segment: 'Large chains, fine dining groups, franchises',
+          key_benefit: 'Enterprise-grade solution with unlimited scalability'
         }
       }
     ];
+  }
+
+  async createPlanLegacy(planData: any) {
+    try {
+      // Create plan in Cashfree first
+      const cashfreeData = {
+        plan_id: planData.plan_name, // Use plan_name as the ID
+        plan_name: planData.plan_name,
+        plan_type: planData.plan_type,
+        plan_amount: planData.plan_amount,
+        plan_max_amount: planData.plan_max_amount,
+        plan_max_cycles: planData.plan_max_cycles,
+        plan_intervals: planData.plan_intervals,
+        plan_currency: planData.plan_currency,
+        plan_interval_type: planData.plan_interval_type,
+        plan_note: planData.plan_note || '',
+      };
+
+      // Create plan in Cashfree
+      const cashfreePlan = await this.cashfreeService.createSubscriptionPlan(cashfreeData);
+
+      // Create plan in our database with business model fields
+      const newPlan = new this.subscriptionPlanModel({
+        // Core Cashfree fields
+        cashfree_plan_id: cashfreePlan.plan_id,
+        plan_name: planData.plan_name,
+        plan_type: planData.plan_type,
+        plan_recurring_amount: planData.plan_amount,
+        plan_max_amount: planData.plan_max_amount,
+        plan_max_cycles: planData.plan_max_cycles,
+        plan_intervals: planData.plan_intervals,
+        plan_currency: planData.plan_currency,
+        plan_interval_type: planData.plan_interval_type,
+        plan_note: planData.plan_note || '',
+        plan_status: 'ACTIVE',
+        is_active: true,
+
+        // Business Model fields
+        tier: planData.tier,
+        display_name: planData.display_name,
+        description: planData.description,
+        features: planData.features,
+        is_popular: planData.is_popular || false,
+        usage_limits: planData.usage_limits,
+        pricing: planData.pricing,
+        feature_access: planData.feature_access,
+        target_market: planData.target_market,
+
+        // Legacy metadata for backward compatibility
+        plan_metadata: planData.plan_metadata || {
+          tier: planData.tier,
+          features: planData.features?.join(','),
+          display_name: planData.display_name,
+          is_popular: planData.is_popular || false
+        },
+
+        // Tracking fields
+        created_at: new Date(),
+        updated_at: new Date(),
+        cashfree_sync_status: 'SYNCED',
+        last_synced_at: new Date()
+      });
+
+      const savedPlan = await newPlan.save();
+
+      this.logger.log(`Created new business model subscription plan: ${savedPlan.cashfree_plan_id}`);
+
+      return savedPlan;
+    } catch (error) {
+      this.logger.error(`Failed to create subscription plan: ${error.message}`);
+      throw error;
+    }
   }
 
   async getPlansByTier(tier: string): Promise<SubscriptionPlan[]> {

@@ -16,17 +16,55 @@ export interface CashfreePlan {
   plan_note?: string;
   plan_status: string;
 
-  // Our custom business fields
-  tier?: string;
-  display_name?: string;
+  // Business Model Fields
+  tier: 'starter' | 'professional' | 'enterprise';
+  display_name: string;
   description?: string;
   features?: string[];
   is_popular?: boolean;
+
+  // Business Model Usage Limits
+  usage_limits: {
+    max_branches: number; // 1, 3, -1 (unlimited)
+    max_tables: number; // 20, 50, -1 (unlimited)
+    max_staff: number; // 5, 15, -1 (unlimited)
+    max_menu_items: number; // 75, 200, -1 (unlimited)
+    max_monthly_orders?: number; // Optional limit for orders per month
+  };
+
+  // Business Model Pricing Structure
+  pricing: {
+    base_subscription_fee: number; // Monthly fee in paisa (99900, 299900, 599900)
+    transaction_fee_percentage: number; // Always 2.0 for all plans
+    currency: string; // INR
+  };
+
+  // Feature Gates per Plan
+  feature_access: {
+    qr_menu_ordering: boolean;
+    digital_receipts: boolean;
+    basic_pos: boolean;
+    order_management: boolean;
+    real_time_analytics: boolean;
+    advanced_analytics?: boolean;
+    customer_crm?: boolean;
+    inventory_management?: boolean;
+    multi_location_management?: boolean;
+    priority_support?: boolean;
+    custom_integrations?: boolean;
+    api_access?: boolean;
+    white_label_options?: boolean;
+  };
+
+  // Target Market Information
+  target_market?: {
+    segment: string; // 'Small cafes, QSRs, family restaurants'
+    ideal_size: string; // '40-60 seats'
+    use_cases: string[];
+  };
+
+  // Legacy metadata for backward compatibility
   metadata?: {
-    max_locations?: number;
-    max_tables?: number;
-    max_staff?: number;
-    max_monthly_orders?: number;
     target_segment?: string;
     key_benefit?: string;
     savings_percent?: number;
@@ -62,6 +100,55 @@ export interface CreateCashfreePlanRequest {
   plan_currency: string;
   plan_interval_type: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
   plan_note?: string;
+
+  // Business Model Required Fields
+  tier: 'starter' | 'professional' | 'enterprise';
+  display_name: string;
+  description?: string;
+  features?: string[];
+  is_popular?: boolean;
+
+  // Business Model Usage Limits
+  usage_limits: {
+    max_branches: number;
+    max_tables: number;
+    max_staff: number;
+    max_menu_items: number;
+    max_monthly_orders?: number;
+  };
+
+  // Business Model Pricing Structure
+  pricing: {
+    base_subscription_fee: number;
+    transaction_fee_percentage: number;
+    currency: string;
+  };
+
+  // Feature Gates per Plan
+  feature_access: {
+    qr_menu_ordering: boolean;
+    digital_receipts: boolean;
+    basic_pos: boolean;
+    order_management: boolean;
+    real_time_analytics: boolean;
+    advanced_analytics?: boolean;
+    customer_crm?: boolean;
+    inventory_management?: boolean;
+    multi_location_management?: boolean;
+    priority_support?: boolean;
+    custom_integrations?: boolean;
+    api_access?: boolean;
+    white_label_options?: boolean;
+  };
+
+  // Target Market Information
+  target_market?: {
+    segment: string;
+    ideal_size: string;
+    use_cases: string[];
+  };
+
+  // Legacy for backward compatibility
   plan_metadata?: {
     tier?: string;
     features?: string;

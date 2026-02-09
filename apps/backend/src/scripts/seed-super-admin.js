@@ -3,22 +3,26 @@ const bcrypt = require('bcryptjs');
 
 // Connect to MongoDB
 async function connectDB() {
-  const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/restohand';
-  await mongoose.connect(mongoUri);
+  const mongoUri =
+    'mongodb+srv://restohand:9iNhZn9o4QNPZMYp@cluster0.glldpcp.mongodb.net/?appName=Cluster0';
+  await mongoose.connect(mongoUri, { dbName: 'restohand' });
   console.log('Connected to MongoDB');
 }
 
 // User Schema (simplified)
-const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  password: { type: String, required: true },
-  roles: [{ type: String }],
-  restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant' },
-  isActive: { type: Boolean, default: true },
-  emailVerified: { type: Boolean, default: false },
-  phoneVerified: { type: Boolean, default: false },
-}, { timestamps: true });
+const userSchema = new mongoose.Schema(
+  {
+    email: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    password: { type: String, required: true },
+    roles: [{ type: String }],
+    restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant' },
+    isActive: { type: Boolean, default: true },
+    emailVerified: { type: Boolean, default: false },
+    phoneVerified: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
 
 const User = mongoose.model('User', userSchema);
 
@@ -28,14 +32,14 @@ async function seedSuperAdmins() {
       email: 'admin@restohand.com',
       name: 'Super Admin',
       password: 'testing@123',
-      roles: ['super_admin']
+      roles: ['super_admin'],
     },
     {
       email: 'anandhu@restohand.com',
       name: 'Anandhu Satheesh',
       password: 'testing@123',
-      roles: ['super_admin']
-    }
+      roles: ['super_admin'],
+    },
   ];
 
   for (const adminData of superAdmins) {
@@ -62,12 +66,14 @@ async function seedSuperAdmins() {
         emailVerified: true,
         phoneVerified: false,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
       console.log(`✅ Super admin created: ${adminData.email}`);
-
     } catch (error) {
-      console.error(`❌ Failed to create super admin ${adminData.email}:`, error.message);
+      console.error(
+        `❌ Failed to create super admin ${adminData.email}:`,
+        error.message
+      );
     }
   }
 
@@ -82,7 +88,7 @@ async function main() {
     // First, remove existing super admins to fix password field issue
     console.log('🗑️ Removing existing super admins...');
     const deleteResult = await User.deleteMany({
-      roles: { $in: ['super_admin'] }
+      roles: { $in: ['super_admin'] },
     });
     console.log(`Removed ${deleteResult.deletedCount} existing super admins`);
 

@@ -78,6 +78,55 @@ const createPlanSchema = z.object({
   plan_currency: z.string().default('INR'),
   plan_interval_type: z.enum(['DAY', 'WEEK', 'MONTH', 'YEAR']),
   plan_note: z.string().optional(),
+
+  // Business Model Required Fields
+  tier: z.enum(['starter', 'professional', 'enterprise']),
+  display_name: z.string().min(1, 'Display name is required'),
+  description: z.string().optional(),
+  features: z.array(z.string()).default([]),
+  is_popular: z.boolean().default(false),
+
+  // Business Model Usage Limits
+  usage_limits: z.object({
+    max_branches: z.number().min(-1),
+    max_tables: z.number().min(-1),
+    max_staff: z.number().min(-1),
+    max_menu_items: z.number().min(-1),
+    max_monthly_orders: z.number().optional(),
+  }),
+
+  // Business Model Pricing Structure
+  pricing: z.object({
+    base_subscription_fee: z.number().min(1),
+    transaction_fee_percentage: z.number().min(0).max(100),
+    currency: z.string().default('INR'),
+  }),
+
+  // Feature Gates per Plan
+  feature_access: z.object({
+    qr_menu_ordering: z.boolean().default(true),
+    digital_receipts: z.boolean().default(true),
+    basic_pos: z.boolean().default(true),
+    order_management: z.boolean().default(true),
+    real_time_analytics: z.boolean().default(true),
+    advanced_analytics: z.boolean().default(false),
+    customer_crm: z.boolean().default(false),
+    inventory_management: z.boolean().default(false),
+    multi_location_management: z.boolean().default(false),
+    priority_support: z.boolean().default(false),
+    custom_integrations: z.boolean().default(false),
+    api_access: z.boolean().default(false),
+    white_label_options: z.boolean().default(false),
+  }),
+
+  // Target Market Information
+  target_market: z.object({
+    segment: z.string(),
+    ideal_size: z.string(),
+    use_cases: z.array(z.string()),
+  }).optional(),
+
+  // Legacy for backward compatibility
   plan_metadata: z
     .object({
       tier: z.string().optional(),
@@ -142,6 +191,35 @@ const SubscriptionPlansPage: React.FC = () => {
       plan_interval_type: 'MONTH',
       plan_intervals: 1,
       plan_max_cycles: 12,
+      tier: 'starter',
+      display_name: '',
+      is_popular: false,
+      usage_limits: {
+        max_branches: 1,
+        max_tables: 20,
+        max_staff: 5,
+        max_menu_items: 75,
+      },
+      pricing: {
+        base_subscription_fee: 99900, // ₹999 in paisa
+        transaction_fee_percentage: 2.0,
+        currency: 'INR',
+      },
+      feature_access: {
+        qr_menu_ordering: true,
+        digital_receipts: true,
+        basic_pos: true,
+        order_management: true,
+        real_time_analytics: true,
+        advanced_analytics: false,
+        customer_crm: false,
+        inventory_management: false,
+        multi_location_management: false,
+        priority_support: false,
+        custom_integrations: false,
+        api_access: false,
+        white_label_options: false,
+      },
     },
   });
 
@@ -183,10 +261,46 @@ const SubscriptionPlansPage: React.FC = () => {
       plan_currency: template.plan_currency,
       plan_interval_type: template.plan_interval_type,
       plan_note: template.plan_note,
+
+      // Business Model Fields
+      tier: template.tier,
+      display_name: template.display_name,
+      description: template.description,
+      features: template.features || [],
+      is_popular: template.is_popular || false,
+      usage_limits: template.usage_limits || {
+        max_branches: 1,
+        max_tables: 20,
+        max_staff: 5,
+        max_menu_items: 75,
+      },
+      pricing: template.pricing || {
+        base_subscription_fee: 99900,
+        transaction_fee_percentage: 2.0,
+        currency: 'INR',
+      },
+      feature_access: template.feature_access || {
+        qr_menu_ordering: true,
+        digital_receipts: true,
+        basic_pos: true,
+        order_management: true,
+        real_time_analytics: true,
+        advanced_analytics: false,
+        customer_crm: false,
+        inventory_management: false,
+        multi_location_management: false,
+        priority_support: false,
+        custom_integrations: false,
+        api_access: false,
+        white_label_options: false,
+      },
+      target_market: template.target_market,
+
+      // Legacy for backward compatibility
       plan_metadata: {
         tier: template.tier,
         features: template.features?.join(','),
-        display_name: template?.display_name,
+        display_name: template.display_name,
         is_popular: template.is_popular,
       },
     });
@@ -851,12 +965,66 @@ const SubscriptionPlansPage: React.FC = () => {
                   </div>
                   <div className="flex items-center">
                     <DollarSign className="mr-2 h-4 w-4" />
-                    <span className="font-medium">Max Amount:</span>
+                    <span className="font-medium">Transaction Fee:</span>
                     <span className="ml-auto">
-                      {formatCurrency(plan.plan_max_amount / 100)}
+                      {plan.pricing?.transaction_fee_percentage || 2}%
                     </span>
                   </div>
                 </div>
+
+                {/* Business Model Usage Limits */}
+                {plan.usage_limits && (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="text-sm font-medium mb-2">Usage Limits:</div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex justify-between">
+                        <span>Branches:</span>
+                        <span className="font-mono">
+                          {plan.usage_limits.max_branches === -1 ? '∞' : plan.usage_limits.max_branches}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tables:</span>
+                        <span className="font-mono">
+                          {plan.usage_limits.max_tables === -1 ? '∞' : plan.usage_limits.max_tables}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Staff:</span>
+                        <span className="font-mono">
+                          {plan.usage_limits.max_staff === -1 ? '∞' : plan.usage_limits.max_staff}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Menu Items:</span>
+                        <span className="font-mono">
+                          {plan.usage_limits.max_menu_items === -1 ? '∞' : plan.usage_limits.max_menu_items}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Business Model Pricing */}
+                {plan.pricing && (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="text-sm font-medium mb-2">Pricing Structure:</div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span>Base Subscription:</span>
+                        <span className="font-mono">
+                          {formatCurrency(plan.pricing.base_subscription_fee / 100)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Transaction Fee:</span>
+                        <span className="font-mono text-green-600">
+                          {plan.pricing.transaction_fee_percentage}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {(plan.features || plan.plan_metadata?.features) && (
                   <div>

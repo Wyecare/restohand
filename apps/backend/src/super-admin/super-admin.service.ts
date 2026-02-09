@@ -9,6 +9,7 @@ import { CreateSuperAdminDto } from './dtos/create-super-admin.dto';
 import { CreateCashfreePlanDto } from './dtos/create-cashfree-plan.dto';
 import { UpdateCashfreePlanDto } from './dtos/update-cashfree-plan.dto';
 import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
+import { CreateSubscriptionPlanDto } from '../subscription-plans/dtos/create-subscription-plan.dto';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -397,12 +398,11 @@ export class SuperAdminService {
 
   async createCashfreeSubscriptionPlan(createPlanDto: CreateCashfreePlanDto, adminId: string) {
     try {
-      // Convert the DTO to match our service's expected format
-      const planData = {
-        plan_id: createPlanDto.plan_name.toLowerCase().replace(/[^a-z0-9]/g, '_'), // Generate plan_id from name
+      // Convert CreateCashfreePlanDto to CreateSubscriptionPlanDto format
+      const subscriptionPlanDto = {
         plan_name: createPlanDto.plan_name,
         plan_type: createPlanDto.plan_type,
-        plan_recurring_amount: createPlanDto.plan_amount,
+        plan_amount: createPlanDto.plan_amount, // Keep same field name
         plan_max_amount: createPlanDto.plan_max_amount,
         plan_max_cycles: createPlanDto.plan_max_cycles,
         plan_intervals: createPlanDto.plan_intervals,
@@ -410,16 +410,21 @@ export class SuperAdminService {
         plan_interval_type: createPlanDto.plan_interval_type,
         plan_note: createPlanDto.plan_note,
 
-        // Our custom fields
-        tier: createPlanDto.plan_metadata?.tier,
-        display_name: createPlanDto.plan_metadata?.display_name || createPlanDto.plan_name,
-        description: createPlanDto.plan_note,
-        features: createPlanDto.plan_metadata?.features ? createPlanDto.plan_metadata.features.split(',') : [],
-        is_popular: createPlanDto.plan_metadata?.is_popular || false,
-        metadata: createPlanDto.plan_metadata
+        // Business model fields
+        tier: createPlanDto.tier,
+        display_name: createPlanDto.display_name,
+        description: createPlanDto.description,
+        features: createPlanDto.features,
+        is_popular: createPlanDto.is_popular,
+        usage_limits: createPlanDto.usage_limits,
+        pricing: createPlanDto.pricing,
+        feature_access: createPlanDto.feature_access,
+        target_market: createPlanDto.target_market,
+        metadata: createPlanDto.plan_metadata,
       };
 
-      const response = await this.subscriptionPlansService.createPlan(planData, adminId);
+      // Use the subscription plans service with proper DTO and adminId
+      const response = await this.subscriptionPlansService.createPlan(subscriptionPlanDto as CreateSubscriptionPlanDto, adminId);
       this.logger.log(`Subscription plan created: ${response._id} by admin ${adminId}`);
       return response;
     } catch (error) {

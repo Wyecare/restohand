@@ -442,6 +442,19 @@ export class OrdersService {
     return this.toDto(order);
   }
 
+  async findOrdersByCustomerSession(
+    restaurantId: string,
+    customerSessionId: string
+  ): Promise<OrderResponseDto[]> {
+    const orders = await this.orderModel.find({
+      restaurantId,
+      customerSessionId,
+      isArchived: false,
+    }).sort({ createdAt: -1 });
+
+    return orders.map((order) => this.toDto(order));
+  }
+
   async registerPaymentIntent(
     restaurantId: string,
     orderId: string,

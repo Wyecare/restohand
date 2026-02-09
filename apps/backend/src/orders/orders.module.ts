@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from '../auth/auth.module';
@@ -62,8 +62,8 @@ import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
       }),
     }),
     GstModule,
-    RestaurantsModule,
-    RestaurantTablesModule,
+    forwardRef(() => RestaurantsModule), // Break circular dependency
+    forwardRef(() => RestaurantTablesModule), // Break circular dependency
     CallWaiterModule,
     SubscriptionsModule,
     MenuPriceTagsModule,

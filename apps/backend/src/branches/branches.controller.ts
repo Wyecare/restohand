@@ -20,6 +20,9 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { BranchPermissionsService } from '../users/branch-permissions.service';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+// Subscription enforcement imports
+import { SubscriptionLimitGuard } from '../subscription-plans/guards/subscription-limit.guard';
+import { RequireBranchLimit } from '../subscription-plans/decorators/subscription-limit.decorator';
 
 @ApiTags('Branches')
 @ApiBearerAuth()
@@ -32,6 +35,8 @@ export class BranchesController {
   ) {}
 
   @Post()
+  @UseGuards(SubscriptionLimitGuard) // Add subscription limit guard
+  @RequireBranchLimit() // Require branch limit check
   @Roles(UserRole.Owner, UserRole.Manager)
   @ApiOperation({ summary: 'Create a new branch' })
   @ApiResponse({ status: 201, description: 'Branch created successfully' })

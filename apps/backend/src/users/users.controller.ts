@@ -15,6 +15,9 @@ import { Request } from 'express';
 import { ApiOkResponse, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+// Subscription enforcement imports
+import { SubscriptionLimitGuard } from '../subscription-plans/guards/subscription-limit.guard';
+import { RequireStaffLimit } from '../subscription-plans/decorators/subscription-limit.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { UsersService } from './users.service';
@@ -52,6 +55,8 @@ export class UsersController {
 
   // QR Code generation (NEW PRIMARY METHOD)
   @Post('generate-qr')
+  @UseGuards(SubscriptionLimitGuard) // Add subscription limit guard
+  @RequireStaffLimit() // Require staff limit check
   @ApiOperation({ summary: 'Generate QR code for staff signup' })
   @ApiOkResponse({ type: StaffQrResponseDto })
   generateQr(@Req() req: Request, @Body() body: GenerateStaffQrDto) {
@@ -60,6 +65,8 @@ export class UsersController {
 
   // Staff invitation endpoints
   @Post('invitations')
+  @UseGuards(SubscriptionLimitGuard) // Add subscription limit guard
+  @RequireStaffLimit() // Require staff limit check
   @ApiOperation({ summary: 'Create a new staff invitation' })
   @ApiOkResponse({ type: StaffInvitationResponseDto })
   createInvitation(@Req() req: Request, @Body() body: CreateStaffInvitationDto) {
@@ -85,6 +92,8 @@ export class UsersController {
 
   // Legacy PIN-based invitation (keep for backward compatibility)
   @Post('legacy-invite')
+  @UseGuards(SubscriptionLimitGuard) // Add subscription limit guard
+  @RequireStaffLimit() // Require staff limit check
   @ApiOperation({ summary: '[LEGACY] Invite a staff member via OTP/PIN' })
   @ApiOkResponse({ type: StaffInviteResponseDto })
   legacyInvite(@Req() req: Request, @Body() body: InviteStaffRequestDto) {

@@ -10,7 +10,12 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import { SuperAdminService } from './super-admin.service';
@@ -51,7 +56,10 @@ export class SuperAdminController {
 
   @Get('settlements/history')
   @ApiOperation({ summary: 'Get settlement history' })
-  async getSettlementHistory(@Query('page') page = 1, @Query('limit') limit = 50) {
+  async getSettlementHistory(
+    @Query('page') page = 1,
+    @Query('limit') limit = 50
+  ) {
     return this.superAdminService.getSettlementHistory(+page, +limit);
   }
 
@@ -121,8 +129,14 @@ export class SuperAdminController {
     @Param('cashfreePlanId') cashfreePlanId: string,
     @Request() req: any
   ) {
-    const adminId = req.user?.id || req.user?._id || req.user?.userId || 'system';
-    console.log('Importing Cashfree plan:', cashfreePlanId, 'by admin:', adminId);
+    const adminId =
+      req.user?.id || req.user?._id || req.user?.userId || 'system';
+    console.log(
+      'Importing Cashfree plan:',
+      cashfreePlanId,
+      'by admin:',
+      adminId
+    );
     return this.superAdminService.importCashfreePlan(cashfreePlanId, adminId);
   }
 
@@ -182,12 +196,9 @@ export class SuperAdminController {
       },
     },
   })
-  async createCashfreePlan(
-    @Body() createPlanDto: CreateCashfreePlanDto,
-    @Request() req: any
-  ) {
-    const adminId = req.user?.id || req.user?._id || req.user?.userId || 'system';
-    console.log('Admin ID for plan creation:', adminId, 'User object:', req.user);
+  async createCashfreePlan(@Body() createPlanDto: CreateCashfreePlanDto, @Request() req: any) {
+    const adminId =
+      req.user?.id || req.user?._id || req.user?.userId || 'system';
     return this.superAdminService.createCashfreeSubscriptionPlan(
       createPlanDto,
       adminId

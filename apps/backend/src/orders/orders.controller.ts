@@ -1064,6 +1064,113 @@ export class OrdersController {
     };
   }
 
+  @Post('session-receipt')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiOkResponse({
+    description: 'Session receipt document created successfully',
+  })
+  async createSessionReceipt(
+    @Param('restaurantId') restaurantId: string,
+    @Body()
+    dto: {
+      customerSessionId: string;
+      paymentMethod?: 'cash' | 'upi' | 'card';
+      paymentProvider?: string;
+      transactionId?: string;
+    }
+  ) {
+    // Find all orders for this customer session
+    const sessionOrders = await this.ordersService.findOrdersByCustomerSession(
+      restaurantId,
+      dto.customerSessionId
+    );
+
+    if (!sessionOrders || sessionOrders.length === 0) {
+      throw new BadRequestException('No orders found for this session');
+    }
+
+    const orderIds = sessionOrders.map(order => order.id);
+
+    // Use existing receipt creation functionality
+    return this.ordersService.createReceiptDocument(
+      restaurantId,
+      orderIds,
+      dto.paymentMethod || 'cash',
+      dto.paymentProvider,
+      dto.transactionId
+    );
+  }
+
+  @Post('session-receipt-qr')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiOkResponse({
+    description: 'Session receipt QR code generated successfully',
+  })
+  async generateSessionReceiptQr(
+    @Param('restaurantId') restaurantId: string,
+    @Body()
+    { customerSessionId, tableNumber }: { customerSessionId: string; tableNumber?: string }
+  ) {
+    // Find all orders for this customer session
+    const sessionOrders = await this.ordersService.findOrdersByCustomerSession(
+      restaurantId,
+      customerSessionId
+    );
+
+    if (!sessionOrders || sessionOrders.length === 0) {
+      throw new BadRequestException('No orders found for this session');
+    }
+
+    const orderIds = sessionOrders.map(order => order.id);
+
+    // Use existing combined receipt QR functionality
+    const jwt = require('jsonwebtoken');
+    const QRCode = require('qrcode');
+
+    const token = jwt.sign(
+      {
+        orderIds,
+        customerSessionId,
+        tableNumber,
+        type: 'session-receipt',
+        iat: Math.floor(Date.now() / 1000),
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: '30d' }
+    );
+
+    const baseUrl =
+      process.env.CUSTOMER_FRONTEND_URL ??
+      process.env.USER_FRONTENT_URL ??
+      'http://localhost:4200';
+    const receiptUrl = `${baseUrl.replace(
+      /\/$/,
+      ''
+    )}/session-receipt?t=${token}`;
+
+    const qrCodeDataUrl = await QRCode.toDataURL(receiptUrl, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      scale: 8,
+      width: 300,
+    });
+
+    return {
+      customerSessionId,
+      orderIds,
+      orderNumbers: sessionOrders.map((o) => o.orderNumber),
+      tableNumber: tableNumber || sessionOrders[0]?.tableNumber,
+      receiptUrl,
+      qrCodeDataUrl,
+      token,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    };
+  }
+
   @Post('combined-receipt-qr')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)

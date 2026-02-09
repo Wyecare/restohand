@@ -526,6 +526,50 @@ export const ordersApi = baseApi.injectEndpoints({
       ],
     }),
 
+    createSessionReceipt: builder.mutation<
+      { success: boolean; message: string; receiptNumber?: string },
+      {
+        restaurantId: string;
+        customerSessionId: string;
+        paymentMethod?: 'cash' | 'upi' | 'card';
+        paymentProvider?: string;
+        transactionId?: string;
+      }
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/session-receipt`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Order', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
+    generateSessionReceiptQr: builder.mutation<
+      {
+        customerSessionId: string;
+        orderIds: string[];
+        orderNumbers: string[];
+        tableNumber?: string;
+        receiptUrl: string;
+        qrCodeDataUrl: string;
+        token: string;
+        expiresAt: string;
+      },
+      {
+        restaurantId: string;
+        customerSessionId: string;
+        tableNumber?: string;
+      }
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/session-receipt-qr`,
+        method: 'POST',
+        body,
+      }),
+    }),
+
     processOrderModification: builder.mutation<OrderModification, ProcessOrderModificationParams>({
       query: ({ restaurantId, modificationId, body }) => ({
         url: `/restaurants/${restaurantId}/orders/modifications/${modificationId}/process`,
@@ -569,4 +613,7 @@ export const {
   useGetOrderModificationsQuery,
   useCheckPendingModificationsQuery,
   useProcessOrderModificationMutation,
+  // Session Receipt Hooks
+  useCreateSessionReceiptMutation,
+  useGenerateSessionReceiptQrMutation,
 } = ordersApi;

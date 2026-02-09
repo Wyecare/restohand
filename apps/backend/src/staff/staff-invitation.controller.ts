@@ -16,6 +16,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+// Subscription enforcement imports
+import { SubscriptionLimitGuard } from '../subscription-plans/guards/subscription-limit.guard';
+import { RequireStaffLimit } from '../subscription-plans/decorators/subscription-limit.decorator';
 import { StaffInvitationService } from './staff-invitation.service';
 import {
   InviteStaffDto,
@@ -29,7 +32,8 @@ export class StaffInvitationController {
   constructor(private readonly staffInvitationService: StaffInvitationService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, SubscriptionLimitGuard) // Add subscription limit guard
+  @RequireStaffLimit() // Require staff limit check
   @Roles(UserRole.Manager)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send staff invitation email' })

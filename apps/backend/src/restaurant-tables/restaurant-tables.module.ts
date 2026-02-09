@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { AuthModule } from '../auth/auth.module';
@@ -16,9 +16,9 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 
 @Module({
   imports: [
-    RestaurantsModule,
+    forwardRef(() => RestaurantsModule), // Break circular dependency
     AuthModule,
-    UsersModule,
+    forwardRef(() => UsersModule), // Break circular dependency
     MongooseModule.forFeature([
       { name: RestaurantTable.name, schema: RestaurantTableSchema },
       { name: TableStatus.name, schema: TableStatusSchema },

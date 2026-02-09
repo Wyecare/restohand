@@ -458,6 +458,23 @@ export class Restaurant {
 
   @Prop({ type: String, trim: true })
   phone?: string;
+
+  // Subscription Management
+  @Prop({ type: String, ref: 'SubscriptionPlan' })
+  currentSubscriptionPlanId?: string;
+
+  @Prop({ type: Date })
+  subscriptionStartedAt?: Date;
+
+  @Prop({ type: Date })
+  subscriptionExpiresAt?: Date;
+
+  @Prop({
+    type: String,
+    enum: ['active', 'suspended', 'expired', 'trial'],
+    default: 'trial'
+  })
+  subscriptionStatus?: 'active' | 'suspended' | 'expired' | 'trial';
 }
 
 export const RestaurantSchema = SchemaFactory.createForClass(Restaurant);

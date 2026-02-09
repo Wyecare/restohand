@@ -148,7 +148,7 @@ export class TargetMarketDto {
   use_cases!: string[];
 }
 
-export class CreateCashfreePlanDto {
+export class CreateBusinessModelPlanDto {
   // Core Cashfree Plan Fields
   @ApiProperty({ description: 'Unique plan name/identifier', example: 'restohand_starter_monthly' })
   @IsString()
