@@ -1171,6 +1171,21 @@ export class OrdersController {
     };
   }
 
+  @Get('table/:tableId/consolidated-bill')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'tableId' })
+  @ApiOkResponse({
+    description: 'Consolidated bill for table session (admin version)',
+  })
+  async getAdminConsolidatedBill(
+    @Param('restaurantId') restaurantId: string,
+    @Param('tableId') tableId: string
+  ) {
+    return this.ordersService.getAdminConsolidatedBill(restaurantId, tableId);
+  }
+
   @Post('combined-receipt-qr')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)

@@ -455,6 +455,76 @@ export class OrdersService {
     return orders.map((order) => this.toDto(order));
   }
 
+  async getAdminConsolidatedBill(restaurantId: string, tableId: string) {
+    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant not found`);
+    }
+
+    // Find all orders for this table in the current session
+    const orders = await this.orderModel.find({
+      restaurantId,
+      tableNumber: tableId,
+      isArchived: false,
+      // Get orders from today or recent session
+      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    }).sort({ createdAt: 1 }).lean();
+
+    if (!orders || orders.length === 0) {
+      throw new NotFoundException(`No orders found for table ${tableId}`);
+    }
+
+    // Calculate consolidated totals
+    let subtotal = 0;
+    let cgstAmount = 0;
+    let sgstAmount = 0;
+    let igstAmount = 0;
+    let taxAmount = 0;
+    let totalAmount = 0;
+
+    const consolidatedOrders = orders.map((order) => {
+      subtotal += order.subTotalAmount || 0;
+      cgstAmount += order.cgstAmount || 0;
+      sgstAmount += order.sgstAmount || 0;
+      igstAmount += order.igstAmount || 0;
+      taxAmount += order.taxAmount || 0;
+      totalAmount += order.totalAmount || 0;
+
+      return {
+        orderNumber: order.orderNumber,
+        items: order.items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.pricing?.unitAmount || 0,
+          lineTotal: item.pricing?.unitAmount * item.quantity || 0,
+        })),
+        orderTotal: order.totalAmount || 0,
+      };
+    });
+
+    return {
+      restaurant: {
+        name: restaurant.name,
+        address: restaurant.address,
+        gstin: restaurant.gstNumber,
+        phone: restaurant.contactInfo?.phone,
+        email: restaurant.contactInfo?.email,
+      },
+      bill: {
+        tableNumber: tableId,
+        orders: consolidatedOrders,
+        subtotal,
+        taxAmount,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        roundOffAmount: 0,
+        totalAmount,
+        billGeneratedAt: new Date().toISOString(),
+      }
+    };
+  }
+
   async registerPaymentIntent(
     restaurantId: string,
     orderId: string,

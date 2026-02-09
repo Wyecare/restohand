@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
@@ -10,7 +11,9 @@ import { RestaurantTablesService } from './restaurant-tables.service';
 import { TableStatusService } from './table-status.service';
 import { ZoneManagementService } from './zone-management.service';
 import { RestaurantTablesController } from './restaurant-tables.controller';
+import { TableHeatmapSSEController } from './table-heatmap-sse.controller';
 import { TableStatusGateway } from './table-status.gateway';
+import { TableStatusSSEService } from './table-status-sse.service';
 import { Order, OrderSchema } from '../orders/schemas/order.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 
@@ -18,6 +21,16 @@ import { User, UserSchema } from '../users/schemas/user.schema';
   imports: [
     forwardRef(() => RestaurantsModule), // Break circular dependency
     AuthModule,
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret:
+          process.env.JWT_SECRET ||
+          'your-super-secret-jwt-key-change-this-in-production',
+        signOptions: {
+          expiresIn: process.env.JWT_ACCESS_TTL || '30d',
+        },
+      }),
+    }),
     forwardRef(() => UsersModule), // Break circular dependency
     MongooseModule.forFeature([
       { name: RestaurantTable.name, schema: RestaurantTableSchema },
@@ -27,8 +40,8 @@ import { User, UserSchema } from '../users/schemas/user.schema';
       { name: User.name, schema: UserSchema },
     ]),
   ],
-  providers: [RestaurantTablesService, TableStatusService, ZoneManagementService, TableStatusGateway],
-  controllers: [RestaurantTablesController],
-  exports: [RestaurantTablesService, TableStatusService, ZoneManagementService],
+  providers: [RestaurantTablesService, TableStatusService, ZoneManagementService, TableStatusGateway, TableStatusSSEService],
+  controllers: [RestaurantTablesController, TableHeatmapSSEController],
+  exports: [RestaurantTablesService, TableStatusService, ZoneManagementService, TableStatusSSEService],
 })
 export class RestaurantTablesModule {}

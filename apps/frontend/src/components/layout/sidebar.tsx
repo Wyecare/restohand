@@ -80,7 +80,16 @@ const managerLinks: NavLink[] = [
   { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
   { titleKey: 'navigation.branches', href: '/branches', icon: Building2 },
   // { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
-  { titleKey: 'navigation.tables', href: '/tables', icon: Table },
+  {
+    titleKey: 'navigation.zonesAndTables',
+    href: '/tables',
+    icon: Table,
+    items: [
+      { titleKey: 'navigation.tables', href: '/tables/management' },
+      { titleKey: 'navigation.zones', href: '/tables/zones' },
+      { titleKey: 'navigation.heatMap', href: '/tables/heatmap' },
+    ],
+  },
   // { titleKey: 'navigation.commandCenter', href: '/command-center', icon: Monitor },
   { titleKey: 'navigation.staff', href: '/staff', icon: Users },
   // { titleKey: 'navigation.customerQR', href: '/customer-qr', icon: QrCode },
@@ -266,51 +275,6 @@ export default function Sidebar() {
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
-
-          {/* Policy Links - only visible when expanded */}
-          {/* <div className="group-data-[collapsible=icon]:hidden">
-            <SidebarMenuItem>
-              <div className="px-3 py-2 space-y-1">
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <Link
-                    to="/privacy-policy"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    Privacy
-                  </Link>
-                  <span className="text-muted-foreground">•</span>
-                  <Link
-                    to="/terms-conditions"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    Terms
-                  </Link>
-                  <span className="text-muted-foreground">•</span>
-                  <Link
-                    to="/refund-policy"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    Refunds
-                  </Link>
-                </div>
-                <div className="flex gap-2 text-xs">
-                  <Link
-                    to="/about-us"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    About Us
-                  </Link>
-                  <span className="text-muted-foreground">•</span>
-                  <Link
-                    to="/contact-us"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    Contact Support
-                  </Link>
-                </div>
-              </div>
-            </SidebarMenuItem>
-          </div> */}
         </SidebarMenu>
       </SidebarFooter>
     </SidebarContainer>

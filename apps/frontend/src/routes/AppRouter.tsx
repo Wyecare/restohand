@@ -11,7 +11,7 @@ import { MenuManagementPage } from '@/pages/menu-management/MenuManagementPage';
 import SettingsPageNew from '@/pages/SettingsPageNew';
 import OnboardingPage from '@/pages/OnboardingPage';
 import StaffPage from '@/pages/StaffPage';
-import TablesPage from '@/pages/TablesPage';
+import TablesRouter from '@/pages/tables/TablesRouter';
 import CommandCenterPage from '@/pages/CommandCenterPage';
 import ForbiddenPage from '@/pages/ForbiddenPage';
 import ReportsPage from '@/pages/ReportsPage';
@@ -88,7 +88,7 @@ const AppRouter = () => {
           <Route path="extract-menu" element={<PdfMenuExtractionTab />} />
 
           <Route path="staff" element={<StaffPage />} />
-          <Route path="tables" element={<TablesPage />} />
+          <Route path="tables/*" element={<TablesRouter />} />
           <Route path="command-center" element={<CommandCenterPage />} />
           <Route path="customer-qr" element={<CustomerQrPage />} />
           <Route path="inventory" element={<InventoryPage />} />

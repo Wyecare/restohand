@@ -134,7 +134,7 @@ export class RestaurantTablesService {
       stats: {
         totalTables: tables.length,
         occupiedTables,
-        activeOrders: activeOrderMap.size,
+        activeOrders: activeOrdersByTable.size,
         readyOrders,
         unpaidOrders,
         todaysRevenue,

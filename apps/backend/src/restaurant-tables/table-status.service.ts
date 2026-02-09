@@ -20,6 +20,7 @@ import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { TableStatusGateway } from './table-status.gateway';
+import { TableStatusSSEService } from './table-status-sse.service';
 import {
   UpdateTableStatusDto,
   TableStatusResponseDto,
@@ -39,7 +40,8 @@ export class TableStatusService {
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
-    private readonly tableStatusGateway: TableStatusGateway
+    private readonly tableStatusGateway: TableStatusGateway,
+    private readonly tableStatusSSEService: TableStatusSSEService
   ) {}
 
   async updateTableStatus(
@@ -157,7 +159,12 @@ export class TableStatusService {
       });
     }
 
-    return this.toStatusDto(tableStatus);
+    const statusDto = this.toStatusDto(tableStatus);
+
+    // Emit SSE event for manual table status updates
+    this.emitTableSSEUpdate(statusDto, table);
+
+    return statusDto;
   }
 
   async getTableStatus(
@@ -528,6 +535,9 @@ export class TableStatusService {
         );
         const statusDto = this.toStatusDto(tableStatus);
         this.tableStatusGateway.emitTableStatusUpdated(statusDto);
+
+        // Emit SSE event with table data
+        this.emitTableSSEUpdate(statusDto, table);
         return statusDto;
       }
 
@@ -566,6 +576,9 @@ export class TableStatusService {
           );
           const statusDto = this.toStatusDto(tableStatus);
           this.tableStatusGateway.emitTableStatusUpdated(statusDto);
+
+          // Emit SSE event with table data
+          this.emitTableSSEUpdate(statusDto, table);
           return statusDto;
         } else {
           // Calculate new bill amount from remaining active orders
@@ -595,6 +608,9 @@ export class TableStatusService {
           );
           const statusDto = this.toStatusDto(tableStatus);
           this.tableStatusGateway.emitTableStatusUpdated(statusDto);
+
+          // Emit SSE event with table data
+          this.emitTableSSEUpdate(statusDto, table);
           return statusDto;
         }
       }
@@ -682,6 +698,30 @@ export class TableStatusService {
       billGeneratedAt: undefined,
       subtotal: undefined,
     };
+  }
+
+  /**
+   * Helper method to emit SSE events for table status updates
+   */
+  private emitTableSSEUpdate(statusDto: TableStatusResponseDto, table: any): void {
+    try {
+      const tableData = {
+        tableNumber: table?.tableNumber || 'Unknown',
+        displayName: table?.displayName,
+        capacity: table?.capacity || 4,
+        zone: table?.zone,
+        layoutPosition: {
+          x: table?.layoutX || 0,
+          y: table?.layoutY || 0,
+          width: table?.layoutWidth,
+          height: table?.layoutHeight
+        }
+      };
+
+      this.tableStatusSSEService.emitTableStatusUpdated(statusDto, tableData);
+    } catch (error) {
+      console.error('Error emitting SSE table status update:', error);
+    }
   }
 
   private roundToTwo(value: number): number {

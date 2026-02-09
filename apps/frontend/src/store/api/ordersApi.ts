@@ -570,6 +570,47 @@ export const ordersApi = baseApi.injectEndpoints({
       }),
     }),
 
+    getAdminConsolidatedBill: builder.query<
+      {
+        restaurant: {
+          name: string;
+          address?: any;
+          gstin?: string;
+          phone?: string;
+          email?: string;
+        };
+        bill: {
+          tableNumber: string;
+          orders: Array<{
+            orderNumber: string;
+            items: Array<{
+              name: string;
+              quantity: number;
+              unitPrice: number;
+              lineTotal: number;
+            }>;
+            orderTotal: number;
+          }>;
+          subtotal: number;
+          taxAmount: number;
+          cgstAmount: number;
+          sgstAmount: number;
+          igstAmount: number;
+          roundOffAmount: number;
+          totalAmount: number;
+          billGeneratedAt: string;
+        };
+      },
+      { restaurantId: string; tableId: string }
+    >({
+      query: ({ restaurantId, tableId }) => ({
+        url: `/restaurants/${restaurantId}/orders/table/${tableId}/consolidated-bill`,
+      }),
+      providesTags: (_result, _error, { restaurantId, tableId }) => [
+        { type: 'Order', id: `ADMIN-CONSOLIDATED-${restaurantId}-${tableId}` },
+      ],
+    }),
+
     processOrderModification: builder.mutation<OrderModification, ProcessOrderModificationParams>({
       query: ({ restaurantId, modificationId, body }) => ({
         url: `/restaurants/${restaurantId}/orders/modifications/${modificationId}/process`,
@@ -616,4 +657,6 @@ export const {
   // Session Receipt Hooks
   useCreateSessionReceiptMutation,
   useGenerateSessionReceiptQrMutation,
+  // Admin Consolidated Bill Hooks
+  useGetAdminConsolidatedBillQuery,
 } = ordersApi;

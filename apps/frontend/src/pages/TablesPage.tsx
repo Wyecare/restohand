@@ -6,6 +6,7 @@ import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { TableManagementPanel } from '@/components/tables/TableManagementPanel';
 import { ZoneManagementPanel } from '@/components/tables/ZoneManagementPanel';
 import { ServerAssignmentOverview } from '@/components/tables/ServerAssignmentOverview';
+import { TableHeatmapView } from '@/components/tables/TableHeatmapView';
 import { useBranchAwareQueries } from '@/hooks/useBranchAwareQuery';
 
 const TablesPage = () => {
@@ -15,7 +16,7 @@ const TablesPage = () => {
   useBranchAwareQueries();
 
   // Local state
-  const [activeTab, setActiveTab] = useState<'tables' | 'zones' | 'servers'>(
+  const [activeTab, setActiveTab] = useState<'tables' | 'zones' | 'heatmap'>(
     'tables'
   );
 
@@ -41,9 +42,10 @@ const TablesPage = () => {
         onValueChange={(value) => setActiveTab(value as any)}
         className="space-y-6"
       >
-        <TabsList className="grid w-1/2 grid-cols-2">
+        <TabsList className="grid w-2/3 grid-cols-3">
           <TabsTrigger value="tables">Tables</TabsTrigger>
           <TabsTrigger value="zones">Zones</TabsTrigger>
+          <TabsTrigger value="heatmap">Live Heatmap</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tables" className="space-y-6">
@@ -54,8 +56,8 @@ const TablesPage = () => {
           <ZoneManagementPanel restaurantId={restaurantId} />
         </TabsContent>
 
-        <TabsContent value="servers" className="space-y-6">
-          <ServerAssignmentOverview />
+        <TabsContent value="heatmap" className="space-y-6">
+          <TableHeatmapView />
         </TabsContent>
       </Tabs>
     </div>

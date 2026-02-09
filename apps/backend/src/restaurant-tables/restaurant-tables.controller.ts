@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Req,
+  Res,
   Put,
   ForbiddenException,
 } from '@nestjs/common';
@@ -18,7 +19,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -28,8 +29,10 @@ import { SubscriptionLimitGuard } from '../subscription-plans/guards/subscriptio
 import { RequireTableLimit } from '../subscription-plans/decorators/subscription-limit.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BranchPermissionsService } from '../users/branch-permissions.service';
+import { JwtAuthService } from '../auth/jwt-auth.service';
 import { RestaurantTablesService } from './restaurant-tables.service';
 import { TableStatusService } from './table-status.service';
+import { TableStatusSSEService } from './table-status-sse.service';
 import { ZoneManagementService } from './zone-management.service';
 import { CreateRestaurantTableDto } from './dtos/create-restaurant-table.dto';
 import { RestaurantTableResponseDto } from './dtos/restaurant-table-response.dto';
@@ -57,8 +60,10 @@ export class RestaurantTablesController {
   constructor(
     private readonly tablesService: RestaurantTablesService,
     private readonly tableStatusService: TableStatusService,
+    private readonly tableStatusSSEService: TableStatusSSEService,
     private readonly zoneManagementService: ZoneManagementService,
-    private readonly branchPermissions: BranchPermissionsService
+    private readonly branchPermissions: BranchPermissionsService,
+    private readonly jwtAuthService: JwtAuthService
   ) {}
 
   @Get()
@@ -350,13 +355,18 @@ export class RestaurantTablesController {
   ) {
     const user = req.user as AuthenticatedUser;
 
+    // Handle branchId properly - convert "all" or invalid strings to undefined
+    const effectiveBranchId = branchId && branchId !== 'undefined' && branchId !== 'all' ? branchId : undefined;
+
     // Check if user has permission to access this branch
-    const permissions = await this.branchPermissions.getBranchPermissions(user);
-    if (!permissions.canManageBranch(branchId)) {
-      throw new ForbiddenException('Insufficient permissions to access this branch tables');
+    if (effectiveBranchId) {
+      const permissions = await this.branchPermissions.getBranchPermissions(user);
+      if (!permissions.canManageBranch(effectiveBranchId)) {
+        throw new ForbiddenException('Insufficient permissions to access this branch tables');
+      }
     }
 
-    return this.tablesService.list(restaurantId, branchId);
+    return this.tablesService.list(restaurantId, effectiveBranchId);
   }
 
   @Get('branch/:branchId/service-view')
@@ -371,12 +381,18 @@ export class RestaurantTablesController {
   ) {
     const user = req.user as AuthenticatedUser;
 
+    // Handle branchId properly - convert "all" or invalid strings to undefined
+    const effectiveBranchId = branchId && branchId !== 'undefined' && branchId !== 'all' ? branchId : undefined;
+
     // Check if user has permission to access this branch
-    const permissions = await this.branchPermissions.getBranchPermissions(user);
-    if (!permissions.canManageBranch(branchId)) {
-      throw new ForbiddenException('Insufficient permissions to access this branch tables');
+    if (effectiveBranchId) {
+      const permissions = await this.branchPermissions.getBranchPermissions(user);
+      if (!permissions.canManageBranch(effectiveBranchId)) {
+        throw new ForbiddenException('Insufficient permissions to access this branch tables');
+      }
     }
 
-    return this.tablesService.listForService(restaurantId, branchId);
+    return this.tablesService.listForService(restaurantId, effectiveBranchId);
   }
+
 }

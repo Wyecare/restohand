@@ -51,6 +51,8 @@ import {
   useUpdateOrderPaymentMutation,
   useCreateSessionReceiptMutation,
   useGenerateSessionReceiptQrMutation,
+  useGetAdminConsolidatedBillQuery,
+  ordersApi,
 } from '@/store/api/ordersApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
@@ -58,7 +60,7 @@ import { skipToken } from '@reduxjs/toolkit/query';
 import type { Order } from '@/store/api/types';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
-import { ReceiptModal } from '@/components/ReceiptModal';
+import { generateProfessionalInvoicePDF } from '@/components/ProfessionalInvoicePDF';
 
 const statusOptions: Array<{ label: string; value: Order['status'] | 'all' }> =
   [
@@ -91,15 +93,65 @@ const ORDER_CANCELLABLE_STATUSES: Array<Order['status']> = [
 export default function OrdersPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { currentBranch } = useBranchContext();
+  const authToken = useAppSelector(state => state.auth.idToken);
   const { toast } = useToast();
 
   const [status, setStatus] = React.useState<string>('all');
   const [paymentStatus, setPaymentStatus] = React.useState<string>('all');
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
-  // Receipt modal state
-  const [receiptModalOpen, setReceiptModalOpen] = React.useState(false);
-  const [selectedOrderId, setSelectedOrderId] = React.useState<string>('');
+  // Helper function to convert numbers to words (from customer page)
+  const convertToWords = (amount: number): string => {
+    if (amount === 0) return 'Zero Rupees Only';
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+    const convertHundreds = (n: number): string => {
+      let result = '';
+      if (n >= 100) {
+        result += ones[Math.floor(n / 100)] + ' Hundred ';
+        n %= 100;
+      }
+      if (n >= 20) {
+        result += tens[Math.floor(n / 10)] + ' ';
+        n %= 10;
+      } else if (n >= 10) {
+        result += teens[n - 10] + ' ';
+        n = 0;
+      }
+      if (n > 0) {
+        result += ones[n] + ' ';
+      }
+      return result.trim();
+    };
+
+    let rupees = Math.floor(amount);
+    const paise = Math.round((amount - rupees) * 100);
+    let result = '';
+
+    if (rupees >= 10000000) {
+      result += convertHundreds(Math.floor(rupees / 10000000)) + ' Crore ';
+      rupees %= 10000000;
+    }
+    if (rupees >= 100000) {
+      result += convertHundreds(Math.floor(rupees / 100000)) + ' Lakh ';
+      rupees %= 100000;
+    }
+    if (rupees >= 1000) {
+      result += convertHundreds(Math.floor(rupees / 1000)) + ' Thousand ';
+      rupees %= 1000;
+    }
+    if (rupees > 0) {
+      result += convertHundreds(rupees);
+    }
+
+    result += result.trim() ? ' Rupees' : 'Rupees';
+    if (paise > 0) {
+      result += ' And ' + convertHundreds(paise) + ' Paisa';
+    }
+    return result + ' Only';
+  };
 
   console.log(
     'Rendering OrdersPage with status:',
@@ -131,6 +183,7 @@ export default function OrdersPage() {
   const [updateOrderPayment] = useUpdateOrderPaymentMutation();
   const [createSessionReceipt] = useCreateSessionReceiptMutation();
   const [generateSessionReceiptQr] = useGenerateSessionReceiptQrMutation();
+  const [getAdminConsolidatedBill] = ordersApi.useLazyGetAdminConsolidatedBillQuery();
 
   useOrdersSocket({ onEvent: refetch, enabled: !!restaurantId });
 
@@ -219,9 +272,105 @@ export default function OrdersPage() {
     }
   };
 
-  const handleViewReceipt = (orderId: string) => {
-    setSelectedOrderId(orderId);
-    setReceiptModalOpen(true);
+  const handleViewReceipt = async (order: Order) => {
+    if (!order.tableNumber || !restaurantId) {
+      toast({
+        title: 'Error',
+        description: 'Unable to generate receipt - missing table or restaurant info',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      // Use lazy query exactly like customer frontend
+      const result = await getAdminConsolidatedBill({
+        restaurantId,
+        tableId: order.tableNumber
+      });
+
+      if ('data' in result && result.data) {
+        // Transform data for professional invoice (same as customer frontend)
+        const invoiceData = {
+          restaurant: {
+            name: result.data.restaurant.name,
+            legalEntity: result.data.restaurant.name?.toUpperCase(),
+            address: result.data.restaurant.address,
+            phone: result.data.restaurant.phone,
+            email: result.data.restaurant.email,
+            gstin: result.data.restaurant.gstin || 'UNREGISTERED',
+            fssai: 'Not Available',
+            pan: 'Not Available',
+            cin: 'Not Available',
+          },
+          customer: {
+            name: 'Guest Customer',
+            address: `Table ${order.tableNumber}`,
+            gstin: 'UNREGISTERED',
+          },
+          invoice: {
+            number: `INV-${Date.now().toString().slice(-8)}`,
+            date: new Date().toISOString(),
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            tableNumber: order.tableNumber,
+            paymentMethod: 'Digital payment',
+          },
+          bill: {
+            ...result.data.bill,
+            discountAmount: 0,
+            orders: result.data.bill.orders.map((billOrder: any) => ({
+              ...billOrder,
+              items: billOrder.items.map((item: any) => {
+                const totalItems = result.data?.bill?.orders.reduce((sum, o) => sum + o.items.length, 0) || 1;
+                const itemCgst = (result.data?.bill?.cgstAmount || 0) / totalItems;
+                const itemSgst = (result.data?.bill?.sgstAmount || 0) / totalItems;
+                const itemIgst = (result.data?.bill?.igstAmount || 0) / totalItems;
+                const taxIncludedTotal = item.lineTotal + itemCgst + itemSgst + itemIgst;
+
+                return {
+                  ...item,
+                  grossValue: item.lineTotal,
+                  discount: 0,
+                  netValue: item.lineTotal,
+                  cgstAmount: itemCgst,
+                  sgstAmount: itemSgst,
+                  igstAmount: itemIgst,
+                  lineTotal: taxIncludedTotal,
+                  hsnCode: '996331',
+                };
+              }),
+            })),
+            amountInWords: convertToWords(result.data.bill.totalAmount),
+          },
+        };
+
+        const pdfBlob = await generateProfessionalInvoicePDF(invoiceData);
+
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `table-${order.tableNumber}-bill.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: 'Receipt Downloaded',
+          description: 'Bill has been downloaded successfully',
+        });
+      } else {
+        throw new Error('Failed to get bill data');
+      }
+    } catch (error) {
+      console.error('Error downloading bill:', error);
+      toast({
+        title: 'Download Failed',
+        description: 'Unable to download the bill. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleSessionReceipt = async (order: Order) => {
@@ -370,11 +519,11 @@ export default function OrdersPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleViewReceipt(row.original.id)}
+                  onClick={() => handleViewReceipt(row.original)}
                   className="flex items-center gap-1"
                 >
                   <Receipt className="h-3.5 w-3.5" />
-                  View Receipt
+                  Download Bill
                 </Button>
                 {row.original.customerSessionId && (
                   <Button
@@ -406,7 +555,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [handleStatusUpdate, handleMarkPaid, handleCancelOrder, handleViewReceipt, handleSessionReceipt]
+    [handleStatusUpdate, handleMarkPaid, handleCancelOrder, handleViewReceipt, handleSessionReceipt, restaurantId, authToken, toast, convertToWords]
   );
 
   const table = useReactTable({
@@ -581,13 +730,6 @@ export default function OrdersPage() {
         </CardContent>
       </Card>
 
-      {/* Receipt Modal */}
-      <ReceiptModal
-        isOpen={receiptModalOpen}
-        onClose={() => setReceiptModalOpen(false)}
-        orderId={selectedOrderId}
-        restaurantId={restaurantId || ''}
-      />
     </div>
   );
 }
