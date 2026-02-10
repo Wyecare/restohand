@@ -674,7 +674,7 @@ export class OrdersService {
       updateDoc.paymentStatus = dto.paymentStatus;
       if (dto.paymentStatus === PaymentStatus.Paid) {
         updateDoc.paidAt = new Date();
-        updateDoc.status = 'paid'; // Update order status to 'paid' when payment is completed
+        updateDoc.status = OrderStatus.Completed; // Update order status to completed when payment is completed
       }
     }
 
