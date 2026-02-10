@@ -74,6 +74,8 @@ export const baseApi = createApi({
     'CashfreeSubscription',
     'CashfreeSubscriptionPlan',
     'CashfreePaymentHistory',
+    'Notification',
+    'NotificationStats',
   ],
   endpoints: () => ({}),
 });

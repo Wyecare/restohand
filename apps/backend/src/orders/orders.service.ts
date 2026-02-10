@@ -895,8 +895,8 @@ export class OrdersService {
       updatedBy: updatedBy || null,
     });
 
-    // CUSTOMER SESSION AUTO-CLOSE LOGIC - Run for all paid orders regardless of skipNotification
-    if (updated.tableId && dto.paymentStatus === PaymentStatus.Paid) {
+    // CUSTOMER SESSION AUTO-CLOSE LOGIC - Skip if notification is disabled (e.g., during batch processing)
+    if (updated.tableId && dto.paymentStatus === PaymentStatus.Paid && !skipNotification) {
       try {
         console.log('=== AUTO-CLOSE SESSION CHECK ===');
         console.log(
@@ -1296,6 +1296,18 @@ export class OrdersService {
   }
 
   async handleCashfreeWebhook(event: any): Promise<void> {
+    const webhookHandleId = `HANDLE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.logger.log('🔄 ORDERS SERVICE WEBHOOK HANDLER STARTED:', {
+      webhookHandleId,
+      eventType: event?.type,
+      orderId: event?.data?.order?.order_id,
+      paymentId: event?.data?.payment?.cf_payment_id,
+      amount: event?.data?.order?.order_amount,
+      fullEvent: event,
+      timestamp: new Date().toISOString()
+    });
+
     const eventType = event?.type;
     if (!eventType) {
       this.logger.warn('Cashfree webhook received without event type');
@@ -1351,6 +1363,16 @@ export class OrdersService {
   }
 
   private async handleCashfreePaymentSuccess(event: any): Promise<void> {
+    const paymentSuccessId = `PAY_SUCCESS_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.logger.log('💰 PAYMENT SUCCESS HANDLER STARTED:', {
+      paymentSuccessId,
+      eventType: event?.type,
+      orderData: event.data?.order,
+      paymentData: event.data?.payment,
+      timestamp: new Date().toISOString()
+    });
+
     const orderData = event.data?.order;
     const paymentData = event.data?.payment;
 
@@ -1370,14 +1392,43 @@ export class OrdersService {
     const isSessionPayment = cashfreeOrderId.includes('session_');
 
     if (isSessionPayment) {
+      this.logger.log('🏓 SESSION PAYMENT DETECTED:', {
+        paymentSuccessId,
+        cashfreeOrderId,
+        orderAmount: orderData.order_amount,
+        timestamp: new Date().toISOString()
+      });
+
       await this.handleCashfreeSessionPayment(orderData, paymentData);
+
+      this.logger.log('📧 SENDING SESSION PAYMENT NOTIFICATIONS:', {
+        paymentSuccessId,
+        cashfreeOrderId,
+        timestamp: new Date().toISOString()
+      });
+
       await this.sendCashfreeCustomerPaymentNotifications(
         orderData,
         paymentData
       );
     } else {
+      this.logger.log('📋 REGULAR ORDER PAYMENT DETECTED:', {
+        paymentSuccessId,
+        cashfreeOrderId,
+        orderAmount: orderData.order_amount,
+        timestamp: new Date().toISOString()
+      });
+
       // Regular order payment - extract orderId from cashfreeOrderId
       const orderId = cashfreeOrderId.replace('restohand_', '');
+
+      this.logger.log('🔄 CALLING handleOrderFullyPaid:', {
+        paymentSuccessId,
+        orderId,
+        cashfreeOrderId,
+        timestamp: new Date().toISOString()
+      });
+
       await this.handleOrderFullyPaid(orderId, {
         order_id: cashfreeOrderId,
         payment: paymentData,
@@ -1445,7 +1496,23 @@ export class OrdersService {
         `Found ${orders.length} orders for Cashfree session: ${sessionOrderId}`
       );
 
+      // Check if orders are already paid (idempotency check)
+      const unpaidOrders = orders.filter(order => order.paymentStatus !== PaymentStatus.Paid);
+
+      if (unpaidOrders.length === 0) {
+        this.logger.log(`All orders for session ${sessionOrderId} are already paid - skipping duplicate processing`);
+        return;
+      }
+
+      this.logger.log(`Processing ${unpaidOrders.length} unpaid orders out of ${orders.length} total orders`);
+
+      let processedCount = 0;
       for (const order of orders) {
+        // Skip if already paid
+        if (order.paymentStatus === PaymentStatus.Paid) {
+          this.logger.log(`Order ${order._id} already paid - skipping`);
+          continue;
+        }
         // Extract payment method string from Cashfree's complex object
         let paymentMethodString = 'upi'; // default
         if (paymentData.payment_method) {
@@ -1475,13 +1542,90 @@ export class OrdersService {
           null, // no updatedBy for customer payments
           true // skip notification to prevent duplicates
         );
+        processedCount++;
       }
 
       this.logger.log(
-        `Cashfree session payment processed: ${orders.length} orders marked as paid`
+        `Cashfree session payment processed: ${processedCount} orders marked as paid`
       );
+
+      // Handle session completion after all orders are processed
+      if (processedCount > 0 && orders.length > 0) {
+        const firstOrder = orders[0];
+        await this.handleSessionCompletion(firstOrder, sessionOrderId);
+      }
     } catch (error) {
       this.logger.error('Failed to handle Cashfree session payment:', error);
+    }
+  }
+
+  private async handleSessionCompletion(order: any, sessionOrderId: string): Promise<void> {
+    const sessionCompletionId = `SESSION_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.logger.log('🏁 SESSION COMPLETION HANDLER STARTED:', {
+      sessionCompletionId,
+      tableId: order.tableId?.toString(),
+      restaurantId: order.restaurantId?.toString(),
+      sessionOrderId,
+      timestamp: new Date().toISOString()
+    });
+
+    try {
+      // Check if all orders for this table are paid
+      const tableOrders = await this.orderModel
+        .find({
+          restaurantId: order.restaurantId,
+          tableId: order.tableId,
+          status: { $nin: [OrderStatus.Completed, OrderStatus.Cancelled] }
+        })
+        .lean();
+
+      const unpaidOrders = tableOrders.filter(
+        (tableOrder) => tableOrder.paymentStatus !== PaymentStatus.Paid
+      );
+
+      this.logger.log('📊 SESSION COMPLETION CHECK:', {
+        sessionCompletionId,
+        tableId: order.tableId?.toString(),
+        totalOrders: tableOrders.length,
+        unpaidOrders: unpaidOrders.length,
+        sessionComplete: unpaidOrders.length === 0
+      });
+
+      if (unpaidOrders.length === 0 && tableOrders.length > 0) {
+        this.logger.log('🎯 All orders paid! Auto-closing customer session for table:', order.tableId?.toString());
+
+        // Mark session as closed
+        await this.orderModel.updateMany(
+          {
+            restaurantId: order.restaurantId,
+            tableId: order.tableId,
+          },
+          {
+            $set: { sessionClosed: true, sessionClosedAt: new Date() },
+          }
+        );
+
+        // Update table status
+        if (order.tableId) {
+          await this.tableStatusService.updateTableStatusFromOrder(
+            order.restaurantId.toString(),
+            order.tableId.toString(),
+            'order-completed',
+            {
+              createdByName: 'Order System',
+            }
+          );
+        }
+
+        this.logger.log(`Customer session auto-closed for table ${order.tableId} - all orders paid`);
+      }
+    } catch (error) {
+      this.logger.error('Failed to handle session completion:', {
+        sessionCompletionId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
   }
 
@@ -1489,9 +1633,25 @@ export class OrdersService {
     orderData: any,
     paymentData: any
   ): Promise<void> {
+    const notificationSendId = `NOTIFY_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.logger.log('📬 CUSTOMER PAYMENT NOTIFICATIONS STARTED:', {
+      notificationSendId,
+      cashfreeOrderId: orderData.order_id,
+      paymentAmount: orderData.order_amount,
+      paymentId: paymentData.cf_payment_id,
+      timestamp: new Date().toISOString()
+    });
+
     try {
       const cashfreeOrderId = orderData.order_id;
       const sessionOrderId = cashfreeOrderId.replace('restohand_', '');
+
+      this.logger.log('🔍 SEARCHING FOR SESSION ORDERS:', {
+        notificationSendId,
+        sessionOrderId,
+        searchCriteria: { 'paymentMeta.cashfree.sessionOrderId': sessionOrderId }
+      });
 
       // Find all orders in this session
       const orders = await this.orderModel
@@ -1534,6 +1694,20 @@ export class OrdersService {
       let tableId = firstOrder.tableId?.toString();
 
       // Send notification to managers, owners, and assigned waiters
+      this.logger.log('🚀 CALLING PAYMENT CONFIRMATION NOTIFICATION (Cashfree Customer):', {
+        notificationSendId,
+        restaurantId,
+        orderId: firstOrder._id.toString(),
+        orderNumber: firstOrder.orderNumber,
+        amount,
+        paymentMethod,
+        tableId,
+        tableNumber,
+        branchId,
+        orderCount: orders.length,
+        timestamp: new Date().toISOString()
+      });
+
       await this.paymentNotificationService.sendPaymentConfirmationNotification(
         restaurantId,
         firstOrder._id.toString(), // Use first order ID as primary

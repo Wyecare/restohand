@@ -90,9 +90,25 @@ export class CashfreeWebhooksController {
       // Handle subscription webhook
       await this.handleSubscriptionEvent(event);
     } else {
-      this.logger.log('Detected regular payment webhook, routing to orders service');
+      const webhookId = `WEBHOOK_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      this.logger.log('🌐 DETECTED REGULAR PAYMENT WEBHOOK:', {
+        webhookId,
+        eventType: event.type,
+        eventData: event.data,
+        orderId: event?.data?.order?.order_id,
+        paymentId: event?.data?.payment?.cf_payment_id,
+        amount: event?.data?.order?.order_amount,
+        timestamp: new Date().toISOString()
+      });
+
       // Handle regular payment webhook - delegate to OrdersService just like Razorpay
       await this.ordersService.handleCashfreeWebhook(event);
+
+      this.logger.log('✅ WEBHOOK PROCESSING COMPLETED:', {
+        webhookId,
+        orderId: event?.data?.order?.order_id
+      });
     }
 
     this.logger.log('=== CASHFREE PAYMENT WEBHOOK END ===');

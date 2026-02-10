@@ -4,6 +4,7 @@ import { PanelLeftIcon } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar';
 import UserMenu from '@/components/layout/header/user-menu';
 import ThemeSwitch from '@/components/layout/header/theme-switch';
+import Notifications from '@/components/layout/header/notifications';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
 import BranchSelector from '@/components/branches/BranchSelector';
@@ -47,10 +48,11 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Language switcher, theme switch and UserMenu */}
+          {/* Language switcher, theme switch, notifications and UserMenu */}
           <LanguageSwitcher />
           <ThemeSwitch />
           <ThemeCustomizerPanel />
+          <Notifications />
           <UserMenu
             user={derivedUser}
             onLogout={async () => {

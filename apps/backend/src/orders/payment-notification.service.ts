@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { FCMNotificationService } from '../call-waiter/fcm-notification.service';
 import { UserRole } from '../common/enums/user-role.enum';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType, NotificationUrgency } from '../notifications/schemas/notification.schema';
 
 export interface PaymentNotificationPayload {
   title: string;
@@ -25,7 +27,8 @@ export class PaymentNotificationService {
 
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private fcmService: FCMNotificationService
+    private fcmService: FCMNotificationService,
+    private notificationsService: NotificationsService
   ) {}
 
   async sendPaymentConfirmationNotification(
@@ -43,6 +46,20 @@ export class PaymentNotificationService {
       isCustomerPayment?: boolean;
     } = {}
   ): Promise<void> {
+    const callId = `PAYMENT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    this.logger.log('🎯 PAYMENT CONFIRMATION NOTIFICATION ENTRY POINT:', {
+      callId,
+      restaurantId,
+      orderId,
+      orderNumber,
+      amount,
+      paymentMethod,
+      options,
+      timestamp: new Date().toISOString(),
+      stack: new Error().stack?.split('\n').slice(1, 8) // Get more call stack to see where this is called from
+    });
+
     try {
       // Find managers and owners for the restaurant with FCM tokens
       const notificationTargets = await this.findNotificationTargets(restaurantId, options.branchId);
@@ -89,6 +106,24 @@ export class PaymentNotificationService {
       const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
       const failureCount = results.length - successCount;
 
+      // Create database notifications for each recipient
+      this.logger.log('🗄️ CALLING DATABASE NOTIFICATIONS:', {
+        callId,
+        restaurantId,
+        targetsCount: allTargets.length,
+        branchId: options.branchId,
+        orderId,
+        orderNumber,
+        timestamp: new Date().toISOString()
+      });
+
+      await this.createDatabaseNotifications(
+        restaurantId,
+        allTargets,
+        payload,
+        options.branchId
+      );
+
       this.logger.log(
         `Payment notification sent for order ${orderNumber}. ` +
         `Managers/Owners: ${notificationTargets.length}, Waiters: ${waiterTargets.length}, ` +
@@ -125,12 +160,14 @@ export class PaymentNotificationService {
       .select('name roles fcmToken')
       .lean();
 
-    return users.map(user => ({
-      userId: user._id.toString(),
-      name: user.name,
-      fcmToken: user.fcmToken,
-      roles: user.roles,
-    }));
+    return users
+      .filter(user => user.fcmToken) // Only include users with FCM tokens
+      .map(user => ({
+        userId: user._id.toString(),
+        name: user.name,
+        fcmToken: user.fcmToken!,
+        roles: user.roles,
+      }));
   }
 
   private async findWaitersForTable(
@@ -157,7 +194,7 @@ export class PaymentNotificationService {
             isActive: true,
           }).select('name roles fcmToken').lean();
 
-          if (assignedWaiter) {
+          if (assignedWaiter && assignedWaiter.fcmToken) {
             waiters.push({
               userId: assignedWaiter._id.toString(),
               name: assignedWaiter.name,
@@ -168,7 +205,7 @@ export class PaymentNotificationService {
           }
         }
       } catch (error) {
-        this.logger.warn(`Could not check table status for assigned waiter: ${error.message}`);
+        this.logger.warn(`Could not check table status for assigned waiter: ${error instanceof Error ? error.message : String(error)}`);
       }
 
       // If no assigned waiter found, fall back to zone-based assignment
@@ -176,8 +213,8 @@ export class PaymentNotificationService {
         try {
           const tableModel = this.userModel.db.collection('restauranttables');
           const table = await tableModel.findOne({
-            _id: new require('mongoose').Types.ObjectId(tableId),
-            restaurantId: new require('mongoose').Types.ObjectId(restaurantId)
+            _id: new Types.ObjectId(tableId),
+            restaurantId: new Types.ObjectId(restaurantId)
           });
 
           if (table?.zone) {
@@ -205,18 +242,20 @@ export class PaymentNotificationService {
               .lean();
 
             zoneWaiters.forEach(waiter => {
-              waiters.push({
-                userId: waiter._id.toString(),
-                name: waiter.name,
-                fcmToken: waiter.fcmToken,
-                roles: waiter.roles,
-              });
+              if (waiter.fcmToken) {
+                waiters.push({
+                  userId: waiter._id.toString(),
+                  name: waiter.name,
+                  fcmToken: waiter.fcmToken,
+                  roles: waiter.roles,
+                });
+              }
             });
 
             this.logger.log(`Found ${zoneWaiters.length} zone-assigned waiters for table ${tableId} zone ${table.zone}`);
           }
         } catch (error) {
-          this.logger.warn(`Could not check zone assignment for waiters: ${error.message}`);
+          this.logger.warn(`Could not check zone assignment for waiters: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
@@ -295,7 +334,10 @@ export class PaymentNotificationService {
       return { success: true };
     } catch (error) {
       this.logger.error('Failed to send payment FCM notification:', error);
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   }
 
@@ -355,5 +397,89 @@ export class PaymentNotificationService {
       staffMemberName: options.staffMemberName,
       customerName: options.customerName,
     };
+  }
+
+  /**
+   * Create database notifications for payment confirmations
+   */
+  private async createDatabaseNotifications(
+    restaurantId: string,
+    targets: Array<{ userId: string; name: string; fcmToken: string; roles: any[] }>,
+    payload: PaymentNotificationPayload,
+    branchId?: string
+  ): Promise<void> {
+    this.logger.log('🗄️ DATABASE NOTIFICATION CREATION STARTED:', {
+      restaurantId,
+      branchId,
+      targetsCount: targets.length,
+      orderId: payload.orderId,
+      orderNumber: payload.orderNumber,
+      timestamp: new Date().toISOString(),
+      targets: targets.map(t => ({ userId: t.userId, name: t.name, roles: t.roles }))
+    });
+
+    try {
+      // Create notifications for all targets
+      const notificationPromises = targets.map((target, index) => {
+        this.logger.log(`📝 CREATING NOTIFICATION FOR TARGET ${index + 1}:`, {
+          targetUserId: target.userId,
+          targetName: target.name,
+          targetRoles: target.roles,
+          orderId: payload.orderId,
+          orderNumber: payload.orderNumber
+        });
+
+        return this.notificationsService.create(restaurantId, {
+          recipientId: target.userId,
+          branchId: branchId,
+          type: NotificationType.PAYMENT_CONFIRMATION,
+          title: payload.title,
+          message: payload.body,
+          urgency: NotificationUrgency.NORMAL,
+          orderId: payload.orderId,
+          orderNumber: payload.orderNumber,
+          tableId: payload.tableId,
+          tableNumber: payload.tableLabel,
+          metadata: {
+            amount: payload.amount,
+            paymentMethod: payload.paymentMethod,
+            staffMemberName: payload.staffMemberName,
+            customerName: payload.customerName,
+            isPaymentNotification: true
+          },
+          fcmSent: true,
+          fcmMessageId: `payment_notification_${Date.now()}`,
+          senderName: 'Payment System'
+        });
+      });
+
+      const databaseResults = await Promise.allSettled(notificationPromises);
+
+      const successfulCreations = databaseResults.filter(r => r.status === 'fulfilled').length;
+      const failedCreations = databaseResults.filter(r => r.status === 'rejected').length;
+
+      this.logger.log(`✅ DATABASE NOTIFICATIONS COMPLETED:`, {
+        totalTargets: targets.length,
+        successful: successfulCreations,
+        failed: failedCreations,
+        orderNumber: payload.orderNumber,
+        orderId: payload.orderId,
+        timestamp: new Date().toISOString(),
+        failures: databaseResults.filter(r => r.status === 'rejected').map((r, i) => ({
+          targetIndex: i,
+          error: r.reason
+        }))
+      });
+
+    } catch (error) {
+      this.logger.error('❌ CRITICAL ERROR in createDatabaseNotifications:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        orderNumber: payload.orderNumber,
+        orderId: payload.orderId,
+        timestamp: new Date().toISOString()
+      });
+      // Don't throw - database notifications are supplementary to FCM
+    }
   }
 }

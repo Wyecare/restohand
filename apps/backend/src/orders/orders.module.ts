@@ -47,6 +47,7 @@ import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
     CallWaiterModule,
     SubscriptionsModule,
     MenuPriceTagsModule,
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Restaurant.name, schema: RestaurantSchema },

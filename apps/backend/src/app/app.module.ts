@@ -38,6 +38,7 @@ import { SuperAdminModule } from '../super-admin/super-admin.module';
 import { SeederModule } from '../database/seeders/seeder.module';
 import { CashfreeModule } from '../payments/cashfree.module';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -84,6 +85,7 @@ import { AppService } from './app.service';
     SeederModule,
     CashfreeModule,
     SubscriptionPlansModule.forRoot(), // Make global to avoid circular dependencies
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
