@@ -23,6 +23,7 @@ import type {
   CustomerSession,
   CreateCustomerSessionRequest,
 } from './types';
+import type { DashboardMetrics, DashboardQueryParams } from './types/dashboard.types';
 
 export interface ListRestaurantsParams {
   search?: string;
@@ -1212,6 +1213,20 @@ export const restaurantsApi = baseApi.injectEndpoints({
         { type: 'Restaurant', id: restaurantId },
       ],
     }),
+
+    // Dashboard endpoints
+    getDashboardMetrics: builder.query<
+      DashboardMetrics,
+      { restaurantId: string } & DashboardQueryParams
+    >({
+      query: ({ restaurantId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/dashboard/metrics`,
+        params,
+      }),
+      providesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Dashboard' as const, id: restaurantId },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -1286,4 +1301,6 @@ export const {
   useOnboardRestaurantToCashfreeMutation,
   useGetCashfreeVendorStatusQuery,
   useSyncCashfreeVendorStatusMutation,
+  // Dashboard hooks
+  useGetDashboardMetricsQuery,
 } = restaurantsApi;

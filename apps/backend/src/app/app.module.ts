@@ -40,6 +40,7 @@ import { CashfreeModule } from '../payments/cashfree.module';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DemoModule } from '../demo/demo.module';
+import { DashboardModule } from '../dashboard/dashboard.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -88,6 +89,7 @@ import { AppService } from './app.service';
     SubscriptionPlansModule.forRoot(), // Make global to avoid circular dependencies
     NotificationsModule,
     DemoModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

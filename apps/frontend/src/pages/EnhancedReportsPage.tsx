@@ -19,6 +19,7 @@ import {
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -47,11 +48,13 @@ import {
   BarChart3Icon,
   LineChart,
   DollarSignIcon,
-  MinusIcon,
+  TrendingRightIcon,
   Users2Icon,
+  TimerIcon,
   TargetIcon,
   RefreshCwIcon,
 } from 'lucide-react';
+import { format } from 'date-fns';
 import { type DateRange } from 'react-day-picker';
 import {
   LineChart as RechartsLineChart,
@@ -71,10 +74,7 @@ import {
 } from 'recharts';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
-import {
-  useGetComprehensiveAnalyticsQuery,
-  useDownloadOptimizedPdfReportMutation,
-} from '@/store/api/reportsApi';
+import { useGetComprehensiveAnalyticsQuery, useDownloadOptimizedPdfReportMutation } from '@/store/api/reportsApi';
 import type { ReportsQueryParams } from '@/store/api/types/reports.types';
 import { useBranchContext } from '@/contexts/BranchContext';
 
@@ -94,7 +94,7 @@ const getTrendIcon = (trend: 'up' | 'down' | 'same') => {
     case 'down':
       return <TrendingDownIcon className="h-3 w-3 text-red-500" />;
     default:
-      return <MinusIcon className="h-3 w-3 text-gray-500" />;
+      return <TrendingRightIcon className="h-3 w-3 text-gray-500" />;
   }
 };
 
@@ -109,48 +109,31 @@ const getTrendColor = (trend: 'up' | 'down' | 'same') => {
   }
 };
 
-const COLORS = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#06b6d4',
-];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-const ReportsPage = () => {
+const EnhancedReportsPage = () => {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { currentBranch } = useBranchContext();
   const { toast } = useToast();
 
   // Query state
-  const [period, setPeriod] = useState<'today' | '7d' | '30d' | '3m' | '1y'>(
-    '30d'
-  );
-  const [customDateRange, setCustomDateRange] = useState<
-    DateRange | undefined
-  >();
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'analytics' | 'performance'
-  >('overview');
+  const [period, setPeriod] = useState<'today' | '7d' | '30d' | '3m' | '1y'>('30d');
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'performance' | 'trends'>('overview');
 
   // Build query params
   const queryParams: ReportsQueryParams = {
     period: customDateRange ? undefined : period,
     from: customDateRange?.from?.toISOString(),
     to: customDateRange?.to?.toISOString(),
-    branchId: currentBranch?._id,
+    branchId: currentBranch?.id,
   };
 
-  const {
-    data: metrics,
-    isLoading,
-    isError,
-    refetch,
-  } = useGetComprehensiveAnalyticsQuery(restaurantId ? queryParams : skipToken);
+  const { data: metrics, isLoading, isError, refetch } = useGetComprehensiveAnalyticsQuery(
+    restaurantId ? queryParams : skipToken
+  );
 
-  const [downloadPdf, { isLoading: isDownloading }] =
-    useDownloadOptimizedPdfReportMutation();
+  const [downloadPdf, { isLoading: isDownloading }] = useDownloadOptimizedPdfReportMutation();
 
   const handleDownloadPDF = async () => {
     if (!restaurantId) return;
@@ -161,9 +144,7 @@ const ReportsPage = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `comprehensive-restaurant-report-${period}-${
-        new Date().toISOString().split('T')[0]
-      }.pdf`;
+      a.download = `comprehensive-restaurant-report-${period}-${new Date().toISOString().split('T')[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -171,8 +152,7 @@ const ReportsPage = () => {
 
       toast({
         title: 'Report Downloaded',
-        description:
-          'Your comprehensive PDF report has been downloaded successfully.',
+        description: 'Your comprehensive PDF report has been downloaded successfully.',
       });
     } catch (error) {
       toast({
@@ -219,16 +199,10 @@ const ReportsPage = () => {
             <DollarSignIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(metrics?.revenue.total.current || 0)}
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.revenue.total.current || 0)}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
               {getTrendIcon(metrics?.revenue.total.trend || 'same')}
-              <span
-                className={`ml-1 ${getTrendColor(
-                  metrics?.revenue.total.trend || 'same'
-                )}`}
-              >
+              <span className={`ml-1 ${getTrendColor(metrics?.revenue.total.trend || 'same')}`}>
                 {formatPercent(Math.abs(metrics?.revenue.total.change || 0))}
               </span>
               <span className="ml-1">vs previous period</span>
@@ -242,16 +216,10 @@ const ReportsPage = () => {
             <ShoppingCartIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {metrics?.orders.total.current || 0}
-            </div>
+            <div className="text-2xl font-bold">{metrics?.orders.total.current || 0}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
               {getTrendIcon(metrics?.orders.total.trend || 'same')}
-              <span
-                className={`ml-1 ${getTrendColor(
-                  metrics?.orders.total.trend || 'same'
-                )}`}
-              >
+              <span className={`ml-1 ${getTrendColor(metrics?.orders.total.trend || 'same')}`}>
                 {formatPercent(Math.abs(metrics?.orders.total.change || 0))}
               </span>
               <span className="ml-1">vs previous period</span>
@@ -261,25 +229,15 @@ const ReportsPage = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Average Ticket
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Average Ticket</CardTitle>
             <TargetIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(metrics?.revenue.averageTicket.current || 0)}
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.revenue.averageTicket.current || 0)}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
               {getTrendIcon(metrics?.revenue.averageTicket.trend || 'same')}
-              <span
-                className={`ml-1 ${getTrendColor(
-                  metrics?.revenue.averageTicket.trend || 'same'
-                )}`}
-              >
-                {formatPercent(
-                  Math.abs(metrics?.revenue.averageTicket.change || 0)
-                )}
+              <span className={`ml-1 ${getTrendColor(metrics?.revenue.averageTicket.trend || 'same')}`}>
+                {formatPercent(Math.abs(metrics?.revenue.averageTicket.change || 0))}
               </span>
               <span className="ml-1">vs previous period</span>
             </div>
@@ -292,19 +250,11 @@ const ReportsPage = () => {
             <UsersIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatPercent(metrics?.orders.successRate.current || 0)}
-            </div>
+            <div className="text-2xl font-bold">{formatPercent(metrics?.orders.successRate.current || 0)}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
               {getTrendIcon(metrics?.orders.successRate.trend || 'same')}
-              <span
-                className={`ml-1 ${getTrendColor(
-                  metrics?.orders.successRate.trend || 'same'
-                )}`}
-              >
-                {formatPercent(
-                  Math.abs(metrics?.orders.successRate.change || 0)
-                )}
+              <span className={`ml-1 ${getTrendColor(metrics?.orders.successRate.trend || 'same')}`}>
+                {formatPercent(Math.abs(metrics?.orders.successRate.change || 0))}
               </span>
               <span className="ml-1">vs previous period</span>
             </div>
@@ -314,7 +264,7 @@ const ReportsPage = () => {
 
       {/* Charts Section */}
       <div className="grid gap-6 md:grid-cols-2">
-        {metrics?.charts.slice(0, 4).map((chart) => (
+        {metrics?.charts.slice(0, 4).map((chart, index) => (
           <Card key={chart.title}>
             <CardHeader>
               <CardTitle className="text-lg">{chart.title}</CardTitle>
@@ -323,15 +273,14 @@ const ReportsPage = () => {
               )}
             </CardHeader>
             <CardContent>
-              <div className="h-75">
+              <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   {chart.type === 'line' && (
                     <RechartsLineChart data={chart.data}>
+                      <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="label" />
                       <YAxis />
-                      <Tooltip
-                        formatter={(value) => formatCurrency(Number(value))}
-                      />
+                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                       <Line
                         type="monotone"
                         dataKey="value"
@@ -342,11 +291,10 @@ const ReportsPage = () => {
                   )}
                   {chart.type === 'area' && (
                     <AreaChart data={chart.data}>
+                      <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="label" />
                       <YAxis />
-                      <Tooltip
-                        formatter={(value) => formatCurrency(Number(value))}
-                      />
+                      <Tooltip formatter={(value) => formatCurrency(Number(value))} />
                       <Area
                         type="monotone"
                         dataKey="value"
@@ -358,21 +306,31 @@ const ReportsPage = () => {
                   )}
                   {chart.type === 'bar' && (
                     <BarChart data={chart.data}>
+                      <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="label" />
                       <YAxis />
                       <Tooltip />
-                      <Bar
-                        dataKey="value"
-                        fill={chart.colors?.[0] || COLORS[0]}
-                      />
+                      <Bar dataKey="value" fill={chart.colors?.[0] || COLORS[0]} />
                     </BarChart>
                   )}
                   {(chart.type === 'pie' || chart.type === 'donut') && (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-muted-foreground text-sm">
-                        Chart visualization coming soon
-                      </div>
-                    </div>
+                    <RechartsPieChart>
+                      <Tooltip />
+                      <Legend />
+                      <pie
+                        data={chart.data}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label
+                      >
+                        {chart.data.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </pie>
+                    </RechartsPieChart>
                   )}
                 </ResponsiveContainer>
               </div>
@@ -396,9 +354,7 @@ const ReportsPage = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Cash Revenue</span>
                 <div className="text-right">
-                  <div className="font-bold">
-                    {formatCurrency(metrics?.revenue.cash.current || 0)}
-                  </div>
+                  <div className="font-bold">{formatCurrency(metrics?.revenue.cash.current || 0)}</div>
                   <div className="text-xs text-muted-foreground">
                     {formatPercent(metrics?.payments.cashPercentage || 0)}
                   </div>
@@ -416,9 +372,7 @@ const ReportsPage = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">UPI Revenue</span>
                 <div className="text-right">
-                  <div className="font-bold">
-                    {formatCurrency(metrics?.revenue.upi.current || 0)}
-                  </div>
+                  <div className="font-bold">{formatCurrency(metrics?.revenue.upi.current || 0)}</div>
                   <div className="text-xs text-muted-foreground">
                     {formatPercent(metrics?.payments.upiPercentage || 0)}
                   </div>
@@ -436,9 +390,7 @@ const ReportsPage = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Card Revenue</span>
                 <div className="text-right">
-                  <div className="font-bold">
-                    {formatCurrency(metrics?.revenue.card.current || 0)}
-                  </div>
+                  <div className="font-bold">{formatCurrency(metrics?.revenue.card.current || 0)}</div>
                   <div className="text-xs text-muted-foreground">
                     {formatPercent(metrics?.payments.cardPercentage || 0)}
                   </div>
@@ -465,30 +417,19 @@ const ReportsPage = () => {
           <CardContent>
             <div className="space-y-3">
               {metrics?.topMenuItems.slice(0, 5).map((item, index) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between"
-                >
+                <div key={item.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Badge
-                      variant="outline"
-                      className="w-6 h-6 p-0 flex items-center justify-center text-xs"
-                    >
+                    <Badge variant="outline" className="w-6 h-6 p-0 flex items-center justify-center text-xs">
                       {index + 1}
                     </Badge>
                     <div>
-                      <p className="text-sm font-medium line-clamp-1">
-                        {item.name}
-                      </p>
+                      <p className="text-sm font-medium line-clamp-1">{item.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.category} • {item.orderCount} orders •{' '}
-                        {formatPercent(item.profitMargin)} margin
+                        {item.category} • {item.orderCount} orders • {formatPercent(item.profitMargin)} margin
                       </p>
                     </div>
                   </div>
-                  <span className="text-sm font-mono">
-                    {formatCurrency(item.revenue)}
-                  </span>
+                  <span className="text-sm font-mono">{formatCurrency(item.revenue)}</span>
                 </div>
               ))}
             </div>
@@ -504,29 +445,15 @@ const ReportsPage = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Customers
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
             <Users2Icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {metrics?.customerAnalytics.totalCustomers.current || 0}
-            </div>
+            <div className="text-2xl font-bold">{metrics?.customerAnalytics.totalCustomers.current || 0}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
-              {getTrendIcon(
-                metrics?.customerAnalytics.totalCustomers.trend || 'same'
-              )}
-              <span
-                className={`ml-1 ${getTrendColor(
-                  metrics?.customerAnalytics.totalCustomers.trend || 'same'
-                )}`}
-              >
-                {formatPercent(
-                  Math.abs(
-                    metrics?.customerAnalytics.totalCustomers.change || 0
-                  )
-                )}
+              {getTrendIcon(metrics?.customerAnalytics.totalCustomers.trend || 'same')}
+              <span className={`ml-1 ${getTrendColor(metrics?.customerAnalytics.totalCustomers.trend || 'same')}`}>
+                {formatPercent(Math.abs(metrics?.customerAnalytics.totalCustomers.change || 0))}
               </span>
             </div>
           </CardContent>
@@ -538,38 +465,22 @@ const ReportsPage = () => {
             <UsersIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {metrics?.customerAnalytics.newCustomers.current || 0}
-            </div>
+            <div className="text-2xl font-bold">{metrics?.customerAnalytics.newCustomers.current || 0}</div>
             <div className="text-xs text-muted-foreground">This period</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Retention Rate
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Retention Rate</CardTitle>
             <TargetIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatPercent(
-                metrics?.customerAnalytics.retentionRate.current || 0
-              )}
-            </div>
+            <div className="text-2xl font-bold">{formatPercent(metrics?.customerAnalytics.retentionRate.current || 0)}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
-              {getTrendIcon(
-                metrics?.customerAnalytics.retentionRate.trend || 'same'
-              )}
-              <span
-                className={`ml-1 ${getTrendColor(
-                  metrics?.customerAnalytics.retentionRate.trend || 'same'
-                )}`}
-              >
-                {formatPercent(
-                  Math.abs(metrics?.customerAnalytics.retentionRate.change || 0)
-                )}
+              {getTrendIcon(metrics?.customerAnalytics.retentionRate.trend || 'same')}
+              <span className={`ml-1 ${getTrendColor(metrics?.customerAnalytics.retentionRate.trend || 'same')}`}>
+                {formatPercent(Math.abs(metrics?.customerAnalytics.retentionRate.change || 0))}
               </span>
             </div>
           </CardContent>
@@ -581,14 +492,8 @@ const ReportsPage = () => {
             <DollarSignIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(
-                metrics?.customerAnalytics.customerLifetimeValue.current || 0
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Average lifetime value
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.customerAnalytics.customerLifetimeValue.current || 0)}</div>
+            <div className="text-xs text-muted-foreground">Average lifetime value</div>
           </CardContent>
         </Card>
       </div>
@@ -600,33 +505,22 @@ const ReportsPage = () => {
             <PieChart className="h-5 w-5" />
             Category Performance
           </CardTitle>
-          <CardDescription>
-            Revenue breakdown by menu categories
-          </CardDescription>
+          <CardDescription>Revenue breakdown by menu categories</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {metrics?.categoryPerformance.slice(0, 6).map((category) => (
-              <div
-                key={category.id}
-                className="space-y-2 p-4 border rounded-lg"
-              >
+              <div key={category.id} className="space-y-2 p-4 border rounded-lg">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold">{category.name}</h4>
-                  <Badge variant="secondary">
-                    {formatPercent(category.revenuePercentage)}
-                  </Badge>
+                  <Badge variant="secondary">{formatPercent(category.revenuePercentage)}</Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {category.orderCount} orders • Avg:{' '}
-                  {formatCurrency(category.averageItemPrice)}
+                  {category.orderCount} orders • Avg: {formatCurrency(category.averageItemPrice)}
                 </div>
-                <div className="text-lg font-bold">
-                  {formatCurrency(category.revenue)}
-                </div>
+                <div className="text-lg font-bold">{formatCurrency(category.revenue)}</div>
                 <div className="text-xs text-muted-foreground">
-                  Top: {category.topItem.name} ({category.topItem.orderCount}{' '}
-                  orders)
+                  Top: {category.topItem.name} ({category.topItem.orderCount} orders)
                 </div>
               </div>
             ))}
@@ -646,55 +540,36 @@ const ReportsPage = () => {
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">
-                Busiest Day
-              </div>
+              <div className="text-sm font-medium text-muted-foreground">Busiest Day</div>
               <div className="text-lg font-bold">
-                {new Date(
-                  metrics?.timeAnalytics.busiestDay.date || ''
-                ).toLocaleDateString()}
+                {new Date(metrics?.timeAnalytics.busiestDay.date || '').toLocaleDateString()}
               </div>
               <div className="text-xs text-muted-foreground">
-                {metrics?.timeAnalytics.busiestDay.orderCount} orders,{' '}
-                {formatCurrency(metrics?.timeAnalytics.busiestDay.revenue || 0)}
+                {metrics?.timeAnalytics.busiestDay.orderCount} orders, {formatCurrency(metrics?.timeAnalytics.busiestDay.revenue || 0)}
               </div>
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">
-                Peak Hour
-              </div>
+              <div className="text-sm font-medium text-muted-foreground">Peak Hour</div>
               <div className="text-lg font-bold">
                 {metrics?.timeAnalytics.peakHours[0]?.hour || 0}:00
               </div>
               <div className="text-xs text-muted-foreground">
-                {metrics?.timeAnalytics.peakHours[0]?.orderCount || 0} avg
-                orders
+                {metrics?.timeAnalytics.peakHours[0]?.orderCount || 0} avg orders
               </div>
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">
-                Avg Wait Time
-              </div>
+              <div className="text-sm font-medium text-muted-foreground">Avg Wait Time</div>
               <div className="text-lg font-bold">
-                {(
-                  metrics?.timeAnalytics.peakHours[0]?.averageWaitTime || 0
-                ).toFixed(1)}{' '}
-                min
+                {(metrics?.timeAnalytics.peakHours[0]?.averageWaitTime || 0).toFixed(1)} min
               </div>
-              <div className="text-xs text-muted-foreground">
-                During peak hours
-              </div>
+              <div className="text-xs text-muted-foreground">During peak hours</div>
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">
-                Orders/Hour
-              </div>
+              <div className="text-sm font-medium text-muted-foreground">Orders/Hour</div>
               <div className="text-lg font-bold">
                 {(metrics?.orders.ordersPerHour.current || 0).toFixed(1)}
               </div>
-              <div className="text-xs text-muted-foreground">
-                Average throughout day
-              </div>
+              <div className="text-xs text-muted-foreground">Average throughout day</div>
             </div>
           </div>
         </CardContent>
@@ -712,16 +587,9 @@ const ReportsPage = () => {
             <DollarSignIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(
-                metrics?.profitabilityMetrics.grossProfit.current || 0
-              )}
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.profitabilityMetrics.grossProfit.current || 0)}</div>
             <div className="text-xs text-muted-foreground">
-              {formatPercent(
-                metrics?.profitabilityMetrics.grossProfitMargin.current || 0
-              )}{' '}
-              margin
+              {formatPercent(metrics?.profitabilityMetrics.grossProfitMargin.current || 0)} margin
             </div>
           </CardContent>
         </Card>
@@ -732,16 +600,9 @@ const ReportsPage = () => {
             <TrendingUpIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(
-                metrics?.profitabilityMetrics.netProfit.current || 0
-              )}
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.profitabilityMetrics.netProfit.current || 0)}</div>
             <div className="text-xs text-muted-foreground">
-              {formatPercent(
-                metrics?.profitabilityMetrics.netProfitMargin.current || 0
-              )}{' '}
-              margin
+              {formatPercent(metrics?.profitabilityMetrics.netProfitMargin.current || 0)} margin
             </div>
           </CardContent>
         </Card>
@@ -752,25 +613,11 @@ const ReportsPage = () => {
             <ShoppingCartIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(
-                metrics?.profitabilityMetrics.costOfGoodsSold.current || 0
-              )}
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.profitabilityMetrics.costOfGoodsSold.current || 0)}</div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
-              {getTrendIcon(
-                metrics?.profitabilityMetrics.costOfGoodsSold.trend || 'same'
-              )}
-              <span
-                className={`ml-1 ${getTrendColor(
-                  metrics?.profitabilityMetrics.costOfGoodsSold.trend || 'same'
-                )}`}
-              >
-                {formatPercent(
-                  Math.abs(
-                    metrics?.profitabilityMetrics.costOfGoodsSold.change || 0
-                  )
-                )}
+              {getTrendIcon(metrics?.profitabilityMetrics.costOfGoodsSold.trend || 'same')}
+              <span className={`ml-1 ${getTrendColor(metrics?.profitabilityMetrics.costOfGoodsSold.trend || 'same')}`}>
+                {formatPercent(Math.abs(metrics?.profitabilityMetrics.costOfGoodsSold.change || 0))}
               </span>
             </div>
           </CardContent>
@@ -778,23 +625,71 @@ const ReportsPage = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Operating Expenses
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Operating Expenses</CardTitle>
             <BarChart3Icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(
-                metrics?.profitabilityMetrics.operatingExpenses.current || 0
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Fixed + variable costs
-            </div>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.profitabilityMetrics.operatingExpenses.current || 0)}</div>
+            <div className="text-xs text-muted-foreground">Fixed + variable costs</div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Staff Performance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users2Icon className="h-5 w-5" />
+            Staff Performance
+          </CardTitle>
+          <CardDescription>Individual staff member metrics</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!metrics?.staffPerformance.length ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No staff performance data available yet
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Staff Member</TableHead>
+                  <TableHead className="text-center">Orders</TableHead>
+                  <TableHead className="text-center">Avg Completion</TableHead>
+                  <TableHead className="text-center">Customer Rating</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {metrics.staffPerformance.slice(0, 5).map((staff) => (
+                  <TableRow key={staff.id}>
+                    <TableCell className="font-medium">{staff.name}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary">{staff.ordersHandled}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {staff.averageCompletionTime.toFixed(1)} min
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {staff.customerSatisfaction > 0 ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <StarIcon className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          {staff.customerSatisfaction.toFixed(1)}
+                        </div>
+                      ) : (
+                        'No ratings'
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {formatCurrency(staff.revenueGenerated)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent Orders */}
       <Card>
@@ -825,18 +720,13 @@ const ReportsPage = () => {
               <TableBody>
                 {metrics.recentOrders.slice(0, 10).map((order) => (
                   <TableRow key={order.id}>
-                    <TableCell className="font-medium">
-                      {order.orderNumber}
-                    </TableCell>
+                    <TableCell className="font-medium">{order.orderNumber}</TableCell>
                     <TableCell>{order.tableNumber}</TableCell>
                     <TableCell>
                       <Badge
                         variant={
-                          order.status === 'completed'
-                            ? 'default'
-                            : order.status === 'pending'
-                            ? 'secondary'
-                            : 'destructive'
+                          order.status === 'completed' ? 'default' :
+                          order.status === 'pending' ? 'secondary' : 'destructive'
                         }
                       >
                         {order.status.toUpperCase()}
@@ -863,17 +753,29 @@ const ReportsPage = () => {
     <div className="space-y-6">
       {/* Header with Controls */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">📊 Comprehensive Reports</h1>
+          <p className="text-muted-foreground">
+            Advanced analytics and business intelligence for your restaurant
+            {currentBranch && (
+              <span className="ml-2 inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                {currentBranch.name}
+              </span>
+            )}
+          </p>
+        </div>
+
         <div className="flex items-center gap-3">
           {/* Period Selector */}
           <Select
             value={customDateRange ? 'custom' : period}
             onValueChange={(value) => {
               if (value === 'custom') return;
-              setPeriod(value as 'today' | '7d' | '30d' | '3m' | '1y');
+              setPeriod(value as any);
               setCustomDateRange(undefined);
             }}
           >
-            <SelectTrigger className="w-35">
+            <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent>
@@ -906,13 +808,13 @@ const ReportsPage = () => {
                 }}
                 numberOfMonths={2}
                 disabled={(date: Date) =>
-                  date > new Date() || date < new Date('2020-01-01')
+                  date > new Date() || date < new Date("2020-01-01")
                 }
               />
             </PopoverContent>
           </Popover>
 
-          {/* <Button
+          <Button
             onClick={handleDownloadPDF}
             disabled={isDownloading}
             className="gap-2"
@@ -923,7 +825,7 @@ const ReportsPage = () => {
               <DownloadIcon className="h-4 w-4" />
             )}
             Download PDF
-          </Button> */}
+          </Button>
         </div>
       </div>
 
@@ -937,9 +839,7 @@ const ReportsPage = () => {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() =>
-                setActiveTab(tab.id as 'overview' | 'analytics' | 'performance')
-              }
+              onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === tab.id
                   ? 'border-primary text-primary'
@@ -963,4 +863,4 @@ const ReportsPage = () => {
   );
 };
 
-export default ReportsPage;
+export default EnhancedReportsPage;
