@@ -250,7 +250,7 @@ module "run_api" {
   )
 
   additional_env_vars = {
-    CASHFREE_ENVIRONMENT = "sandbox"
+    CASHFREE_ENVIRONMENT = "production"
   }
 
   depends_on = [

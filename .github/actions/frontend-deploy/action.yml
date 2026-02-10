@@ -98,7 +98,7 @@ runs:
         VITE_FIREBASE_MEASUREMENT_ID=${{ inputs.firebase-measurement-id }}
         VITE_FIREBASE_VAPID_KEY=${{ inputs.firebase-vapid-key }}
         VITE_ENVIRONMENT=${{ inputs.environment }}
-        VITE_CASHFREE_ENVIRONMENT=sandbox
+        VITE_CASHFREE_ENVIRONMENT=production
         EOF
         echo "✅ Environment variables configured"
         echo "📋 Environment file contents:"
