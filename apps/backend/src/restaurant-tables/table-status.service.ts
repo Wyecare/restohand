@@ -28,6 +28,7 @@ import {
   EnhancedRestaurantTableResponseDto,
 } from './dtos/table-status.dto';
 import { OrderResponseDto } from '../orders/dtos/order-response.dto';
+import { SmartGstService } from '../gst/smart-gst.service';
 
 @Injectable()
 export class TableStatusService {
@@ -41,7 +42,8 @@ export class TableStatusService {
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
     private readonly tableStatusGateway: TableStatusGateway,
-    private readonly tableStatusSSEService: TableStatusSSEService
+    private readonly tableStatusSSEService: TableStatusSSEService,
+    private readonly smartGstService: SmartGstService
   ) {}
 
   async updateTableStatus(
@@ -301,7 +303,7 @@ export class TableStatusService {
       const tableStatus = statusMap.get(table._id.toString());
       const currentBill = billMap.get(table.tableNumber) || 0;
 
-      // Update bill amount if different AND auto-correct status if needed
+      // Create or update table status based on active orders
       if (tableStatus) {
         let needsUpdate = false;
 
@@ -322,9 +324,34 @@ export class TableStatusService {
           needsUpdate = true;
         }
 
+        // Auto-correct status: if has active orders but table is not marked as occupied
+        if (currentBill > 0 && tableStatus.status !== TableStatusType.Occupied) {
+          console.log(`Auto-correcting table ${table.tableNumber} status to occupied (has active orders worth ₹${currentBill})`);
+          tableStatus.status = TableStatusType.Occupied;
+          tableStatus.occupiedSince = new Date();
+          tableStatus.availableSince = undefined;
+          tableStatus.cleaningSince = undefined;
+          tableStatus.lastStatusChange = new Date();
+          tableStatus.lastUpdatedByName = 'Auto-correction System';
+          needsUpdate = true;
+        }
+
         if (needsUpdate) {
           await tableStatus.save();
         }
+      } else if (currentBill > 0) {
+        // Create new table status if table has active orders but no existing status
+        console.log(`Creating new occupied status for table ${table.tableNumber} with active orders worth ₹${currentBill}`);
+        const newTableStatus = await this.tableStatusModel.create({
+          restaurantId,
+          tableId: table._id.toString(),
+          status: TableStatusType.Occupied,
+          occupiedSince: new Date(),
+          currentBillAmount: currentBill,
+          lastStatusChange: new Date(),
+          lastUpdatedByName: 'Auto-correction System',
+        });
+        statusMap.set(table._id.toString(), newTableStatus);
       }
 
       // Get all orders for this table
@@ -333,8 +360,39 @@ export class TableStatusService {
       );
       const firstOrder = tableOrders.length > 0 ? tableOrders[0] : undefined;
 
-      // Calculate total bill amount for this table
-      const totalBillAmount = tableOrders.reduce((total, order) => total + order.totalAmount, 0);
+      // Calculate proper tax-inclusive total amount for this table using Smart GST
+      let totalBillAmount = 0;
+      if (tableOrders.length > 0) {
+        try {
+          // Prepare items for tax calculation (same logic as session endpoint)
+          const consolidatedItems = [];
+          for (const order of tableOrders) {
+            for (const item of order.items) {
+              consolidatedItems.push({
+                menuItemId: item.menuItemId.toString(),
+                name: item.name,
+                quantity: item.quantity,
+                unitPrice: item.pricing.unitAmount,
+                discountAmount: item.pricing.discountAmount || 0,
+              });
+            }
+          }
+
+          if (consolidatedItems.length > 0) {
+            // Calculate tax using Smart GST service (same as session endpoint)
+            const taxCalculation = await this.smartGstService.calculateOrderGst(
+              restaurantId,
+              consolidatedItems,
+              tableOrders[0].customerState
+            );
+            totalBillAmount = taxCalculation.summary.totalAmount;
+          }
+        } catch (error) {
+          console.warn(`Failed to calculate Smart GST for table ${table.tableNumber}, falling back to order sum:`, error);
+          // Fallback to sum of order totals
+          totalBillAmount = tableOrders.reduce((total, order) => total + order.totalAmount, 0);
+        }
+      }
 
       enhancedTables.push({
         id: table._id.toString(),

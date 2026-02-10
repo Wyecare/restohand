@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
+import { GstModule } from '../gst/gst.module';
 import { RestaurantTable, RestaurantTableSchema } from './schemas/restaurant-table.schema';
 import { TableStatus, TableStatusSchema } from './schemas/table-status.schema';
 import { Zone, ZoneSchema } from './schemas/zone.schema';
@@ -21,6 +22,7 @@ import { User, UserSchema } from '../users/schemas/user.schema';
   imports: [
     forwardRef(() => RestaurantsModule), // Break circular dependency
     AuthModule,
+    GstModule, // Import GstModule for SmartGstService
     JwtModule.registerAsync({
       useFactory: () => ({
         secret:

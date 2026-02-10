@@ -75,7 +75,7 @@ export function useTableHeatmapSSE(
     if (!restaurantId || !authToken || !currentBranch?._id) return;
 
     try {
-      const url = `${API_BASE_URL}/restaurants/${restaurantId}/tables/branch/${currentBranch._id}/service-view`;
+      const url = `${API_BASE_URL}/restaurants/${restaurantId}/tables/enhanced-list?branchId=${currentBranch._id}`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -88,10 +88,10 @@ export function useTableHeatmapSSE(
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const serviceData = await response.json();
+      const enhancedTables = await response.json();
 
-      // Transform service data to heatmap format
-      const heatmapTables: TableHeatmapData[] = serviceData.tables?.map((table: any) => ({
+      // Transform enhanced tables data to heatmap format
+      const heatmapTables: TableHeatmapData[] = enhancedTables?.map((table: any) => ({
         tableId: table.id,
         tableNumber: table.tableNumber,
         displayName: table.displayName,
@@ -161,11 +161,13 @@ export function useTableHeatmapSSE(
       eventSource.onmessage = (event) => {
         try {
           const eventData: TableHeatmapEvent = JSON.parse(event.data);
+          console.log('🔥 SSE Event received:', eventData.type, eventData.data);
 
           switch (eventData.type) {
             case 'table-heatmap.initial':
             case 'table-heatmap.bulk-update':
               if (Array.isArray(eventData.data)) {
+                console.log('🔥 Setting initial table data:', eventData.data.length, 'tables');
                 setTables(eventData.data);
                 setLastUpdate(new Date());
               }
@@ -173,6 +175,7 @@ export function useTableHeatmapSSE(
 
             case 'table-status.updated':
               if (!Array.isArray(eventData.data)) {
+                console.log('🔥 Updating single table:', eventData.data);
                 updateTable(eventData.data);
               }
               break;

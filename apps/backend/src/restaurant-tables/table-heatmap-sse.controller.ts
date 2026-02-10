@@ -15,6 +15,7 @@ import { Model } from 'mongoose';
 import { Response } from 'express';
 import { TableStatusSSEService } from './table-status-sse.service';
 import { RestaurantTablesService } from './restaurant-tables.service';
+import { TableStatusService } from './table-status.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Controller('tables/sse')
@@ -24,6 +25,7 @@ export class TableHeatmapSSEController {
   constructor(
     private readonly tableStatusSSEService: TableStatusSSEService,
     private readonly tablesService: RestaurantTablesService,
+    private readonly tableStatusService: TableStatusService,
     private readonly jwtService: JwtService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>
   ) {}
@@ -101,12 +103,20 @@ export class TableHeatmapSSEController {
 
     this.logger.log(`Table heatmap SSE connection established: ${connectionId}`);
 
-    // Send initial table data
+    // Send initial table data with enhanced status information
     try {
-      const initialTableData = await this.tablesService.listForService(restaurantId, effectiveBranchId);
+      const initialTableData = await this.tableStatusService.getEnhancedTablesList(restaurantId, effectiveBranchId);
+
+      this.logger.log(`🔥 Enhanced table data fetched: ${initialTableData?.length} tables`);
+
+      // Log first table for debugging
+      if (initialTableData && initialTableData.length > 0) {
+        const firstTable = initialTableData[0];
+        this.logger.log(`🔥 First table sample: ${firstTable.tableNumber} - Status: ${firstTable.currentStatus?.status || 'NO STATUS'} - Bill: ${firstTable.totalBillAmount || 0}`);
+      }
 
       // Transform to heatmap format
-      const heatmapTables = initialTableData.tables?.map((table) => ({
+      const heatmapTables = initialTableData?.map((table) => ({
         tableId: table.id,
         tableNumber: table.tableNumber,
         displayName: table.displayName,
@@ -126,6 +136,12 @@ export class TableHeatmapSSEController {
         },
         lastUpdate: new Date().toISOString(),
       })) || [];
+
+      this.logger.log(`🔥 Transformed heatmap data: ${heatmapTables.length} tables`);
+      // Log first transformed table
+      if (heatmapTables.length > 0) {
+        this.logger.log(`🔥 First transformed table: ${JSON.stringify(heatmapTables[0])}`);
+      }
 
       // Send initial data
       response.write(`data: ${JSON.stringify({

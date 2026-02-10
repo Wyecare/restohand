@@ -1,22 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { createPortal } from 'react-dom';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   useTableHeatmapSSE,
   TableHeatmapData,
 } from '@/hooks/useTableHeatmapSSE';
-import {
-  RefreshCw,
-  Wifi,
-  WifiOff,
-  Clock,
-  Users,
-  TrendingUp,
-  DollarSign,
-  Info,
-  MapPin,
-} from 'lucide-react';
+import { Wifi, WifiOff, Clock, MapPin, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/billing';
 import { cn } from '@/lib/utils';
 
@@ -39,22 +30,22 @@ function formatDuration(ms: number): string {
 function getTableColor(table: TableHeatmapData): string {
   switch (table.status) {
     case 'available':
-      return 'bg-emerald-500';
+      return 'bg-emerald-500 hover:bg-emerald-600';
     case 'cleaning':
-      return 'bg-slate-400';
+      return 'bg-slate-400 hover:bg-slate-500';
     case 'reserved':
-      return 'bg-blue-500';
+      return 'bg-blue-500 hover:bg-blue-600';
     case 'occupied':
       const duration = table.occupiedDuration || 0;
       const hours = duration / (1000 * 60 * 60);
 
-      if (hours < 0.5) return 'bg-yellow-400'; // Fresh - yellow
-      if (hours < 1) return 'bg-orange-400'; // Medium - orange
-      if (hours < 1.5) return 'bg-orange-500'; // Getting long - dark orange
-      if (hours < 2) return 'bg-red-500'; // Long - red
-      return 'bg-red-600'; // Critical - deep red
+      if (hours < 0.5) return 'bg-yellow-400 hover:bg-yellow-500';
+      if (hours < 1) return 'bg-orange-400 hover:bg-orange-500';
+      if (hours < 1.5) return 'bg-orange-500 hover:bg-orange-600';
+      if (hours < 2) return 'bg-red-500 hover:bg-red-600';
+      return 'bg-red-600 hover:bg-red-700';
     default:
-      return 'bg-slate-300';
+      return 'bg-slate-300 hover:bg-slate-400';
   }
 }
 
@@ -93,7 +84,6 @@ function CompactStatsBar({ tables }: { tables: TableHeatmapData[] }) {
       0
     );
 
-    // Calculate tables needing attention (occupied > 2 hours)
     const needsAttention = tables.filter((t) => {
       if (t.status !== 'occupied') return false;
       const hours = (t.occupiedDuration || 0) / (1000 * 60 * 60);
@@ -101,7 +91,6 @@ function CompactStatsBar({ tables }: { tables: TableHeatmapData[] }) {
     }).length;
 
     return {
-      total,
       available,
       occupied,
       reserved,
@@ -114,107 +103,147 @@ function CompactStatsBar({ tables }: { tables: TableHeatmapData[] }) {
   return (
     <div className="flex items-center gap-6 flex-wrap">
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-emerald-500" />
-        <div className="flex flex-col">
-          <span className="text-2xl font-bold">{stats.available}</span>
-          <span className="text-xs text-muted-foreground">Available</span>
-        </div>
+        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+        <span className="text-lg font-bold">{stats.available}</span>
+        <span className="text-xs text-muted-foreground">Available</span>
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-rose-500" />
-        <div className="flex flex-col">
-          <span className="text-2xl font-bold">{stats.occupied}</span>
-          <span className="text-xs text-muted-foreground">Occupied</span>
-        </div>
+        <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+        <span className="text-lg font-bold">{stats.occupied}</span>
+        <span className="text-xs text-muted-foreground">Occupied</span>
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-blue-500" />
-        <div className="flex flex-col">
-          <span className="text-2xl font-bold">{stats.reserved}</span>
-          <span className="text-xs text-muted-foreground">Reserved</span>
-        </div>
+        <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+        <span className="text-lg font-bold">{stats.reserved}</span>
+        <span className="text-xs text-muted-foreground">Reserved</span>
       </div>
 
       {stats.needsAttention > 0 && (
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-600 animate-pulse" />
-          <div className="flex flex-col">
-            <span className="text-2xl font-bold text-red-600">
-              {stats.needsAttention}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Needs Attention
-            </span>
-          </div>
+          <AlertCircle className="w-4 h-4 text-red-600 animate-pulse" />
+          <span className="text-lg font-bold text-red-600">
+            {stats.needsAttention}
+          </span>
+          <span className="text-xs text-muted-foreground">Critical</span>
         </div>
       )}
 
+      <div className="h-6 w-px bg-border" />
+
       <div className="flex items-center gap-2">
-        <TrendingUp className="w-4 h-4 text-muted-foreground" />
-        <div className="flex flex-col">
-          <span className="text-2xl font-bold">
-            {Math.round(stats.occupancyRate)}%
-          </span>
-          <span className="text-xs text-muted-foreground">Occupancy</span>
-        </div>
+        <span className="text-lg font-bold">
+          {Math.round(stats.occupancyRate)}%
+        </span>
+        <span className="text-xs text-muted-foreground">Occupancy</span>
       </div>
 
       <div className="flex items-center gap-2">
-        <DollarSign className="w-4 h-4 text-muted-foreground" />
-        <div className="flex flex-col">
-          <span className="text-2xl font-bold">
-            {formatCurrency(stats.totalRevenue)}
-          </span>
-          <span className="text-xs text-muted-foreground">Revenue</span>
-        </div>
+        <span className="text-lg font-bold">
+          {formatCurrency(stats.totalRevenue)}
+        </span>
+        <span className="text-xs text-muted-foreground">Revenue</span>
       </div>
     </div>
   );
 }
 
-// Legend component
-function HeatmapLegend() {
-  return (
-    <div className="flex items-center gap-4 flex-wrap text-sm">
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-emerald-500" />
-        <span>Available</span>
+// Tooltip component using Portal
+function TableTooltip({
+  table,
+  position,
+}: {
+  table: TableHeatmapData;
+  position: { x: number; y: number };
+}) {
+  const label = getStatusLabel(table);
+
+  return createPortal(
+    <div
+      className="fixed pointer-events-none z-[9999]"
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        transform: 'translate(-50%, -100%)',
+        marginTop: '-8px',
+      }}
+    >
+      <div className="bg-popover text-popover-foreground p-3 rounded-lg shadow-xl border">
+        <div className="font-semibold mb-2">
+          {table.displayName || table.tableNumber}
+        </div>
+
+        <div className="space-y-1.5 text-sm min-w-[180px]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Status</span>
+            <Badge variant="outline" className="text-xs">
+              {label}
+            </Badge>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Capacity</span>
+            <span className="font-medium">{table.capacity} seats</span>
+          </div>
+
+          {table.zone && (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Zone</span>
+              <span className="font-medium">{table.zone}</span>
+            </div>
+          )}
+
+          {table.status === 'occupied' && (
+            <>
+              {table.occupiedDuration && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Duration</span>
+                  <span className="font-bold">
+                    {formatDuration(table.occupiedDuration)}
+                  </span>
+                </div>
+              )}
+
+              {table.currentBillAmount > 0 && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Bill</span>
+                  <span className="font-bold text-green-600">
+                    {formatCurrency(table.currentBillAmount)}
+                  </span>
+                </div>
+              )}
+
+              {table.partySize && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Party</span>
+                  <span className="font-medium">{table.partySize} guests</span>
+                </div>
+              )}
+
+              {table.assignedServerName && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Server</span>
+                  <span className="font-medium truncate max-w-[100px]">
+                    {table.assignedServerName}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Arrow */}
+        <div className="absolute top-full left-1/2 transform -translate-x-1/2">
+          <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-popover" />
+        </div>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-blue-500" />
-        <span>Reserved</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-yellow-400" />
-        <span>Fresh (&lt;30m)</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-orange-400" />
-        <span>Medium (30m-1h)</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-orange-500" />
-        <span>Long (1-1.5h)</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-red-500" />
-        <span>Very Long (1.5-2h)</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-red-600" />
-        <span>Critical (2h+)</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-slate-400" />
-        <span>Cleaning</span>
-      </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
-// Individual heatmap cell
+// Individual heatmap cell - SMALLER SIZE
 function HeatmapCell({
   table,
   onClick,
@@ -222,120 +251,68 @@ function HeatmapCell({
   table: TableHeatmapData | null;
   onClick?: () => void;
 }) {
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipData, setTooltipData] = useState<{
+    table: TableHeatmapData;
+    position: { x: number; y: number };
+  } | null>(null);
 
   if (!table) {
     return (
-      <div className="aspect-square bg-slate-100 rounded border border-slate-200" />
+      <div className="aspect-square bg-slate-50 rounded border border-slate-200" />
     );
   }
 
   const color = getTableColor(table);
-  const label = getStatusLabel(table);
+
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipData({
+      table,
+      position: {
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+      },
+    });
+  };
+
+  const handleMouseLeave = () => {
+    setTooltipData(null);
+  };
 
   return (
-    <div className="relative group">
+    <>
       <button
         onClick={onClick}
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={cn(
-          'w-full aspect-square rounded border-2 border-white',
+          'w-full aspect-square rounded-sm',
           'flex flex-col items-center justify-center',
           'transition-all duration-200',
-          'hover:scale-110 hover:shadow-lg hover:z-10',
-          'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary',
+          'hover:scale-110 hover:shadow-lg',
+          'focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary',
           color,
-          'text-white font-medium text-sm'
+          'text-white font-semibold'
         )}
       >
-        <span className="font-bold text-base">
+        <span className="text-sm leading-none">
           {table.displayName || table.tableNumber}
         </span>
-        <span className="text-xs opacity-90">{table.capacity}</span>
+        <span className="text-[10px] opacity-80 mt-0.5">{table.capacity}</span>
       </button>
 
-      {/* Tooltip */}
-      {showTooltip && (
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50">
-          <div className="bg-popover text-popover-foreground p-3 rounded-lg shadow-xl border min-w-[200px]">
-            <div className="font-semibold text-base mb-2">
-              {table.displayName || table.tableNumber}
-            </div>
-
-            <div className="space-y-1 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Status:</span>
-                <Badge variant="outline" className="text-xs">
-                  {label}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Capacity:</span>
-                <span>{table.capacity} seats</span>
-              </div>
-
-              {table.zone && (
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Zone:</span>
-                  <span>{table.zone}</span>
-                </div>
-              )}
-
-              {table.status === 'occupied' && (
-                <>
-                  {table.occupiedDuration && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Duration:</span>
-                      <span className="font-medium">
-                        {formatDuration(table.occupiedDuration)}
-                      </span>
-                    </div>
-                  )}
-
-                  {table.currentBillAmount > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Bill:</span>
-                      <span className="font-bold">
-                        {formatCurrency(table.currentBillAmount)}
-                      </span>
-                    </div>
-                  )}
-
-                  {table.partySize && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Party:</span>
-                      <span>{table.partySize} guests</span>
-                    </div>
-                  )}
-
-                  {table.assignedServerName && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Server:</span>
-                      <span className="font-medium truncate max-w-[120px]">
-                        {table.assignedServerName}
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Tooltip arrow */}
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-px">
-              <div className="border-8 border-transparent border-t-popover" />
-            </div>
-          </div>
-        </div>
+      {tooltipData && tooltipData.table === table && (
+        <TableTooltip
+          table={tooltipData.table}
+          position={tooltipData.position}
+        />
       )}
-    </div>
+    </>
   );
 }
 
 // Custom Heatmap Grid
 function CustomHeatmapGrid({ tables }: { tables: TableHeatmapData[] }) {
-  // Group tables by zone
   const zoneGroups = useMemo(() => {
     const groups = tables.reduce((acc, table) => {
       const zone = table.zone || 'Main Area';
@@ -344,7 +321,6 @@ function CustomHeatmapGrid({ tables }: { tables: TableHeatmapData[] }) {
       return acc;
     }, {} as Record<string, TableHeatmapData[]>);
 
-    // Sort zones alphabetically
     return Object.keys(groups)
       .sort()
       .map((zone) => ({
@@ -357,30 +333,73 @@ function CustomHeatmapGrid({ tables }: { tables: TableHeatmapData[] }) {
 
   const handleTableClick = (table: TableHeatmapData) => {
     console.log('Table clicked:', table);
-    // Add your navigation or modal logic here
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {zoneGroups.map(({ zone, tables: zoneTables }) => (
-        <div key={zone}>
-          <div className="flex items-center gap-2 mb-4">
-            <MapPin className="h-5 w-5 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">{zone}</h3>
-            <Badge variant="secondary">{zoneTables.length} tables</Badge>
+        <div key={zone} className="flex flex-col items-start">
+          <div className="flex items-center mx-auto gap-2 mb-3">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold">{zone}</h3>
+            <Badge variant="secondary" className="text-xs">
+              {zoneTables.length}
+            </Badge>
           </div>
 
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
-            {zoneTables.map((table) => (
-              <HeatmapCell
-                key={table.tableId}
-                table={table}
-                onClick={() => handleTableClick(table)}
-              />
-            ))}
+          <div className="w-[70%] mx-auto">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] gap-2">
+              {zoneTables.map((table) => (
+                <HeatmapCell
+                  key={table.tableId}
+                  table={table}
+                  onClick={() => handleTableClick(table)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Legend - Compact
+function CompactLegend() {
+  return (
+    <div className="flex items-center gap-4 flex-wrap text-xs">
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-emerald-500" />
+        <span>Available</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-blue-500" />
+        <span>Reserved</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-yellow-400" />
+        <span>&lt;30m</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-orange-400" />
+        <span>30m-1h</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-orange-500" />
+        <span>1-1.5h</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-red-500" />
+        <span>1.5-2h</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-red-600" />
+        <span>2h+</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-4 h-4 rounded bg-slate-400" />
+        <span>Cleaning</span>
+      </div>
     </div>
   );
 }
@@ -394,17 +413,15 @@ export function TableHeatmapView({ enabled = true }: TableHeatmapViewProps) {
     connectionStatus,
     error,
     reconnect,
-    refreshManually,
   } = useTableHeatmapSSE(enabled);
 
   return (
-    <div className="flex flex-col h-full w-full space-y-6">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between pb-4 border-b">
+    <div className="flex flex-col h-full w-full">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between pb-4 border-b mb-6">
         <CompactStatsBar tables={tables} />
 
         <div className="flex items-center gap-3">
-          {/* Connection Status */}
           <div className="flex items-center gap-2">
             {isConnected ? (
               <Wifi className="h-4 w-4 text-emerald-500" />
@@ -416,35 +433,24 @@ export function TableHeatmapView({ enabled = true }: TableHeatmapViewProps) {
               className="text-xs"
             >
               {connectionStatus === 'connected' && 'Live'}
-              {connectionStatus === 'connecting' && 'Connecting...'}
+              {connectionStatus === 'connecting' && 'Connecting'}
               {connectionStatus === 'disconnected' && 'Offline'}
               {connectionStatus === 'error' && 'Error'}
             </Badge>
           </div>
 
           {lastUpdate && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground hidden sm:inline">
               {lastUpdate.toLocaleTimeString()}
             </span>
           )}
-
-          {/* Action Buttons */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshManually}
-            className="flex items-center gap-1"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
-          </Button>
 
           {!isConnected && (
             <Button
               variant="outline"
               size="sm"
               onClick={reconnect}
-              className="flex items-center gap-1"
+              className="flex items-center gap-1.5"
             >
               <Wifi className="h-3 w-3" />
               Reconnect
@@ -455,51 +461,37 @@ export function TableHeatmapView({ enabled = true }: TableHeatmapViewProps) {
 
       {/* Error Alert */}
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-800">⚠️ {error}</p>
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
 
-      {/* Legend */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Info className="h-4 w-4" />
-            Color Legend
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <HeatmapLegend />
-        </CardContent>
-      </Card>
-
-      {/* Heatmap */}
-      <Card className="flex-1 overflow-auto z-30">
-        <CardHeader>
-          <CardTitle>Table Status Heatmap ({tables.length} tables)</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Hover over any table to view details. Click to open full
-            information.
-          </p>
-        </CardHeader>
-        <CardContent>
-          {tables.length > 0 ? (
-            <CustomHeatmapGrid tables={tables} />
-          ) : (
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center text-muted-foreground">
-                <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">No tables available</p>
-                <p className="text-sm">
-                  {!isConnected
-                    ? 'Check your connection and try again.'
-                    : 'Waiting for data...'}
-                </p>
-              </div>
+      {/* Content */}
+      <div className="flex-1 overflow-auto">
+        {tables.length > 0 ? (
+          <CustomHeatmapGrid tables={tables} />
+        ) : (
+          <div className="flex items-center justify-center h-full min-h-[400px]">
+            <div className="text-center text-muted-foreground">
+              <Clock className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No tables available</p>
+              <p className="text-sm mt-1">
+                {!isConnected ? 'Check your connection' : 'Waiting for data...'}
+              </p>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
+
+      {/* Compact Legend at Bottom */}
+      {tables.length > 0 && (
+        <Card className="mt-6">
+          <CardContent className="p-3">
+            <CompactLegend />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
