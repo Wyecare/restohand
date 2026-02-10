@@ -194,8 +194,10 @@ function ItemCard({
   onDelete: (item: any) => void;
   onToggleAvailability: (item: any) => void;
 }) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const amount = item.pricing?.amount || 0;
   const currency = item.pricing?.currency || 'INR';
+  const images = item.imageUrls || [];
 
   return (
     <div
@@ -232,14 +234,69 @@ function ItemCard({
         </DropdownMenu>
       </div>
 
-      {/* Image Section */}
-      <div className="relative aspect-[4/3] bg-muted">
-        {item.imageUrls?.[0] ? (
-          <img
-            src={item.imageUrls[0]}
-            alt={item.name}
-            className="w-full h-full object-cover"
-          />
+      {/* Image Section with Manual Carousel */}
+      <div className="relative aspect-4/3 bg-muted group">
+        {images.length > 0 ? (
+          <>
+            <img
+              src={images[currentImageIndex]}
+              alt={`${item.name}`}
+              className="w-full h-full object-cover"
+            />
+
+            {/* Navigation Arrows */}
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1);
+                  }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Previous image"
+                >
+                  <span className="block w-4 h-4 text-xs">‹</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex(prev => prev === images.length - 1 ? 0 : prev + 1);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Next image"
+                >
+                  <span className="block w-4 h-4 text-xs">›</span>
+                </button>
+              </>
+            )}
+
+            {/* Image Dots Navigation */}
+            {images.length > 1 && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                {images.map((_: string, index: number) => (
+                  <button
+                    key={index}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(index);
+                    }}
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-colors",
+                      index === currentImageIndex ? "bg-white" : "bg-white/50"
+                    )}
+                    aria-label={`View image ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Image Count Badge */}
+            {images.length > 1 && (
+              <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
+                {currentImageIndex + 1}/{images.length}
+              </div>
+            )}
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <ImagePlus className="h-12 w-12 text-muted-foreground/30" />
@@ -306,7 +363,7 @@ function ItemCard({
                 variant="secondary"
                 className="text-xs bg-red-100 text-red-700 border-red-200"
               >
-                🌶️ Spicy
+                <span role="img" aria-label="spicy">🌶️</span> Spicy
               </Badge>
             )}
             {item.dietaryInfo.isHalal && (

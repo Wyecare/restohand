@@ -30,7 +30,7 @@ function formatDuration(ms: number): string {
 function getTableColor(table: TableHeatmapData): string {
   switch (table.status) {
     case 'available':
-      return 'bg-emerald-500 hover:bg-emerald-600';
+      return 'bg-green-700 hover:bg-green-400';
     case 'cleaning':
       return 'bg-slate-400 hover:bg-slate-500';
     case 'reserved':
@@ -369,7 +369,7 @@ function CompactLegend() {
   return (
     <div className="flex items-center gap-4 flex-wrap text-xs">
       <div className="flex items-center gap-1.5">
-        <div className="w-4 h-4 rounded bg-emerald-500" />
+        <div className="w-4 h-4 rounded bg-green-900" />
         <span>Available</span>
       </div>
       <div className="flex items-center gap-1.5">

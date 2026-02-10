@@ -75,7 +75,7 @@ export function useTableHeatmapSSE(
     if (!restaurantId || !authToken || !currentBranch?._id) return;
 
     try {
-      const url = `${API_BASE_URL}/restaurants/${restaurantId}/tables/enhanced-list?branchId=${currentBranch._id}`;
+      const url = `${API_BASE_URL}/restaurants/${restaurantId}/tables/enhanced?branchId=${currentBranch._id}`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${authToken}`,

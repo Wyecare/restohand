@@ -299,6 +299,9 @@ const STYLE = `
     background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
     margin-bottom: 10px;
   }
+  .rh-item-image-wrap:hover .carousel-arrow {
+    opacity: 1 !important;
+  }
   .rh-item-image {
     position: absolute;
     inset: 0;
@@ -607,6 +610,144 @@ const determineCategoryIcon = (name: string): DisplayCategory['icon'] => {
   }
   return { symbol: '🍴', label: `${name} category` };
 };
+
+// Image Carousel Component for Menu Items
+function ItemImageCarousel({ images, itemName }: { images: string[]; itemName: string }) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  return (
+    <div className="rh-item-image-wrap">
+      {images.length > 0 ? (
+        <>
+          <img
+            src={images[currentImageIndex]}
+            alt={itemName}
+            className="rh-item-image"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+            }}
+          />
+
+          {/* Navigation Arrows - only show if multiple images */}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1);
+                }}
+                className="carousel-arrow"
+                style={{
+                  position: 'absolute',
+                  left: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(0,0,0,0.6)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'white',
+                  fontSize: '18px',
+                  lineHeight: '1',
+                  opacity: 0,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                ‹
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(prev => prev === images.length - 1 ? 0 : prev + 1);
+                }}
+                className="carousel-arrow"
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(0,0,0,0.6)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'white',
+                  fontSize: '18px',
+                  lineHeight: '1',
+                  opacity: 0,
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                ›
+              </button>
+            </>
+          )}
+
+          {/* Image Dots Navigation */}
+          {images.length > 1 && (
+            <div style={{
+              position: 'absolute',
+              bottom: '8px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: '4px',
+            }}>
+              {images.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex(index);
+                  }}
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: index === currentImageIndex ? 'white' : 'rgba(255,255,255,0.5)',
+                    transition: 'background 0.2s',
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Image Count Badge */}
+          {images.length > 1 && (
+            <div style={{
+              position: 'absolute',
+              top: '8px',
+              left: '8px',
+              background: 'rgba(0,0,0,0.7)',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: '600',
+              padding: '4px 6px',
+              borderRadius: '12px',
+              fontFamily: 'DM Mono, monospace',
+            }}>
+              {currentImageIndex + 1}/{images.length}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="rh-item-placeholder">🍽️</div>
+      )}
+    </div>
+  );
+}
 
 export default function CustomerMenuPageNew() {
   const params = useParams<{ slug: string; tableId?: string }>();
@@ -1372,21 +1513,9 @@ export default function CustomerMenuPageNew() {
                   transition={{ delay: index * 0.015 }}
                   className="rh-item-card"
                 >
-                  {/* Image */}
-                  <div className="rh-item-image-wrap">
-                    {item.imageUrls?.[0] ? (
-                      <img
-                        src={item.imageUrls[0]}
-                        alt={item.name}
-                        className="rh-item-image"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="rh-item-placeholder">🍽️</div>
-                    )}
+                  {/* Image with Carousel */}
+                  <div style={{ position: 'relative' }}>
+                    <ItemImageCarousel images={item.imageUrls || []} itemName={item.name} />
                     {item._isPopular && (
                       <div className="rh-item-popular-badge">
                         <Sparkles size={12} color="white" fill="white" />

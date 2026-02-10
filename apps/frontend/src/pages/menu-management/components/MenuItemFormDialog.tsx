@@ -35,6 +35,7 @@ import {
   useCreateMenuItemForBranchMutation,
   useUpdateMenuItemMutation,
   useUploadMenuItemImageMutation,
+  useRemoveMenuItemImageMutation,
 } from '@/store/api/restaurantsApi';
 import { useListMenuModifiersByBranchQuery } from '@/store/api/menuModifiersApi';
 import { useListMenuPriceTagsByBranchQuery } from '@/store/api/menuPriceTagsApi';
@@ -175,9 +176,12 @@ export function MenuItemFormDialog({
     useUpdateMenuItemMutation();
   const [uploadImage, { isLoading: isUploadingImage }] =
     useUploadMenuItemImageMutation();
+  const [removeImage, { isLoading: isRemovingImage }] =
+    useRemoveMenuItemImageMutation();
 
-  const [imagePreview, setImagePreview] = useState<string>('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
 
   // Fetch available modifiers and price tags
   const modifiersQuery =
@@ -289,8 +293,9 @@ export function MenuItemFormDialog({
         priceTagIds: assignedPriceTagIds,
         activePriceTagId: menuItem.activePriceTagId,
       });
-      setImagePreview(menuItem.imageUrls?.[0] || '');
-      setSelectedFile(null);
+      setExistingImages(menuItem.imageUrls || []);
+      setImagePreviews([]);
+      setSelectedFiles([]);
     } else {
       form.reset({
         name: '',
@@ -324,45 +329,93 @@ export function MenuItemFormDialog({
         priceTagIds: [],
         activePriceTagId: undefined,
       });
-      setImagePreview('');
-      setSelectedFile(null);
+      setExistingImages([]);
+      setImagePreviews([]);
+      setSelectedFiles([]);
     }
   }, [menuItem, availableModifiers, availablePriceTags, form]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Please upload an image file only',
-      });
+    const validFiles: File[] = [];
+    const newPreviews: string[] = [];
+
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: `${file.name} is not a valid image file`,
+        });
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: `${file.name} is larger than 5MB`,
+        });
+        return;
+      }
+
+      validFiles.push(file);
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        newPreviews.push(reader.result as string);
+        if (newPreviews.length === validFiles.length) {
+          setImagePreviews(prev => [...prev, ...newPreviews]);
+          setSelectedFiles(prev => [...prev, ...validFiles]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset the input
+    e.target.value = '';
+  };
+
+  const removeNewImage = (index: number) => {
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingImage = async (index: number) => {
+    if (!restaurantId || !menuItem?.id) return;
+
+    // Simple confirmation dialog
+    if (!confirm('Are you sure you want to remove this image? This action cannot be undone.')) {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    try {
+      await removeImage({
+        restaurantId,
+        itemId: menuItem.id,
+        imageIndex: index,
+      }).unwrap();
+
+      // Update local state after successful removal
+      setExistingImages(prev => prev.filter((_, i) => i !== index));
+
+      toast({
+        title: 'Success',
+        description: 'Image removed successfully',
+      });
+    } catch (error: any) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Image size must be less than 5MB',
+        description: error?.data?.message || 'Failed to remove image',
       });
-      return;
     }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-    setSelectedFile(file);
   };
 
-  const removeImage = () => {
-    setImagePreview('');
-    setSelectedFile(null);
-  };
+  const allImages = [...existingImages, ...imagePreviews];
+  const maxImages = 5;
 
   const addIngredient = () => {
     appendIngredient({
@@ -468,19 +521,25 @@ export function MenuItemFormDialog({
       }
 
       const itemId = menuItemResult?.id || menuItem?.id;
-      if (selectedFile && itemId) {
+
+      // Upload multiple images if files were selected
+      if (selectedFiles.length > 0 && itemId) {
         try {
-          await uploadImage({
-            restaurantId,
-            itemId: itemId,
-            file: selectedFile,
-          }).unwrap();
+          await Promise.all(
+            selectedFiles.map(file =>
+              uploadImage({
+                restaurantId,
+                itemId: itemId,
+                file: file,
+              }).unwrap()
+            )
+          );
         } catch (imageError) {
           console.error('Image upload failed:', imageError);
           toast({
             variant: 'destructive',
             title: 'Warning',
-            description: 'Menu item saved but image upload failed',
+            description: 'Menu item saved but some image uploads failed',
           });
         }
       }
@@ -494,8 +553,9 @@ export function MenuItemFormDialog({
 
       onOpenChange(false);
       form.reset();
-      setImagePreview('');
-      setSelectedFile(null);
+      setExistingImages([]);
+      setImagePreviews([]);
+      setSelectedFiles([]);
     } catch (error: unknown) {
       const errorMessage =
         error && typeof error === 'object' && 'data' in error
@@ -597,45 +657,91 @@ export function MenuItemFormDialog({
                 </div>
               </div>
 
-              {/* Right Column - Image */}
+              {/* Right Column - Multiple Images */}
               <div className="space-y-4">
-                <Label className="text-base font-semibold">Item Image</Label>
-                {imagePreview ? (
-                  <div className="relative">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full h-64 rounded-lg object-cover border-2"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute top-2 right-2 h-8 w-8 rounded-full"
-                      onClick={removeImage}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">Item Images</Label>
+                  <span className="text-sm text-muted-foreground">
+                    {allImages.length}/{maxImages}
+                  </span>
+                </div>
+
+                {/* Existing and New Images Grid */}
+                {allImages.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Existing Images */}
+                    {existingImages.map((imageUrl, index) => (
+                      <div key={`existing-${index}`} className="relative group">
+                        <img
+                          src={imageUrl}
+                          alt={`Item image ${index + 1}`}
+                          className="w-full h-24 rounded-lg object-cover border-2"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeExistingImage(index)}
+                          disabled={isRemovingImage}
+                        >
+                          {isRemovingImage ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                        </Button>
+                        <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 rounded">
+                          Saved
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* New Images (Previews) */}
+                    {imagePreviews.map((preview, index) => (
+                      <div key={`preview-${index}`} className="relative group">
+                        <img
+                          src={preview}
+                          alt={`New image ${index + 1}`}
+                          className="w-full h-24 rounded-lg object-cover border-2 border-blue-300"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeNewImage(index)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                        <div className="absolute bottom-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                          New
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ) : (
+                )}
+
+                {/* Upload Area */}
+                {allImages.length < maxImages && (
                   <label
                     htmlFor="item-image-upload"
                     className="cursor-pointer block"
                   >
-                    <div className="w-full h-64 rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors flex flex-col items-center justify-center gap-3 bg-muted/20">
-                      {isUploadingImage ? (
-                        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+                    <div className="w-full h-20 rounded-lg border-2 border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors flex flex-col items-center justify-center gap-1 bg-muted/20">
+                      {isUploadingImage || isRemovingImage ? (
+                        <>
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {isUploadingImage ? 'Uploading...' : 'Removing...'}
+                          </p>
+                        </>
                       ) : (
                         <>
-                          <Upload className="h-10 w-10 text-muted-foreground" />
-                          <div className="text-center">
-                            <p className="text-sm font-medium text-muted-foreground">
-                              Click to upload image
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Max 5MB • JPG, PNG, WebP
-                            </p>
-                          </div>
+                          <Upload className="h-6 w-6 text-muted-foreground" />
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {allImages.length === 0 ? 'Upload images' : 'Add more'}
+                          </p>
                         </>
                       )}
                     </div>
@@ -643,8 +749,9 @@ export function MenuItemFormDialog({
                       id="item-image-upload"
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={handleImageUpload}
-                      disabled={isUploadingImage}
+                      disabled={isUploadingImage || isRemovingImage || allImages.length >= maxImages}
                       className="hidden"
                     />
                   </label>
