@@ -39,17 +39,17 @@ export interface BillConfig {
 
 export const DEFAULT_BILL_CONFIG: BillConfig = {
   // Standard GST rates for restaurants in India
-  cgstRate: 2.5,  // 2.5% CGST (Central GST)
-  sgstRate: 2.5,  // 2.5% SGST (State GST) - Total 5% GST for dine-in
-  igstRate: 5,    // 5% IGST (Integrated GST) for interstate orders
+  cgstRate: 2.5, // 2.5% CGST (Central GST)
+  sgstRate: 2.5, // 2.5% SGST (State GST) - Total 5% GST for dine-in
+  igstRate: 5, // 5% IGST (Integrated GST) for interstate orders
 
   // Service charges
   serviceChargeRate: 3, // 3% service charge
 
   // Fixed fees
-  packagingFee: 5,     // ₹5 packaging fee for takeaway/delivery
-  platformFee: 2,      // ₹2 platform fee
-  deliveryFee: 0,      // Free delivery (can be configurable)
+  packagingFee: 5, // ₹5 packaging fee for takeaway/delivery
+  platformFee: 2, // ₹2 platform fee
+  deliveryFee: 0, // Free delivery (can be configurable)
 
   // Discounts
   discountPercentage: 0,
@@ -65,8 +65,7 @@ export const formatCurrency = (amount: number, currency = 'INR') =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
+    maximumFractionDigits: 3,
   }).format(amount);
 
 // Interface for cart items with GST information
@@ -108,14 +107,21 @@ export function calculateBillBreakdown(
   const serviceCharge = (subtotal * finalConfig.serviceChargeRate) / 100;
 
   // Fixed fees
-  const packagingFee = finalConfig.isDelivery || finalConfig.packagingFee > 0
-    ? finalConfig.packagingFee
-    : 0;
+  const packagingFee =
+    finalConfig.isDelivery || finalConfig.packagingFee > 0
+      ? finalConfig.packagingFee
+      : 0;
   const platformFee = finalConfig.platformFee;
   const deliveryFee = finalConfig.isDelivery ? finalConfig.deliveryFee : 0;
 
   // Calculate subtotal before discount
-  const subtotalWithCharges = subtotal + totalTax + serviceCharge + packagingFee + platformFee + deliveryFee;
+  const subtotalWithCharges =
+    subtotal +
+    totalTax +
+    serviceCharge +
+    packagingFee +
+    platformFee +
+    deliveryFee;
 
   // Calculate discount
   let discount = 0;
@@ -194,7 +200,10 @@ export function getBillingSummary(breakdown: BillBreakdown) {
   }
 
   if (breakdown.serviceCharge > 0) {
-    items.push({ label: 'Service Charge (3%)', amount: breakdown.serviceCharge });
+    items.push({
+      label: 'Service Charge (3%)',
+      amount: breakdown.serviceCharge,
+    });
   }
 
   if (breakdown.packagingFee > 0) {
@@ -210,7 +219,11 @@ export function getBillingSummary(breakdown: BillBreakdown) {
   }
 
   if (breakdown.discount > 0) {
-    items.push({ label: 'Discount', amount: -breakdown.discount, isDiscount: true });
+    items.push({
+      label: 'Discount',
+      amount: -breakdown.discount,
+      isDiscount: true,
+    });
   }
 
   return items;
@@ -224,8 +237,9 @@ export function calculateItemizedBillBreakdown(
   const finalConfig = { ...DEFAULT_BILL_CONFIG, ...config };
 
   // Calculate subtotal
-  const subtotal = cartItems.reduce((total, item) =>
-    total + (item.pricing.amount * item.quantity), 0
+  const subtotal = cartItems.reduce(
+    (total, item) => total + item.pricing.amount * item.quantity,
+    0
   );
 
   // Calculate taxes for each item based on individual GST rates
@@ -233,9 +247,10 @@ export function calculateItemizedBillBreakdown(
   let totalSgst = 0;
   let totalIgst = 0;
 
-  cartItems.forEach(item => {
+  cartItems.forEach((item) => {
     const itemTotal = item.pricing.amount * item.quantity;
-    const itemGstRate = item.gstRate || finalConfig.cgstRate + finalConfig.sgstRate;
+    const itemGstRate =
+      item.gstRate || finalConfig.cgstRate + finalConfig.sgstRate;
 
     if (finalConfig.isInterstateOrder) {
       // For interstate orders, use IGST
@@ -255,14 +270,21 @@ export function calculateItemizedBillBreakdown(
   const serviceCharge = (subtotal * finalConfig.serviceChargeRate) / 100;
 
   // Fixed fees
-  const packagingFee = finalConfig.isDelivery || finalConfig.packagingFee > 0
-    ? finalConfig.packagingFee
-    : 0;
+  const packagingFee =
+    finalConfig.isDelivery || finalConfig.packagingFee > 0
+      ? finalConfig.packagingFee
+      : 0;
   const platformFee = finalConfig.platformFee;
   const deliveryFee = finalConfig.isDelivery ? finalConfig.deliveryFee : 0;
 
   // Calculate subtotal before discount
-  const subtotalWithCharges = subtotal + totalTax + serviceCharge + packagingFee + platformFee + deliveryFee;
+  const subtotalWithCharges =
+    subtotal +
+    totalTax +
+    serviceCharge +
+    packagingFee +
+    platformFee +
+    deliveryFee;
 
   // Calculate discount
   let discount = 0;

@@ -15,6 +15,9 @@ export class OrderResponseDto {
   sessionId?: string;
 
   @ApiProperty({ required: false })
+  customerSessionId?: string;
+
+  @ApiProperty({ required: false })
   createdBy?: string;
 
   @ApiProperty()
@@ -22,6 +25,9 @@ export class OrderResponseDto {
 
   @ApiProperty({ required: false })
   tableNumber?: string;
+
+  @ApiProperty({ required: false })
+  tableId?: string;
 
   @ApiProperty({ required: false })
   customerName?: string;

@@ -7,10 +7,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOkResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { OrdersService } from './orders.service';
 import { ReceiptDocumentService } from './receipt-document.service';
 import { OrderResponseDto } from './dtos/order-response.dto';
 import { GenerateReceiptQrDto } from './dtos/generate-receipt-qr.dto';
+import { PublicService } from '../public/public.service';
+import { Order, OrderDocument } from './schemas/order.schema';
 import * as jwt from 'jsonwebtoken';
 import * as QRCode from 'qrcode';
 
@@ -19,7 +23,10 @@ import * as QRCode from 'qrcode';
 export class PublicOrdersController {
   constructor(
     private readonly ordersService: OrdersService,
-    private readonly receiptDocumentService: ReceiptDocumentService
+    private readonly receiptDocumentService: ReceiptDocumentService,
+    private readonly publicService: PublicService,
+    @InjectModel(Order.name)
+    private readonly orderModel: Model<OrderDocument>
   ) {}
 
   @Get('combined-receipt/public')
@@ -364,5 +371,59 @@ export class PublicOrdersController {
       token,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
     };
+  }
+
+  @Get(':orderId/consolidated-bill')
+  @ApiParam({ name: 'orderId', description: 'Order ID' })
+  @ApiQuery({ name: 'token', description: 'Access token for the order' })
+  @ApiOkResponse({ description: 'Consolidated bill for the order table session' })
+  async getConsolidatedBillByOrder(
+    @Param('orderId') orderId: string,
+    @Query('token') token: string
+  ): Promise<any> {
+    if (!token) {
+      throw new UnauthorizedException('Access token is required');
+    }
+
+    try {
+      // Verify the JWT token
+      const payload = jwt.verify(token, process.env.JWT_SECRET!) as any;
+
+      // Check if token is for this specific order
+      if (payload.type !== 'receipt' || payload.orderId !== orderId) {
+        throw new UnauthorizedException('Invalid token for this order');
+      }
+
+      // Get the order directly using orderModel to find restaurant and table info
+      const order = await this.orderModel
+        .findById(payload.orderId)
+        .populate('restaurant', 'name slug')
+        .populate('tableId', '_id')
+        .lean();
+
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      // Get restaurant info to find slug
+      const restaurant = order.restaurant as any;
+      if (!restaurant || !restaurant.slug) {
+        throw new NotFoundException('Restaurant not found or missing slug');
+      }
+
+      // Use the consolidated bill logic from public service
+      return await this.publicService.getConsolidatedBill(
+        restaurant.slug,
+        order.tableId.toString()
+      );
+    } catch (error) {
+      if (error.name === 'JsonWebTokenError') {
+        throw new UnauthorizedException('Invalid token');
+      }
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Token has expired');
+      }
+      throw error;
+    }
   }
 }

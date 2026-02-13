@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { BillBreakdown } from '@/components/customer/BillBreakdown';
 import {
   Download,
   Receipt,
@@ -16,50 +17,13 @@ import {
   PrinterIcon,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  useGetConsolidatedBillQuery,
+  restaurantsApi,
+} from '@/store/api/restaurantsApi';
+import { BillBreakdown as BillBreakdownType, formatCurrency } from '@/lib/billing';
 
-interface OrderItem {
-  name: string;
-  quantity: number;
-  pricing: {
-    unitAmount: number;
-    currency: string;
-    taxAmount: number;
-  };
-  gst?: {
-    gstRate: number;
-    cgstAmount: number;
-    sgstAmount: number;
-    igstAmount: number;
-  };
-}
 
-interface OrderData {
-  id: string;
-  orderNumber: string;
-  restaurantId: string;
-  tableNumber?: string;
-  items: OrderItem[];
-  totalAmount: number;
-  paymentStatus: string;
-  status: string;
-  createdAt: string;
-  restaurant: {
-    name: string;
-    address?: string;
-    phone?: string;
-    email?: string;
-    gst?: {
-      gstin?: string;
-    };
-  };
-}
-
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(amount);
 
 const formatDate = (dateString: string) => {
   return new Intl.DateTimeFormat('en-IN', {
@@ -72,33 +36,35 @@ const formatDate = (dateString: string) => {
 };
 
 export default function ReceiptPage() {
-  const { orderNumber } = useParams<{ orderNumber: string }>();
+  const { slug, tableId } = useParams<{ slug: string; tableId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [orderData, setOrderData] = useState<OrderData | null>(null);
+  // State for consolidated bill data
+  const [consolidatedBillData, setConsolidatedBillData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchOrderData = async () => {
-      if (!orderNumber) {
-        setError('Order number is required');
+    const fetchConsolidatedBill = async () => {
+      if (!slug || !tableId) {
+        setError('Restaurant and table information are required');
         setLoading(false);
         return;
       }
 
       try {
-        // Since this is a public route, we need to create a public API endpoint
-        // For now, we'll show a placeholder
-        setError('Receipt lookup is coming soon. Use order number: ' + orderNumber);
-        setLoading(false);
+        setLoading(true);
+        // Use the same endpoint as the working customer interface
+        const response = await fetch(`/api/public/restaurants/${slug}/table/${tableId}/consolidated-bill`);
 
-        // TODO: Implement actual API call
-        // const response = await fetch(`/api/public/receipts/${orderNumber}`);
-        // if (!response.ok) throw new Error('Receipt not found');
-        // const data = await response.json();
-        // setOrderData(data);
+        if (!response.ok) {
+          throw new Error('Failed to load bill information');
+        }
+
+        const billData = await response.json();
+        setConsolidatedBillData(billData);
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load receipt');
       } finally {
@@ -106,8 +72,8 @@ export default function ReceiptPage() {
       }
     };
 
-    fetchOrderData();
-  }, [orderNumber]);
+    fetchConsolidatedBill();
+  }, [slug, tableId]);
 
   const handleDownloadPDF = () => {
     toast({
@@ -148,20 +114,20 @@ export default function ReceiptPage() {
     );
   }
 
-  if (!orderData) {
+  if (!consolidatedBillData) {
     return (
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-md mx-auto mt-20">
           <Card className="text-center">
             <CardContent className="p-8">
               <div className="text-4xl mb-4">❌</div>
-              <h2 className="text-xl font-semibold mb-2">Order Not Found</h2>
+              <h2 className="text-xl font-semibold mb-2">Receipt Not Available</h2>
               <p className="text-muted-foreground mb-4">
-                Order #{orderNumber} could not be found.
+                The receipt data could not be loaded.
               </p>
-              <Button onClick={() => navigate('/receipts')} variant="outline">
+              <Button onClick={() => navigate('/')} variant="outline">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Lookup
+                Go Home
               </Button>
             </CardContent>
           </Card>
@@ -169,6 +135,8 @@ export default function ReceiptPage() {
       </div>
     );
   }
+
+  const { restaurant, bill } = consolidatedBillData as any;
 
   return (
     <div className="min-h-screen bg-background p-4 print:p-0">
@@ -211,31 +179,31 @@ export default function ReceiptPage() {
             {/* Restaurant Info */}
             <div className="space-y-1">
               <h2 className="text-xl font-bold text-primary">
-                {orderData.restaurant.name}
+                {restaurant.name}
               </h2>
-              {orderData.restaurant.address && (
+              {restaurant.address && (
                 <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                   <MapPin className="h-3 w-3" />
-                  {orderData.restaurant.address}
+                  {typeof restaurant.address === 'string' ? restaurant.address : restaurant.address.street}
                 </p>
               )}
               <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-                {orderData.restaurant.phone && (
+                {restaurant.phone && (
                   <span className="flex items-center gap-1">
                     <Phone className="h-3 w-3" />
-                    {orderData.restaurant.phone}
+                    {restaurant.phone}
                   </span>
                 )}
-                {orderData.restaurant.email && (
+                {restaurant.email && (
                   <span className="flex items-center gap-1">
                     <Mail className="h-3 w-3" />
-                    {orderData.restaurant.email}
+                    {restaurant.email}
                   </span>
                 )}
               </div>
-              {orderData.restaurant.gst?.gstin && (
+              {restaurant.gstin && (
                 <p className="text-xs text-muted-foreground">
-                  GSTIN: {orderData.restaurant.gst.gstin}
+                  GSTIN: {restaurant.gstin}
                 </p>
               )}
             </div>
@@ -245,10 +213,19 @@ export default function ReceiptPage() {
             {/* Order Details */}
             <div className="flex justify-between items-start">
               <div>
-                <p className="font-semibold">Order #{orderData.orderNumber}</p>
-                {orderData.tableNumber && (
+                {bill.orders?.length > 1 ? (
+                  <div>
+                    <p className="font-semibold">Combined Orders</p>
+                    <p className="text-sm text-muted-foreground">
+                      {bill.orders.map(order => order.orderNumber).join(', ')}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="font-semibold">Order #{bill.orders?.[0]?.orderNumber || 'N/A'}</p>
+                )}
+                {bill.tableNumber && (
                   <p className="text-sm text-muted-foreground">
-                    Table {orderData.tableNumber}
+                    Table {bill.tableNumber}
                   </p>
                 )}
               </div>
@@ -256,14 +233,14 @@ export default function ReceiptPage() {
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">
-                    {formatDate(orderData.createdAt)}
+                    {formatDate(bill.orders?.[0]?.createdAt || bill.createdAt)}
                   </span>
                 </div>
                 <Badge
-                  variant={orderData.paymentStatus === 'paid' ? 'default' : 'destructive'}
+                  variant={bill.paymentStatus === 'paid' ? 'default' : 'destructive'}
                   className="mt-1"
                 >
-                  {orderData.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                  {bill.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
                 </Badge>
               </div>
             </div>
@@ -272,7 +249,7 @@ export default function ReceiptPage() {
             <div className="space-y-3">
               <h3 className="font-semibold border-b pb-1">Order Items</h3>
 
-              {orderData.items.map((item, index) => (
+              {bill.items?.map((item, index) => (
                 <div
                   key={index}
                   className="flex justify-between items-start py-2 border-b last:border-0"
@@ -280,34 +257,99 @@ export default function ReceiptPage() {
                   <div className="flex-1">
                     <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {formatCurrency(item.pricing.unitAmount)} × {item.quantity}
+                      {formatCurrency(item.price)} × {item.quantity}
                     </p>
-                    {item.gst && item.gst.gstRate > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        GST ({item.gst.gstRate}%): {formatCurrency(
-                          (item.gst.cgstAmount || 0) +
-                          (item.gst.sgstAmount || 0) +
-                          (item.gst.igstAmount || 0)
-                        )}
-                      </p>
-                    )}
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">
-                      {formatCurrency(item.pricing.unitAmount * item.quantity)}
+                      {formatCurrency(item.price * item.quantity)}
                     </p>
                   </div>
                 </div>
-              ))}
+              )) || (
+                <p className="text-muted-foreground text-center py-4">
+                  No items found
+                </p>
+              )}
             </div>
 
-            {/* Total */}
-            <div className="border-t pt-4">
-              <div className="flex justify-between items-center text-lg font-bold">
-                <span>Total Amount</span>
-                <span className="text-primary">
-                  {formatCurrency(orderData.totalAmount)}
-                </span>
+            {/* Bill Breakdown - Thermal Receipt Style */}
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span>Sub Total</span>
+                <span>{formatCurrency(bill.subTotal || 0)}</span>
+              </div>
+
+              {/* Tax Details */}
+              {(bill.cgst > 0 || bill.sgst > 0 || bill.igst > 0) && (
+                <>
+                  {bill.cgst > 0 && (
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>CGST (2.5%)</span>
+                      <span>{formatCurrency(bill.cgst)}</span>
+                    </div>
+                  )}
+                  {bill.sgst > 0 && (
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>SGST (2.5%)</span>
+                      <span>{formatCurrency(bill.sgst)}</span>
+                    </div>
+                  )}
+                  {bill.igst > 0 && (
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>IGST (5%)</span>
+                      <span>{formatCurrency(bill.igst)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Service Charges */}
+              {bill.serviceCharge > 0 && (
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                  <span>Service Charge</span>
+                  <span>{formatCurrency(bill.serviceCharge)}</span>
+                </div>
+              )}
+
+              {/* Other Fees */}
+              {bill.packagingFee > 0 && (
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                  <span>Packaging Fee</span>
+                  <span>{formatCurrency(bill.packagingFee)}</span>
+                </div>
+              )}
+
+              {bill.platformFee > 0 && (
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                  <span>Platform Fee</span>
+                  <span>{formatCurrency(bill.platformFee)}</span>
+                </div>
+              )}
+
+              {bill.deliveryFee > 0 && (
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                  <span>Delivery Fee</span>
+                  <span>{formatCurrency(bill.deliveryFee)}</span>
+                </div>
+              )}
+
+              {/* Discount */}
+              {bill.discountAmount > 0 && (
+                <div className="flex justify-between items-center text-xs text-green-600">
+                  <span>Discount</span>
+                  <span>-{formatCurrency(bill.discountAmount)}</span>
+                </div>
+              )}
+
+              {/* Total */}
+              <div className="border-t pt-2 mt-2">
+                <div className="flex justify-between items-center text-lg font-bold">
+                  <span>Total Amount</span>
+                  <span className="text-primary">
+                    {formatCurrency(bill.total || 0)}
+                  </span>
+                </div>
               </div>
             </div>
 

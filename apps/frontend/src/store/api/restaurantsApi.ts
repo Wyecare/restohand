@@ -23,7 +23,10 @@ import type {
   CustomerSession,
   CreateCustomerSessionRequest,
 } from './types';
-import type { DashboardMetrics, DashboardQueryParams } from './types/dashboard.types';
+import type {
+  DashboardMetrics,
+  DashboardQueryParams,
+} from './types/dashboard.types';
 
 export interface ListRestaurantsParams {
   search?: string;
@@ -350,9 +353,17 @@ export const restaurantsApi = baseApi.injectEndpoints({
                 type: 'RestaurantTable' as const,
                 id: table.id,
               })),
-              { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}${branchSuffix}` },
+              {
+                type: 'RestaurantTable' as const,
+                id: `LIST-${restaurantId}${branchSuffix}`,
+              },
             ]
-          : [{ type: 'RestaurantTable' as const, id: `LIST-${restaurantId}${branchSuffix}` }];
+          : [
+              {
+                type: 'RestaurantTable' as const,
+                id: `LIST-${restaurantId}${branchSuffix}`,
+              },
+            ];
       },
     }),
 
@@ -667,7 +678,7 @@ export const restaurantsApi = baseApi.injectEndpoints({
         url: `/public/restaurants/${slug}/menu`,
         params: {
           ...(table && { table }),
-          ...(tableId && { tableId })
+          ...(tableId && { tableId }),
         },
       }),
     }),
@@ -717,6 +728,7 @@ export const restaurantsApi = baseApi.injectEndpoints({
         customerPhone?: string;
         notes?: string;
         paymentMethod?: 'upi' | 'cash';
+        customerSessionId?: string;
         items: Array<{
           menuItemId: string;
           name: string;
@@ -840,9 +852,10 @@ export const restaurantsApi = baseApi.injectEndpoints({
       CustomerSession,
       CreateCustomerSessionRequest
     >({
-      query: ({ slug, tableId }) => ({
-        url: `/public/restaurants/${slug}/table/${tableId}/session`,
+      query: ({ restaurantSlug, tableId, ...body }) => ({
+        url: `/public/restaurants/${restaurantSlug}/table/${tableId}/session`,
         method: 'POST',
+        body,
       }),
     }),
 
@@ -907,10 +920,13 @@ export const restaurantsApi = baseApi.injectEndpoints({
       }),
     }),
 
-    downloadTableBill: builder.query<
-      Blob,
-      { slug: string; tableId: string }
-    >({
+    getRestaurantSessionBill: builder.query({
+      query: ({ slug, sessionId }) => ({
+        url: `/public/restaurants/${slug}/session/${sessionId}/bill`,
+      }),
+    }),
+
+    downloadTableBill: builder.query<Blob, { slug: string; tableId: string }>({
       query: ({ slug, tableId }) => ({
         url: `/public/restaurants/${slug}/table/${tableId}/bill`,
         responseHandler: (response) => response.blob(),
@@ -1087,9 +1103,17 @@ export const restaurantsApi = baseApi.injectEndpoints({
                 type: 'RestaurantTable' as const,
                 id: table.id,
               })),
-              { type: 'RestaurantTable' as const, id: `LIST-${restaurantId}-${branchId}` },
+              {
+                type: 'RestaurantTable' as const,
+                id: `LIST-${restaurantId}-${branchId}`,
+              },
             ]
-          : [{ type: 'RestaurantTable' as const, id: `LIST-${restaurantId}-${branchId}` }],
+          : [
+              {
+                type: 'RestaurantTable' as const,
+                id: `LIST-${restaurantId}-${branchId}`,
+              },
+            ],
     }),
 
     listServiceTablesByBranch: builder.query<
@@ -1188,7 +1212,8 @@ export const restaurantsApi = baseApi.injectEndpoints({
       },
       string
     >({
-      query: (restaurantId) => `/restaurants/${restaurantId}/cashfree/vendor/status`,
+      query: (restaurantId) =>
+        `/restaurants/${restaurantId}/cashfree/vendor/status`,
       providesTags: (_result, _error, restaurantId) => [
         { type: 'CashfreeVendor', id: restaurantId },
       ],
@@ -1281,6 +1306,8 @@ export const {
   useCreateCustomerSessionMutation,
   useCreateSessionPaymentIntentMutation,
   useGetConsolidatedBillQuery,
+  useGetRestaurantSessionBillQuery,
+  useGetPublicSessionBillQuery,
   useDownloadTableBillQuery,
   useGetRestaurantQrCodeQuery,
   useSetupLinkedAccountMutation,

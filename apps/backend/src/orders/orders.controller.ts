@@ -53,6 +53,7 @@ import {
   MenuItemDocument,
 } from '../menu-items/schemas/menu-item.schema';
 import { Model } from 'mongoose';
+import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
 
 @ApiTags('orders')
 @Controller('restaurants/:restaurantId/orders')
@@ -63,6 +64,7 @@ export class OrdersController {
     private readonly ordersService: OrdersService,
     private readonly razorpayService: RazorpayService,
     private readonly restaurantOnboardingService: RestaurantOnboardingService,
+    private readonly customerSessionsService: CustomerSessionsService,
     @InjectModel(Restaurant.name)
     private readonly restaurantModel: Model<RestaurantDocument>,
     @InjectModel(RestaurantTable.name)
@@ -114,11 +116,27 @@ export class OrdersController {
     @Body() dto: CreateOrderDto,
     @Req() req?: Request
   ) {
+    // Debug logging
+    this.logger.log(`🎯 DEBUG: Order creation request received`, {
+      restaurantId,
+      customerSessionId: dto.customerSessionId,
+      sessionId: dto.sessionId,
+      tableId: dto.tableId,
+      tableNumber: dto.tableNumber,
+      hasCustomerSessionId: !!dto.customerSessionId,
+    });
+
     // Default to pending payment for new order-first flow
     const orderDto = {
       ...dto,
       paymentMethod: dto.paymentMethod || 'pending',
     };
+
+    this.logger.log(`📋 DEBUG: Processed order DTO`, {
+      customerSessionId: orderDto.customerSessionId,
+      sessionId: orderDto.sessionId,
+      hasCustomerSessionId: !!orderDto.customerSessionId,
+    });
 
     // Extract branchId if user is authenticated, otherwise get it from table
     const user = req?.user as AuthenticatedUser | undefined;
@@ -156,7 +174,17 @@ export class OrdersController {
       }
     }
 
-    return this.ordersService.create(restaurantId, orderDto, branchId);
+    const createdOrder = await this.ordersService.create(restaurantId, orderDto, branchId);
+
+    this.logger.log(`🎉 DEBUG: Order created successfully`, {
+      orderId: createdOrder.id,
+      orderNumber: createdOrder.orderNumber,
+      customerSessionId: createdOrder.customerSessionId,
+      hasCustomerSessionId: !!createdOrder.customerSessionId,
+      tableId: createdOrder.tableId,
+    });
+
+    return createdOrder;
   }
 
   @Post(':orderId/add-items')
@@ -211,6 +239,77 @@ export class OrdersController {
   ) {
     const user = req.user as AuthenticatedUser;
     return this.ordersService.findAll(restaurantId, query, user.branchId);
+  }
+
+  @Get('history')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 20)' })
+  @ApiQuery({ name: 'from', required: false, description: 'Start date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'to', required: false, description: 'End date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by order number, customer name, or table number' })
+  @ApiQuery({ name: 'tableNumber', required: false, description: 'Filter by table number' })
+  @ApiOkResponse({
+    description: 'Order history with session information',
+    schema: {
+      type: 'object',
+      properties: {
+        orders: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              orderNumber: { type: 'string' },
+              tableNumber: { type: 'string' },
+              customerName: { type: 'string' },
+              totalAmount: { type: 'number' },
+              paymentStatus: { type: 'string' },
+              paymentMethod: { type: 'string' },
+              createdAt: { type: 'string' },
+              paidAt: { type: 'string' },
+              sessionInfo: {
+                type: 'object',
+                properties: {
+                  sessionId: { type: 'string' },
+                  isArchived: { type: 'boolean' },
+                  sessionStarted: { type: 'string' },
+                  sessionCompleted: { type: 'string' },
+                  totalSessionAmount: { type: 'number' },
+                  orderCount: { type: 'number' }
+                }
+              }
+            }
+          }
+        },
+        pagination: {
+          type: 'object',
+          properties: {
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            total: { type: 'number' },
+            pages: { type: 'number' }
+          }
+        }
+      }
+    }
+  })
+  @Roles(UserRole.Manager, UserRole.Waiter, UserRole.Cashier)
+  async getOrderHistory(
+    @Param('restaurantId') restaurantId: string,
+    @Query() query: {
+      page?: number;
+      limit?: number;
+      from?: string;
+      to?: string;
+      search?: string;
+      tableNumber?: string;
+    },
+    @Req() req: Request
+  ) {
+    const user = req.user as AuthenticatedUser;
+    return this.ordersService.getOrderHistory(restaurantId, query, user.branchId);
   }
 
   @Get(':orderId')
@@ -1115,42 +1214,60 @@ export class OrdersController {
     @Body()
     { customerSessionId, tableNumber }: { customerSessionId: string; tableNumber?: string }
   ) {
+    console.log('DEBUG generateSessionReceiptQr:', {
+      restaurantId,
+      customerSessionId,
+      tableNumber,
+    });
+
     // Find all orders for this customer session
     const sessionOrders = await this.ordersService.findOrdersByCustomerSession(
       restaurantId,
       customerSessionId
     );
 
+    console.log('DEBUG sessionOrders found:', {
+      count: sessionOrders?.length,
+      firstOrderId: sessionOrders?.[0]?.id,
+      firstOrderTableId: sessionOrders?.[0]?.tableId,
+      firstOrderTableNumber: sessionOrders?.[0]?.tableNumber,
+    });
+
     if (!sessionOrders || sessionOrders.length === 0) {
       throw new BadRequestException('No orders found for this session');
     }
 
-    const orderIds = sessionOrders.map(order => order.id);
+    // Get restaurant to obtain slug
+    const restaurant = await this.ordersService.getRestaurantById(restaurantId);
+    if (!restaurant) {
+      throw new BadRequestException('Restaurant not found');
+    }
 
-    // Use existing combined receipt QR functionality
-    const jwt = require('jsonwebtoken');
+    // Get table information to get tableId
+    const firstOrder = sessionOrders[0];
+    const tableId = firstOrder.tableId;
+
+    if (!tableId) {
+      console.error('DEBUG table lookup failed:', {
+        orderTableId: firstOrder.tableId,
+        orderTableNumber: firstOrder.tableNumber,
+        passedTableNumber: tableNumber,
+      });
+      throw new BadRequestException('Table information not found');
+    }
+
     const QRCode = require('qrcode');
-
-    const token = jwt.sign(
-      {
-        orderIds,
-        customerSessionId,
-        tableNumber,
-        type: 'session-receipt',
-        iat: Math.floor(Date.now() / 1000),
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '30d' }
-    );
 
     const baseUrl =
       process.env.CUSTOMER_FRONTEND_URL ??
       process.env.USER_FRONTENT_URL ??
       'http://localhost:4200';
+
+    // Use session-based receipt URL with restaurant slug and session ID
     const receiptUrl = `${baseUrl.replace(
       /\/$/,
       ''
-    )}/session-receipt?t=${token}`;
+    )}/session-receipt/${restaurant.slug}/${customerSessionId}`;
 
     const qrCodeDataUrl = await QRCode.toDataURL(receiptUrl, {
       errorCorrectionLevel: 'M',
@@ -1161,13 +1278,79 @@ export class OrdersController {
 
     return {
       customerSessionId,
-      orderIds,
+      orderIds: sessionOrders.map(order => order.id),
       orderNumbers: sessionOrders.map((o) => o.orderNumber),
-      tableNumber: tableNumber || sessionOrders[0]?.tableNumber,
+      tableNumber: tableNumber || firstOrder?.tableNumber,
+      tableId: tableId,
+      restaurantSlug: restaurant.slug,
       receiptUrl,
       qrCodeDataUrl,
-      token,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      // No token or expiration needed anymore
+    };
+  }
+
+  @Post('get-or-create-session')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiOkResponse({
+    description: 'Get or create session for table',
+  })
+  async getOrCreateSession(
+    @Param('restaurantId') restaurantId: string,
+    @Body() { tableId, tableNumber }: { tableId?: string; tableNumber?: string }
+  ) {
+    if (!tableId && !tableNumber) {
+      throw new BadRequestException('Either tableId or tableNumber must be provided');
+    }
+
+    // Find the table first
+    let table = null;
+
+    if (tableId) {
+      table = await this.tableModel.findOne({
+        _id: tableId,
+        isActive: true,
+      }).lean();
+    } else if (tableNumber) {
+      table = await this.tableModel.findOne({
+        restaurantId,
+        tableNumber: tableNumber.trim(),
+        isActive: true,
+      }).lean();
+    }
+
+    if (!table) {
+      throw new BadRequestException('Table not found');
+    }
+
+    // Check for existing active session for this table
+    const existingSession = await this.customerSessionsService.findActiveSessionByTable(
+      table._id.toString()
+    );
+
+    if (existingSession) {
+      return {
+        sessionId: existingSession.sessionId,
+        isNewSession: false,
+        tableId: table._id.toString(),
+        tableNumber: table.tableNumber,
+      };
+    }
+
+    // Create new session using restaurant ID
+    const session = await this.customerSessionsService.createSessionByRestaurantId(
+      restaurantId,
+      table._id.toString(),
+      'Staff App', // userAgent
+      'internal' // ipAddress
+    );
+
+    return {
+      sessionId: session.sessionId,
+      isNewSession: true,
+      tableId: table._id.toString(),
+      tableNumber: table.tableNumber,
     };
   }
 

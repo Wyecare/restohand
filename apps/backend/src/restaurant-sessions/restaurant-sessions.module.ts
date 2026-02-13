@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { CustomerSession, CustomerSessionSchema } from '../customer-sessions/customer-session.schema';
+import { CustomerSession, CustomerSessionSchema } from '../customer-sessions/schemas/customer-session.schema';
 import { Order, OrderSchema } from '../orders/schemas/order.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { AuthModule } from '../auth/auth.module';

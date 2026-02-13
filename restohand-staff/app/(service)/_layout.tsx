@@ -16,6 +16,12 @@ export default function ServiceLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
+        name="session-management"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="menu"
         options={{
           headerShown: false,
@@ -27,6 +33,12 @@ export default function ServiceLayout() {
         options={{
           headerShown: false,
           presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="history"
+        options={{
+          headerShown: false,
         }}
       />
     </Stack>

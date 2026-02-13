@@ -1,23 +1,23 @@
-import { Colors } from "@/constants/theme";
-import { useOrdersSSE } from "@/hooks/useOrdersSSE";
-import { useFCMToken } from "@/hooks/useFCMToken";
+import { Colors } from '@/constants/theme';
+import { useOrdersSSE } from '@/hooks/useOrdersSSE';
+import { useFCMToken } from '@/hooks/useFCMToken';
 import {
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
   useListServiceTablesQuery,
-} from "@/store/api/restaurantsApi";
-import type { EnhancedRestaurantTable } from "@/store/api/types";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+} from '@/store/api/restaurantsApi';
+import type { EnhancedRestaurantTable } from '@/store/api/types';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   clearAuthState,
   selectActiveRestaurantId,
   selectAuthSession,
-} from "@/store/slices/authSlice";
-import { Ionicons } from "@expo/vector-icons";
-import { skipToken } from "@reduxjs/toolkit/query";
-import { Image } from "expo-image";
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+} from '@/store/slices/authSlice';
+import { Ionicons } from '@expo/vector-icons';
+import { skipToken } from '@reduxjs/toolkit/query';
+import { Image } from 'expo-image';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -32,10 +32,10 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
-} from "react-native";
-import logo_white from "../../assets/images/logo_white.png";
+} from 'react-native';
+import logo_white from '../../assets/images/logo_white.png';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const getTableStatus = (table: EnhancedRestaurantTable) => {
   if (table.currentStatus) {
@@ -43,44 +43,44 @@ const getTableStatus = (table: EnhancedRestaurantTable) => {
   }
 
   const activeOrder = table.activeOrder;
-  if (!activeOrder) return "available";
-  if (activeOrder.status === "ready") return "ready";
-  if (["pending", "accepted", "in_progress"].includes(activeOrder.status))
-    return "occupied";
-  return "available";
+  if (!activeOrder) return 'available';
+  if (activeOrder.status === 'ready') return 'ready';
+  if (['pending', 'accepted', 'in_progress'].includes(activeOrder.status))
+    return 'occupied';
+  return 'available';
 };
 
 const getStatusConfig = (status: string, isDark: boolean) => {
   const configs = {
     available: {
-      color: isDark ? "#34D399" : "#10B981",
-      bg: isDark ? "#064E3B" : "#ECFDF5",
-      label: "Available",
-      icon: "checkmark-circle",
+      color: isDark ? '#34D399' : '#10B981',
+      bg: isDark ? '#064E3B' : '#ECFDF5',
+      label: 'Available',
+      icon: 'checkmark-circle',
     },
     occupied: {
-      color: isDark ? "#FBBF24" : "#F59E0B",
-      bg: isDark ? "#78350F" : "#FEF3C7",
-      label: "Occupied",
-      icon: "time",
+      color: isDark ? '#FBBF24' : '#F59E0B',
+      bg: isDark ? '#78350F' : '#FEF3C7',
+      label: 'Occupied',
+      icon: 'time',
     },
     ready: {
-      color: isDark ? "#60A5FA" : "#3B82F6",
-      bg: isDark ? "#1E3A8A" : "#DBEAFE",
-      label: "Ready",
-      icon: "restaurant",
+      color: isDark ? '#60A5FA' : '#3B82F6',
+      bg: isDark ? '#1E3A8A' : '#DBEAFE',
+      label: 'Ready',
+      icon: 'restaurant',
     },
     cleaning: {
-      color: isDark ? "#9CA3AF" : "#6B7280",
-      bg: isDark ? "#374151" : "#F3F4F6",
-      label: "Cleaning",
-      icon: "brush",
+      color: isDark ? '#9CA3AF' : '#6B7280',
+      bg: isDark ? '#374151' : '#F3F4F6',
+      label: 'Cleaning',
+      icon: 'brush',
     },
     reserved: {
-      color: isDark ? "#A78BFA" : "#8B5CF6",
-      bg: isDark ? "#5B21B6" : "#F3E8FF",
-      label: "Reserved",
-      icon: "calendar",
+      color: isDark ? '#A78BFA' : '#8B5CF6',
+      bg: isDark ? '#5B21B6' : '#F3E8FF',
+      label: 'Reserved',
+      icon: 'calendar',
     },
   };
 
@@ -89,16 +89,16 @@ const getStatusConfig = (status: string, isDark: boolean) => {
 
 export default function ServiceTablesScreen() {
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];
-  const isDark = colorScheme === "dark";
+  const theme = Colors[colorScheme ?? 'light'];
+  const isDark = colorScheme === 'dark';
 
-  StatusBar.setBarStyle(isDark ? "light-content" : "dark-content", true);
+  StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
 
   const dispatch = useAppDispatch();
   const { refreshToken } = useFCMToken();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const session = useAppSelector(selectAuthSession);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
   const {
@@ -119,7 +119,7 @@ export default function ServiceTablesScreen() {
 
   const { data: restaurant } = useGetRestaurantQuery(
     restaurantId ?? skipToken,
-    { skip: !restaurantId },
+    { skip: !restaurantId }
   );
 
   const isLoading = enhancedTablesLoading || serviceTablesLoading;
@@ -130,7 +130,7 @@ export default function ServiceTablesScreen() {
     (table: EnhancedRestaurantTable): boolean => {
       return table.currentStatus?.assignedServerId === session?.userId;
     },
-    [session?.userId],
+    [session?.userId]
   );
 
   const filteredTables = useMemo(() => {
@@ -163,7 +163,7 @@ export default function ServiceTablesScreen() {
   const assignedTablesByZone = useMemo(() => {
     const grouped = new Map<string, EnhancedRestaurantTable[]>();
     assignedTables.forEach((table) => {
-      const zone = table.zone || "No Zone";
+      const zone = table.zone || 'No Zone';
       if (!grouped.has(zone)) {
         grouped.set(zone, []);
       }
@@ -175,7 +175,7 @@ export default function ServiceTablesScreen() {
   const unassignedTablesByZone = useMemo(() => {
     const grouped = new Map<string, EnhancedRestaurantTable[]>();
     unassignedTables.forEach((table) => {
-      const zone = table.zone || "No Zone";
+      const zone = table.zone || 'No Zone';
       if (!grouped.has(zone)) {
         grouped.set(zone, []);
       }
@@ -186,16 +186,16 @@ export default function ServiceTablesScreen() {
 
   const handleTableClick = (table: EnhancedRestaurantTable) => {
     router.push({
-      pathname: "/(service)/menu",
+      pathname: '/(service)/session-management',
       params: { tableId: table.id, restaurant_slug: restaurant?.slug },
     });
   };
 
   const handleViewBill = (table: EnhancedRestaurantTable) => {
     if (table.activeOrder) {
-      if (table.activeOrder.paymentStatus === "paid") {
+      if (table.activeOrder.paymentStatus === 'paid') {
         router.push({
-          pathname: "/(service)/bill",
+          pathname: '/(service)/bill',
           params: {
             orderId: table.activeOrder.id,
             orderData: JSON.stringify(table.activeOrder),
@@ -203,7 +203,7 @@ export default function ServiceTablesScreen() {
         });
       } else {
         router.push({
-          pathname: "/(service)/payment",
+          pathname: '/(service)/payment',
           params: {
             orderId: table.activeOrder.id,
             tableId: table.id,
@@ -227,14 +227,14 @@ export default function ServiceTablesScreen() {
       // Refresh FCM token in background
       refreshToken().catch((error) => {
         console.warn('FCM token refresh failed:', error);
-      })
+      }),
     ]);
     setRefreshing(false);
   };
 
   const handleLogout = () => {
     dispatch(clearAuthState());
-    router.replace("/(auth)/login");
+    router.replace('/(auth)/login');
   };
 
   const handleSocketEvent = useCallback(() => {
@@ -246,7 +246,7 @@ export default function ServiceTablesScreen() {
   useFocusEffect(
     useCallback(() => {
       refetchTables();
-    }, [refetchTables]),
+    }, [refetchTables])
   );
 
   if (!restaurantId) {
@@ -296,7 +296,7 @@ export default function ServiceTablesScreen() {
           styles.tableCard,
           {
             backgroundColor: theme.background,
-            borderColor: isDark ? "#374151" : "#F3F4F6",
+            borderColor: isDark ? '#374151' : '#F3F4F6',
           },
           isAssigned && {
             borderColor: theme.brand,
@@ -351,8 +351,8 @@ export default function ServiceTablesScreen() {
             style={[
               styles.tableCardBottom,
               {
-                backgroundColor: isDark ? "#1F2937" : "#FAFAFA",
-                borderTopColor: isDark ? "#374151" : "#F3F4F6",
+                backgroundColor: isDark ? '#1F2937' : '#FAFAFA',
+                borderTopColor: isDark ? '#374151' : '#F3F4F6',
               },
             ]}
           >
@@ -361,12 +361,12 @@ export default function ServiceTablesScreen() {
                 Order Amount
               </Text>
               <Text style={[styles.orderAmount, { color: theme.text }]}>
-                ₹{activeOrder.totalAmount.toFixed(0)}
+                ₹{activeOrder.totalAmount}
               </Text>
             </View>
 
-            {(activeOrder.status === "ready" ||
-              activeOrder.paymentStatus === "paid") && (
+            {(activeOrder.status === 'ready' ||
+              activeOrder.paymentStatus === 'paid') && (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: theme.brand }]}
                 onPress={(e) => {
@@ -376,9 +376,9 @@ export default function ServiceTablesScreen() {
               >
                 <Ionicons name="receipt-outline" size={14} color="#FFFFFF" />
                 <Text style={styles.actionButtonText}>
-                  {activeOrder.paymentStatus === "paid"
-                    ? "View Bill"
-                    : "Payment"}
+                  {activeOrder.paymentStatus === 'paid'
+                    ? 'View Bill'
+                    : 'Payment'}
                 </Text>
               </TouchableOpacity>
             )}
@@ -391,8 +391,8 @@ export default function ServiceTablesScreen() {
             style={[
               styles.serverBadge,
               {
-                backgroundColor: isDark ? "#1F2937" : "#F9FAFB",
-                borderTopColor: isDark ? "#374151" : "#F3F4F6",
+                backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
+                borderTopColor: isDark ? '#374151' : '#F3F4F6',
               },
             ]}
           >
@@ -422,10 +422,19 @@ export default function ServiceTablesScreen() {
             )}
           </View>
           <View style={styles.headerButtons}>
+            <TouchableOpacity
+              onPress={() => router.push('/(service)/history')}
+              style={styles.headerButton}
+            >
+              <Ionicons name="time-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
             <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
               <Ionicons name="refresh" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+            <TouchableOpacity
+              onPress={handleLogout}
+              style={styles.headerButton}
+            >
               <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -460,7 +469,7 @@ export default function ServiceTablesScreen() {
           styles.searchContainer,
           {
             backgroundColor: theme.background,
-            borderColor: isDark ? "#374151" : "#E5E7EB",
+            borderColor: isDark ? '#374151' : '#E5E7EB',
           },
         ]}
       >
@@ -473,7 +482,7 @@ export default function ServiceTablesScreen() {
           onChangeText={setSearchTerm}
         />
         {searchTerm.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchTerm("")}>
+          <TouchableOpacity onPress={() => setSearchTerm('')}>
             <Ionicons name="close-circle" size={18} color={theme.icon} />
           </TouchableOpacity>
         )}
@@ -497,7 +506,7 @@ export default function ServiceTablesScreen() {
                 {
                   backgroundColor: isDark
                     ? theme.brandPale
-                    : "rgba(73, 16, 188, 0.03)",
+                    : 'rgba(73, 16, 188, 0.03)',
                 },
               ]}
             >
@@ -543,7 +552,7 @@ export default function ServiceTablesScreen() {
                     ))}
                   </View>
                 </View>
-              ),
+              )
             )}
           </View>
         )}
@@ -555,7 +564,7 @@ export default function ServiceTablesScreen() {
               style={[
                 styles.sectionHeader,
                 {
-                  backgroundColor: isDark ? "#1F2937" : "#F9FAFB",
+                  backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
                 },
               ]}
             >
@@ -568,7 +577,7 @@ export default function ServiceTablesScreen() {
               <View
                 style={[
                   styles.sectionBadge,
-                  { backgroundColor: isDark ? "#374151" : "#F3F4F6" },
+                  { backgroundColor: isDark ? '#374151' : '#F3F4F6' },
                 ]}
               >
                 <Text style={[styles.sectionBadgeText, { color: theme.icon }]}>
@@ -597,7 +606,7 @@ export default function ServiceTablesScreen() {
                     ))}
                   </View>
                 </View>
-              ),
+              )
             )}
           </View>
         )}
@@ -608,7 +617,7 @@ export default function ServiceTablesScreen() {
             <View
               style={[
                 styles.emptyIconContainer,
-                { backgroundColor: isDark ? "#1F2937" : "#F9FAFB" },
+                { backgroundColor: isDark ? '#1F2937' : '#F9FAFB' },
               ]}
             >
               <Ionicons
@@ -618,12 +627,12 @@ export default function ServiceTablesScreen() {
               />
             </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              {searchTerm ? "No tables found" : "No tables available"}
+              {searchTerm ? 'No tables found' : 'No tables available'}
             </Text>
             <Text style={[styles.emptyText, { color: theme.icon }]}>
               {searchTerm
-                ? "Try adjusting your search"
-                : "Contact your manager to set up tables"}
+                ? 'Try adjusting your search'
+                : 'Contact your manager to set up tables'}
             </Text>
           </View>
         )}
@@ -638,17 +647,17 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 12,
   },
   loadingText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   errorText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   // Header
@@ -656,7 +665,7 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 8,
@@ -667,71 +676,71 @@ const styles = StyleSheet.create({
     }),
   },
   headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     marginBottom: 12,
   },
   logo: {
     width: 120,
     height: 32,
-    resizeMode: "contain",
+    resizeMode: 'contain',
     left: -4,
   },
   restaurantName: {
     fontSize: 13,
-    color: "rgba(255, 255, 255, 0.85)",
-    fontWeight: "500",
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '500',
     marginTop: 0,
   },
   headerButtons: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 8,
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // Stats Bar
   statsBar: {
-    flexDirection: "row",
+    flexDirection: 'row',
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 10,
   },
   statItem: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 12,
     paddingVertical: 12,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 4,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   statValue: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   statLabel: {
     fontSize: 10,
-    color: "rgba(255, 255, 255, 0.85)",
-    fontWeight: "600",
-    textTransform: "uppercase",
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
 
   // Search
   searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 12,
@@ -744,7 +753,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: '500',
   },
 
   // Scroll View
@@ -760,9 +769,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     marginHorizontal: 16,
@@ -770,13 +779,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   sectionTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: '700',
     letterSpacing: -0.3,
   },
   sectionBadge: {
@@ -784,11 +793,11 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 8,
     minWidth: 28,
-    alignItems: "center",
+    alignItems: 'center',
   },
   sectionBadgeText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 
   // Zone Header
@@ -798,13 +807,13 @@ const styles = StyleSheet.create({
   },
   zoneTitle: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   // Tables Grid
   tablesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
     gap: 12,
   },
@@ -814,10 +823,10 @@ const styles = StyleSheet.create({
     width: (SCREEN_WIDTH - 32 - 24) / 3,
     borderRadius: 14,
     borderWidth: 1.5,
-    overflow: "hidden",
+    overflow: 'hidden',
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 6,
@@ -832,30 +841,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tableHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   tableNumber: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: -0.5,
   },
   myTableBadge: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 8,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
   },
   statusDot: {
     width: 6,
@@ -864,17 +873,17 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: '700',
     letterSpacing: 0.2,
   },
   infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
   infoText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   // Table Card Bottom
@@ -888,34 +897,34 @@ const styles = StyleSheet.create({
   },
   orderLabel: {
     fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
+    fontWeight: '700',
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   orderAmount: {
     fontSize: 17,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: -0.5,
   },
   actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
     paddingVertical: 8,
     borderRadius: 8,
   },
   actionButtonText: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: '700',
+    color: '#FFFFFF',
     letterSpacing: 0.2,
   },
 
   // Server Badge
   serverBadge: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -923,14 +932,14 @@ const styles = StyleSheet.create({
   },
   serverText: {
     fontSize: 10,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   // Empty State
   emptyState: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingVertical: 60,
     paddingHorizontal: 32,
   },
@@ -938,19 +947,19 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 12,
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: '700',
     marginBottom: 6,
-    textAlign: "center",
+    textAlign: 'center',
   },
   emptyText: {
     fontSize: 14,
-    textAlign: "center",
+    textAlign: 'center',
     lineHeight: 20,
   },
 });

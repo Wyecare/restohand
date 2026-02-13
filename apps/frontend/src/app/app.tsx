@@ -29,9 +29,7 @@ export function App() {
   //     : AppRouter;
 
   let RouterComponent;
-  if (domainType === 'staff') {
-    RouterComponent = StaffRouter;
-  } else if (domainType === 'customer') {
+  if (domainType === 'customer') {
     RouterComponent = CustomerRouter;
   } else {
     RouterComponent = AppRouter;

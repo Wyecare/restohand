@@ -52,6 +52,13 @@ import { ReceiptDocumentService } from './receipt-document.service';
 import { PaymentNotificationService } from './payment-notification.service';
 import { MenuPriceTagsService } from '../menu-price-tags/menu-price-tags.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
+import {
+  CustomerSession,
+  CustomerSessionDocument,
+  SessionStatus,
+  SessionClosureReason
+} from '../customer-sessions/schemas/customer-session.schema';
 
 @Injectable()
 export class OrdersService {
@@ -70,6 +77,8 @@ export class OrdersService {
     private readonly orderCounterModel: Model<OrderCounterDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(CustomerSession.name)
+    private readonly customerSessionModel: Model<CustomerSessionDocument>,
     private readonly ordersGateway: OrdersGateway,
     private readonly ordersSSEService: OrdersSSEService,
     private readonly smartGstService: SmartGstService,
@@ -78,7 +87,8 @@ export class OrdersService {
     private readonly tableStatusService: TableStatusService,
     private readonly receiptDocumentService: ReceiptDocumentService,
     private readonly paymentNotificationService: PaymentNotificationService,
-    private readonly menuPriceTagsService: MenuPriceTagsService
+    private readonly menuPriceTagsService: MenuPriceTagsService,
+    private readonly customerSessionsService: CustomerSessionsService
   ) {}
 
   async create(
@@ -86,6 +96,15 @@ export class OrdersService {
     dto: CreateOrderDto,
     branchId?: string
   ): Promise<OrderResponseDto> {
+    // Debug logging
+    this.logger.log(`💾 DEBUG: Orders Service - create method called`, {
+      restaurantId,
+      customerSessionId: dto.customerSessionId,
+      sessionId: dto.sessionId,
+      hasCustomerSessionId: !!dto.customerSessionId,
+      branchId,
+    });
+
     const orderNumber = await this.generateOrderNumber(restaurantId);
     const paymentMethod = dto.paymentMethod ?? 'upi';
 
@@ -97,6 +116,20 @@ export class OrdersService {
 
     const customerState =
       dto.customerState?.trim() || restaurant.address?.state;
+
+    // Auto-assign customer session ID if missing but table has active session
+    let effectiveCustomerSessionId = dto.customerSessionId;
+    if (!effectiveCustomerSessionId && dto.tableId) {
+      const activeSession = await this.customerSessionsService.findActiveSessionByTable(dto.tableId);
+      if (activeSession) {
+        effectiveCustomerSessionId = activeSession.sessionId;
+        this.logger.log('🔗 Auto-assigned customer session ID from active session:', {
+          tableId: dto.tableId,
+          sessionId: activeSession.sessionId,
+          orderNumber,
+        });
+      }
+    }
 
     // Validate menu item availability
     const menuItemIds = dto.items.map((item) => item.menuItemId);
@@ -168,12 +201,24 @@ export class OrdersService {
       };
     });
 
+    // Debug logging before order creation
+    this.logger.log(`💾 DEBUG: About to create order with data:`, {
+      restaurantId,
+      branchId,
+      orderNumber,
+      sessionId: dto.sessionId,
+      customerSessionId: effectiveCustomerSessionId,
+      hasCustomerSessionId: !!effectiveCustomerSessionId,
+      tableId: dto.tableId,
+      tableNumber: dto.tableNumber,
+    });
+
     const created = await this.orderModel.create({
       restaurantId,
       branchId,
       orderNumber,
       sessionId: dto.sessionId,
-      customerSessionId: dto.customerSessionId, // Store customer session ID
+      customerSessionId: effectiveCustomerSessionId, // Store customer session ID
       tableNumber: dto.tableNumber,
       tableId: dto.tableId,
       customerName: dto.customerName,
@@ -199,6 +244,18 @@ export class OrdersService {
     });
 
     console.log('Created Order successfully:', created);
+
+    // Debug logging after order creation
+    this.logger.log(`🎉 DEBUG: Order created in database`, {
+      orderId: created._id.toString(),
+      orderNumber: created.orderNumber,
+      customerSessionId: created.customerSessionId,
+      sessionId: created.sessionId,
+      hasCustomerSessionId: !!created.customerSessionId,
+      tableId: created.tableId,
+      tableNumber: created.tableNumber,
+    });
+
     const response = this.toDto(created);
 
     await this.recordEvent(
@@ -279,6 +336,14 @@ export class OrdersService {
     //     // Don't fail the order creation if receipt fails
     //   }
     // }
+
+    // Debug logging final response
+    this.logger.log(`📤 DEBUG: Returning response to client`, {
+      orderId: response.id,
+      orderNumber: response.orderNumber,
+      customerSessionId: response.customerSessionId,
+      hasCustomerSessionId: !!response.customerSessionId,
+    });
 
     this.ordersGateway.emitOrderCreated(response);
     this.ordersSSEService.emitOrderCreated(response);
@@ -758,6 +823,27 @@ export class OrdersService {
         // Don't fail the payment update if notification fails
       }
 
+      // Check if session should be closed after this payment (for staff payments)
+      if (updated.customerSessionId && updated.tableId) {
+        try {
+          // Create a temporary sessionOrderId for consistency with webhook flow
+          const sessionOrderId = `manual_${updated.tableId.toString()}_${Date.now()}`;
+          await this.handleSessionCompletion(updated, sessionOrderId);
+
+          this.logger.log('✅ Session completion handled for staff payment:', {
+            orderId: updated._id.toString(),
+            orderNumber: updated.orderNumber,
+            customerSessionId: updated.customerSessionId,
+          });
+        } catch (sessionError) {
+          this.logger.error(
+            `Failed to handle session completion for staff payment ${updated.orderNumber}:`,
+            sessionError
+          );
+          // Don't fail the payment update if session completion fails
+        }
+      }
+
       // Only generate tax invoice after all payment details are set
       if (updated) {
         updated = await this.ensureTaxInvoice(updated);
@@ -922,28 +1008,51 @@ export class OrdersService {
         console.log('Unpaid orders remaining:', unpaidOrders.length);
 
         if (unpaidOrders.length === 0 && tableOrders.length > 0) {
-          // All orders are paid - auto-close session for customer
+          // All orders are paid - archive customer session
           console.log(
-            '🎯 All orders paid! Auto-closing customer session for table:',
+            '🎯 All orders paid! Archiving customer session for table:',
             updated.tableId.toString()
           );
 
-          // We'll handle this by updating a session status field or creating a session closed record
-          // For now, we'll add a field to track session closure in the order
-          await this.orderModel.updateMany(
-            {
-              restaurantId: updated.restaurantId,
-              tableId: updated.tableId,
-            },
-            {
-              $set: { sessionClosed: true, sessionClosedAt: new Date() },
-            }
-          );
+          try {
+            // Find the customer session for this table/order
+            let sessionId = null;
 
-          this.logger.log(
-            `Customer session auto-closed for table ${updated.tableId} - all orders paid`
-          );
-          console.log('✅ Session auto-closed successfully');
+            // Check if any order has sessionId (from customer orders)
+            const sessionOrder = tableOrders.find(order => order.sessionId);
+            if (sessionOrder) {
+              sessionId = sessionOrder.sessionId;
+            }
+
+            if (sessionId) {
+              // Calculate total amount for all paid orders
+              const totalAmount = tableOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+              const orderIds = tableOrders.map(order => order._id.toString());
+
+              // Archive the session
+              await this.customerSessionsService.archiveSession(
+                sessionId,
+                orderIds,
+                totalAmount,
+                'paid'
+              );
+
+              console.log(`✅ Session ${sessionId} archived successfully with ${orderIds.length} orders`);
+              this.logger.log(
+                `Customer session ${sessionId} archived for table ${updated.tableId} - all orders paid (${orderIds.length} orders, total: ${totalAmount})`
+              );
+            } else {
+              console.log('No session ID found in orders - likely staff order, skipping session archival');
+            }
+
+          } catch (sessionError) {
+            console.log('Session archival failed:', sessionError);
+            this.logger.error(
+              `Failed to archive session for table ${updated.tableId}:`,
+              sessionError
+            );
+            // Don't throw - payment already succeeded
+          }
         } else {
           console.log('Session remains active - unpaid orders still exist');
         }
@@ -1571,12 +1680,12 @@ export class OrdersService {
     });
 
     try {
-      // Check if all orders for this table are paid
+      // Check if all orders for this customer session are paid
       const tableOrders = await this.orderModel
         .find({
           restaurantId: order.restaurantId,
-          tableId: order.tableId,
-          status: { $nin: [OrderStatus.Completed, OrderStatus.Cancelled] }
+          customerSessionId: order.customerSessionId,
+          status: { $nin: [OrderStatus.Cancelled] }  // Include completed orders, exclude only cancelled
         })
         .lean();
 
@@ -1605,6 +1714,27 @@ export class OrdersService {
             $set: { sessionClosed: true, sessionClosedAt: new Date() },
           }
         );
+
+        // Close the customer session to prevent reuse in new orders
+        if (order.customerSessionId) {
+          await this.customerSessionModel.findOneAndUpdate(
+            { sessionId: order.customerSessionId },
+            {
+              $set: {
+                status: SessionStatus.CLOSED,
+                closedAt: new Date(),
+                closureReason: SessionClosureReason.PAYMENT_COMPLETED,
+                closureDescription: 'Session automatically closed after payment completion',
+              },
+            }
+          );
+
+          this.logger.log('✅ Customer session closed after payment:', {
+            sessionCompletionId,
+            customerSessionId: order.customerSessionId,
+            closureReason: SessionClosureReason.PAYMENT_COMPLETED,
+          });
+        }
 
         // Update table status
         if (order.tableId) {
@@ -2501,9 +2631,11 @@ export class OrdersService {
       id: doc._id.toString(),
       restaurantId: doc.restaurantId.toString(),
       sessionId: doc.sessionId?.toString(),
+      customerSessionId: doc.customerSessionId, // Add missing customerSessionId field
       createdBy: doc.createdBy?.toString(),
       orderNumber: doc.orderNumber,
       tableNumber: doc.tableNumber,
+      tableId: doc.tableId?.toString(),
       customerName: doc.customerName,
       customerPhone: doc.customerPhone,
       customerEmail: doc.customerEmail,
@@ -3122,5 +3254,175 @@ export class OrdersService {
     }
 
     return basePrice + modifierTotal;
+  }
+
+  /**
+   * Get order history with session information for waiter interface
+   */
+  async getOrderHistory(
+    restaurantId: string,
+    query: {
+      page?: number;
+      limit?: number;
+      from?: string;
+      to?: string;
+      search?: string;
+      tableNumber?: string;
+    },
+    branchId?: string
+  ) {
+    const page = Number(query.page) || 1;
+    const limit = Math.min(Number(query.limit) || 20, 100); // Max 100 items per page
+    const skip = (page - 1) * limit;
+
+    // Build query filters
+    const filters: any = {
+      restaurantId: new Types.ObjectId(restaurantId),
+      paymentStatus: 'paid', // Only show completed orders in history
+    };
+
+    // Add branch filter if provided
+    if (branchId) {
+      filters.branchId = new Types.ObjectId(branchId);
+    }
+
+    // Date range filter
+    if (query.from || query.to) {
+      filters.paidAt = {};
+      if (query.from) {
+        filters.paidAt.$gte = new Date(query.from);
+      }
+      if (query.to) {
+        const toDate = new Date(query.to);
+        toDate.setHours(23, 59, 59, 999); // End of day
+        filters.paidAt.$lte = toDate;
+      }
+    }
+
+    // Table number filter
+    if (query.tableNumber) {
+      filters.tableNumber = new RegExp(query.tableNumber, 'i');
+    }
+
+    // Search filter
+    let searchFilters = [];
+    if (query.search) {
+      const searchRegex = new RegExp(query.search, 'i');
+      searchFilters = [
+        { orderNumber: searchRegex },
+        { customerName: searchRegex },
+        { tableNumber: searchRegex },
+      ];
+    }
+
+    if (searchFilters.length > 0) {
+      filters.$or = searchFilters;
+    }
+
+    try {
+      // Get orders with pagination
+      const [orders, totalCount] = await Promise.all([
+        this.orderModel
+          .find(filters)
+          .sort({ paidAt: -1 }) // Most recent paid orders first
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        this.orderModel.countDocuments(filters)
+      ]);
+
+      // Enhance orders with session information
+      const enhancedOrders = await Promise.all(
+        orders.map(async (order) => {
+          let sessionInfo = null;
+
+          if (order.sessionId) {
+            try {
+              // Check if session is still active or archived
+              const { session, isHistory } = await this.customerSessionsService.findSessionAnywhere(order.sessionId);
+
+              if (session) {
+                if (isHistory) {
+                  // Session is in history - get full session data
+                  const historySession = session as any; // SessionHistoryDocument
+                  sessionInfo = {
+                    sessionId: order.sessionId,
+                    isArchived: true,
+                    sessionStarted: historySession.sessionStartedAt,
+                    sessionCompleted: historySession.sessionCompletedAt,
+                    totalSessionAmount: historySession.totalAmount || 0,
+                    orderCount: historySession.orderIds?.length || 0,
+                  };
+                } else {
+                  // Session is still active - get session data
+                  const activeSession = session as any; // CustomerSessionDocument
+                  sessionInfo = {
+                    sessionId: order.sessionId,
+                    isArchived: false,
+                    sessionStarted: activeSession.createdAt,
+                    sessionCompleted: null,
+                    totalSessionAmount: 0, // Calculate from orders
+                    orderCount: 0, // Calculate from orders
+                  };
+
+                  // Calculate totals for active session
+                  try {
+                    const sessionOrders = await this.orderModel.find({
+                      sessionId: order.sessionId,
+                      paymentStatus: 'paid'
+                    }).lean();
+
+                    sessionInfo.totalSessionAmount = sessionOrders.reduce(
+                      (sum, sessionOrder) => sum + sessionOrder.totalAmount, 0
+                    );
+                    sessionInfo.orderCount = sessionOrders.length;
+                  } catch (error) {
+                    this.logger.warn(`Failed to calculate session totals for ${order.sessionId}:`, error);
+                  }
+                }
+              }
+            } catch (error) {
+              this.logger.warn(`Failed to fetch session info for order ${order._id}:`, error);
+            }
+          }
+
+          return {
+            id: order._id.toString(),
+            orderNumber: order.orderNumber,
+            tableNumber: order.tableNumber,
+            customerName: order.customerName,
+            totalAmount: order.totalAmount,
+            paymentStatus: order.paymentStatus,
+            paymentMethod: order.paymentMethod,
+            createdAt: order.createdAt,
+            paidAt: order.paidAt,
+            itemCount: order.items?.length || 0,
+            sessionInfo,
+          };
+        })
+      );
+
+      const totalPages = Math.ceil(totalCount / limit);
+
+      return {
+        orders: enhancedOrders,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          pages: totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Failed to fetch order history:', error);
+      throw error;
+    }
+  }
+
+
+  async getRestaurantById(restaurantId: string) {
+    return this.restaurantModel.findById(restaurantId).select('name slug').lean();
   }
 }

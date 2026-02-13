@@ -26,7 +26,7 @@ export class CustomerSession {
   @Prop()
   customerPhone?: string;
 
-  @Prop({ default: 'active', enum: ['active', 'completed', 'expired'] })
+  @Prop({ default: 'active', enum: ['active', 'completed', 'expired', 'archived'] })
   status: string;
 
   @Prop({ default: Date.now })
@@ -38,10 +38,9 @@ export class CustomerSession {
   @Prop()
   ipAddress?: string;
 
-  // Session expires after 4 hours of inactivity
+  // Session expires after 4 hours of inactivity (only for non-archived sessions)
   @Prop({
     default: () => new Date(Date.now() + 4 * 60 * 60 * 1000),
-    index: { expireAfterSeconds: 0 }
   })
   expiresAt: Date;
 }
@@ -51,4 +50,11 @@ export const CustomerSessionSchema = SchemaFactory.createForClass(CustomerSessio
 // Index for efficient queries
 CustomerSessionSchema.index({ sessionId: 1 });
 CustomerSessionSchema.index({ restaurantId: 1, tableId: 1, status: 1 });
-CustomerSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// TTL index only for non-archived sessions
+CustomerSessionSchema.index(
+  { expiresAt: 1 },
+  {
+    expireAfterSeconds: 0,
+    partialFilterExpression: { status: { $ne: 'archived' } }
+  }
+);

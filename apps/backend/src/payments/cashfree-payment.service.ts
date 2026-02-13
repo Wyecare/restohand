@@ -348,7 +348,7 @@ export class CashfreePaymentService {
         currency: 'INR',
         customerDetails,
         orderMeta: {
-          returnUrl: `${frontendUrl}/c/${dto.restaurantSlug}/table/${dto.tableId}/receipt`,
+          returnUrl: `${frontendUrl}/c/${dto.restaurantSlug}/session/${dto.customerSessionId}/receipt`,
           notifyUrl: `${this.configService.get(
             'BACKEND_URL'
           )}/webhooks/cashfree/payments`,

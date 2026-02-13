@@ -17,7 +17,7 @@ async function bootstrap() {
 
   // Configure session middleware for customer sessions
   const redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
+    url: process.env.REDIS_URL || 'redis://localhost:6379',
   });
 
   // For development, use memory store if Redis is not available
@@ -28,23 +28,28 @@ async function bootstrap() {
     sessionStore = new RedisStore({ client: redisClient });
     Logger.log('✓ Connected to Redis for session storage');
   } catch (error) {
-    Logger.warn('Redis not available, using memory store for sessions (dev only)');
+    Logger.warn(
+      'Redis not available, using memory store for sessions (dev only)'
+    );
     sessionStore = new session.MemoryStore();
   }
 
-  app.use(session({
-    store: sessionStore,
-    secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
-    resave: false,
-    saveUninitialized: false,
-    name: 'restohand.sid',
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      maxAge: 4 * 60 * 60 * 1000, // 4 hours
-      sameSite: 'lax'
-    }
-  }));
+  app.use(
+    session({
+      store: sessionStore,
+      secret:
+        process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+      resave: false,
+      saveUninitialized: false,
+      name: 'restohand.sid',
+      cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 4 * 60 * 60 * 1000, // 4 hours
+        sameSite: 'lax',
+      },
+    })
+  );
 
   // Configure Express body parser with webhook support
   app.use('/api/webhooks', express.raw({ type: 'application/json' }));
@@ -65,7 +70,7 @@ async function bootstrap() {
     next();
   });
 
-  app.enableCors();
+  app.enableCors({});
   app.useWebSocketAdapter(new IoAdapter(app));
 
   const globalPrefix =

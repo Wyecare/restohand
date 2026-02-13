@@ -1,22 +1,29 @@
-import { PaymentRoundingDialog } from "@/components/PaymentRoundingDialog";
-import { Colors } from "@/constants/theme";
+import { PaymentRoundingDialog } from '@/components/PaymentRoundingDialog';
+import { Colors } from '@/constants/theme';
 import {
-  useGenerateCombinedReceiptQrMutation,
   useGenerateReceiptQrQuery,
+  useGenerateSessionReceiptQrMutation,
   useGetOrderQuery,
   useUpdateOrderPaymentMutation,
-} from "@/store/api/ordersApi";
+} from '@/store/api/ordersApi';
+import {
+  useGetSessionWithBillQuery,
+} from '@/store/api/customerSessionsApi';
+import {
+  useGetDetailedSessionBillQuery,
+  type DetailedBillCalculation,
+} from '@/store/api/billingApi';
 import {
   useGetCombinedTableInvoiceQuery,
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
-} from "@/store/api/restaurantsApi";
-import { useAppSelector } from "@/store/hooks";
-import { selectActiveRestaurantId } from "@/store/slices/authSlice";
-import { Ionicons } from "@expo/vector-icons";
-import { skipToken } from "@reduxjs/toolkit/query";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+} from '@/store/api/restaurantsApi';
+import { useAppSelector } from '@/store/hooks';
+import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { Ionicons } from '@expo/vector-icons';
+import { skipToken } from '@reduxjs/toolkit/query';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,29 +36,30 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
-} from "react-native";
+} from 'react-native';
 
 const formatCurrency = (amount: number, showDecimals: boolean = true) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     minimumFractionDigits: showDecimals ? 2 : 0,
     maximumFractionDigits: showDecimals ? 2 : 0,
   }).format(amount);
 
 export default function ServicePaymentScreen() {
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];
-  const isDark = colorScheme === "dark";
+  const theme = Colors[colorScheme ?? 'light'];
+  const isDark = colorScheme === 'dark';
 
-  const { orderId, tableId, orderData, allOrdersData, totalBillAmount } =
+  const { orderId, tableId, orderData, allOrdersData, totalBillAmount, sessionId } =
     useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showRoundingDialog, setShowRoundingDialog] = useState(false);
   const [showReceiptQr, setShowReceiptQr] = useState(false);
+  const [shouldGenerateOrderQr, setShouldGenerateOrderQr] = useState(false);
 
   const [currentOrder, setCurrentOrder] = useState<any>(null);
   const [updatedOrdersState, setUpdatedOrdersState] = useState<any>(null);
@@ -72,12 +80,34 @@ export default function ServicePaymentScreen() {
     restaurantId && orderId
       ? { restaurantId, orderId: orderId as string }
       : skipToken,
-    { skip: !restaurantId || !orderId },
+    { skip: !restaurantId || !orderId }
+  );
+
+  // Get session-based billing if sessionId is provided (moved before ordersToProcess)
+  const {
+    data: sessionBilling,
+    isLoading: sessionBillingLoading,
+    refetch: refetchSessionBilling,
+  } = useGetSessionWithBillQuery(sessionId as string, {
+    skip: !sessionId,
+  });
+
+  // Get detailed session billing with item breakdown (like OrdersPage)
+  const {
+    data: detailedSessionBill,
+    isLoading: detailedBillLoading,
+    refetch: refetchDetailedBill,
+  } = useGetDetailedSessionBillQuery(
+    sessionId ? { sessionId: sessionId as string, includeUnpaid: true } : { sessionId: '', includeUnpaid: true },
+    { skip: !sessionId }
   );
 
   const order = currentOrder || orderFromQuery || orderFromParams;
   const ordersToProcess =
-    updatedOrdersState || allOrdersFromParams || (order ? [order] : []);
+    updatedOrdersState ||
+    (sessionBilling?.orders && sessionBilling.orders.length > 0 ? sessionBilling.orders : null) ||
+    allOrdersFromParams ||
+    (order ? [order] : []);
 
   const { data: restaurant, refetch: refetchRestaurant } =
     useGetRestaurantQuery(restaurantId ?? skipToken, { skip: !restaurantId });
@@ -104,10 +134,28 @@ export default function ServicePaymentScreen() {
       : skipToken,
     {
       skip: !restaurant?.slug || !tableId,
-    },
+    }
   );
 
   const combinedBillDetails = useMemo(() => {
+    // Prioritize session billing over table-based billing
+    if (sessionBilling?.bill) {
+      const bill = sessionBilling.bill;
+      return {
+        subTotalAmount: bill.subTotalAmount,
+        taxAmount: bill.taxAmount,
+        cgstAmount: bill.cgstAmount,
+        sgstAmount: bill.sgstAmount,
+        igstAmount: bill.igstAmount,
+        discountAmount: bill.discountAmount || 0,
+        totalAmount: bill.totalAmount,
+        roundOffAmount: bill.roundOffAmount,
+        orderNumbers: sessionBilling.orders.map((order: any) => order.orderNumber),
+        orderCount: sessionBilling.orders.length,
+        isSessionBased: true,
+      };
+    }
+
     if (sessionInvoice?.bill) {
       const bill = sessionInvoice.bill;
       return {
@@ -121,6 +169,7 @@ export default function ServicePaymentScreen() {
         roundOffAmount: bill.roundOffAmount,
         orderNumbers: bill.orders.map((order: any) => order.orderNumber),
         orderCount: bill.orders.length,
+        isSessionBased: false,
       };
     }
 
@@ -154,9 +203,10 @@ export default function ServicePaymentScreen() {
     });
 
     return combined;
-  }, [sessionInvoice, ordersToProcess]);
+  }, [sessionBilling, sessionInvoice, ordersToProcess]);
 
   const finalTotalAmount =
+    sessionBilling?.bill?.totalAmount ||
     sessionInvoice?.bill?.totalAmount ||
     combinedBillAmount ||
     combinedBillDetails?.totalAmount ||
@@ -172,36 +222,95 @@ export default function ServicePaymentScreen() {
   }, [orderFromParams, orderFromQuery, currentOrder]);
 
   const allOrdersPaid = useMemo(() => {
-    return ordersToProcess.every((ord: any) => ord.paymentStatus === "paid");
+    return ordersToProcess.every((ord: any) => ord.paymentStatus === 'paid');
   }, [ordersToProcess]);
 
-  const [
-    generateCombinedReceiptQr,
-    { data: combinedReceiptQr, isLoading: isCombinedQrLoading },
-  ] = useGenerateCombinedReceiptQrMutation();
-
+  // Generate QR for the primary order after payment
   const primaryOrderForQr = ordersToProcess[0];
-  const { data: singleReceiptQr, refetch: generateSingleQr } =
-    useGenerateReceiptQrQuery(
-      {
-        restaurantId: restaurantId!,
-        orderId:
-          primaryOrderForQr?._id ||
-          primaryOrderForQr?.id ||
-          (orderId as string),
-      },
-      {
-        skip:
-          !restaurantId ||
-          !primaryOrderForQr ||
-          !allOrdersPaid ||
-          ordersToProcess.length > 1 ||
-          !(primaryOrderForQr._id || primaryOrderForQr.id || orderId),
-      },
-    );
 
-  const receiptQr =
-    ordersToProcess.length > 1 ? combinedReceiptQr : singleReceiptQr;
+  // FRESH DATA: Fetch the latest order data to ensure we have customerSessionId
+  const { data: freshOrderData } = useGetOrderQuery(
+    {
+      restaurantId: restaurantId!,
+      orderId: primaryOrderForQr?.id!,
+    },
+    {
+      skip: !restaurantId || !primaryOrderForQr?.id,
+    }
+  );
+
+  // Use fresh data if available, fallback to cached data
+  const orderWithSession = freshOrderData || primaryOrderForQr;
+  const hasSessionId = orderWithSession?.customerSessionId;
+
+  // Debug logging
+  console.log('DEBUG QR Generation:', {
+    primaryOrder: primaryOrderForQr,
+    freshOrderData,
+    orderWithSession,
+    customerSessionId: orderWithSession?.customerSessionId,
+    hasSessionId,
+    allOrdersPaid,
+  });
+
+  // Use session-based QR generation if order has a session
+  const [generateSessionReceiptQr, { data: sessionReceiptQr, isLoading: isGeneratingSessionQr }] = useGenerateSessionReceiptQrMutation();
+
+
+  // Fallback to individual order QR if no session (only when triggered)
+  const { data: orderReceiptQr, isLoading: isGeneratingOrderQr } = useGenerateReceiptQrQuery(
+    {
+      restaurantId: restaurantId!,
+      orderId: primaryOrderForQr?.id || (orderId as string),
+    },
+    {
+      skip: !shouldGenerateOrderQr || !restaurantId || !primaryOrderForQr?.id || hasSessionId,
+    }
+  );
+
+  const receiptQr = sessionReceiptQr || orderReceiptQr;
+  const isGeneratingQr = isGeneratingSessionQr || isGeneratingOrderQr;
+
+  // Function to generate QR when button is clicked
+  const handleGenerateQr = async () => {
+    if (!allOrdersPaid || !restaurantId) return;
+
+    try {
+      // Prioritize session-based QR generation when sessionId is available
+      if (sessionId && sessionBilling?.session) {
+        // Generate session-based QR
+        const tableNumber = sessionBilling.session.tableNumber;
+        const result = await generateSessionReceiptQr({
+          restaurantId,
+          customerSessionId: sessionId as string,
+          tableNumber,
+        }).unwrap();
+
+        // Show QR modal immediately after successful generation
+        if (result) {
+          setShowReceiptQr(true);
+        }
+      } else if (hasSessionId && orderWithSession) {
+        // Generate session-based QR from order data
+        const tableNumber = orderWithSession.tableNumber;
+        const result = await generateSessionReceiptQr({
+          restaurantId,
+          customerSessionId: orderWithSession.customerSessionId,
+          tableNumber,
+        }).unwrap();
+
+        // Show QR modal immediately after successful generation
+        if (result) {
+          setShowReceiptQr(true);
+        }
+      } else {
+        // Generate individual order QR by enabling the query
+        setShouldGenerateOrderQr(true);
+      }
+    } catch (error) {
+      console.error('Failed to generate QR code:', error);
+    }
+  };
 
   const [updatePayment] = useUpdateOrderPaymentMutation();
 
@@ -211,16 +320,18 @@ export default function ServicePaymentScreen() {
       refetchRestaurant(),
       refetchTables(),
       refetchSessionInvoice(),
+      refetchSessionBilling(),
+      refetchDetailedBill(),
     ]);
   };
 
-  const handleMarkAsPaid = async (method: "cash" | "card") => {
+  const handleMarkAsPaid = async (method: 'cash' | 'card') => {
     if (!finalTotalAmount || !restaurantId || ordersToProcess.length === 0) {
-      Alert.alert("Error", "Missing order or restaurant data");
+      Alert.alert('Error', 'Missing order or restaurant data');
       return;
     }
 
-    if (method === "cash") {
+    if (method === 'cash') {
       setShowRoundingDialog(true);
       return;
     }
@@ -229,9 +340,9 @@ export default function ServicePaymentScreen() {
   };
 
   const processPayment = async (
-    method: "cash" | "card",
+    method: 'cash' | 'card',
     finalAmount: number,
-    roundOffAmount: number,
+    roundOffAmount: number
   ) => {
     setIsProcessing(true);
     try {
@@ -253,15 +364,15 @@ export default function ServicePaymentScreen() {
         const result = await updatePayment({
           restaurantId: restaurantId!,
           orderId: orderToUpdate._id || orderToUpdate.id,
-          paymentStatus: "paid",
-          provider: method === "card" ? "card" : "cash",
+          paymentStatus: 'paid',
+          provider: method === 'card' ? 'card' : 'cash',
         }).unwrap();
         results.push(result);
       }
 
       const updatedOrders = ordersToProcess.map((ord: any) => ({
         ...ord,
-        paymentStatus: "paid",
+        paymentStatus: 'paid',
       }));
 
       setUpdatedOrdersState(updatedOrders);
@@ -269,20 +380,11 @@ export default function ServicePaymentScreen() {
         setCurrentOrder(updatedOrders[0]);
       }
 
-      if (ordersToProcess.length > 1) {
-        const orderIds = ordersToProcess.map((ord: any) => ord.id || ord._id);
-        const tableNum =
-          selectedTable?.tableNumber || selectedTable?.displayName;
-        await generateCombinedReceiptQr({
-          restaurantId: restaurantId!,
-          orderIds,
-          tableNumber: tableNum,
-        });
-      }
+      // QR will be automatically generated by the query when order becomes paid
     } catch (error: any) {
       Alert.alert(
-        "Payment Update Failed",
-        error?.message || "Failed to update payment status",
+        'Payment Update Failed',
+        error?.message || 'Failed to update payment status'
       );
     } finally {
       setIsProcessing(false);
@@ -291,10 +393,10 @@ export default function ServicePaymentScreen() {
 
   const handleRoundingConfirm = (
     finalAmount: number,
-    roundOffAmount: number,
+    roundOffAmount: number
   ) => {
     setShowRoundingDialog(false);
-    processPayment("cash", finalAmount, roundOffAmount);
+    processPayment('cash', finalAmount, roundOffAmount);
   };
 
   const getOrderStatusInfo = () => {
@@ -302,21 +404,21 @@ export default function ServicePaymentScreen() {
 
     if (allOrdersPaid) {
       return {
-        icon: "checkmark-circle",
+        icon: 'checkmark-circle',
         text:
           ordersToProcess.length > 1
-            ? "All Payments Complete"
-            : "Payment Complete",
-        color: "#16a34a",
-        bgColor: isDark ? "#064E3B" : "#f0fdf4",
+            ? 'All Payments Complete'
+            : 'Payment Complete',
+        color: '#16a34a',
+        bgColor: isDark ? '#064E3B' : '#f0fdf4',
       };
     }
 
     return {
-      icon: "time",
-      text: ordersToProcess.length > 1 ? "Payments Pending" : "Payment Pending",
-      color: "#ea580c",
-      bgColor: isDark ? "#7C2D12" : "#fff7ed",
+      icon: 'time',
+      text: ordersToProcess.length > 1 ? 'Payments Pending' : 'Payment Pending',
+      color: '#fff',
+      bgColor: isDark ? '#A6631E' : '#fff7ed',
     };
   };
 
@@ -330,7 +432,7 @@ export default function ServicePaymentScreen() {
             styles.header,
             {
               backgroundColor: theme.background,
-              borderBottomColor: isDark ? "#374151" : "#e5e7eb",
+              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
             },
           ]}
         >
@@ -363,7 +465,7 @@ export default function ServicePaymentScreen() {
             styles.header,
             {
               backgroundColor: theme.background,
-              borderBottomColor: isDark ? "#374151" : "#e5e7eb",
+              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
             },
           ]}
         >
@@ -402,7 +504,7 @@ export default function ServicePaymentScreen() {
           styles.header,
           {
             backgroundColor: theme.background,
-            borderBottomColor: isDark ? "#374151" : "#e5e7eb",
+            borderBottomColor: isDark ? '#374151' : '#e5e7eb',
           },
         ]}
       >
@@ -415,13 +517,15 @@ export default function ServicePaymentScreen() {
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: theme.text }]}>Payment</Text>
           <Text style={[styles.subtitle, { color: theme.icon }]}>
-            Order #{order.orderNumber}
+            {sessionBilling
+              ? `Customer Session • ${sessionBilling.orders.length} orders`
+              : `Order #${order.orderNumber}`}
           </Text>
         </View>
         <TouchableOpacity
           style={[
             styles.iconButton,
-            { backgroundColor: isDark ? "#374151" : "#f3f4f6" },
+            { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
           ]}
           onPress={handleRefresh}
         >
@@ -437,7 +541,7 @@ export default function ServicePaymentScreen() {
               styles.statusCard,
               {
                 backgroundColor: statusInfo.bgColor,
-                borderColor: isDark ? statusInfo.color : "rgba(0, 0, 0, 0.05)",
+                borderColor: isDark ? statusInfo.color : 'rgba(0, 0, 0, 0.05)',
               },
             ]}
           >
@@ -458,11 +562,11 @@ export default function ServicePaymentScreen() {
               <View
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: allOrdersPaid ? "#16a34a" : "#dc2626" },
+                  { backgroundColor: allOrdersPaid ? '#16a34a' : '#dc2626' },
                 ]}
               >
                 <Text style={styles.statusBadgeText}>
-                  {allOrdersPaid ? "Paid" : "Pending"}
+                  {allOrdersPaid ? 'Paid' : 'Pending'}
                 </Text>
               </View>
             </View>
@@ -480,22 +584,41 @@ export default function ServicePaymentScreen() {
                 styles.receiptButton,
                 {
                   backgroundColor: theme.background,
-                  borderColor: isDark ? "#374151" : "#e5e7eb",
+                  borderColor: isDark ? '#374151' : '#e5e7eb',
                 },
               ]}
-              onPress={() => setShowReceiptQr(true)}
+              onPress={() => {
+                if (receiptQr && !isGeneratingQr) {
+                  // QR already generated, show it immediately
+                  setShowReceiptQr(true);
+                } else if (!isGeneratingQr) {
+                  // Generate new QR code (will show modal automatically)
+                  handleGenerateQr();
+                }
+              }}
+              disabled={isGeneratingQr}
             >
               <Ionicons name="qr-code" size={24} color={theme.brand} />
               <View style={styles.receiptButtonContent}>
                 <Text
                   style={[styles.receiptButtonTitle, { color: theme.text }]}
                 >
-                  Show Receipt QR Code
+                  {isGeneratingQr
+                    ? 'Generating QR Code...'
+                    : receiptQr
+                      ? 'Show Receipt QR Code'
+                      : 'Generate Receipt QR Code'
+                  }
                 </Text>
                 <Text
                   style={[styles.receiptButtonSubtitle, { color: theme.icon }]}
                 >
-                  Let customer scan to get their receipt
+                  {isGeneratingQr
+                    ? 'Please wait...'
+                    : receiptQr
+                      ? 'Let customer scan to get their receipt'
+                      : 'Click to generate QR code for customer receipt'
+                  }
                 </Text>
               </View>
               <Ionicons name="arrow-forward" size={20} color={theme.icon} />
@@ -516,30 +639,30 @@ export default function ServicePaymentScreen() {
                     styles.methodButton,
                     {
                       backgroundColor:
-                        paymentMethod === "card"
+                        paymentMethod === 'card'
                           ? theme.brand
                           : theme.background,
                       borderColor:
-                        paymentMethod === "card"
+                        paymentMethod === 'card'
                           ? theme.brand
                           : isDark
-                            ? "#374151"
-                            : "#e5e7eb",
+                          ? '#374151'
+                          : '#e5e7eb',
                     },
                   ]}
-                  onPress={() => setPaymentMethod("card")}
+                  onPress={() => setPaymentMethod('card')}
                 >
                   <Ionicons
                     name="card"
                     size={24}
-                    color={paymentMethod === "card" ? "#ffffff" : theme.brand}
+                    color={paymentMethod === 'card' ? '#ffffff' : theme.brand}
                   />
                   <Text
                     style={[
                       styles.methodText,
                       {
                         color:
-                          paymentMethod === "card" ? "#ffffff" : theme.text,
+                          paymentMethod === 'card' ? '#ffffff' : theme.text,
                       },
                     ]}
                   >
@@ -551,28 +674,28 @@ export default function ServicePaymentScreen() {
                     styles.methodButton,
                     {
                       backgroundColor:
-                        paymentMethod === "cash" ? "#059669" : theme.background,
+                        paymentMethod === 'cash' ? '#059669' : theme.background,
                       borderColor:
-                        paymentMethod === "cash"
-                          ? "#059669"
+                        paymentMethod === 'cash'
+                          ? '#059669'
                           : isDark
-                            ? "#374151"
-                            : "#e5e7eb",
+                          ? '#374151'
+                          : '#e5e7eb',
                     },
                   ]}
-                  onPress={() => setPaymentMethod("cash")}
+                  onPress={() => setPaymentMethod('cash')}
                 >
                   <Ionicons
                     name="cash"
                     size={24}
-                    color={paymentMethod === "cash" ? "#ffffff" : "#059669"}
+                    color={paymentMethod === 'cash' ? '#ffffff' : '#059669'}
                   />
                   <Text
                     style={[
                       styles.methodText,
                       {
                         color:
-                          paymentMethod === "cash" ? "#ffffff" : theme.text,
+                          paymentMethod === 'cash' ? '#ffffff' : theme.text,
                       },
                     ]}
                   >
@@ -583,7 +706,7 @@ export default function ServicePaymentScreen() {
             </View>
 
             {/* Card Payment Section */}
-            {paymentMethod === "card" && (
+            {paymentMethod === 'card' && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   Card Payment
@@ -593,7 +716,7 @@ export default function ServicePaymentScreen() {
                     styles.cardCard,
                     {
                       backgroundColor: theme.background,
-                      borderColor: isDark ? "#374151" : "#e5e7eb",
+                      borderColor: isDark ? '#374151' : '#e5e7eb',
                       borderWidth: 1,
                       borderRadius: 12,
                     },
@@ -602,7 +725,7 @@ export default function ServicePaymentScreen() {
                   <View
                     style={[
                       styles.cardAmountContainer,
-                      { backgroundColor: isDark ? "#1F2937" : "#f9fafb" },
+                      { backgroundColor: isDark ? '#1F2937' : '#f9fafb' },
                     ]}
                   >
                     <Text style={styles.cardIcon}>💳</Text>
@@ -633,7 +756,7 @@ export default function ServicePaymentScreen() {
             )}
 
             {/* Cash Payment Section */}
-            {paymentMethod === "cash" && (
+            {paymentMethod === 'cash' && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   Cash Payment
@@ -643,7 +766,7 @@ export default function ServicePaymentScreen() {
                     styles.cashCard,
                     {
                       backgroundColor: theme.background,
-                      borderColor: isDark ? "#374151" : "#e5e7eb",
+                      borderColor: isDark ? '#374151' : '#e5e7eb',
                       borderWidth: 1,
                       borderRadius: 12,
                     },
@@ -652,7 +775,7 @@ export default function ServicePaymentScreen() {
                   <View
                     style={[
                       styles.cashAmountContainer,
-                      { backgroundColor: isDark ? "#1F2937" : "#f9fafb" },
+                      { backgroundColor: isDark ? '#1F2937' : '#f9fafb' },
                     ]}
                   >
                     <Text style={styles.cashIcon}>💵</Text>
@@ -692,233 +815,233 @@ export default function ServicePaymentScreen() {
                 <Ionicons name="checkmark-circle" size={20} color="#ffffff" />
                 <Text style={styles.markPaidButtonText}>
                   {isProcessing
-                    ? "Processing..."
-                    : `Mark as Paid - ${paymentMethod === "card" ? "Card" : "Cash"}`}
+                    ? 'Processing...'
+                    : `Mark as Paid - ${
+                        paymentMethod === 'card' ? 'Card' : 'Cash'
+                      }`}
                 </Text>
               </TouchableOpacity>
             </View>
           </>
         )}
 
-        {/* Order Items */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            {ordersToProcess.length > 1
-              ? `Order Items (${ordersToProcess.length} Orders)`
-              : "Order Items"}
-          </Text>
-          <View
-            style={[
-              styles.orderCard,
-              {
-                backgroundColor: theme.background,
-                borderColor: isDark ? "#374151" : "#e5e7eb",
-                borderWidth: 1,
-              },
-            ]}
-          >
-            {ordersToProcess.map((orderData: any, orderIndex: any) => (
-              <View key={`order-${orderIndex}`}>
-                {ordersToProcess.length > 1 && (
-                  <Text
-                    style={[
-                      styles.orderHeader,
-                      {
-                        color: theme.text,
-                        borderBottomColor: isDark ? "#374151" : "#f3f4f6",
-                      },
-                    ]}
-                  >
-                    Order #{orderData.orderNumber}
-                  </Text>
-                )}
-                {orderData.items.map((item: any, itemIndex: any) => (
-                  <View
-                    key={`${orderIndex}-${item.name}-${itemIndex}`}
-                    style={[
-                      styles.orderItem,
-                      { borderBottomColor: isDark ? "#374151" : "#f3f4f6" },
-                    ]}
-                  >
-                    <View style={styles.itemInfo}>
-                      <Text style={[styles.itemName, { color: theme.text }]}>
-                        {item.name}
-                      </Text>
-                      <Text style={[styles.itemDetails, { color: theme.icon }]}>
-                        ₹{item.pricing.unitAmount} × {item.quantity}
-                      </Text>
-                    </View>
-                    <Text style={[styles.itemTotal, { color: theme.text }]}>
-                      ₹{(item.pricing.unitAmount * item.quantity).toFixed(0)}
-                    </Text>
-                  </View>
-                ))}
-                {ordersToProcess.length > 1 &&
-                  orderIndex < ordersToProcess.length - 1 && (
-                    <View
-                      style={[
-                        styles.orderSeparator,
-                        { backgroundColor: isDark ? "#374151" : "#e5e7eb" },
-                      ]}
-                    />
-                  )}
-              </View>
-            ))}
+        {/* Detailed Session Bill - Matching OrdersPage Design */}
+        {detailedSessionBill && (
+          <View style={styles.section}>
+            {/* Restaurant Info Section */}
+            <View style={[styles.restaurantInfoSection, { backgroundColor: isDark ? '#1F2937' : '#f9fafb' }]}>
+              <Text style={[styles.sectionHeader, { color: theme.text }]}>
+                Restaurant Details
+              </Text>
+              <Text style={[styles.restaurantName, { color: theme.text }]}>
+                {detailedSessionBill.restaurant.name}
+              </Text>
+              {detailedSessionBill.restaurant.address && (
+                <Text style={[styles.restaurantAddress, { color: theme.icon }]}>
+                  {detailedSessionBill.restaurant.address.line1}, {detailedSessionBill.restaurant.address.city}
+                </Text>
+              )}
+              {detailedSessionBill.restaurant.phone && (
+                <Text style={[styles.restaurantContact, { color: theme.icon }]}>
+                  Phone: {detailedSessionBill.restaurant.phone}
+                </Text>
+              )}
+              {detailedSessionBill.restaurant.gstin && (
+                <Text style={[styles.restaurantContact, { color: theme.icon }]}>
+                  GSTIN: {detailedSessionBill.restaurant.gstin}
+                </Text>
+              )}
+            </View>
 
-            {combinedBillDetails &&
-              (ordersToProcess.length > 1 || sessionInvoice) && (
-                <View style={styles.billBreakdown}>
-                  <View
-                    style={[
-                      styles.divider,
-                      { backgroundColor: isDark ? "#374151" : "#e5e7eb" },
-                    ]}
-                  />
-                  <Text style={[styles.breakdownTitle, { color: theme.text }]}>
-                    {sessionInvoice ? "Session Bill Summary" : "Bill Summary"}
-                  </Text>
-                  <View style={styles.breakdownRow}>
-                    <Text
-                      style={[styles.breakdownLabel, { color: theme.icon }]}
-                    >
-                      Subtotal
-                    </Text>
-                    <Text
-                      style={[styles.breakdownAmount, { color: theme.text }]}
-                    >
-                      {formatCurrency(combinedBillDetails.subTotalAmount)}
+            {/* All Items Section */}
+            <View style={styles.allItemsSection}>
+              <Text style={[styles.sectionHeader, { color: theme.text }]}>
+                All Items ({detailedSessionBill.allItems.length})
+              </Text>
+              <View style={styles.itemsList}>
+                {detailedSessionBill.allItems.map((item, index) => {
+                  const pricePerUnitWithTax = item.totalWithTax / item.quantity;
+                  return (
+                    <View key={index} style={[styles.itemCard, {
+                      backgroundColor: theme.background,
+                      borderColor: isDark ? '#374151' : '#e5e7eb'
+                    }]}>
+                      <View style={styles.itemCardContent}>
+                        <View style={styles.itemMainInfo}>
+                          <Text style={[styles.itemCardName, { color: theme.text }]}>
+                            {item.name}
+                          </Text>
+                          <Text style={[styles.itemCalculation, { color: theme.icon }]}>
+                            {item.quantity} × {formatCurrency(pricePerUnitWithTax)} = {formatCurrency(item.totalWithTax)}
+                          </Text>
+                          {item.gstRate > 0 && (
+                            <Text style={[styles.gstInfo, { color: theme.icon }]}>
+                              GST @ {item.gstRate}% • Tax: {formatCurrency(item.totalTaxAmount)}
+                            </Text>
+                          )}
+                          {item.hsnCode && (
+                            <Text style={[styles.hsnCode, { color: theme.icon }]}>
+                              HSN: {item.hsnCode}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.itemPriceInfo}>
+                          <Text style={[styles.itemCardTotal, { color: theme.text }]}>
+                            {formatCurrency(item.totalWithTax)}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Orders Breakdown Section */}
+            <View style={styles.ordersBreakdownSection}>
+              <Text style={[styles.sectionHeader, { color: theme.text }]}>
+                Orders ({detailedSessionBill.orderBreakdown.length})
+              </Text>
+              {detailedSessionBill.orderBreakdown.map((order) => (
+                <View key={order.orderId} style={[styles.orderBreakdownCard, { backgroundColor: isDark ? '#1F2937' : '#f9fafb' }]}>
+                  <View style={styles.orderBreakdownHeader}>
+                    <View style={styles.orderMainInfo}>
+                      <Text style={[styles.orderBreakdownNumber, { color: theme.text }]}>
+                        #{order.orderNumber}
+                      </Text>
+                      <Text style={[styles.orderBreakdownDetails, { color: theme.icon }]}>
+                        Payment: {order.paymentStatus} • {order.itemCount} items
+                      </Text>
+                      <Text style={[styles.orderBreakdownDate, { color: theme.icon }]}>
+                        {new Date(order.createdAt).toLocaleDateString('en-IN')} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                    <Text style={[styles.orderBreakdownAmount, { color: theme.text }]}>
+                      {formatCurrency(order.totalAmount)}
                     </Text>
                   </View>
-                  {combinedBillDetails.taxAmount > 0 && (
-                    <>
-                      {combinedBillDetails.cgstAmount > 0 && (
-                        <View style={styles.breakdownRow}>
-                          <Text
-                            style={[
-                              styles.breakdownLabel,
-                              { color: theme.icon },
-                            ]}
-                          >
-                            CGST
-                          </Text>
-                          <Text
-                            style={[
-                              styles.breakdownAmount,
-                              { color: theme.text },
-                            ]}
-                          >
-                            {formatCurrency(combinedBillDetails.cgstAmount)}
-                          </Text>
-                        </View>
-                      )}
-                      {combinedBillDetails.sgstAmount > 0 && (
-                        <View style={styles.breakdownRow}>
-                          <Text
-                            style={[
-                              styles.breakdownLabel,
-                              { color: theme.icon },
-                            ]}
-                          >
-                            SGST
-                          </Text>
-                          <Text
-                            style={[
-                              styles.breakdownAmount,
-                              { color: theme.text },
-                            ]}
-                          >
-                            {formatCurrency(combinedBillDetails.sgstAmount)}
-                          </Text>
-                        </View>
-                      )}
-                      {combinedBillDetails.igstAmount > 0 && (
-                        <View style={styles.breakdownRow}>
-                          <Text
-                            style={[
-                              styles.breakdownLabel,
-                              { color: theme.icon },
-                            ]}
-                          >
-                            IGST
-                          </Text>
-                          <Text
-                            style={[
-                              styles.breakdownAmount,
-                              { color: theme.text },
-                            ]}
-                          >
-                            {formatCurrency(combinedBillDetails.igstAmount)}
-                          </Text>
-                        </View>
-                      )}
-                      <View style={styles.breakdownRow}>
-                        <Text
-                          style={[styles.breakdownLabel, { color: theme.icon }]}
-                        >
-                          Total Tax
-                        </Text>
-                        <Text
-                          style={[
-                            styles.breakdownAmount,
-                            { color: theme.text },
-                          ]}
-                        >
-                          {formatCurrency(combinedBillDetails.taxAmount)}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                  {combinedBillDetails.discountAmount > 0 && (
-                    <View style={styles.breakdownRow}>
-                      <Text
-                        style={[styles.breakdownLabel, { color: theme.icon }]}
-                      >
-                        Discount
-                      </Text>
-                      <Text
-                        style={[styles.breakdownAmount, { color: theme.text }]}
-                      >
-                        -{formatCurrency(combinedBillDetails.discountAmount)}
-                      </Text>
-                    </View>
-                  )}
-                  {sessionInvoice && (
-                    <View
-                      style={[
-                        styles.sessionIndicator,
-                        { backgroundColor: isDark ? "#064E3B" : "#dcfce7" },
-                      ]}
-                    >
-                      <Text style={styles.sessionIndicatorText}>
-                        ✓ Smart GST Calculation Applied
-                      </Text>
-                    </View>
-                  )}
+                </View>
+              ))}
+            </View>
+
+            {/* Detailed Bill Summary - Matching OrdersPage style */}
+            <View style={[styles.sessionTotalSection, { backgroundColor: isDark ? '#1e3a8a' : '#eff6ff' }]}>
+              <View style={styles.sessionTotalHeader}>
+                <Text style={[styles.sessionTotalLabel, { color: theme.text }]}>
+                  Session Total
+                </Text>
+                <Text style={[styles.sessionTotalAmount, { color: theme.text }]}>
+                  {formatCurrency(detailedSessionBill.totalAmount)}
+                </Text>
+              </View>
+
+              <View style={styles.sessionTotalBreakdown}>
+                <View style={styles.breakdownRow}>
+                  <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                    Subtotal
+                  </Text>
+                  <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                    {formatCurrency(detailedSessionBill.subTotalAmount)}
+                  </Text>
+                </View>
+
+                {detailedSessionBill.cgstAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                      CGST
+                    </Text>
+                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                      {formatCurrency(detailedSessionBill.cgstAmount)}
+                    </Text>
+                  </View>
+                )}
+
+                {detailedSessionBill.sgstAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                      SGST
+                    </Text>
+                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                      {formatCurrency(detailedSessionBill.sgstAmount)}
+                    </Text>
+                  </View>
+                )}
+
+                {detailedSessionBill.igstAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                      IGST
+                    </Text>
+                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                      {formatCurrency(detailedSessionBill.igstAmount)}
+                    </Text>
+                  </View>
+                )}
+
+                {detailedSessionBill.taxAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: theme.text, fontWeight: '600' }]}>
+                      Total Tax
+                    </Text>
+                    <Text style={[styles.breakdownAmount, { color: theme.text, fontWeight: '600' }]}>
+                      {formatCurrency(detailedSessionBill.taxAmount)}
+                    </Text>
+                  </View>
+                )}
+
+                {detailedSessionBill.discountAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                      Discount
+                    </Text>
+                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                      -{formatCurrency(detailedSessionBill.discountAmount)}
+                    </Text>
+                  </View>
+                )}
+
+                {detailedSessionBill.roundOffAmount !== 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                      Round Off
+                    </Text>
+                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                      {detailedSessionBill.roundOffAmount >= 0 ? '+' : ''}{formatCurrency(detailedSessionBill.roundOffAmount)}
+                    </Text>
+                  </View>
+                )}
+
+                {detailedSessionBill.pendingAmount > 0 && (
+                  <View style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, { color: '#f59e0b', fontWeight: '600' }]}>
+                      Pending
+                    </Text>
+                    <Text style={[styles.breakdownAmount, { color: '#f59e0b', fontWeight: '600' }]}>
+                      {formatCurrency(detailedSessionBill.pendingAmount)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Tax Type */}
+              {detailedSessionBill.taxType && (
+                <View style={[styles.taxTypeSection, { borderTopColor: isDark ? '#3b82f6' : '#bfdbfe' }]}>
+                  <Text style={[styles.taxTypeText, { color: theme.icon }]}>
+                    Tax Type: {detailedSessionBill.taxType === 'intra-state' ? 'Intra-State (CGST+SGST)' : 'Inter-State (IGST)'}
+                  </Text>
                 </View>
               )}
-
-            <View
-              style={[
-                styles.divider,
-                { backgroundColor: isDark ? "#374151" : "#e5e7eb" },
-              ]}
-            />
-            <View style={styles.totalRow}>
-              <Text style={[styles.totalLabel, { color: theme.text }]}>
-                Total
-              </Text>
-              <Text style={[styles.totalAmount, { color: theme.text }]}>
-                {formatCurrency(finalTotalAmount)}
-              </Text>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Help Text */}
         <View style={styles.helpContainer}>
           <Text style={[styles.helpText, { color: theme.icon }]}>
             {ordersToProcess.length > 1
-              ? `Show orders ${combinedBillDetails?.orderNumbers.join(", ")} to kitchen staff if needed`
+              ? `Show orders ${combinedBillDetails?.orderNumbers.join(
+                  ', '
+                )} to kitchen staff if needed`
               : `Show order #${order.orderNumber} to kitchen staff if needed`}
           </Text>
           <Text style={[styles.helpText, { color: theme.icon }]}>
@@ -954,7 +1077,7 @@ export default function ServicePaymentScreen() {
             <View
               style={[
                 styles.qrModalHeader,
-                { borderBottomColor: isDark ? "#374151" : "#e5e7eb" },
+                { borderBottomColor: isDark ? '#374151' : '#e5e7eb' },
               ]}
             >
               <Text style={[styles.qrModalTitle, { color: theme.text }]}>
@@ -981,12 +1104,15 @@ export default function ServicePaymentScreen() {
                 </Text>
                 <Text style={[styles.qrOrderInfo, { color: theme.brand }]}>
                   {ordersToProcess.length > 1
-                    ? `Orders #${receiptQr.orderNumbers?.join(", #") || receiptQr.orderNumber}`
+                    ? `Orders #${
+                        receiptQr.orderNumbers?.join(', #') ||
+                        receiptQr.orderNumber
+                      }`
                     : `Order #${receiptQr.orderNumber}`}
                 </Text>
                 <Text style={[styles.qrExpiryInfo, { color: theme.icon }]}>
-                  Valid until{" "}
-                  {new Date(receiptQr.expiresAt).toLocaleDateString("en-IN")}
+                  Valid until{' '}
+                  {new Date(receiptQr.expiresAt).toLocaleDateString('en-IN')}
                 </Text>
               </View>
             ) : (
@@ -1010,8 +1136,8 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 14,
     borderBottomWidth: 1,
   },
@@ -1028,7 +1154,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   subtitle: {
     fontSize: 13,
@@ -1039,12 +1165,12 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   errorText: {
     fontSize: 15,
-    textAlign: "center",
+    textAlign: 'center',
   },
   statusCard: {
     margin: 12,
@@ -1053,8 +1179,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   statusContent: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   statusInfo: {
@@ -1062,7 +1188,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   statusSubtext: {
     fontSize: 13,
@@ -1074,24 +1200,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusBadgeText: {
-    color: "#ffffff",
+    color: '#ffffff',
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   section: {
     margin: 12,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 12,
   },
   receiptButton: {
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   receiptButtonContent: {
@@ -1099,20 +1225,20 @@ const styles = StyleSheet.create({
   },
   receiptButtonTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   receiptButtonSubtitle: {
     fontSize: 13,
     marginTop: 2,
   },
   paymentMethods: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 10,
   },
   methodButton: {
     flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
+    flexDirection: 'column',
+    alignItems: 'center',
     padding: 14,
     borderRadius: 12,
     borderWidth: 2,
@@ -1120,14 +1246,14 @@ const styles = StyleSheet.create({
   },
   methodText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   cardCard: {
     padding: 14,
     gap: 12,
   },
   cardAmountContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     padding: 20,
     borderRadius: 10,
     gap: 6,
@@ -1137,7 +1263,7 @@ const styles = StyleSheet.create({
   },
   cardAmount: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   cardLabel: {
     fontSize: 13,
@@ -1147,7 +1273,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cashAmountContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     padding: 20,
     borderRadius: 10,
     gap: 6,
@@ -1157,7 +1283,7 @@ const styles = StyleSheet.create({
   },
   cashAmount: {
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   cashLabel: {
     fontSize: 13,
@@ -1167,34 +1293,34 @@ const styles = StyleSheet.create({
   },
   instructionsText: {
     fontSize: 13,
-    textAlign: "center",
+    textAlign: 'center',
   },
   instructionsSubtext: {
     fontSize: 12,
-    textAlign: "center",
+    textAlign: 'center',
   },
   markPaidButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#16a34a",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#16a34a',
     padding: 14,
     borderRadius: 12,
     gap: 6,
   },
   markPaidButtonText: {
-    color: "#ffffff",
+    color: '#ffffff',
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   orderCard: {
     borderRadius: 12,
     padding: 14,
   },
   orderItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
   },
@@ -1203,7 +1329,7 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   itemDetails: {
     fontSize: 13,
@@ -1211,64 +1337,64 @@ const styles = StyleSheet.create({
   },
   itemTotal: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   divider: {
     height: 1,
     marginVertical: 10,
   },
   totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingTop: 6,
   },
   totalLabel: {
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   totalAmount: {
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   helpContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     padding: 20,
     gap: 4,
   },
   helpText: {
     fontSize: 12,
-    textAlign: "center",
+    textAlign: 'center',
   },
   qrModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
   qrModalContent: {
     borderRadius: 14,
-    width: "100%",
+    width: '100%',
     maxWidth: 400,
-    maxHeight: "80%",
+    maxHeight: '80%',
   },
   qrModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
   },
   qrModalTitle: {
     fontSize: 17,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   qrCloseButton: {
     padding: 6,
   },
   qrContent: {
-    alignItems: "center",
+    alignItems: 'center',
     padding: 20,
     gap: 12,
   },
@@ -1278,17 +1404,17 @@ const styles = StyleSheet.create({
   },
   qrInstructions: {
     fontSize: 15,
-    textAlign: "center",
+    textAlign: 'center',
   },
   qrOrderInfo: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   qrExpiryInfo: {
     fontSize: 12,
   },
   qrLoadingContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     padding: 32,
     gap: 12,
   },
@@ -1297,7 +1423,7 @@ const styles = StyleSheet.create({
   },
   orderHeader: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 6,
     marginTop: 10,
     paddingBottom: 4,
@@ -1312,13 +1438,13 @@ const styles = StyleSheet.create({
   },
   breakdownTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 10,
   },
   breakdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 3,
   },
   breakdownLabel: {
@@ -1326,18 +1452,202 @@ const styles = StyleSheet.create({
   },
   breakdownAmount: {
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   sessionIndicator: {
     marginTop: 6,
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 6,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
   },
   sessionIndicatorText: {
     fontSize: 11,
-    color: "#16a34a",
-    fontWeight: "600",
+    color: '#16a34a',
+    fontWeight: '600',
+  },
+
+  // Order Details Breakdown Styles
+  orderDetailSection: {
+    marginVertical: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  orderHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  orderNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  orderAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginVertical: 4,
+    paddingLeft: 8,
+  },
+  itemRowInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  itemRowName: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  itemRowDetails: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  itemRowTotal: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  orderSubtotal: {
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  orderSubtotalText: {
+    fontSize: 12,
+    textAlign: 'right',
+  },
+
+  // New styles for OrdersPage-like design
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  restaurantInfoSection: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  restaurantName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  restaurantAddress: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  restaurantContact: {
+    fontSize: 13,
+    marginTop: 1,
+  },
+  allItemsSection: {
+    marginBottom: 16,
+  },
+  itemsList: {
+    gap: 8,
+  },
+  itemCard: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  itemCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  itemMainInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  itemCardName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  itemCalculation: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  gstInfo: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  hsnCode: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  itemPriceInfo: {
+    alignItems: 'flex-end',
+  },
+  itemCardTotal: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  ordersBreakdownSection: {
+    marginBottom: 16,
+  },
+  orderBreakdownCard: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  orderBreakdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  orderMainInfo: {
+    flex: 1,
+  },
+  orderBreakdownNumber: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  orderBreakdownDetails: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  orderBreakdownDate: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  orderBreakdownAmount: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  sessionTotalSection: {
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  sessionTotalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sessionTotalLabel: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  sessionTotalAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  sessionTotalBreakdown: {
+    gap: 4,
+  },
+  taxTypeSection: {
+    marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  taxTypeText: {
+    fontSize: 12,
   },
 });

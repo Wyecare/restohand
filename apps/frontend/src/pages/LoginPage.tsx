@@ -146,27 +146,7 @@ const LoginPage = () => {
               )}
             </Button>
           </form>
-
-          <div className="text-xs text-muted-foreground text-center space-y-1">
-            <p>Use your email and password to access your account.</p>
-            <p className="text-[10px]">
-              Staff-facing OTP/PIN login flows are available via the kitchen app.
-            </p>
-          </div>
         </CardContent>
-        <CardFooter>
-          <div className="flex w-full flex-col gap-2 text-center text-xs text-muted-foreground">
-            <p>By continuing, you agree to the Restohand Terms and Privacy Policy.</p>
-            <div className="flex justify-center gap-4">
-              <Link to="/register" className="text-primary hover:underline">
-                Create account
-              </Link>
-              <Link to="/staff-login" className="text-primary hover:underline">
-                Staff login
-              </Link>
-            </div>
-          </div>
-        </CardFooter>
       </Card>
     </div>
   );

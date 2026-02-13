@@ -55,6 +55,7 @@ export const getDomainType = (): InterfaceType => {
     hostname === '127.0.0.1' ||
     hostname.includes('local')
   ) {
+    console.log('🌐 Localhost path check:', { pathname });
     if (
       pathname.startsWith('/staff-') ||
       pathname.startsWith('/login') ||
@@ -75,11 +76,14 @@ export const getDomainType = (): InterfaceType => {
       pathname.startsWith('/c/') ||
       pathname.startsWith('/receipt/') ||
       pathname.startsWith('/combined-receipt') ||
+      pathname.startsWith('/session-receipt/') ||
+      pathname.startsWith('/table-bill/') ||
       pathname.match(/^\/receipt\/[A-Z0-9]+$/) // Receipt number pattern
     ) {
-      console.log('🌐 Localhost detected: customer');
+      console.log('🌐 Localhost detected: customer', { pathname });
       return 'customer';
     }
+    console.log('🌐 Localhost: no specific path match, continuing...');
   }
 
   // Default to admin for main domains (backward compatibility)

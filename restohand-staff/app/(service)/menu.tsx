@@ -7,13 +7,19 @@ import {
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
   useCalculateCartTotalMutation,
+  useGetOrCreateSessionMutation,
 } from '@/store/api/ordersApi';
+import {
+  useGetSessionQuery,
+  useOnOrderPlacedMutation,
+} from '@/store/api/customerSessionsApi';
 import {
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
 } from '@/store/api/restaurantsApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
+import { ModifierSelectionModal } from '@/components/ModifierSelectionModal';
 import { Ionicons } from '@expo/vector-icons';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -52,13 +58,14 @@ interface CartEntry {
       quantity?: number;
     }>;
   }>;
+  notes?: string;
 }
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 3,
   }).format(amount);
 
 export default function ServiceMenuScreen() {
@@ -66,7 +73,7 @@ export default function ServiceMenuScreen() {
   const theme = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
 
-  const { tableId, restaurant_slug } = useLocalSearchParams();
+  const { tableId, restaurant_slug, sessionId, isNewSession } = useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
   // Get restaurant details
@@ -96,11 +103,22 @@ export default function ServiceMenuScreen() {
     return enhancedTables?.find((table) => table.id === tableId) ?? null;
   }, [enhancedTables, tableId]);
 
+  // Get session information
+  const {
+    data: sessionData,
+    isLoading: sessionLoading,
+    refetch: refetchSession,
+  } = useGetSessionQuery(sessionId as string, {
+    skip: !sessionId,
+  });
+
   // RTK mutation for creating orders and updating status
   const [createOrder] = useCreateOrderMutation();
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateMenuItem] = useUpdateMenuItemMutation();
   const [calculateCartTotal] = useCalculateCartTotalMutation();
+  const [getOrCreateSession] = useGetOrCreateSessionMutation();
+  const [onOrderPlaced] = useOnOrderPlacedMutation();
 
   // Component state
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -128,7 +146,8 @@ export default function ServiceMenuScreen() {
     currentAvailability: boolean;
   } | null>(null);
   const [showCancelOrderModal, setShowCancelOrderModal] = useState(false);
-  const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<any>(null);
+  const [selectedOrderForCancel, setSelectedOrderForCancel] =
+    useState<any>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalData, setSuccessModalData] = useState<{
     title: string;
@@ -136,6 +155,16 @@ export default function ServiceMenuScreen() {
   } | null>(null);
   const [calculatedCart, setCalculatedCart] = useState<any>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+
+  // Modifier modal state
+  const [modifierModalVisible, setModifierModalVisible] = useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<{
+    id: string;
+    name: string;
+    price: number;
+    modifiers: any[];
+    activePriceTagId?: string;
+  } | null>(null);
 
   // Check for existing active orders (multiple orders per table)
   const activeExistingOrders = useMemo(() => {
@@ -181,6 +210,8 @@ export default function ServiceMenuScreen() {
           i.tags?.includes('popular') || i.tags?.includes('bestseller'),
         _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
         _isAvailable: (i as any).isAvailable !== false,
+        modifiers: (i as any).modifiers || [],
+        activePriceTag: (i as any).activePriceTag || null,
       }))
     );
     return [
@@ -196,6 +227,8 @@ export default function ServiceMenuScreen() {
           i.tags?.includes('popular') || i.tags?.includes('bestseller'),
         _isQuick: i.tags?.includes('quick') || i.tags?.includes('fast'),
         _isAvailable: (i as any).isAvailable !== false,
+        modifiers: (i as any).modifiers || [],
+        activePriceTag: (i as any).activePriceTag || null,
       })),
     ];
   }, [categories, uncategorised]);
@@ -254,21 +287,24 @@ export default function ServiceMenuScreen() {
     0
   );
   // Use calculated cart total if available, otherwise fallback to frontend calculation
-  const totalAmount = calculatedCart?.totalAmount ?? Object.values(cart).reduce(
-    (sum, e) => sum + e.quantity * e.pricing.amount,
-    0
-  );
+  const totalAmount =
+    calculatedCart?.totalAmount ??
+    Object.values(cart).reduce(
+      (sum, e) => sum + e.quantity * e.pricing.amount,
+      0
+    );
 
   // Function to calculate cart totals using backend
   const recalculateCart = async (newCart: Record<string, CartEntry>) => {
     if (!restaurant || Object.keys(newCart).length === 0) {
       setCalculatedCart(null);
+      setIsCalculating(false);
       return;
     }
 
     setIsCalculating(true);
     try {
-      const cartItems = Object.values(newCart).map(entry => ({
+      const cartItems = Object.values(newCart).map((entry) => ({
         menuItemId: entry.id,
         name: entry.name,
         quantity: entry.quantity,
@@ -283,27 +319,98 @@ export default function ServiceMenuScreen() {
       const result = await calculateCartTotal({
         restaurantId: restaurant.id,
         tableId: selectedTable?.id,
-        tableNumber: selectedTable?.tableNumber,
         items: cartItems,
       }).unwrap();
 
       setCalculatedCart(result);
     } catch (error) {
       console.error('Failed to calculate cart total:', error);
-      setCalculatedCart(null);
+      // Don't set to null, keep any previous calculation
+      // setCalculatedCart(null);
     } finally {
       setIsCalculating(false);
     }
   };
 
-  // Cart management functions
-  const handleAdd = (id: string, name: string, pricing: any) => {
+  // Utility functions for price tags and modifiers
+  const getEffectivePrice = (item: any): number => {
+    if (item.activePriceTag && item.activePriceTag.effectivePrice) {
+      return item.activePriceTag.effectivePrice;
+    }
+    return item.pricing.amount;
+  };
+
+  // Modifier modal handlers
+  const handleModifierConfirm = (
+    selections: any[],
+    totalPrice: number,
+    notes?: string
+  ) => {
+    if (!selectedMenuItem) return;
+
+    const cartItem: CartEntry = {
+      id: selectedMenuItem.id,
+      name: selectedMenuItem.name,
+      pricing: { amount: totalPrice },
+      quantity: 1,
+      activePriceTagId: selectedMenuItem.activePriceTagId,
+      selectedModifiers: selections,
+      notes: notes,
+    };
+
+    // Create unique cart key for items with different modifications
+    const cartKey = `${selectedMenuItem.id}-${JSON.stringify(selections)}-${
+      notes || ''
+    }`;
+
     const newCart = {
       ...cart,
-      [id]: { id, name, pricing, quantity: (cart[id]?.quantity ?? 0) + 1 },
+      [cartKey]: cart[cartKey]
+        ? { ...cart[cartKey], quantity: cart[cartKey].quantity + 1 }
+        : cartItem,
     };
+
     setCart(newCart);
     recalculateCart(newCart);
+    setSelectedMenuItem(null);
+  };
+
+  // Enhanced cart management functions
+  const handleAdd = (
+    id: string,
+    name: string,
+    pricing: any,
+    modifiers: any[] = [],
+    activePriceTag: any = null
+  ) => {
+    // Check if item has modifiers
+    if (modifiers && modifiers.length > 0) {
+      setSelectedMenuItem({
+        id,
+        name,
+        price: getEffectivePrice({ pricing, activePriceTag }),
+        modifiers: modifiers,
+        activePriceTagId: activePriceTag?.id,
+      });
+      setModifierModalVisible(true);
+    } else {
+      // Simple item without modifiers
+      const effectivePrice = getEffectivePrice({ pricing, activePriceTag });
+      const cartItem: CartEntry = {
+        id,
+        name,
+        pricing: { amount: effectivePrice },
+        quantity: (cart[id]?.quantity ?? 0) + 1,
+        activePriceTagId: activePriceTag?.id,
+      };
+
+      const newCart = {
+        ...cart,
+        [id]: cartItem,
+      };
+      setCart(newCart);
+      recalculateCart(newCart);
+    }
   };
 
   const handleRemove = (id: string) => {
@@ -315,7 +422,10 @@ export default function ServiceMenuScreen() {
       const { [id]: _, ...rest } = cart;
       newCart = rest;
     } else {
-      newCart = { ...cart, [id]: { ...current, quantity: current.quantity - 1 } };
+      newCart = {
+        ...cart,
+        [id]: { ...current, quantity: current.quantity - 1 },
+      };
     }
 
     setCart(newCart);
@@ -329,56 +439,104 @@ export default function ServiceMenuScreen() {
     if (Object.keys(cart).length === 0) {
       setSuccessModalData({
         title: 'Cart is empty',
-        message: 'Add items to place an order'
+        message: 'Add items to place an order',
       });
       setShowSuccessModal(true);
       return;
     }
 
-    // Ensure cart is calculated before placing order
-    if (!calculatedCart) {
+    // If cart is still calculating, wait for it
+    if (isCalculating) {
       setSuccessModalData({
         title: 'Calculating prices...',
-        message: 'Please wait while we calculate the total'
+        message: 'Please wait while we calculate the total',
       });
       setShowSuccessModal(true);
       return;
     }
 
-    const payload = {
-      restaurantId: restaurant.id,
-      tableId: selectedTable?.id,
-      paymentMethod: 'cash' as const,
-      items: Object.values(cart).map((entry) => ({
-        menuItemId: entry.id,
-        name: entry.name,
-        quantity: entry.quantity,
-        pricing: {
-          unitAmount: entry.pricing.amount,
-          currency: entry.pricing.currency ?? 'INR',
-        },
-        activePriceTagId: entry.activePriceTagId,
-        selectedModifiers: entry.selectedModifiers,
-      })),
-    };
+    // Ensure cart calculation or fallback to simple total
+    if (!calculatedCart && totalAmount <= 0) {
+      setSuccessModalData({
+        title: 'Error calculating total',
+        message: 'Unable to calculate order total. Please try again.',
+      });
+      setShowSuccessModal(true);
+      return;
+    }
 
     setIsPlacingOrder(true);
     try {
+      // Use the existing sessionId from params - no need to create new session
+      console.log('🔄 DEBUG: Using existing session...', {
+        sessionId: sessionId,
+        restaurantId: restaurant.id,
+        tableId: selectedTable?.id,
+        tableName: selectedTable?.tableNumber,
+      });
+
+      const payload = {
+        restaurantId: restaurant.id,
+        customerSessionId: sessionId as string,
+        tableId: selectedTable?.id,
+        paymentMethod: 'cash' as const,
+        items: Object.values(cart).map((entry) => ({
+          menuItemId: entry.id,
+          name: entry.name,
+          quantity: entry.quantity,
+          pricing: {
+            unitAmount: entry.pricing.amount,
+            currency: entry.pricing.currency ?? 'INR',
+          },
+          activePriceTagId: entry.activePriceTagId,
+          selectedModifiers: entry.selectedModifiers,
+        })),
+      };
+
+      console.log('📦 DEBUG: Order payload with session:', {
+        customerSessionId: payload.customerSessionId,
+        tableId: payload.tableId,
+        itemCount: payload.items.length,
+      });
+
       const order = await createOrder(payload).unwrap();
+
+      console.log('✅ DEBUG: Order created:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        customerSessionId: order.customerSessionId,
+        hasCustomerSessionId: !!order.customerSessionId,
+      });
+
+      // Notify session about order placement to update session totals
+      if (sessionId && order.id) {
+        try {
+          await onOrderPlaced({
+            sessionId: sessionId as string,
+            orderId: order.id,
+          });
+          console.log('✅ DEBUG: Session notified about order placement');
+        } catch (error) {
+          console.error('❌ DEBUG: Failed to notify session about order:', error);
+          // Don't throw - order was created successfully, session notification is secondary
+        }
+      }
+
       setCart({});
       setCalculatedCart(null);
 
       await refetchTables();
+      await refetchSession(); // Refresh session to update order count
 
       setSuccessModalData({
         title: 'Order placed! 🎉',
-        message: `Order #${order.orderNumber} sent to kitchen`
+        message: `Order #${order.orderNumber} sent to kitchen`,
       });
       setShowSuccessModal(true);
     } catch (err: any) {
       setSuccessModalData({
         title: 'Failed to place order',
-        message: err?.message || 'Unexpected error'
+        message: err?.message || 'Unexpected error',
       });
       setShowSuccessModal(true);
     } finally {
@@ -391,6 +549,7 @@ export default function ServiceMenuScreen() {
       router.push({
         pathname: '/(service)/payment',
         params: {
+          sessionId: sessionId as string,
           orderId: activeExistingOrders[0].id,
           tableId: selectedTable?.id,
           orderData: JSON.stringify(activeExistingOrders[0]),
@@ -425,13 +584,15 @@ export default function ServiceMenuScreen() {
 
       setSuccessModalData({
         title: 'Status Updated!',
-        message: `Order #${selectedOrderForStatus.orderNumber} is now ${status.replace('_', ' ')}`
+        message: `Order #${
+          selectedOrderForStatus.orderNumber
+        } is now ${status.replace('_', ' ')}`,
       });
       setShowSuccessModal(true);
     } catch (error) {
       setSuccessModalData({
         title: 'Error',
-        message: 'Failed to update order status'
+        message: 'Failed to update order status',
       });
       setShowSuccessModal(true);
     } finally {
@@ -463,13 +624,13 @@ export default function ServiceMenuScreen() {
 
       setSuccessModalData({
         title: 'Order Cancelled',
-        message: `Order #${selectedOrderForCancel.orderNumber} has been cancelled`
+        message: `Order #${selectedOrderForCancel.orderNumber} has been cancelled`,
       });
       setShowSuccessModal(true);
     } catch (error) {
       setSuccessModalData({
         title: 'Error',
-        message: 'Failed to cancel order'
+        message: 'Failed to cancel order',
       });
       setShowSuccessModal(true);
     } finally {
@@ -510,13 +671,13 @@ export default function ServiceMenuScreen() {
 
       setSuccessModalData({
         title: 'Availability Updated',
-        message: `"${itemName}" is now ${newStatus}`
+        message: `"${itemName}" is now ${newStatus}`,
       });
       setShowSuccessModal(true);
     } catch (error: any) {
       setSuccessModalData({
         title: 'Error',
-        message: 'Failed to update item availability'
+        message: 'Failed to update item availability',
       });
       setShowSuccessModal(true);
     } finally {
@@ -583,7 +744,7 @@ export default function ServiceMenuScreen() {
   };
 
   const handleRefresh = async () => {
-    await Promise.all([refetchMenu(), refetchTables()]);
+    await Promise.all([refetchMenu(), refetchTables(), refetchSession()]);
   };
 
   if (isLoading) {
@@ -659,6 +820,40 @@ export default function ServiceMenuScreen() {
     selectedTable?.tableNumber ||
     `Table ${tableId}`;
 
+  // Calculate customer session info for header
+  const getSessionDisplayInfo = () => {
+    if (sessionData) {
+      // Get session number based on table's session history
+      // For now, show session timing
+      const startTime = new Date(sessionData.startedAt);
+      const now = new Date();
+      const diffMs = now.getTime() - startTime.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+
+      let duration = '';
+      if (diffMins < 60) {
+        duration = `${diffMins}m`;
+      } else {
+        const hours = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        duration = `${hours}h ${mins}m`;
+      }
+
+      return {
+        sessionInfo: `Session • ${duration}`,
+        isNewSession: isNewSession === 'true',
+        orderCount: sessionData.totalOrders || 0,
+      };
+    }
+    return {
+      sessionInfo: 'New Session',
+      isNewSession: true,
+      orderCount: 0,
+    };
+  };
+
+  const sessionDisplayInfo = getSessionDisplayInfo();
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.background }]}
@@ -684,19 +879,42 @@ export default function ServiceMenuScreen() {
             {tableNumber}
           </Text>
           <View style={styles.tableInfo}>
-            {selectedTable?.capacity && (
-              <View style={styles.tableCapacityInfo}>
-                <Ionicons name="people" size={12} color={theme.icon} />
-                <Text style={[styles.tableCapacityText, { color: theme.icon }]}>
-                  {selectedTable.capacity} seats
-                </Text>
-              </View>
-            )}
-            {selectedTable?.zone && (
-              <Text style={[styles.tableZoneText, { color: theme.icon }]}>
-                • {selectedTable.zone}
+            <View style={styles.sessionInfo}>
+              <Ionicons
+                name={sessionDisplayInfo.isNewSession ? "add-circle" : "time"}
+                size={12}
+                color={sessionDisplayInfo.isNewSession ? theme.brand : theme.icon}
+              />
+              <Text style={[
+                styles.sessionText,
+                {
+                  color: sessionDisplayInfo.isNewSession ? theme.brand : theme.icon,
+                  fontWeight: sessionDisplayInfo.isNewSession ? '600' : '500'
+                }
+              ]}>
+                {sessionDisplayInfo.sessionInfo}
               </Text>
-            )}
+              {sessionDisplayInfo.orderCount > 0 && (
+                <Text style={[styles.orderCountText, { color: theme.icon }]}>
+                  • {sessionDisplayInfo.orderCount} orders
+                </Text>
+              )}
+            </View>
+            <View style={styles.tableMetaRow}>
+              {selectedTable?.capacity && (
+                <View style={styles.tableCapacityInfo}>
+                  <Ionicons name="people" size={12} color={theme.icon} />
+                  <Text style={[styles.tableCapacityText, { color: theme.icon }]}>
+                    {selectedTable.capacity} seats
+                  </Text>
+                </View>
+              )}
+              {selectedTable?.zone && (
+                <Text style={[styles.tableZoneText, { color: theme.icon }]}>
+                  • {selectedTable.zone}
+                </Text>
+              )}
+            </View>
           </View>
         </View>
         <View style={styles.headerActions}>
@@ -749,7 +967,7 @@ export default function ServiceMenuScreen() {
                   : `${activeExistingOrders.length} Active Orders`}
               </Text>
               <Text style={styles.totalBillAmount}>
-                Total: ₹{totalBillAmount.toFixed(0)}
+                Total: ₹{totalBillAmount}
               </Text>
             </View>
 
@@ -782,9 +1000,7 @@ export default function ServiceMenuScreen() {
                     </View>
                   </View>
                   <View style={styles.orderActions}>
-                    <Text style={styles.orderAmount}>
-                      ₹{order.totalAmount.toFixed(0)}
-                    </Text>
+                    <Text style={styles.orderAmount}>₹{order.totalAmount}</Text>
                     <View style={styles.orderButtonsContainer}>
                       {['pending', 'accepted'].includes(order.status) && (
                         <TouchableOpacity
@@ -825,7 +1041,7 @@ export default function ServiceMenuScreen() {
               >
                 <Ionicons name="card" size={16} color="#ffffff" />
                 <Text style={styles.paymentButtonText}>
-                  Pay Total Bill (₹{totalBillAmount.toFixed(0)})
+                  Pay Total Bill (₹{totalBillAmount})
                 </Text>
               </TouchableOpacity>
             )}
@@ -1035,9 +1251,42 @@ export default function ServiceMenuScreen() {
                     >
                       {item.name}
                     </Text>
-                    <Text style={[styles.itemPrice, { color: theme.text }]}>
-                      {formatCurrency(item.pricing.amount)}
-                    </Text>
+                    {/* Price with price tag support */}
+                    <View style={styles.priceContainer}>
+                      {item.activePriceTag ? (
+                        <>
+                          <Text
+                            style={[styles.itemPriceOld, { color: theme.icon }]}
+                          >
+                            {formatCurrency(item.pricing.amount)}
+                          </Text>
+                          <Text
+                            style={[styles.itemPrice, { color: theme.text }]}
+                          >
+                            {formatCurrency(getEffectivePrice(item))}
+                          </Text>
+                          <View style={styles.priceTagBadge}>
+                            <Text style={styles.priceTagText}>OFFER</Text>
+                          </View>
+                        </>
+                      ) : (
+                        <Text style={[styles.itemPrice, { color: theme.text }]}>
+                          {formatCurrency(item.pricing.amount)}
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Modifier indicator */}
+                    {item.modifiers && item.modifiers.length > 0 && (
+                      <View style={styles.modifierIndicator}>
+                        <Ionicons name="options" size={10} color={theme.icon} />
+                        <Text
+                          style={[styles.modifierText, { color: theme.icon }]}
+                        >
+                          Customizable
+                        </Text>
+                      </View>
+                    )}
 
                     {!item._isAvailable ? (
                       <View
@@ -1074,7 +1323,13 @@ export default function ServiceMenuScreen() {
                         <TouchableOpacity
                           style={styles.quantityButton}
                           onPress={() =>
-                            handleAdd(item.id, item.name, item.pricing)
+                            handleAdd(
+                              item.id,
+                              item.name,
+                              item.pricing,
+                              item.modifiers,
+                              item.activePriceTag
+                            )
                           }
                         >
                           <Ionicons name="add" size={14} color="#ffffff" />
@@ -1087,7 +1342,13 @@ export default function ServiceMenuScreen() {
                           { backgroundColor: theme.brand },
                         ]}
                         onPress={() =>
-                          handleAdd(item.id, item.name, item.pricing)
+                          handleAdd(
+                            item.id,
+                            item.name,
+                            item.pricing,
+                            item.modifiers,
+                            item.activePriceTag
+                          )
                         }
                       >
                         <Text style={styles.addButtonText}>Add</Text>
@@ -1117,7 +1378,11 @@ export default function ServiceMenuScreen() {
                 <View style={styles.cartDetails}>
                   <Text style={styles.cartItems}>{totalItems} items</Text>
                   <Text style={styles.cartTotal}>
-                    {isCalculating ? 'Calculating...' : formatCurrency(totalAmount)}
+                    {isCalculating
+                      ? 'Calculating...'
+                      : formatCurrency(
+                          calculatedCart?.totalAmount || totalAmount
+                        )}
                   </Text>
                 </View>
               </View>
@@ -1426,7 +1691,8 @@ export default function ServiceMenuScreen() {
               Cancel Order
             </Text>
             <Text style={[styles.confirmMessage, { color: theme.icon }]}>
-              Are you sure you want to cancel Order #{selectedOrderForCancel?.orderNumber}?
+              Are you sure you want to cancel Order #
+              {selectedOrderForCancel?.orderNumber}?
             </Text>
             <View style={styles.confirmButtons}>
               <TouchableOpacity
@@ -1443,17 +1709,12 @@ export default function ServiceMenuScreen() {
                   setSelectedOrderForCancel(null);
                 }}
               >
-                <Text
-                  style={[styles.cancelButtonText, { color: theme.text }]}
-                >
+                <Text style={[styles.cancelButtonText, { color: theme.text }]}>
                   No
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.confirmButton,
-                  { backgroundColor: '#dc2626' },
-                ]}
+                style={[styles.confirmButton, { backgroundColor: '#dc2626' }]}
                 onPress={handleConfirmCancelOrder}
               >
                 <Text style={[styles.confirmButtonText, { color: '#ffffff' }]}>
@@ -1506,7 +1767,10 @@ export default function ServiceMenuScreen() {
                         }}
                       >
                         <Text
-                          style={[styles.cancelButtonText, { color: theme.text }]}
+                          style={[
+                            styles.cancelButtonText,
+                            { color: theme.text },
+                          ]}
                         >
                           Back to Tables
                         </Text>
@@ -1519,16 +1783,18 @@ export default function ServiceMenuScreen() {
                         onPress={() => {
                           setShowSuccessModal(false);
                           setSuccessModalData(null);
-                          const orderData = JSON.stringify(cart); // This would need the actual order data
                           router.push({
                             pathname: '/(service)/payment',
                             params: {
+                              sessionId: sessionId as string,
                               tableId: selectedTable?.id,
                             },
                           });
                         }}
                       >
-                        <Text style={styles.confirmButtonText}>Go to Payment</Text>
+                        <Text style={styles.confirmButtonText}>
+                          Go to Payment
+                        </Text>
                       </TouchableOpacity>
                     </>
                   ) : (
@@ -1551,6 +1817,22 @@ export default function ServiceMenuScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modifier Selection Modal */}
+      {selectedMenuItem && (
+        <ModifierSelectionModal
+          visible={modifierModalVisible}
+          onClose={() => {
+            setModifierModalVisible(false);
+            setSelectedMenuItem(null);
+          }}
+          menuItemId={selectedMenuItem.id}
+          menuItemName={selectedMenuItem.name}
+          basePrice={selectedMenuItem.price}
+          modifiers={selectedMenuItem.modifiers}
+          onConfirm={handleModifierConfirm}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -1578,9 +1860,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tableInfo: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginTop: 2,
+    gap: 2,
+  },
+  sessionInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    gap: 4,
+  },
+  sessionText: {
+    fontSize: 11,
+  },
+  orderCountText: {
+    fontSize: 11,
+  },
+  tableMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tableCapacityInfo: {
     flexDirection: 'row',
@@ -2162,5 +2460,42 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '600',
+  },
+  // New styles for price tags and modifiers
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: 8,
+    gap: 6,
+  },
+  itemPriceOld: {
+    fontSize: 12,
+    fontWeight: '500',
+    textDecorationLine: 'line-through',
+    opacity: 0.6,
+  },
+  priceTagBadge: {
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  priceTagText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  modifierIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
+  modifierText: {
+    fontSize: 10,
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
 });

@@ -1,10 +1,25 @@
-import { Controller, Get, Param, Post, Res, Query, Body, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Post,
+  Res,
+  Query,
+  Body,
+  Req,
+} from '@nestjs/common';
 import { PublicService } from './public.service';
+import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
+import { BillCalculatorService } from '../billing/services/bill-calculator.service';
 import { Request, Response } from 'express';
 
 @Controller('public')
 export class PublicController {
-  constructor(private readonly publicService: PublicService) {}
+  constructor(
+    private readonly publicService: PublicService,
+    private readonly customerSessionsService: CustomerSessionsService,
+    private readonly billCalculatorService: BillCalculatorService
+  ) {}
 
   @Get('restaurants/:slug')
   getRestaurant(@Param('slug') slug: string) {
@@ -162,6 +177,7 @@ export class PublicController {
       customerPhone?: string;
       notes?: string;
       paymentMethod?: 'upi' | 'cash';
+      customerSessionId?: string;
       items: Array<{
         menuItemId: string;
         name: string;
@@ -216,12 +232,13 @@ export class PublicController {
     @Param('tableId') tableId: string,
     @Req() req: Request
   ) {
-    return this.publicService.createCustomerSession(
-      slug,
+    // Use new comprehensive session system
+    return this.customerSessionsService.createSession({
+      restaurantSlug: slug,
       tableId,
-      req.headers['user-agent'],
-      req.ip
-    );
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip,
+    });
   }
 
   @Post('restaurants/:slug/table/:tableId/session/payment-intent')
@@ -231,7 +248,11 @@ export class PublicController {
     @Body() sessionData?: any
   ) {
     // MIGRATED TO CASHFREE: Use Cashfree session payment instead of Razorpay
-    return this.publicService.createCashfreeSessionPaymentIntent(slug, tableId, sessionData);
+    return this.publicService.createCashfreeSessionPaymentIntent(
+      slug,
+      tableId,
+      sessionData
+    );
   }
 
   @Get('restaurants/:slug/table/:tableId/consolidated-bill')
@@ -240,6 +261,49 @@ export class PublicController {
     @Param('tableId') tableId: string
   ) {
     return this.publicService.getConsolidatedBill(slug, tableId);
+  }
+
+  @Get('restaurants/:slug/table/:tableId/session-bill')
+  async getSessionBill(
+    @Param('slug') slug: string,
+    @Param('tableId') tableId: string
+  ) {
+    // Find active session for this table
+    const session = await this.customerSessionsService.findActiveSessionByTable(
+      tableId
+    );
+    if (!session) {
+      throw new Error('No active session found for this table');
+    }
+
+    // Use universal billing calculator
+    return this.billCalculatorService.calculateSessionBill(session.sessionId);
+  }
+
+  @Get('restaurants/:slug/session/:sessionId/bill')
+  async getSessionBillBySessionId(
+    @Param('slug') slug: string,
+    @Param('sessionId') sessionId: string
+  ) {
+    // Verify the restaurant slug matches the session's restaurant
+    const restaurant = await this.publicService.getRestaurantBySlug(slug);
+    const session = await this.customerSessionsService.findBySessionId(
+      sessionId
+    );
+
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    console.log(`Session found for sessionId ${sessionId}:`, session);
+    console.log(`Verifying session belongs to restaurant ${restaurant.id}`);
+
+    if (session.restaurantId?.toString() !== restaurant.id) {
+      throw new Error('Session does not belong to this restaurant');
+    }
+
+    // Get the session with complete bill calculation using the same format as table bill
+    return this.publicService.getSessionBill(sessionId);
   }
 
   @Post('account-deletion-request')
@@ -257,9 +321,10 @@ export class PublicController {
 
     return {
       success: true,
-      message: 'Your account deletion request has been submitted successfully. You will receive an email confirmation within 5-7 business days.',
+      message:
+        'Your account deletion request has been submitted successfully. You will receive an email confirmation within 5-7 business days.',
       requestId: `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      status: 'pending_admin_approval'
+      status: 'pending_admin_approval',
     };
   }
 }

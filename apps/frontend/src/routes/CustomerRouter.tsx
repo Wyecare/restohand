@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Route, Routes, Navigate } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import CustomerMenuPageNew from '@/pages/customer/CustomerMenuPageNew';
 import CustomerTableSessionPage from '@/pages/customer/CustomerTableSessionPage';
@@ -33,7 +33,7 @@ const CustomerRouter = () => {
         <Route element={<CustomerLayout />}>
           <Route path="/c/:slug" element={<CustomerMenuPageNew />} />
           <Route path="/c/:slug/table/:tableId" element={<CustomerMenuPageNew />} />
-          <Route path="/c/:slug/session" element={<CustomerTableSessionPage />} />
+          <Route path="/c/:slug/session/:sessionId" element={<CustomerTableSessionPage />} />
           <Route
             path="/c/:slug/order/:orderId"
             element={<CustomerOrderStatusPageNew />}
@@ -46,9 +46,18 @@ const CustomerRouter = () => {
         {/* Combined receipt page - standalone without layout */}
         <Route path="/combined-receipt" element={<CustomerReceiptPage />} />
 
+        {/* NEW: Staff QR receipt page - standalone without layout */}
+        <Route path="/receipt/:slug/:tableId" element={<CustomerReceiptPage />} />
+
+        {/* NEW: Session-based receipt page - standalone without layout */}
+        <Route path="/session-receipt/:slug/:sessionId" element={<CustomerReceiptPage />} />
+
         {/* Table session bill page - standalone without layout */}
         <Route path="/table-bill/:slug/:tableId" element={<CustomerReceiptPage />} />
         <Route path="/c/:slug/table/:tableId/receipt" element={<CustomerReceiptPage />} />
+
+        {/* Session receipt page - standalone without layout */}
+        <Route path="/c/:slug/session/:sessionId/receipt" element={<CustomerReceiptPage />} />
 
         {/* Root redirect - if someone visits qr.restohand.com without a restaurant slug */}
         <Route

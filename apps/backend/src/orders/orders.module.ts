@@ -48,6 +48,9 @@ import { WebhooksController } from '../payments/webhooks.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
+import { CustomerSession, CustomerSessionSchema } from '../customer-sessions/schemas/customer-session.schema';
+import { PublicModule } from '../public/public.module';
 
 @Module({
   imports: [
@@ -69,6 +72,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     SubscriptionsModule,
     MenuPriceTagsModule,
     NotificationsModule,
+    CustomerSessionsModule,
+    forwardRef(() => PublicModule),
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },
       { name: Restaurant.name, schema: RestaurantSchema },
@@ -79,6 +84,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: OrderModification.name, schema: OrderModificationSchema },
       { name: ReceiptDocument.name, schema: ReceiptDocumentSchema },
       { name: User.name, schema: UserSchema },
+      { name: CustomerSession.name, schema: CustomerSessionSchema },
     ]),
   ],
   controllers: [

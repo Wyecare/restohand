@@ -3,21 +3,49 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  useGetTableSessionPublicQuery,
-  restaurantsApi,
-} from '@/store/api/restaurantsApi';
+import { restaurantsApi } from '@/store/api/restaurantsApi';
 import { generateProfessionalInvoicePDF } from '@/components/ProfessionalInvoicePDF';
 
 // Helper function to convert numbers to words
 const convertToWords = (amount: number): string => {
-  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const ones = [
+    '',
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+  ];
+  const teens = [
+    'Ten',
+    'Eleven',
+    'Twelve',
+    'Thirteen',
+    'Fourteen',
+    'Fifteen',
+    'Sixteen',
+    'Seventeen',
+    'Eighteen',
+    'Nineteen',
+  ];
+  const tens = [
+    '',
+    '',
+    'Twenty',
+    'Thirty',
+    'Forty',
+    'Fifty',
+    'Sixty',
+    'Seventy',
+    'Eighty',
+    'Ninety',
+  ];
 
   const convertHundreds = (n: number): string => {
     let result = '';
@@ -93,6 +121,7 @@ import type {
   ModifierSelection,
   OptionSelection,
 } from '@/store/slices/cartSlice';
+import { useGetSessionBillQuery } from '@/store/api/customerSessionsApi';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -101,10 +130,10 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
-const getOrderStatusDisplay = (order: Order) => {
-  const { status, progress } = order;
+const getOrderStatusDisplay = (order: any) => {
+  const { status } = order;
 
-  if (status === 'ready' || progress === 100) {
+  if (status === 'ready') {
     return {
       icon: CheckCircle,
       text: 'Ready',
@@ -113,7 +142,7 @@ const getOrderStatusDisplay = (order: Order) => {
     };
   }
 
-  if (status === 'in_progress' || progress >= 40) {
+  if (status === 'in_progress') {
     return {
       icon: ChefHat,
       text: 'Cooking',
@@ -506,7 +535,9 @@ const STYLE = `
 `;
 
 export default function CustomerTableSessionPage() {
-  const { slug = '' } = useParams();
+  const { slug = '', sessionId } = useParams();
+
+  console.log(sessionId, 'mairuu', slug, 'slug in session page');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -525,27 +556,29 @@ export default function CustomerTableSessionPage() {
     isLoading: sessionLoading,
     isError: sessionError,
     refetch,
-  } = useGetTableSessionPublicQuery(
-    { slug, tableId },
-    { skip: !slug || !tableId }
-  );
+  } = useGetSessionBillQuery(sessionId || '', {
+    skip: !sessionId,
+  });
+  console.log(sessionData, 'session data in session page');
+
+  const session = sessionData?.session;
+  const bill = sessionData?.bill;
+  const orders = sessionData?.orders || [];
 
   const handleSocketEvent = useMemo(
     () => (incoming: Order) => {
       if (
-        sessionData?.tableSession?.orders?.some(
-          (order) => order.id === incoming.id
-        )
+        orders.some((order: any) => order.orderNumber === incoming.orderNumber)
       ) {
         refetch();
       }
     },
-    [sessionData?.tableSession?.orders, refetch]
+    [orders, refetch]
   );
 
   useOrdersSocket({
     onEvent: handleSocketEvent,
-    enabled: !!sessionData?.tableSession?.orders?.length,
+    enabled: !!orders?.length,
   });
 
   useEffect(() => {
@@ -558,18 +591,12 @@ export default function CustomerTableSessionPage() {
       console.error('Failed to initialize Cashfree:', error);
     });
   }, []);
-
-  const tableSession = sessionData?.tableSession;
-  const restaurant = sessionData?.restaurant;
-  const orders = tableSession?.orders || [];
-  const totals = tableSession?.totals || { totalAmount: 0 };
-  const orderCount = tableSession?.orderCount || 0;
-  const hasUnpaidOrders = tableSession?.hasUnpaidOrders || false;
-  const allOrdersPaid = tableSession?.allOrdersPaid || false;
-  const sessionClosed = tableSession?.sessionClosed || false;
+  const hasUnpaidOrders = !session?.allOrdersPaid;
+  const allOrdersPaid = session?.allOrdersPaid || false;
+  const sessionClosed = session?.status === 'closed';
 
   const sessionStatus = useMemo(() => {
-    if (!tableSession || orders.length === 0) {
+    if (!session || orders.length === 0) {
       return null;
     }
 
@@ -591,13 +618,9 @@ export default function CustomerTableSessionPage() {
       };
     }
 
-    const readyOrders = orders.filter(
-      (order) => order.status === 'ready' || order.progress === 100
-    );
+    const readyOrders = orders.filter((order) => order.status === 'ready');
     const cookingOrders = orders.filter(
-      (order) =>
-        order.status === 'in_progress' ||
-        (order.progress >= 40 && order.progress < 100)
+      (order) => order.status === 'in_progress'
     );
 
     if (readyOrders.length > 0) {
@@ -628,10 +651,11 @@ export default function CustomerTableSessionPage() {
       className: 'info',
       icon: '📝',
     };
-  }, [tableSession, orders, allOrdersPaid, sessionClosed]);
+  }, [session, orders, allOrdersPaid, sessionClosed]);
 
   const handleSessionPayment = async () => {
-    if (!tableId) {
+    const sessionTableId = session?.tableId || tableId;
+    if (!sessionTableId) {
       toast({
         title: 'Error',
         description: 'Table ID not found',
@@ -641,15 +665,23 @@ export default function CustomerTableSessionPage() {
     }
 
     try {
-      const billResult = await getConsolidatedBill({ slug, tableId });
+      console.log(
+        'Creating payment intent for session:',
+        sessionId,
+        'tableId:',
+        tableId
+      );
+      const billResult = await getConsolidatedBill({
+        slug,
+        tableId: sessionTableId,
+      });
 
       const paymentData = await createSessionPaymentIntent({
         slug,
-        tableId,
+        tableId: sessionTableId,
         sessionData: {
           customerSessionId:
-            sessionData?.tableSession?.customerSessionId ||
-            `session_${Date.now()}`,
+            sessionData?.session?.sessionId || `session_${Date.now()}`,
           customerDetails: {
             customerName: 'Table Customer',
             customerEmail: 'customer@example.com',
@@ -664,7 +696,7 @@ export default function CustomerTableSessionPage() {
           'lastPaymentSession',
           JSON.stringify({
             slug,
-            tableId,
+            tableId: sessionTableId,
             orderIds: paymentData.orderIds,
             totalAmount: paymentData.totalAmount,
             billData,
@@ -692,10 +724,10 @@ export default function CustomerTableSessionPage() {
   };
 
   useEffect(() => {
-    if (slug && tableId) {
+    if (slug && (session?.tableId || tableId)) {
       refetch();
     }
-  }, [slug, tableId, refetch]);
+  }, [slug, session?.tableId, tableId, refetch]);
 
   if (sessionLoading) {
     return (
@@ -709,7 +741,7 @@ export default function CustomerTableSessionPage() {
     );
   }
 
-  if (sessionError || !tableSession) {
+  if (sessionError || !session) {
     return (
       <div className="rh-cart-root">
         <style>{STYLE}</style>
@@ -719,7 +751,9 @@ export default function CustomerTableSessionPage() {
           <p>You don't have any active orders at this table.</p>
           <button
             className="rh-btn accent"
-            onClick={() => navigate(`/c/${slug}?tableId=${tableId}`)}
+            onClick={() =>
+              navigate(`/c/${slug}?tableId=${session?.tableId || tableId}`)
+            }
           >
             <Plus size={16} />
             Start Ordering
@@ -738,21 +772,23 @@ export default function CustomerTableSessionPage() {
         className="rh-cart-wrap"
       >
         {/* Status Banner - Horizontal Layout */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-        >
-          <div
-            className={`rh-cart-card rh-status-banner ${sessionStatus.className}`}
+        {sessionStatus && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
           >
-            <div className="rh-status-icon">{sessionStatus.icon}</div>
-            <div className="rh-status-content">
-              <h2 className="rh-status-title">{sessionStatus.title}</h2>
-              <p className="rh-status-subtitle">{sessionStatus.subtitle}</p>
+            <div
+              className={`rh-cart-card rh-status-banner ${sessionStatus.className}`}
+            >
+              <div className="rh-status-icon">{sessionStatus.icon}</div>
+              <div className="rh-status-content">
+                <h2 className="rh-status-title">{sessionStatus.title}</h2>
+                <p className="rh-status-subtitle">{sessionStatus.subtitle}</p>
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Cart Summary */}
         <motion.div
@@ -764,14 +800,12 @@ export default function CustomerTableSessionPage() {
             <div style={{ marginBottom: 8 }}>
               <div className="rh-summary-row">
                 <span>Subtotal</span>
-                <span>
-                  {formatCurrency(totals.subTotalAmount || totals.totalAmount)}
-                </span>
+                <span>{formatCurrency(bill?.subTotalAmount || 0)}</span>
               </div>
-              {totals.taxAmount > 0 && (
+              {(bill?.taxAmount || 0) > 0 && (
                 <div className="rh-summary-row">
                   <span>Tax</span>
-                  <span>{formatCurrency(totals.taxAmount)}</span>
+                  <span>{formatCurrency(bill?.taxAmount || 0)}</span>
                 </div>
               )}
             </div>
@@ -780,7 +814,7 @@ export default function CustomerTableSessionPage() {
               <div className="rh-total-left">
                 <p className="rh-total-label">Total</p>
                 <p className="rh-total-amount">
-                  {formatCurrency(totals.totalAmount)}
+                  {formatCurrency(bill?.totalAmount || 0)}
                 </p>
               </div>
               <div>
@@ -811,109 +845,21 @@ export default function CustomerTableSessionPage() {
                 <CreditCard size={16} />
                 {isCreatingPayment
                   ? 'Processing...'
-                  : `Pay ${formatCurrency(totals.totalAmount)}`}
+                  : `Pay ${formatCurrency(bill?.totalAmount || 0)}`}
               </button>
             </div>
           )}
 
           <div className={`rh-btn-group ${!sessionClosed ? 'multi' : ''}`}>
-            <button
-              className="rh-btn secondary"
-              onClick={async () => {
-                try {
-                  const result = await getConsolidatedBill({ slug, tableId });
-
-                  if ('data' in result && result.data) {
-                    // Transform data for professional invoice
-                    const invoiceData = {
-                      restaurant: {
-                        name: result.data.restaurant.name,
-                        legalEntity: result.data.restaurant.name?.toUpperCase(),
-                        address: result.data.restaurant.address,
-                        phone: result.data.restaurant.phone,
-                        email: result.data.restaurant.email,
-                        gstin: result.data.restaurant.gstin || 'UNREGISTERED',
-                        fssai: 'Not Available',
-                        pan: 'Not Available',
-                        cin: 'Not Available',
-                      },
-                      customer: {
-                        name: 'Guest Customer',
-                        address: `Table ${tableSession.tableNumber}`,
-                        gstin: 'UNREGISTERED',
-                      },
-                      invoice: {
-                        number: `INV-${Date.now().toString().slice(-8)}`,
-                        date: new Date().toISOString(),
-                        orderId: tableSession.orders[0]?.id || '',
-                        orderNumber: tableSession.orders[0]?.orderNumber || '',
-                        tableNumber: tableSession.tableNumber,
-                        paymentMethod: 'Digital payment',
-                      },
-                      bill: {
-                        ...result.data.bill,
-                        discountAmount: 0,
-                        orders: result.data.bill.orders.map((order: any) => ({
-                          ...order,
-                          items: order.items.map((item: any) => {
-                            const totalItems = result.data?.bill?.orders.reduce((sum, o) => sum + o.items.length, 0) || 1;
-                            const itemCgst = (result.data?.bill?.cgstAmount || 0) / totalItems;
-                            const itemSgst = (result.data?.bill?.sgstAmount || 0) / totalItems;
-                            const itemIgst = (result.data?.bill?.igstAmount || 0) / totalItems;
-                            const taxIncludedTotal = item.lineTotal + itemCgst + itemSgst + itemIgst;
-
-                            return {
-                              ...item,
-                              grossValue: item.lineTotal,
-                              discount: 0,
-                              netValue: item.lineTotal,
-                              cgstAmount: itemCgst,
-                              sgstAmount: itemSgst,
-                              igstAmount: itemIgst,
-                              lineTotal: taxIncludedTotal, // This will show tax-included total in final column
-                              hsnCode: '996331',
-                            };
-                          }),
-                        })),
-                        amountInWords: convertToWords(result.data.bill.totalAmount),
-                      },
-                    };
-
-                    const pdfBlob = await generateProfessionalInvoicePDF(invoiceData);
-
-                    const url = URL.createObjectURL(pdfBlob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `table-${tableSession.tableNumber}-bill.pdf`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                  } else {
-                    throw new Error(
-                      result.error?.toString() || 'Failed to get bill data'
-                    );
-                  }
-                } catch (error) {
-                  console.error('Error downloading bill:', error);
-                  toast({
-                    title: 'Download Failed',
-                    description:
-                      'Unable to download the bill. Please try again.',
-                    variant: 'destructive',
-                  });
-                }
-              }}
-            >
-              <Download size={14} />
-              Bill
-            </button>
-
             {!sessionClosed && (
               <button
                 className="rh-btn accent"
                 onClick={() =>
-                  navigate(`/c/${slug}?tableId=${tableId}&addMore=true`)
+                  navigate(
+                    `/c/${slug}?tableId=${
+                      session?.tableId || tableId
+                    }&addMore=true`
+                  )
                 }
               >
                 <Plus size={14} />
@@ -924,16 +870,16 @@ export default function CustomerTableSessionPage() {
         </motion.div>
 
         {/* Call Waiter */}
-        {restaurant && (
+        {session && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
             <CallWaiterButton
-              tableId={tableId}
-              restaurantId={restaurant.id}
-              orderId={orders[0]?.id}
+              tableId={session?.tableId || tableId}
+              restaurantId={session.restaurantId}
+              orderId={orders[0]?.orderNumber}
             />
           </motion.div>
         )}
@@ -947,11 +893,11 @@ export default function CustomerTableSessionPage() {
         >
           <h3 className="rh-section-title">Your Orders</h3>
           {orders.map((order) => {
-            const statusDisplay = getOrderStatusDisplay(order);
+            const statusDisplay = getOrderStatusDisplay(order as any);
             const StatusIcon = statusDisplay.icon;
 
             return (
-              <div key={order.id} className="rh-order-card">
+              <div key={order.orderNumber} className="rh-order-card">
                 <div className="rh-order-header">
                   <div className="rh-order-left">
                     <StatusIcon size={18} className={statusDisplay.color} />
@@ -982,11 +928,13 @@ export default function CustomerTableSessionPage() {
                   className="rh-toggle-btn"
                   onClick={() =>
                     setShowOrderDetails(
-                      showOrderDetails === order.id ? null : order.id
+                      showOrderDetails === order.orderNumber
+                        ? null
+                        : order.orderNumber
                     )
                   }
                 >
-                  {showOrderDetails === order.id ? (
+                  {showOrderDetails === order.orderNumber ? (
                     <>
                       <ChevronUp size={14} />
                       Hide Items
@@ -994,13 +942,13 @@ export default function CustomerTableSessionPage() {
                   ) : (
                     <>
                       <ChevronDown size={14} />
-                      View {order.items.length} Items
+                      View {(order as any).items?.length || 0} Items
                     </>
                   )}
                 </button>
 
                 <AnimatePresence>
-                  {showOrderDetails === order.id && (
+                  {showOrderDetails === order.orderNumber && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
@@ -1008,7 +956,7 @@ export default function CustomerTableSessionPage() {
                       transition={{ duration: 0.2 }}
                       className="rh-items-list"
                     >
-                      {order.items.map((item, index) => (
+                      {(order as any).items?.map((item: any, index: any) => (
                         <div
                           key={`${item.name}-${index}`}
                           className="rh-item-row"
@@ -1123,7 +1071,7 @@ export default function CustomerTableSessionPage() {
           className="rh-help-section"
         >
           <p>
-            Table <strong>{tableSession.tableNumber}</strong> • Updates
+            Table <strong>{session?.tableNumber}</strong> • Updates
             automatically
           </p>
         </motion.div>

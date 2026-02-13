@@ -32,6 +32,7 @@ import { BranchesModule } from '../branches/branches.module';
 import { MigrationModule } from '../migrations/migration.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
+import { BillingModule } from '../billing/billing.module';
 import { RestaurantSessionsModule } from '../restaurant-sessions/restaurant-sessions.module';
 import { PlansModule } from '../plans/plans.module';
 import { SuperAdminModule } from '../super-admin/super-admin.module';
@@ -81,6 +82,7 @@ import { AppService } from './app.service';
     MigrationModule,
     WebhooksModule,
     CustomerSessionsModule,
+    BillingModule,
     RestaurantSessionsModule,
     PlansModule,
     SuperAdminModule,

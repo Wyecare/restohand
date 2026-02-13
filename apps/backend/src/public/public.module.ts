@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { MenuCategory, MenuCategorySchema } from '../menu-categories/schemas/menu-category.schema';
@@ -12,6 +12,7 @@ import { PublicService } from './public.service';
 import { OrdersModule } from '../orders/orders.module';
 import { RestaurantsModule } from '../restaurants/restaurants.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
+import { BillingModule } from '../billing/billing.module';
 import { GstModule } from '../gst/gst.module';
 import { CashfreeModule } from '../payments/cashfree.module';
 
@@ -26,9 +27,10 @@ import { CashfreeModule } from '../payments/cashfree.module';
       { name: Order.name, schema: OrderSchema },
       { name: RestaurantTable.name, schema: RestaurantTableSchema },
     ]),
-    OrdersModule,
+    forwardRef(() => OrdersModule),
     RestaurantsModule,
     CustomerSessionsModule,
+    BillingModule,
     GstModule,
     CashfreeModule,
   ],

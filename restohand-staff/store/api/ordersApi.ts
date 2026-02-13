@@ -20,9 +20,67 @@ export interface UpdateOrderStatusPayload {
   statusNote?: string;
 }
 
+export interface OrderHistoryParams {
+  restaurantId: string;
+  page?: number;
+  limit?: number;
+  from?: string;
+  to?: string;
+  search?: string;
+  tableNumber?: string;
+}
+
+export interface OrderHistoryItem {
+  id: string;
+  orderNumber: string;
+  tableNumber: string;
+  customerName: string;
+  totalAmount: number;
+  paymentStatus: string;
+  paymentMethod: string;
+  createdAt: string;
+  paidAt: string;
+  itemCount: number;
+  sessionInfo?: {
+    sessionId: string;
+    isArchived: boolean;
+    sessionStarted: string;
+    sessionCompleted: string | null;
+    totalSessionAmount: number;
+    orderCount: number;
+  };
+}
+
+export interface OrderHistoryResponse {
+  orders: OrderHistoryItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export interface GetOrCreateSessionPayload {
+  restaurantId: string;
+  tableId?: string;
+  tableNumber?: string;
+  customerNumber?: number;
+}
+
+export interface GetOrCreateSessionResponse {
+  sessionId: string;
+  isNewSession: boolean;
+  tableId: string;
+  tableNumber: string;
+  customerNumber?: number;
+}
+
 export interface CreateOrderPayload {
   restaurantId: string;
-  sessionId?: string;
+  customerSessionId?: string;
   tableId?: string;
   tableNumber?: string;
   customerName?: string;
@@ -154,6 +212,18 @@ export const ordersApi = baseApi.injectEndpoints({
       // No caching for QR generation
     }),
 
+    generateSessionReceiptQr: builder.mutation<
+      GenerateReceiptQrResponse,
+      { restaurantId: string; customerSessionId: string; tableNumber?: string }
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/session-receipt-qr`,
+        method: "POST",
+        body,
+      }),
+      // No caching for QR generation
+    }),
+
     // Cart calculation endpoint (matching customer frontend exactly)
     calculateCartTotal: builder.mutation<
       CalculateCartTotalResponse,
@@ -165,6 +235,30 @@ export const ordersApi = baseApi.injectEndpoints({
         body,
       }),
       // No cache invalidation needed for calculation
+    }),
+
+    // Order history endpoint with session information
+    getOrderHistory: builder.query<OrderHistoryResponse, OrderHistoryParams>({
+      query: ({ restaurantId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/orders/history`,
+        params,
+      }),
+      providesTags: (result, _error, { restaurantId }) => [
+        { type: "Order" as const, id: `HISTORY-${restaurantId}` },
+      ],
+    }),
+
+    // Get or create session for table (for staff app)
+    getOrCreateSession: builder.mutation<
+      GetOrCreateSessionResponse,
+      GetOrCreateSessionPayload
+    >({
+      query: ({ restaurantId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/orders/get-or-create-session`,
+        method: "POST",
+        body,
+      }),
+      // No cache invalidation needed for session creation
     }),
   }),
   overrideExisting: false,
@@ -178,5 +272,8 @@ export const {
   useUpdateOrderPaymentMutation,
   useGenerateReceiptQrQuery,
   useGenerateCombinedReceiptQrMutation,
+  useGenerateSessionReceiptQrMutation,
   useCalculateCartTotalMutation,
+  useGetOrderHistoryQuery,
+  useGetOrCreateSessionMutation,
 } = ordersApi;

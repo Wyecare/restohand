@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,11 +8,29 @@ import { useToast } from '@/components/ui/use-toast';
 import { ModifierSelectionModal } from '@/components/customer/ModifierSelectionModal';
 import {
   useGetPublicMenuQuery,
-  useCreateCustomerSessionMutation,
   useCreatePublicOrderMutation,
-  useCalculateCartTotalMutation,
 } from '@/store/api/restaurantsApi';
+import {
+  useCreateCustomerSessionMutation,
+  useUpdateSessionActivityMutation,
+  useGetActiveSessionByTableQuery,
+  useOnOrderPlacedMutation,
+} from '@/store/api/customerSessionsApi';
 import { useAddItemsToOrderMutation } from '@/store/api/ordersApi';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+  selectCartItems,
+  selectCartItemCount,
+  selectCartTotal,
+  selectCartBackendCalculated,
+  addItem,
+  updateItemQuantity,
+  removeItem,
+  clearCart,
+  setCalculating,
+  updateBackendCalculation,
+  initializeCart,
+} from '@/store/slices/cartSlice';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import {
@@ -30,6 +48,7 @@ import { Input } from '@/components/ui/input';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
 import { formatCurrency } from '@/lib/billing';
 import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
+import { clearExpiredSessionData, hasCustomerSessionData } from '@/utils/sessionCleanup';
 import {
   Dialog,
   DialogContent,
@@ -577,6 +596,95 @@ const STYLE = `
   }
 `;
 
+// Get or create a unique browser session ID
+const getBrowserSessionId = () => {
+  let browserSessionId = localStorage.getItem('browserSessionId');
+  if (!browserSessionId) {
+    browserSessionId = crypto.randomUUID();
+    localStorage.setItem('browserSessionId', browserSessionId);
+  }
+  return browserSessionId;
+};
+
+// Session cache helpers
+const getCachedSession = (tableId: string) => {
+  try {
+    const browserSessionId = getBrowserSessionId();
+    const cached = localStorage.getItem(`customerSession_${tableId}_${browserSessionId}`);
+    if (!cached) return null;
+
+    const session = JSON.parse(cached);
+    // Check if session is still valid (not expired)
+    const expiresAt = new Date(session.expiresAt);
+    if (expiresAt < new Date()) {
+      localStorage.removeItem(`customerSession_${tableId}_${browserSessionId}`);
+      return null;
+    }
+
+    return {
+      sessionId: session.sessionId,
+      customerNumber: session.customerNumber,
+      tableNumber: session.tableNumber,
+      cachedAt: session.cachedAt,
+      expiresAt: session.expiresAt,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// Check for any previous sessions at this table (not just current browser)
+const getPreviousTableSessions = (tableId: string) => {
+  try {
+    const sessions = [];
+    const keys = Object.keys(localStorage);
+
+    for (const key of keys) {
+      if (key.startsWith(`customerSession_${tableId}_`)) {
+        try {
+          const session = JSON.parse(localStorage.getItem(key) || '{}');
+          const expiresAt = new Date(session.expiresAt);
+
+          // Only include non-expired sessions
+          if (expiresAt > new Date()) {
+            sessions.push({
+              ...session,
+              browserSessionId: key.split('_').pop(),
+              storageKey: key,
+            });
+          } else {
+            // Clean up expired session
+            localStorage.removeItem(key);
+          }
+        } catch (parseError) {
+          // Clean up invalid session data
+          localStorage.removeItem(key);
+        }
+      }
+    }
+
+    return sessions.sort((a, b) => new Date(b.cachedAt).getTime() - new Date(a.cachedAt).getTime());
+  } catch {
+    return [];
+  }
+};
+
+const cacheSession = (tableId: string, session: { sessionId: string; customerNumber: number; tableNumber: string }) => {
+  try {
+    const browserSessionId = getBrowserSessionId();
+    const sessionData = {
+      sessionId: session.sessionId,
+      customerNumber: session.customerNumber,
+      tableNumber: session.tableNumber,
+      expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours
+      cachedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(`customerSession_${tableId}_${browserSessionId}`, JSON.stringify(sessionData));
+  } catch (error) {
+    console.error('Failed to cache session:', error);
+  }
+};
+
 const AccessibleEmoji = ({
   symbol,
   label,
@@ -590,6 +698,86 @@ const AccessibleEmoji = ({
     {symbol}
   </span>
 );
+
+// Session detection modal component
+const SessionDetectionModal = ({
+  isOpen,
+  onClose,
+  onContinue,
+  onStartNew,
+  sessions,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onContinue: (session: any) => void;
+  onStartNew: () => void;
+  sessions: any[];
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white rounded-xl p-6 max-w-md w-full space-y-4"
+      >
+        <div className="text-center">
+          <AccessibleEmoji symbol="👋" label="Welcome back" className="text-3xl mb-3" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome back!</h2>
+          <p className="text-gray-600 text-sm">
+            We found {sessions.length === 1 ? 'a previous session' : `${sessions.length} previous sessions`} at this table.
+            Would you like to continue or start fresh?
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {sessions.slice(0, 2).map((session, index) => (
+            <button
+              key={session.sessionId}
+              onClick={() => onContinue(session)}
+              className="w-full p-3 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors text-left"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-blue-900">
+                    Customer #{session.customerNumber}
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    {new Date(session.cachedAt).toLocaleString()}
+                  </p>
+                </div>
+                <ChevronRight size={16} className="text-blue-600" />
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="border-t pt-4 space-y-2">
+          <button
+            onClick={onStartNew}
+            className="w-full p-3 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors"
+          >
+            <div className="text-center">
+              <p className="font-medium text-green-900">
+                <AccessibleEmoji symbol="✨" label="New" className="mr-2" />
+                Start New Session
+              </p>
+              <p className="text-xs text-green-700">Begin fresh ordering</p>
+            </div>
+          </button>
+
+          <button
+            onClick={onClose}
+            className="w-full p-2 text-gray-500 hover:text-gray-700 transition-colors text-sm"
+          >
+            I'll decide later
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 const determineCategoryIcon = (name: string): DisplayCategory['icon'] => {
   const lower = name.toLowerCase();
@@ -612,7 +800,13 @@ const determineCategoryIcon = (name: string): DisplayCategory['icon'] => {
 };
 
 // Image Carousel Component for Menu Items
-function ItemImageCarousel({ images, itemName }: { images: string[]; itemName: string }) {
+function ItemImageCarousel({
+  images,
+  itemName,
+}: {
+  images: string[];
+  itemName: string;
+}) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   return (
@@ -635,7 +829,9 @@ function ItemImageCarousel({ images, itemName }: { images: string[]; itemName: s
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setCurrentImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1);
+                  setCurrentImageIndex((prev) =>
+                    prev === 0 ? images.length - 1 : prev - 1
+                  );
                 }}
                 className="carousel-arrow"
                 style={{
@@ -664,7 +860,9 @@ function ItemImageCarousel({ images, itemName }: { images: string[]; itemName: s
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setCurrentImageIndex(prev => prev === images.length - 1 ? 0 : prev + 1);
+                  setCurrentImageIndex((prev) =>
+                    prev === images.length - 1 ? 0 : prev + 1
+                  );
                 }}
                 className="carousel-arrow"
                 style={{
@@ -695,14 +893,16 @@ function ItemImageCarousel({ images, itemName }: { images: string[]; itemName: s
 
           {/* Image Dots Navigation */}
           {images.length > 1 && (
-            <div style={{
-              position: 'absolute',
-              bottom: '8px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              gap: '4px',
-            }}>
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '8px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: '4px',
+              }}
+            >
               {images.map((_, index) => (
                 <button
                   key={index}
@@ -716,7 +916,10 @@ function ItemImageCarousel({ images, itemName }: { images: string[]; itemName: s
                     borderRadius: '50%',
                     border: 'none',
                     cursor: 'pointer',
-                    background: index === currentImageIndex ? 'white' : 'rgba(255,255,255,0.5)',
+                    background:
+                      index === currentImageIndex
+                        ? 'white'
+                        : 'rgba(255,255,255,0.5)',
                     transition: 'background 0.2s',
                   }}
                 />
@@ -726,18 +929,20 @@ function ItemImageCarousel({ images, itemName }: { images: string[]; itemName: s
 
           {/* Image Count Badge */}
           {images.length > 1 && (
-            <div style={{
-              position: 'absolute',
-              top: '8px',
-              left: '8px',
-              background: 'rgba(0,0,0,0.7)',
-              color: 'white',
-              fontSize: '11px',
-              fontWeight: '600',
-              padding: '4px 6px',
-              borderRadius: '12px',
-              fontFamily: 'DM Mono, monospace',
-            }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: '8px',
+                left: '8px',
+                background: 'rgba(0,0,0,0.7)',
+                color: 'white',
+                fontSize: '11px',
+                fontWeight: '600',
+                padding: '4px 6px',
+                borderRadius: '12px',
+                fontFamily: 'DM Mono, monospace',
+              }}
+            >
               {currentImageIndex + 1}/{images.length}
             </div>
           )}
@@ -756,122 +961,167 @@ export default function CustomerMenuPageNew() {
   const { toast } = useToast();
 
   const { slug, tableId } = params;
+
   const tableFromUrl = searchParams.get('table');
   const tableIdFromUrl = searchParams.get('tableId') || tableId;
 
+  // Session management - clean and simple
   const [createCustomerSession] = useCreateCustomerSessionMutation();
+  const [updateSessionActivity] = useUpdateSessionActivityMutation();
+  const [onOrderPlaced] = useOnOrderPlacedMutation();
 
-  const STORAGE_KEY = 'customerSession';
-
-  const getStoredSession = () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const storeSession = (sessionData: {
+  const [currentSession, setCurrentSession] = useState<{
     sessionId: string;
-    restaurantId: string;
-    restaurantName: string;
-    restaurantSlug: string;
-    tableId: string;
+    customerNumber: number;
     tableNumber: string;
-    expiresAt: string;
-    createdAt: string;
-  }) => {
+  } | null>(null);
+
+  // Smart session detection state
+  const [showSessionDetection, setShowSessionDetection] = useState(false);
+  const [previousSessions, setPreviousSessions] = useState<any[]>([]);
+  const [pendingSessionCreation, setPendingSessionCreation] = useState(false);
+
+  const isCreatingSessionRef = useRef(false);
+
+  // Handler for session detection modal actions
+  const handleContinueSession = (session: any) => {
+    console.log('🔄 Continuing previous session:', session.sessionId);
+    setCurrentSession({
+      sessionId: session.sessionId,
+      customerNumber: session.customerNumber,
+      tableNumber: session.tableNumber,
+    });
+    setShowSessionDetection(false);
+    setPendingSessionCreation(false);
+  };
+
+  const handleStartNewSession = async () => {
+    console.log('✨ Starting new session...');
+    setShowSessionDetection(false);
+    setPendingSessionCreation(false);
+
+    if (!slug || !tableIdFromUrl) return;
+
+    isCreatingSessionRef.current = true;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+      const response = await createCustomerSession({
+        restaurantSlug: slug,
+        tableId: tableIdFromUrl,
+      }).unwrap();
+
+      const sessionData = {
+        sessionId: response.sessionId,
+        customerNumber: response.customerNumber,
+        tableNumber: response.tableNumber,
+      };
+
+      setCurrentSession(sessionData);
+      cacheSession(tableIdFromUrl, sessionData);
+      console.log(`✨ New Customer #${response.customerNumber} session created:`, response.sessionId);
     } catch (error) {
-      console.error('Failed to store session:', error);
+      console.error('Failed to create new session:', error);
+      toast({
+        title: 'Session Error',
+        description: 'Failed to create new session.',
+        variant: 'destructive',
+      });
+    } finally {
+      isCreatingSessionRef.current = false;
     }
   };
 
-  const clearSession = () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (error) {
-      console.error('Failed to clear session:', error);
-    }
-  };
-
+  // Session initialization - check cache first, then create if needed
   useEffect(() => {
-    const initializeSession = async () => {
-      if (!slug || !tableIdFromUrl) return;
+    console.log('🔥 Session useEffect triggered:', { slug, tableIdFromUrl, timestamp: new Date().toISOString() });
 
-      const storedSession = getStoredSession();
-      if (
-        storedSession?.tableId === tableIdFromUrl &&
-        storedSession?.restaurantSlug === slug
-      ) {
-        const expiresAt = new Date(storedSession.expiresAt);
-        if (expiresAt > new Date()) {
-          console.log('Using existing session:', storedSession.sessionId);
-          return;
-        }
+    const initializeSession = async () => {
+      console.log('🔥 initializeSession called:', { slug, tableIdFromUrl });
+
+      if (!slug || !tableIdFromUrl) {
+        console.log('🔥 Early return: missing slug or tableId');
+        return;
       }
 
+      // Prevent duplicate calls
+      if (isCreatingSessionRef.current) {
+        console.log('🔥 Already creating session, skipping...');
+        return;
+      }
+
+      // Check if we have a cached session for this table (browser-specific)
+      const cached = getCachedSession(tableIdFromUrl);
+      if (cached) {
+        console.log('🔥 Using cached session:', cached.sessionId);
+        setCurrentSession(cached);
+        return;
+      }
+
+      // Smart session detection - check for any previous sessions at this table
+      const previousTableSessions = getPreviousTableSessions(tableIdFromUrl);
+      if (previousTableSessions.length > 0) {
+        console.log(`🔍 Found ${previousTableSessions.length} previous session(s) at this table`);
+        setPreviousSessions(previousTableSessions);
+        setShowSessionDetection(true);
+        setPendingSessionCreation(true);
+        return;
+      }
+
+      // Clean up expired session data
+      clearExpiredSessionData();
+
+      // Create new session
+      console.log('🔥 About to create new session for table:', tableIdFromUrl);
+      isCreatingSessionRef.current = true;
       try {
-        console.log('Creating new customer session for table:', tableIdFromUrl);
-        const sessionResponse = await createCustomerSession({
-          slug: slug!,
+        const response = await createCustomerSession({
+          restaurantSlug: slug,
           tableId: tableIdFromUrl,
         }).unwrap();
 
+        console.log('🔥 Session created successfully:', response);
+
         const sessionData = {
-          sessionId: sessionResponse.sessionId,
-          restaurantId: sessionResponse.restaurant.id,
-          restaurantName: sessionResponse.restaurant.name,
-          restaurantSlug: sessionResponse.restaurant.slug,
-          tableId: sessionResponse.table.id,
-          tableNumber: sessionResponse.table.tableNumber,
-          expiresAt: sessionResponse.expiresAt,
-          createdAt: new Date().toISOString(),
+          sessionId: response.sessionId,
+          customerNumber: response.customerNumber,
+          tableNumber: response.tableNumber,
         };
 
-        storeSession(sessionData);
-
-        toast({
-          title: 'Welcome! 👋',
-          description: `Session created for ${sessionResponse.restaurant.name} - ${sessionResponse.table.tableNumber}`,
-        });
-
-        console.log('Customer session created:', sessionResponse.sessionId);
+        setCurrentSession(sessionData);
+        cacheSession(tableIdFromUrl, sessionData);
+        console.log(`🔥 Customer #${response.customerNumber} session created:`, response.sessionId);
       } catch (error) {
-        console.error('Failed to create customer session:', error);
+        console.error('🔥 Failed to create session:', error);
         toast({
           title: 'Session Error',
-          description:
-            'Failed to create customer session. You can still browse the menu.',
+          description: 'Failed to create customer session.',
           variant: 'destructive',
         });
+      } finally {
+        isCreatingSessionRef.current = false;
       }
     };
 
-    initializeSession();
-  }, [slug, tableIdFromUrl, createCustomerSession, toast]);
+    if (!pendingSessionCreation) {
+      initializeSession();
+    }
+  }, [slug, tableIdFromUrl, pendingSessionCreation]);
 
-  const [cart, setCart] = useState<
-    Array<{
-      menuItemId: string;
-      name: string;
-      quantity: number;
-      price: number;
-      activePriceTagId?: string;
-      selectedModifiers?: Array<{
-        modifierId: string;
-        modifierName: string;
-        selectedOptions: Array<{
-          optionId: string;
-          optionName: string;
-          priceAdjustment: number;
-          quantity: number;
-        }>;
-      }>;
-    }>
-  >([]);
+  // Keep session alive
+  useEffect(() => {
+    if (!currentSession?.sessionId) return;
+
+    const interval = setInterval(() => {
+      updateSessionActivity(currentSession.sessionId);
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [currentSession, updateSessionActivity]);
+
+  const dispatch = useAppDispatch();
+  const cartItems = useAppSelector(selectCartItems);
+  const cartItemCount = useAppSelector(selectCartItemCount);
+  const cartTotal = useAppSelector(selectCartTotal);
+  const cartBackendCalculated = useAppSelector(selectCartBackendCalculated);
 
   const [modifierModalOpen, setModifierModalOpen] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<{
@@ -880,19 +1130,6 @@ export default function CustomerMenuPageNew() {
     price: number;
     modifiers: any[];
     activePriceTagId?: string;
-  } | null>(null);
-
-  const [cartCalculation, setCartCalculation] = useState<{
-    subtotal: number;
-    taxAmount: number;
-    cgstAmount: number;
-    sgstAmount: number;
-    igstAmount: number;
-    discountAmount: number;
-    roundOffAmount: number;
-    total: number;
-    totalAmount: number;
-    totalItems: number;
   } | null>(null);
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -916,14 +1153,10 @@ export default function CustomerMenuPageNew() {
     useCreatePublicOrderMutation();
   const [addItemsToOrder, { isLoading: isAddingItems }] =
     useAddItemsToOrderMutation();
-  const [calculateCartTotal, { isLoading: isCalculatingCart }] =
-    useCalculateCartTotalMutation();
 
   const restaurant = data?.restaurant;
   const menu = data?.menu;
   const activeOrderFromAPI = data?.activeOrder;
-
-  const currentSession = getStoredSession();
 
   useEffect(() => {
     if (
@@ -933,7 +1166,7 @@ export default function CustomerMenuPageNew() {
       !searchParams.get('sessionView') &&
       activeOrderFromAPI
     ) {
-      navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`, {
+      navigate(`/c/${slug}/session/${currentSession.sessionId}`, {
         replace: true,
       });
     }
@@ -1050,37 +1283,26 @@ export default function CustomerMenuPageNew() {
   const hasActiveOrder = !!activeOrderFromAPI;
   const hasTableSession = !!currentSession && !!tableIdFromUrl;
 
-  const handleModifierConfirm = (selections: any[], totalPrice: number, notes?: string) => {
+  const handleModifierConfirm = (
+    selections: any[],
+    totalPrice: number,
+    notes?: string
+  ) => {
     if (!selectedMenuItem) return;
 
-    const cartItem = {
-      menuItemId: selectedMenuItem.id,
-      name: selectedMenuItem.name,
-      quantity: 1,
-      price: totalPrice,
-      activePriceTagId: selectedMenuItem.activePriceTagId,
-      selectedModifiers: selections,
-      notes: notes,
-    };
-
-    const existingIndex = cart.findIndex((item) => {
-      return (
-        item.menuItemId === selectedMenuItem.id &&
-        JSON.stringify(item.selectedModifiers) === JSON.stringify(selections)
-      );
-    });
-
-    if (existingIndex >= 0) {
-      setCart((prev) =>
-        prev.map((item, index) =>
-          index === existingIndex
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
-      );
-    } else {
-      setCart((prev) => [...prev, cartItem]);
-    }
+    dispatch(
+      addItem({
+        id: `${selectedMenuItem.id}-${Date.now()}`,
+        menuItemId: selectedMenuItem.id,
+        name: selectedMenuItem.name,
+        price: totalPrice,
+        categoryId: 'unknown', // Category context not available in modal
+        categoryName: 'Unknown',
+        activePriceTagId: selectedMenuItem.activePriceTagId,
+        selectedModifiers: selections,
+        notes: notes,
+      })
+    );
 
     setSelectedMenuItem(null);
   };
@@ -1090,7 +1312,9 @@ export default function CustomerMenuPageNew() {
     name: string,
     pricing: MenuItemPricing,
     modifiers: any[] = [],
-    activePriceTag: any = null
+    activePriceTag: any = null,
+    categoryId: string = '',
+    categoryName: string = ''
   ) => {
     if (modifiers.length > 0) {
       setSelectedMenuItem({
@@ -1102,52 +1326,39 @@ export default function CustomerMenuPageNew() {
       });
       setModifierModalOpen(true);
     } else {
-      const existingIndex = cart.findIndex((item) => item.menuItemId === id);
-
-      if (existingIndex >= 0) {
-        setCart((prev) =>
-          prev.map((item, index) =>
-            index === existingIndex
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
-        );
-      } else {
-        setCart((prev) => [
-          ...prev,
-          {
-            menuItemId: id,
-            name,
-            quantity: 1,
-            price: getEffectivePrice({ pricing, activePriceTag }),
-            activePriceTagId: activePriceTag?.id,
-          },
-        ]);
-      }
+      dispatch(
+        addItem({
+          id: `${id}-${Date.now()}`,
+          menuItemId: id,
+          name,
+          price: getEffectivePrice({ pricing, activePriceTag }),
+          categoryId,
+          categoryName,
+          activePriceTagId: activePriceTag?.id,
+        })
+      );
     }
   };
 
-  const handleRemoveFromCart = (id: string) => {
-    const existingIndex = cart.findIndex((item) => item.menuItemId === id);
-
-    if (existingIndex >= 0) {
-      const item = cart[existingIndex];
-      if (item.quantity === 1) {
-        setCart((prev) => prev.filter((_, index) => index !== existingIndex));
+  const handleRemoveFromCart = (menuItemId: string) => {
+    // Find the first cart item with this menu item ID to get its cart ID
+    const cartItem = cartItems.find((item) => item.menuItemId === menuItemId);
+    if (cartItem) {
+      if (cartItem.quantity === 1) {
+        dispatch(removeItem(cartItem.id));
       } else {
-        setCart((prev) =>
-          prev.map((item, index) =>
-            index === existingIndex
-              ? { ...item, quantity: item.quantity - 1 }
-              : item
-          )
+        dispatch(
+          updateItemQuantity({
+            id: cartItem.id,
+            quantity: cartItem.quantity - 1,
+          })
         );
       }
     }
   };
 
   const getItemQuantity = (menuItemId: string): number => {
-    const item = cart.find((item) => item.menuItemId === menuItemId);
+    const item = cartItems.find((item) => item.menuItemId === menuItemId);
     return item ? item.quantity : 0;
   };
 
@@ -1158,48 +1369,16 @@ export default function CustomerMenuPageNew() {
     return item.pricing.amount;
   };
 
-  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotal = cartCalculation?.totalAmount || 0;
+  // Remove old cart state variables - using Redux selectors instead
 
-  const updateCartCalculation = useCallback(async () => {
-    if (cart.length === 0) {
-      setCartCalculation(null);
-      return;
-    }
-
-    if (!restaurant?.id) return;
-
-    try {
-      const result = await calculateCartTotal({
-        restaurantId: restaurant.id,
-        tableId: tableIdFromUrl || undefined,
-        items: cart.map((item) => ({
-          menuItemId: item.menuItemId,
-          name: item.name,
-          quantity: item.quantity,
-          pricing: {
-            unitAmount: item.price,
-            currency: 'INR',
-          },
-          activePriceTagId: item.activePriceTagId,
-          selectedModifiers: item.selectedModifiers || [],
-        })),
-      }).unwrap();
-
-      setCartCalculation(result);
-    } catch (error) {
-      console.error('Failed to calculate cart total:', error);
-    }
-  }, [cart, restaurant?.id, tableIdFromUrl, calculateCartTotal]);
-
-  useEffect(() => {
-    updateCartCalculation();
-  }, [updateCartCalculation]);
+  // For now, we'll disable automatic cart bill calculation
+  // In a full implementation, you might want to calculate bill when items are added
+  // using the session-based billing API we created
 
   const handlePlaceOrder = async () => {
-    if (!restaurant || cart.length === 0 || !cartCalculation) return;
+    if (!restaurant || cartItems.length === 0) return;
 
-    const orderItems = cart.map((item) => ({
+    const orderItems = cartItems.map((item) => ({
       menuItemId: item.menuItemId,
       name: item.name,
       quantity: item.quantity,
@@ -1228,13 +1407,43 @@ export default function CustomerMenuPageNew() {
           title: 'Items added to your order! 🎉',
           description: `${cartItemCount} items added to order #${activeOrderFromAPI.orderNumber}`,
         });
+
+        // Notify session about items being added to order
+        if (currentSession?.sessionId) {
+          try {
+            await onOrderPlaced({
+              sessionId: currentSession.sessionId,
+              orderId: activeOrderFromAPI.id,
+            });
+          } catch (error) {
+            console.error(
+              'Failed to notify session about order update:',
+              error
+            );
+          }
+        }
       } else {
-        const currentSession = getStoredSession();
+        // Check if we have a session in state, if not the useEffect should have created one
+        if (!currentSession) {
+          toast({
+            title: 'Session Error',
+            description: 'No active session. Please refresh the page.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        console.log(
+          'Using existing session for order:',
+          currentSession.sessionId
+        );
+
         const result = await createOrder({
           slug: slug!,
           items: orderItems,
           ...customerInfo,
           paymentMethod: 'upi',
+          customerSessionId: currentSession.sessionId,
         }).unwrap();
 
         toast({
@@ -1242,17 +1451,32 @@ export default function CustomerMenuPageNew() {
           description: `Order #${result.orderNumber} sent to kitchen`,
         });
 
-        setCart([]);
+        // Notify session about the order placement
+        if (currentSession?.sessionId) {
+          try {
+            await onOrderPlaced({
+              sessionId: currentSession.sessionId,
+              orderId: result.id,
+            });
+          } catch (error) {
+            console.error(
+              'Failed to notify session about order placement:',
+              error
+            );
+          }
+        }
+
+        dispatch(clearCart());
 
         const params = new URLSearchParams();
         if (tableIdFromUrl) params.set('tableId', tableIdFromUrl);
         if (tableFromUrl) params.set('table', tableFromUrl);
         const queryString = params.toString() ? `?${params.toString()}` : '';
-        navigate(`/c/${slug}/session${queryString}`);
+        navigate(`/c/${slug}/session/${currentSession.sessionId}`);
       }
 
       if (hasActiveOrder) {
-        setCart([]);
+        dispatch(clearCart());
       }
     } catch (error: any) {
       console.error('Order placement error:', error);
@@ -1272,11 +1496,12 @@ export default function CustomerMenuPageNew() {
           unavailableItems: unavailableItemIds,
         });
 
-        setCart((prevCart) =>
-          prevCart.filter(
-            (cartItem) => !unavailableItemIds.includes(cartItem.menuItemId)
+        // Remove unavailable items from cart
+        cartItems
+          .filter((cartItem) =>
+            unavailableItemIds.includes(cartItem.menuItemId)
           )
-        );
+          .forEach((cartItem) => dispatch(removeItem(cartItem.id)));
       } else {
         toast({
           title: 'Failed to place order',
@@ -1367,12 +1592,12 @@ export default function CustomerMenuPageNew() {
               >
                 <div className="rh-mini-banner-dot"></div>
                 <span className="rh-mini-banner-text">
-                  Table {currentSession?.tableNumber} • Session Active
+                  Table {currentSession?.tableNumber} • Customer #{currentSession?.customerNumber}
                 </span>
                 <button
                   className="rh-mini-banner-btn"
                   onClick={() =>
-                    navigate(`/c/${slug}/session?tableId=${tableIdFromUrl}`)
+                    navigate(`/c/${slug}/session/${currentSession.sessionId}`)
                   }
                 >
                   View <ChevronRight size={10} />
@@ -1515,7 +1740,10 @@ export default function CustomerMenuPageNew() {
                 >
                   {/* Image with Carousel */}
                   <div style={{ position: 'relative' }}>
-                    <ItemImageCarousel images={item.imageUrls || []} itemName={item.name} />
+                    <ItemImageCarousel
+                      images={item.imageUrls || []}
+                      itemName={item.name}
+                    />
                     {item._isPopular && (
                       <div className="rh-item-popular-badge">
                         <Sparkles size={12} color="white" fill="white" />
@@ -1566,8 +1794,10 @@ export default function CustomerMenuPageNew() {
                               item.id,
                               item.name,
                               item.pricing,
-                              item.modifiers,
-                              item.activePriceTag
+                              item.modifiers || [],
+                              item.activePriceTag,
+                              item._categoryId,
+                              item._categoryName
                             )
                           }
                         >
@@ -1582,8 +1812,10 @@ export default function CustomerMenuPageNew() {
                             item.id,
                             item.name,
                             item.pricing,
-                            item.modifiers,
-                            item.activePriceTag
+                            item.modifiers || [],
+                            item.activePriceTag,
+                            item._categoryId,
+                            item._categoryName
                           )
                         }
                       >
@@ -1600,7 +1832,7 @@ export default function CustomerMenuPageNew() {
 
       {/* Floating Cart */}
       <AnimatePresence>
-        {cart.length > 0 && (
+        {cartItems.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1613,7 +1845,7 @@ export default function CustomerMenuPageNew() {
                   <h4>{hasActiveOrder ? 'Add to Order' : 'Place Order'}</h4>
                   <p>
                     {cartItemCount} items •{' '}
-                    {isCalculatingCart
+                    {cartBackendCalculated?.isCalculating
                       ? 'Calculating...'
                       : formatCurrency(cartTotal)}
                   </p>
@@ -1624,8 +1856,8 @@ export default function CustomerMenuPageNew() {
                   disabled={
                     isPlacingOrder ||
                     isAddingItems ||
-                    isCalculatingCart ||
-                    !cartCalculation
+                    cartBackendCalculated?.isCalculating ||
+                    false
                   }
                 >
                   {isPlacingOrder || isAddingItems ? (
@@ -1669,7 +1901,7 @@ export default function CustomerMenuPageNew() {
             </p>
             <div className="space-y-2">
               {unavailableItemsDialog.unavailableItems.map((itemId) => {
-                const cartItem = cart.find(
+                const cartItem = cartItems.find(
                   (item) => item.menuItemId === itemId
                 );
                 const menuItem = displayItems.find(
@@ -1720,6 +1952,18 @@ export default function CustomerMenuPageNew() {
           onConfirm={handleModifierConfirm}
         />
       )}
+
+      {/* Smart Session Detection Modal */}
+      <SessionDetectionModal
+        isOpen={showSessionDetection}
+        onClose={() => {
+          setShowSessionDetection(false);
+          setPendingSessionCreation(false);
+        }}
+        onContinue={handleContinueSession}
+        onStartNew={handleStartNewSession}
+        sessions={previousSessions}
+      />
     </div>
   );
 }

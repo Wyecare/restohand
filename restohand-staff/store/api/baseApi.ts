@@ -34,6 +34,8 @@ export const baseApi = createApi({
     'StationAssignment',
     'Profile',
     'Session',
+    'CustomerSession',
+    'Bill',
     'Staff',
     'StaffInvitation',
     'RestaurantTable',

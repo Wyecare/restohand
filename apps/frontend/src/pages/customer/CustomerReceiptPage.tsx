@@ -1,807 +1,651 @@
-import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { Receipt } from '@/components/customer/Receipt';
-import { Button } from '@/components/ui/button';
+import * as React from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Download, Star, CheckCircle2, AlertTriangle } from 'lucide-react';
-import {
-  useGetOrderPublicQuery,
-  useGetCombinedReceiptPublicQuery,
-  useGetReceiptByNumberPublicQuery,
-} from '@/store/api/ordersApi';
-import {
-  useGetTableSessionPublicQuery,
-  useGetConsolidatedBillQuery,
-} from '@/store/api/restaurantsApi';
-import { generateReceiptPDF } from '@/components/customer/ReceiptPDF';
-import { generateProfessionalInvoicePDF } from '@/components/ProfessionalInvoicePDF';
-import type { PublicRestaurant } from '@/store/api/types';
+import { AlertTriangle, Download, ShoppingCart, CheckCircle } from 'lucide-react';
+import { useGetDetailedSessionBillQuery } from '@/store/api/billingApi';
+import { downloadThermalReceipt } from '@/components/DetailedThermalReceiptPDF';
+import { clearCustomerSessionData } from '@/utils/sessionCleanup';
 
-/* ─── Styles injected once ─────────────────────────────────────────── */
+/* ─── Clean Modern Styles ─────────────────────────────────────────── */
 const STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-  .rh-receipt-root {
-    --clr-bg:        #f0ede8;
-    --clr-paper:     #faf9f7;
-    --clr-border:    #e2ddd6;
-    --clr-text:      #1a1a1a;
-    --clr-muted:     #7a756e;
-    --clr-accent:    #1a1a1a;
-    --clr-success:   #16a34a;
-    --clr-success-bg:#f0fdf4;
-    --clr-success-bd:#bbf7d0;
-    --clr-error:     #dc2626;
-    --clr-error-bg:  #fef2f2;
-    --clr-error-bd:  #fecaca;
-    --clr-star:      #e8a838;
-    --clr-btn-bg:    #1a1a1a;
-    --clr-btn-text:  #fff;
-    --clr-btn-hover: #333;
-    font-family: 'DM Sans', system-ui, sans-serif;
-    background: var(--clr-bg);
+  .receipt-root {
+    font-family: 'Inter', system-ui, sans-serif;
     min-height: 100vh;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    color: #1e293b;
   }
 
-  /* ── layout ── */
-  .rh-wrap          { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+  .receipt-container {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
 
-  /* ── header strip ── */
-  .rh-header        { text-align: center; padding: 28px 0 20px; }
-  .rh-header h1     { font-size: 22px; font-weight: 600; color: var(--clr-text); letter-spacing: -0.3px; margin: 0; }
-  .rh-header .rh-addr { font-size: 13px; color: var(--clr-muted); margin-top: 6px; line-height: 1.5; }
-  .rh-header .rh-meta-row { display: flex; justify-content: center; gap: 18px; margin-top: 10px; }
-  .rh-header .rh-meta-row span { font-size: 12px; color: var(--clr-muted); }
-  .rh-header .rh-meta-row strong { color: var(--clr-text); font-weight: 500; }
+  .success-banner {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px -2px rgba(16, 185, 129, 0.3);
+  }
 
-  /* ── card ── */
-  .rh-card          { background: var(--clr-paper); border: 1px solid var(--clr-border); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
-  .rh-card-title    { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; color: var(--clr-muted); margin: 0 0 14px; }
+  .success-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+  }
 
-  /* ── dividers ── */
-  .rh-divider       { border: none; border-top: 1px dashed var(--clr-border); margin: 14px 0; }
-  .rh-divider-solid { border: none; border-top: 1px solid var(--clr-border); margin: 10px 0; }
+  .success-subtitle {
+    font-size: 13px;
+    margin: 2px 0 0 0;
+    opacity: 0.9;
+  }
 
-  /* ── order number badge ── */
-  .rh-order-badge   { display: inline-block; background: #f0ede8; border: 1px solid var(--clr-border); border-radius: 5px; padding: 3px 9px; font-size: 12px; font-weight: 500; color: var(--clr-muted); font-family: 'DM Mono', monospace; margin-bottom: 10px; }
+  .receipt-card {
+    background: white;
+    border-radius: 20px;
+    padding: 0;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.8);
+    overflow: hidden;
+    position: relative;
+  }
 
-  /* ── item row ── */
-  .rh-item-row      { display: flex; align-items: baseline; justify-content: space-between; padding: 5px 0; }
-  .rh-item-row      + .rh-item-row { border-top: 1px solid #f0ede8; }
-  .rh-item-left     { display: flex; align-items: baseline; gap: 8px; }
-  .rh-item-name     { font-size: 14px; color: var(--clr-text); font-weight: 400; }
-  .rh-item-qty      { font-size: 12px; color: var(--clr-muted); font-family: 'DM Mono', monospace; }
-  .rh-item-price    { font-size: 14px; color: var(--clr-text); font-weight: 500; font-family: 'DM Mono', monospace; }
+  .floating-download-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.4);
+    transition: all 0.2s;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-  /* ── summary rows ── */
-  .rh-sum-row       { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: var(--clr-muted); }
-  .rh-sum-row span:last-child { font-family: 'DM Mono', monospace; }
-  .rh-sum-row.rh-total { padding-top: 8px; margin-top: 4px; border-top: 2px solid var(--clr-text); font-size: 16px; font-weight: 600; color: var(--clr-text); }
-  .rh-sum-row.rh-total span:last-child { font-family: 'DM Mono', monospace; font-weight: 600; }
+  .floating-download-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px -2px rgba(59, 130, 246, 0.5);
+  }
 
-  /* ── order sub-total ── */
-  .rh-order-subtotal { text-align: right; font-size: 12px; color: var(--clr-muted); margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--clr-border); }
-  .rh-order-subtotal strong { color: var(--clr-text); font-weight: 500; }
+  .restaurant-header {
+    background: linear-gradient(135deg, #475569 0%, #334155 100%);
+    color: white;
+    padding: 24px;
+    text-align: center;
+  }
 
-  /* ── success banner ── */
-  .rh-success-banner { display: flex; align-items: center; gap: 10px; background: var(--clr-success-bg); border: 1px solid var(--clr-success-bd); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
-  .rh-success-banner svg { flex-shrink: 0; color: var(--clr-success); }
-  .rh-success-banner .rh-sb-title { font-size: 14px; font-weight: 600; color: var(--clr-success); }
-  .rh-success-banner .rh-sb-sub   { font-size: 12px; color: #15803d; margin-top: 1px; }
+  .restaurant-name {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+  }
 
-  /* ── error screen ── */
-  .rh-error-screen  { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 32px; text-align: center; font-family: 'DM Sans', system-ui, sans-serif; background: var(--clr-bg); }
-  .rh-error-screen svg { color: #ca8a04; margin-bottom: 16px; }
-  .rh-error-screen h1  { font-size: 20px; font-weight: 600; color: var(--clr-text); margin: 0 0 8px; }
-  .rh-error-screen p   { font-size: 14px; color: var(--clr-muted); margin: 0; max-width: 300px; line-height: 1.5; }
-  .rh-error-screen p+p { margin-top: 6px; font-size: 13px; }
+  .restaurant-address {
+    font-size: 14px;
+    opacity: 0.9;
+    line-height: 1.5;
+    margin: 0;
+  }
 
-  /* ── loading screen ── */
-  .rh-loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 12px; font-family: 'DM Sans', system-ui, sans-serif; background: var(--clr-bg); }
-  .rh-loading-screen p { font-size: 14px; color: var(--clr-muted); margin: 0; }
+  .restaurant-contact {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 12px;
+    font-size: 12px;
+    opacity: 0.8;
+  }
 
-  /* ── download btn ── */
-  .rh-dl-btn        { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; background: var(--clr-btn-bg); color: var(--clr-btn-text); border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.15s; margin-bottom: 12px; }
-  .rh-dl-btn:hover  { background: var(--clr-btn-hover); }
+  .session-info {
+    background: #f1f5f9;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+  }
 
-  /* ── feedback ── */
-  .rh-stars         { display: flex; gap: 4px; margin-top: 8px; }
-  .rh-star-btn      { background: none; border: none; cursor: pointer; padding: 2px; color: #d1ccc5; transition: color 0.15s; }
-  .rh-star-btn.active { color: var(--clr-star); }
-  .rh-star-btn:hover  { color: var(--clr-star); }
-  .rh-feedback-label { font-size: 13px; color: var(--clr-muted); margin: 14px 0 6px; display: block; }
-  .rh-feedback-ta   { width: 100%; border: 1px solid var(--clr-border); border-radius: 6px; padding: 10px 12px; font-size: 13px; color: var(--clr-text); font-family: inherit; resize: vertical; min-height: 72px; background: var(--clr-paper); outline: none; box-sizing: border-box; }
-  .rh-feedback-ta:focus { border-color: #a89f95; }
-  .rh-feedback-ta::placeholder { color: #b5b0a8; }
-  .rh-submit-btn    { display: flex; align-items: center; justify-content: center; width: 100%; padding: 11px; background: var(--clr-btn-bg); color: var(--clr-btn-text); border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; margin-top: 12px; transition: background 0.15s, opacity 0.15s; }
-  .rh-submit-btn:hover:not(:disabled)  { background: var(--clr-btn-hover); }
-  .rh-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .session-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+  }
 
-  /* ── footer ── */
-  .rh-footer        { text-align: center; padding-top: 20px; }
-  .rh-footer p     { font-size: 12px; color: #b5b0a8; margin: 2px 0; }
+  .session-detail {
+    text-align: center;
+  }
+
+  .session-label {
+    font-size: 12px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 4px 0;
+    font-weight: 500;
+  }
+
+  .session-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+  }
+
+  .items-section {
+    padding: 24px;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .item-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+
+  .item-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+  }
+
+  .item-total {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    font-family: 'SF Mono', 'Monaco', monospace;
+  }
+
+  .item-details {
+    font-size: 13px;
+    color: #64748b;
+    margin: 4px 0;
+  }
+
+  .item-tax {
+    font-size: 12px;
+    color: #059669;
+    background: #ecfdf5;
+    padding: 4px 8px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-top: 4px;
+  }
+
+  .bill-summary {
+    padding: 24px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 14px;
+  }
+
+  .summary-label {
+    color: #64748b;
+  }
+
+  .summary-value {
+    font-family: 'SF Mono', 'Monaco', monospace;
+    font-weight: 500;
+    color: #1e293b;
+  }
+
+  .total-row {
+    border-top: 2px solid #1e293b;
+    margin-top: 12px;
+    padding-top: 16px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .total-row .summary-value {
+    font-weight: 700;
+  }
+
+  .action-buttons {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    font-family: inherit;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.4);
+  }
+
+  .btn-secondary {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px 0 rgba(16, 185, 129, 0.4);
+  }
+
+  .loading-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  }
+
+  .loading-text {
+    font-size: 16px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .error-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 32px;
+    text-align: center;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  }
+
+  .error-icon {
+    color: #f59e0b;
+    margin-bottom: 20px;
+  }
+
+  .error-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 12px 0;
+  }
+
+  .error-message {
+    font-size: 16px;
+    color: #64748b;
+    margin: 0;
+    max-width: 400px;
+    line-height: 1.6;
+  }
+
+  .footer {
+    margin-top: auto;
+    text-align: center;
+    padding: 24px 0;
+    color: #94a3b8;
+    font-size: 14px;
+  }
 `;
 
-/* ─── Component ─────────────────────────────────────────────────────── */
 const CustomerReceiptPage = () => {
-  const { orderId, slug, tableId } = useParams<{
-    orderId?: string;
+  const { sessionId, slug } = useParams<{
+    sessionId?: string;
     slug?: string;
-    tableId?: string;
   }>();
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
-  const token = searchParams.get('t') || searchParams.get('token');
-  const shouldAutoPrint = searchParams.get('print') === 'true';
+  const navigate = useNavigate();
 
-  const [feedback, setFeedback] = useState<{
-    rating?: number;
-    comment?: string;
-  }>({});
+  // Get detailed bill for the session
+  const {
+    data: detailedBill,
+    isLoading,
+    error
+  } = useGetDetailedSessionBillQuery(
+    sessionId ? { sessionId, includeUnpaid: true } : { sessionId: '', includeUnpaid: true },
+    { skip: !sessionId }
+  );
 
-  const handleSubmitFeedback = async () => {
-    // TODO: Implement feedback submission
-    console.log('Submitting feedback:', feedback);
+  // Helper functions
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
-  const isCombinedReceipt = location.pathname === '/combined-receipt';
+  const handleDownloadReceipt = async () => {
+    if (!detailedBill) return;
 
-  const isTableBill =
-    (location.pathname.includes('/table-bill/') ||
-      (location.pathname.includes('/table/') &&
-        location.pathname.includes('/receipt'))) &&
-    slug &&
-    tableId;
+    try {
+      await downloadThermalReceipt(detailedBill, 'Digital Payment');
+    } catch (err) {
+      console.error('Error generating receipt:', err);
+      alert('Failed to generate receipt. Please try again.');
+    }
+  };
 
-  const isReceiptNumber = orderId && /[A-Z]/.test(orderId);
+  const handleOrderAgain = () => {
+    // Get tableId from URL params (since we're on /c/:slug/session/:sessionId/receipt, we need to extract from somewhere)
+    // Or use the tableId from the session data
+    if (slug && detailedBill?.session?.tableId) {
+      navigate(`/c/${slug}/table/${detailedBill.session.tableId}`);
+    } else if (slug) {
+      // Fallback to just the restaurant menu if no tableId available
+      navigate(`/c/${slug}`);
+    }
+  };
 
-  /* ── queries ── */
-  const {
-    data: order,
-    isLoading: orderLoading,
-    error: orderError,
-  } = useGetOrderPublicQuery(
-    { orderId: orderId!, token: token! },
-    { skip: isCombinedReceipt || isReceiptNumber || !orderId || !token }
-  );
+  // Clean up session data on mount
+  React.useEffect(() => {
+    if (sessionId) {
+      // Clear session data immediately when receipt loads (payment is complete)
+      clearCustomerSessionData({
+        sessionId,
+        clearAll: true // Clear all session-related data since payment is done
+      });
 
-  const {
-    data: receipt,
-    isLoading: receiptLoading,
-    error: receiptError,
-  } = useGetReceiptByNumberPublicQuery(
-    { receiptNumber: orderId!, token: token! },
-    { skip: isCombinedReceipt || !isReceiptNumber || !orderId || !token }
-  );
-
-  const {
-    data: combinedReceipt,
-    isLoading: combinedLoading,
-    error: combinedError,
-  } = useGetCombinedReceiptPublicQuery(
-    { token: token! },
-    { skip: !isCombinedReceipt || !token }
-  );
-
-  const {
-    data: tableSessionData,
-    isLoading: tableSessionLoading,
-    error: tableSessionError,
-  } = useGetTableSessionPublicQuery(
-    { slug: slug!, tableId: tableId! },
-    { skip: !isTableBill }
-  );
-
-  const [storedBillData, setStoredBillData] = useState<any>(null);
-
-  useEffect(() => {
-    if (isTableBill) {
+      // Also clear any remaining payment session data
       try {
-        const stored = localStorage.getItem('lastPaymentSession');
-        if (stored) {
-          const sessionData = JSON.parse(stored);
+        localStorage.removeItem('lastPaymentSession');
+        localStorage.removeItem('browserSessionId');
+
+        // Clear any cart/session data that might be stored
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
           if (
-            sessionData.slug === slug &&
-            sessionData.tableId === tableId &&
-            sessionData.billData &&
-            Date.now() - new Date(sessionData.timestamp).getTime() < 3600000
+            key.includes(sessionId) ||
+            key.startsWith('cart_') ||
+            key.startsWith('session_') ||
+            key.includes('customerSession') ||
+            key.includes('tableSession')
           ) {
-            setStoredBillData(sessionData.billData);
+            localStorage.removeItem(key);
           }
-        }
+        });
+
+        console.log('🧹 Complete session cleanup completed for:', sessionId);
       } catch (error) {
-        console.error('Error reading stored bill data:', error);
+        console.error('Error during session cleanup:', error);
       }
     }
-  }, [isTableBill, slug, tableId]);
+  }, [sessionId]);
 
-  const {
-    data: consolidatedBillData,
-    isLoading: consolidatedBillLoading,
-    error: consolidatedBillError,
-  } = useGetConsolidatedBillQuery(
-    { slug: slug!, tableId: tableId! },
-    { skip: !isTableBill || !!storedBillData }
-  );
-
-  const isLoading = isTableBill
-    ? tableSessionLoading || consolidatedBillLoading
-    : isCombinedReceipt
-    ? combinedLoading
-    : isReceiptNumber
-    ? receiptLoading
-    : orderLoading;
-
-  const error = isTableBill
-    ? tableSessionError || consolidatedBillError
-    : isCombinedReceipt
-    ? combinedError
-    : isReceiptNumber
-    ? receiptError
-    : orderError;
-
-  const orders = isTableBill
-    ? tableSessionData?.tableSession?.orders || null
-    : isCombinedReceipt
-    ? combinedReceipt
-      ? [combinedReceipt]
-      : null
-    : isReceiptNumber
-    ? receipt
-      ? [receipt]
-      : null
-    : order
-    ? [order]
-    : null;
-
-  /* ── auto-print ── */
-  useEffect(() => {
-    if (
-      shouldAutoPrint &&
-      !isLoading &&
-      !error &&
-      consolidatedBillData &&
-      isTableBill
-    ) {
-      const downloadPdf = async () => {
-        try {
-          const billUrl = `/api/public/restaurants/${slug}/table/${tableId}/bill`;
-          window.open(billUrl, '_blank');
-          setTimeout(() => {
-            window.close();
-          }, 1000);
-        } catch (err) {
-          console.error('Error downloading PDF:', err);
-        }
-      };
-      downloadPdf();
-    }
-  }, [
-    shouldAutoPrint,
-    isLoading,
-    error,
-    consolidatedBillData,
-    isTableBill,
-    slug,
-    tableId,
-  ]);
-
-  /* ── loading ── */
+  // Loading state
   if (isLoading) {
     return (
-      <div className="rh-receipt-root">
+      <div className="receipt-root">
         <style>{STYLE}</style>
-        <div className="rh-loading-screen">
+        <div className="loading-screen">
           <LoadingSpinner size="lg" />
-          <p>Loading your receipt…</p>
+          <p className="loading-text">Loading your receipt...</p>
         </div>
       </div>
     );
   }
 
-  /* ── TABLE BILL view ── */
-  if (isTableBill && (consolidatedBillData || storedBillData)) {
-    const billData = storedBillData || consolidatedBillData;
-    const { restaurant, bill } = billData;
-
-    const extendedRestaurant = restaurant as PublicRestaurant & {
-      address?: {
-        line1: string;
-        city: string;
-        state: string;
-        postalCode: string;
-        country: string;
-      };
-      phone?: string;
-      gstin?: string;
-    };
-
-    const formattedDate = new Date(bill.billGeneratedAt).toLocaleString(
-      'en-IN',
-      {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      }
-    );
-
+  // Error state
+  if (error || !detailedBill) {
     return (
-      <div className="rh-receipt-root">
+      <div className="receipt-root">
         <style>{STYLE}</style>
-        <div className="rh-wrap">
-          {/* Success banner */}
-          {storedBillData && (
-            <div className="rh-success-banner">
-              <CheckCircle2 size={20} />
-              <div>
-                <div className="rh-sb-title">Payment Successful</div>
-                <div className="rh-sb-sub">
-                  Your payment has been processed.
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Restaurant header */}
-          <div className="rh-header">
-            <h1>{extendedRestaurant.name}</h1>
-            <div className="rh-addr">
-              {extendedRestaurant.address && (
-                <>
-                  {extendedRestaurant.address.line1}
-                  <br />
-                  {extendedRestaurant.address.city},{' '}
-                  {extendedRestaurant.address.state}{' '}
-                  {extendedRestaurant.address.postalCode}
-                </>
-              )}
-            </div>
-            <div className="rh-meta-row">
-              {extendedRestaurant.phone && (
-                <span>
-                  📞 <strong>{extendedRestaurant.phone}</strong>
-                </span>
-              )}
-              {extendedRestaurant.gstin && (
-                <span>
-                  GSTIN <strong>{extendedRestaurant.gstin}</strong>
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Table + date */}
-          <div
-            className="rh-card"
-            style={{
-              padding: '12px 18px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--clr-text)',
-              }}
-            >
-              Table {bill.tableNumber}
-            </span>
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--clr-muted)',
-                fontFamily: "'DM Mono', monospace",
-              }}
-            >
-              {formattedDate}
-            </span>
-          </div>
-
-          {/* Orders */}
-          {bill.orders.map((orderItem: any, index: number) => (
-            <div className="rh-card" key={index}>
-              <div className="rh-order-badge">#{orderItem.orderNumber}</div>
-              {orderItem.items.map((item: any, itemIndex: number) => (
-                <div className="rh-item-row" key={itemIndex}>
-                  <div className="rh-item-left">
-                    <span className="rh-item-name">{item.name}</span>
-                    <span className="rh-item-qty">×{item.quantity}</span>
-                  </div>
-                  <span className="rh-item-price">
-                    ₹{item.lineTotal.toFixed(2)}
-                  </span>
-                </div>
-              ))}
-              <div className="rh-order-subtotal">
-                Order total <strong>₹{orderItem.orderTotal.toFixed(2)}</strong>
-              </div>
-            </div>
-          ))}
-
-          {/* Bill summary */}
-          <div className="rh-card">
-            <div className="rh-card-title">Bill Summary</div>
-            <div className="rh-sum-row">
-              <span>Subtotal</span>
-              <span>₹{bill.subtotal.toFixed(2)}</span>
-            </div>
-            {bill.cgstAmount > 0 && (
-              <div className="rh-sum-row">
-                <span>CGST</span>
-                <span>₹{bill.cgstAmount.toFixed(2)}</span>
-              </div>
-            )}
-            {bill.sgstAmount > 0 && (
-              <div className="rh-sum-row">
-                <span>SGST</span>
-                <span>₹{bill.sgstAmount.toFixed(2)}</span>
-              </div>
-            )}
-            {bill.igstAmount > 0 && (
-              <div className="rh-sum-row">
-                <span>IGST</span>
-                <span>₹{bill.igstAmount.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="rh-sum-row">
-              <span>Total Tax</span>
-              <span>₹{bill.taxAmount.toFixed(2)}</span>
-            </div>
-            <div className="rh-sum-row rh-total">
-              <span>Grand Total</span>
-              <span>₹{bill.totalAmount.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Download */}
-          <button
-            className="rh-dl-btn"
-            onClick={async () => {
-              try {
-                // Transform data for professional invoice
-                const invoiceData = {
-                  restaurant: {
-                    name: restaurant.name,
-                    legalEntity: restaurant.name?.toUpperCase(),
-                    address: restaurant.address,
-                    phone: restaurant.phone,
-                    email: restaurant.email,
-                    gstin: restaurant.gstin || 'UNREGISTERED',
-                    fssai: 'Not Available',
-                    pan: 'Not Available',
-                    cin: 'Not Available',
-                  },
-                  customer: {
-                    name: 'Guest Customer',
-                    address: `Table ${bill.tableNumber}`,
-                    gstin: 'UNREGISTERED',
-                  },
-                  invoice: {
-                    number: `INV-${Date.now().toString().slice(-8)}`,
-                    date: new Date().toISOString(),
-                    orderId: bill.orders[0]?.orderNumber || '',
-                    orderNumber: bill.orders[0]?.orderNumber || '',
-                    tableNumber: bill.tableNumber,
-                    paymentMethod: 'Digital payment',
-                  },
-                  bill: {
-                    ...bill,
-                    discountAmount: 0,
-                    orders: bill.orders.map(order => ({
-                      ...order,
-                      items: order.items.map(item => {
-                        const totalItems = bill.orders.reduce((sum, o) => sum + o.items.length, 0) || 1;
-                        const itemCgst = (bill.cgstAmount || 0) / totalItems;
-                        const itemSgst = (bill.sgstAmount || 0) / totalItems;
-                        const itemIgst = (bill.igstAmount || 0) / totalItems;
-                        const taxIncludedTotal = item.lineTotal + itemCgst + itemSgst + itemIgst;
-
-                        return {
-                          ...item,
-                          grossValue: item.lineTotal,
-                          discount: 0,
-                          netValue: item.lineTotal,
-                          cgstAmount: itemCgst,
-                          sgstAmount: itemSgst,
-                          igstAmount: itemIgst,
-                          lineTotal: taxIncludedTotal, // This will show tax-included total in final column
-                          hsnCode: '996331',
-                        };
-                      }),
-                    })),
-                    amountInWords: `${bill.totalAmount.toFixed(2)} Only`,
-                  },
-                };
-
-                const pdfBlob = await generateProfessionalInvoicePDF(invoiceData);
-                const url = URL.createObjectURL(pdfBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `table-${bill.tableNumber}-bill.pdf`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-              } catch (err) {
-                console.error('Error downloading bill:', err);
-                alert('Failed to generate PDF. Please try again.');
-              }
-            }}
-          >
-            <Download size={16} /> Download Bill
-          </button>
-
-          {/* Feedback */}
-          <div className="rh-card">
-            <div
-              className="rh-card-title"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <Star size={14} fill="var(--clr-star)" color="var(--clr-star)" />{' '}
-              Rate Your Experience
-            </div>
-            <p
-              style={{
-                fontSize: 13,
-                color: 'var(--clr-muted)',
-                margin: '0 0 0',
-              }}
-            >
-              How was your dining experience?
-            </p>
-            <div className="rh-stars">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  className={`rh-star-btn ${
-                    (feedback.rating || 0) >= star ? 'active' : ''
-                  }`}
-                  onClick={() =>
-                    setFeedback((prev) => ({ ...prev, rating: star }))
-                  }
-                >
-                  <Star
-                    size={22}
-                    fill={
-                      (feedback.rating || 0) >= star
-                        ? 'var(--clr-star)'
-                        : 'none'
-                    }
-                  />
-                </button>
-              ))}
-            </div>
-            <label className="rh-feedback-label">
-              Anything else?{' '}
-              <span style={{ color: '#b5b0a8' }}>(optional)</span>
-            </label>
-            <textarea
-              className="rh-feedback-ta"
-              value={feedback.comment || ''}
-              onChange={(e) =>
-                setFeedback((prev) => ({ ...prev, comment: e.target.value }))
-              }
-              placeholder="Tell us about your experience…"
-            />
-            <button
-              className="rh-submit-btn"
-              disabled={!feedback.rating}
-              onClick={handleSubmitFeedback}
-            >
-              Submit Feedback
-            </button>
-          </div>
-
-          {/* Footer */}
-          <div className="rh-footer">
-            <p>Thank you for dining with us!</p>
-            <p>Powered by RestoHand</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── error / not found ── */
-  if (error || (!isTableBill && (!orders || orders.length === 0))) {
-    return (
-      <div className="rh-receipt-root">
-        <style>{STYLE}</style>
-        <div className="rh-error-screen">
-          <AlertTriangle size={48} />
-          <h1>Receipt Not Found</h1>
-          <p>
-            We couldn't find your receipt. The link may have expired or is
-            invalid.
+        <div className="error-screen">
+          <AlertTriangle size={48} className="error-icon" />
+          <h1 className="error-title">Receipt Not Found</h1>
+          <p className="error-message">
+            We couldn't find your receipt. The link may have expired or is invalid.
+            Please ask your server for a new receipt.
           </p>
-          <p>Please ask your server for a new receipt.</p>
         </div>
       </div>
     );
   }
 
-  /* ── extract restaurant info (single / combined order view) ── */
-  const restaurantInfo =
-    isTableBill && tableSessionData?.restaurant
-      ? {
-          name: tableSessionData.restaurant.name,
-          address: tableSessionData.restaurant.address,
-          phone: tableSessionData.restaurant.contactPhone,
-          email: tableSessionData.restaurant.contactEmail,
-          gstNumber: tableSessionData.restaurant.gstin,
-        }
-      : orders?.[0]
-      ? {
-          name: 'Restaurant',
-          address: undefined,
-          phone: undefined,
-          email: undefined,
-          gstNumber: undefined,
-        }
-      : undefined;
-
-  /* ── aggregate totals helper ── */
-  const combinedSubtotal = orders!.reduce(
-    (s, o) => s + (o.subTotalAmount || 0),
-    0
-  );
-  const combinedTax = orders!.reduce((s, o) => s + (o.taxAmount || 0), 0);
-  const combinedTotal = orders!.reduce((s, o) => s + (o.totalAmount || 0), 0);
-
-  /* ── SINGLE / COMBINED ORDER view ── */
   return (
-    <div className="rh-receipt-root">
+    <div className="receipt-root">
       <style>{STYLE}</style>
-      <div className="rh-wrap">
-        {/* Header */}
-        {restaurantInfo && (
-          <div className="rh-header">
-            <h1>{restaurantInfo.name}</h1>
-            {restaurantInfo.address && (
-              <div className="rh-addr">
-                {restaurantInfo.address.line1}
+      <div className="receipt-container">
+        {/* Success Banner */}
+        <div className="success-banner">
+          <CheckCircle size={20} />
+          <div>
+            <h2 className="success-title">Payment Successful!</h2>
+            <p className="success-subtitle">Your order has been completed</p>
+          </div>
+        </div>
+
+        {/* Receipt Card */}
+        <div className="receipt-card">
+          {/* Floating Download Button */}
+          <button
+            className="floating-download-btn"
+            onClick={handleDownloadReceipt}
+            title="Download Receipt"
+          >
+            <Download size={18} />
+          </button>
+          {/* Restaurant Header */}
+          <div className="restaurant-header">
+            <h1 className="restaurant-name">{detailedBill.restaurant.name}</h1>
+            {detailedBill.restaurant.address && (
+              <p className="restaurant-address">
+                {detailedBill.restaurant.address.line1}, {detailedBill.restaurant.address.city}
                 <br />
-                {restaurantInfo.address.city}, {restaurantInfo.address.state}{' '}
-                {restaurantInfo.address.postalCode}
+                {detailedBill.restaurant.address.state} {detailedBill.restaurant.address.postalCode}
+              </p>
+            )}
+            <div className="restaurant-contact">
+              {detailedBill.restaurant.phone && (
+                <span>📞 {detailedBill.restaurant.phone}</span>
+              )}
+              {detailedBill.restaurant.gstin && (
+                <span>GSTIN: {detailedBill.restaurant.gstin}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Session Info */}
+          <div className="session-info">
+            <div className="session-details">
+              <div className="session-detail">
+                <p className="session-label">Table</p>
+                <p className="session-value">{detailedBill.session.tableNumber}</p>
+              </div>
+              <div className="session-detail">
+                <p className="session-label">Date</p>
+                <p className="session-value">{formatDate(detailedBill.calculatedAt)}</p>
+              </div>
+              <div className="session-detail">
+                <p className="session-label">Session</p>
+                <p className="session-value">#{detailedBill.session.sessionId.slice(-6).toUpperCase()}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Items Section */}
+          <div className="items-section">
+            <h3 className="section-title">
+              Items ({detailedBill.allItems.length})
+            </h3>
+            {detailedBill.allItems.map((item, index) => {
+              const pricePerUnitWithTax = item.totalWithTax / item.quantity;
+
+              return (
+                <div key={index} className="item-card">
+                  <div className="item-header">
+                    <h4 className="item-name">{item.name}</h4>
+                    <span className="item-total">{formatCurrency(item.totalWithTax)}</span>
+                  </div>
+                  <p className="item-details">
+                    {item.quantity} × {formatCurrency(pricePerUnitWithTax)}
+                  </p>
+                  {item.totalTaxAmount > 0 && (
+                    <span className="item-tax">
+                      GST ({item.gstRate}%) included: {formatCurrency(item.totalTaxAmount)}
+                    </span>
+                  )}
+                  {item.hsnCode && (
+                    <p className="item-details">HSN: {item.hsnCode}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bill Summary */}
+          <div className="bill-summary">
+            <h3 className="section-title">Bill Summary</h3>
+
+            <div className="summary-row">
+              <span className="summary-label">Subtotal</span>
+              <span className="summary-value">{formatCurrency(detailedBill.subTotalAmount)}</span>
+            </div>
+
+            {detailedBill.cgstAmount > 0 && (
+              <div className="summary-row">
+                <span className="summary-label">CGST</span>
+                <span className="summary-value">{formatCurrency(detailedBill.cgstAmount)}</span>
               </div>
             )}
-            <div className="rh-meta-row">
-              {restaurantInfo.phone && (
-                <span>
-                  📞 <strong>{restaurantInfo.phone}</strong>
+
+            {detailedBill.sgstAmount > 0 && (
+              <div className="summary-row">
+                <span className="summary-label">SGST</span>
+                <span className="summary-value">{formatCurrency(detailedBill.sgstAmount)}</span>
+              </div>
+            )}
+
+            {detailedBill.igstAmount > 0 && (
+              <div className="summary-row">
+                <span className="summary-label">IGST</span>
+                <span className="summary-value">{formatCurrency(detailedBill.igstAmount)}</span>
+              </div>
+            )}
+
+            {detailedBill.taxAmount > 0 && (
+              <div className="summary-row">
+                <span className="summary-label">Total Tax</span>
+                <span className="summary-value">{formatCurrency(detailedBill.taxAmount)}</span>
+              </div>
+            )}
+
+            {detailedBill.discountAmount > 0 && (
+              <div className="summary-row">
+                <span className="summary-label">Discount</span>
+                <span className="summary-value">-{formatCurrency(detailedBill.discountAmount)}</span>
+              </div>
+            )}
+
+            {detailedBill.roundOffAmount !== 0 && (
+              <div className="summary-row">
+                <span className="summary-label">Round Off</span>
+                <span className="summary-value">
+                  {detailedBill.roundOffAmount >= 0 ? '+' : ''}{formatCurrency(detailedBill.roundOffAmount)}
                 </span>
-              )}
-              {restaurantInfo.gstNumber && (
-                <span>
-                  GSTIN <strong>{restaurantInfo.gstNumber}</strong>
+              </div>
+            )}
+
+            <div className="summary-row total-row">
+              <span className="summary-label">Total Amount</span>
+              <span className="summary-value">{formatCurrency(detailedBill.totalAmount)}</span>
+            </div>
+
+            {detailedBill.taxType && (
+              <div className="summary-row" style={{ marginTop: '12px', fontSize: '12px' }}>
+                <span className="summary-label">
+                  Tax Type: {detailedBill.taxType === 'intra-state' ? 'Intra-State (CGST+SGST)' : 'Inter-State (IGST)'}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Individual orders */}
-        {orders!.map((orderItem) => (
-          <div className="rh-card" key={orderItem.id}>
-            <div className="rh-order-badge">#{orderItem.orderNumber}</div>
-            <Receipt order={orderItem} restaurantInfo={restaurantInfo} />
-          </div>
-        ))}
+          {/* Action Buttons */}
+          <div className="action-buttons">
+            <button
+              className="btn btn-primary"
+              onClick={handleDownloadReceipt}
+            >
+              <Download size={16} />
+              Download Receipt
+            </button>
 
-        {/* Combined totals — only show when multiple orders */}
-        {orders!.length > 1 && (
-          <div className="rh-card">
-            <div className="rh-card-title">Bill Summary</div>
-            <div className="rh-sum-row">
-              <span>Subtotal</span>
-              <span>₹{combinedSubtotal.toFixed(2)}</span>
-            </div>
-            <div className="rh-sum-row">
-              <span>Tax (GST)</span>
-              <span>₹{combinedTax.toFixed(2)}</span>
-            </div>
-            <div className="rh-sum-row rh-total">
-              <span>Grand Total</span>
-              <span>₹{combinedTotal.toFixed(2)}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Download */}
-        <button
-          className="rh-dl-btn"
-          onClick={async () => {
-            try {
-              const pdfBlob = await generateReceiptPDF({
-                order:
-                  isCombinedReceipt || isTableBill ? undefined : orders?.[0],
-                orders: isCombinedReceipt || isTableBill ? orders : undefined,
-                isCombinedReceipt: isCombinedReceipt || isTableBill,
-                restaurantInfo,
-              });
-              const url = URL.createObjectURL(pdfBlob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = isTableBill
-                ? `table-${
-                    tableSessionData?.tableSession?.tableNumber || 'session'
-                  }-bill.pdf`
-                : isCombinedReceipt
-                ? `combined-receipt-${orders?.[0]?.tableNumber || 'table'}.pdf`
-                : `receipt-${orders?.[0]?.orderNumber || 'order'}.pdf`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(url);
-            } catch (err) {
-              console.error('Error generating PDF:', err);
-              alert('Failed to generate PDF. Please try again.');
-            }
-          }}
-        >
-          <Download size={16} /> Download PDF
-        </button>
-
-        {/* Feedback */}
-        <div className="rh-card">
-          <div
-            className="rh-card-title"
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Star size={14} fill="var(--clr-star)" color="var(--clr-star)" />{' '}
-            Rate Your Experience
-          </div>
-          <p style={{ fontSize: 13, color: 'var(--clr-muted)', margin: 0 }}>
-            How was your dining experience?
-          </p>
-          <div className="rh-stars">
-            {[1, 2, 3, 4, 5].map((star) => (
+            {slug && detailedBill.session?.tableId && (
               <button
-                key={star}
-                className={`rh-star-btn ${
-                  (feedback.rating || 0) >= star ? 'active' : ''
-                }`}
-                onClick={() =>
-                  setFeedback((prev) => ({ ...prev, rating: star }))
-                }
+                className="btn btn-secondary"
+                onClick={handleOrderAgain}
               >
-                <Star
-                  size={22}
-                  fill={
-                    (feedback.rating || 0) >= star ? 'var(--clr-star)' : 'none'
-                  }
-                />
+                <ShoppingCart size={16} />
+                Back to Menu
               </button>
-            ))}
+            )}
           </div>
-          <label className="rh-feedback-label">
-            Anything else? <span style={{ color: '#b5b0a8' }}>(optional)</span>
-          </label>
-          <textarea
-            className="rh-feedback-ta"
-            value={feedback.comment || ''}
-            onChange={(e) =>
-              setFeedback((prev) => ({ ...prev, comment: e.target.value }))
-            }
-            placeholder="Tell us about your experience…"
-          />
-          <button
-            className="rh-submit-btn"
-            disabled={!feedback.rating}
-            onClick={handleSubmitFeedback}
-          >
-            Submit Feedback
-          </button>
         </div>
 
         {/* Footer */}
-        <div className="rh-footer">
+        <div className="footer">
           <p>Thank you for dining with us!</p>
           <p>Powered by RestoHand</p>
         </div>

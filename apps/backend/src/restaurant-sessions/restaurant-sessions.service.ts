@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { CustomerSession, CustomerSessionDocument } from '../customer-sessions/customer-session.schema';
+import { CustomerSession, CustomerSessionDocument } from '../customer-sessions/schemas/customer-session.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 import { ListActiveSessionsDto } from './dtos/list-active-sessions.dto';

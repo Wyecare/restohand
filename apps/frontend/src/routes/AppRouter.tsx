@@ -60,6 +60,8 @@ const AppRouter = () => {
         {/* Public receipt routes */}
         <Route path="/receipts" element={<ReceiptLookupPage />} />
         <Route path="/receipts/:orderNumber" element={<ReceiptPage />} />
+        {/* New simplified QR receipt route */}
+        <Route path="/receipt/:slug/:tableId" element={<ReceiptPage />} />
 
         <Route
           path="/onboarding"

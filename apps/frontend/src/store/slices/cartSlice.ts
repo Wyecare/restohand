@@ -55,17 +55,16 @@ export interface CartState {
   tableNumber?: string;
   customerInfo: CartCustomerInfo;
   notes?: string;
-  // Frontend estimated totals (for basic display)
-  subtotal: number;
-  tax: number;
-  total: number;
-  // Backend calculated totals (accurate for payments)
+  // Basic item totals only (no tax calculations)
+  itemsTotal: number;
+  // Backend calculated totals (single source of truth)
   backendCalculated?: {
-    subtotal: number;
+    subTotalAmount: number;
     taxAmount: number;
     cgstAmount: number;
     sgstAmount: number;
     igstAmount: number;
+    discountAmount: number;
     roundOffAmount: number;
     totalAmount: number;
     isCalculating: boolean;
@@ -78,9 +77,7 @@ export interface CartState {
 const initialState: CartState = {
   items: [],
   customerInfo: {},
-  subtotal: 0,
-  tax: 0,
-  total: 0,
+  itemsTotal: 0,
   isOpen: false,
   lastUpdated: new Date().toISOString(),
 };
@@ -105,7 +102,7 @@ const cartSlice = createSlice({
       state.tableNumber = tableNumber;
       state.lastUpdated = new Date().toISOString();
 
-      cartSlice.caseReducers.calculateTotals(state);
+      cartSlice.caseReducers.calculateItemsTotal(state);
     },
 
     // Add item to cart
@@ -133,7 +130,7 @@ const cartSlice = createSlice({
       }
 
       state.lastUpdated = new Date().toISOString();
-      cartSlice.caseReducers.calculateTotals(state);
+      cartSlice.caseReducers.calculateItemsTotal(state);
     },
 
     // Update item quantity
@@ -158,7 +155,7 @@ const cartSlice = createSlice({
     removeItem: (state, action: PayloadAction<string>) => {
       state.items = state.items.filter(item => item.id !== action.payload);
       state.lastUpdated = new Date().toISOString();
-      cartSlice.caseReducers.calculateTotals(state);
+      cartSlice.caseReducers.calculateItemsTotal(state);
     },
 
     // Update customer info
@@ -193,30 +190,26 @@ const cartSlice = createSlice({
       state.items = [];
       state.customerInfo = {};
       state.notes = undefined;
-      state.subtotal = 0;
-      state.tax = 0;
-      state.total = 0;
+      state.itemsTotal = 0;
+      state.backendCalculated = undefined;
       state.lastUpdated = new Date().toISOString();
     },
 
-    // Calculate totals (internal reducer)
-    calculateTotals: (state) => {
-      state.subtotal = state.items.reduce((sum, item) => sum + item.itemTotal, 0);
-
-      // Calculate tax (assuming 18% GST for now - this should come from restaurant settings)
-      state.tax = Math.round(state.subtotal * 0.18);
-      state.total = state.subtotal + state.tax;
+    // Calculate items total only (no tax calculations)
+    calculateItemsTotal: (state) => {
+      state.itemsTotal = state.items.reduce((sum, item) => sum + item.itemTotal, 0);
     },
 
     // Backend calculation actions
     setCalculating: (state, action: PayloadAction<boolean>) => {
       if (!state.backendCalculated) {
         state.backendCalculated = {
-          subtotal: 0,
+          subTotalAmount: 0,
           taxAmount: 0,
           cgstAmount: 0,
           sgstAmount: 0,
           igstAmount: 0,
+          discountAmount: 0,
           roundOffAmount: 0,
           totalAmount: 0,
           isCalculating: false,
@@ -226,11 +219,12 @@ const cartSlice = createSlice({
     },
 
     updateBackendCalculation: (state, action: PayloadAction<{
-      subtotal: number;
+      subTotalAmount: number;
       taxAmount: number;
       cgstAmount: number;
       sgstAmount: number;
       igstAmount: number;
+      discountAmount: number;
       roundOffAmount: number;
       totalAmount: number;
     }>) => {
@@ -295,7 +289,7 @@ export const {
   openCart,
   closeCart,
   clearCart,
-  calculateTotals,
+  calculateItemsTotal,
   setCalculating,
   updateBackendCalculation,
   restoreCart,
@@ -306,9 +300,10 @@ export type { OptionSelection, ModifierSelection };
 
 // Selectors
 export const selectCartItems = (state: { cart: CartState }) => state.cart.items;
-export const selectCartTotal = (state: { cart: CartState }) => state.cart.total;
-export const selectCartSubtotal = (state: { cart: CartState }) => state.cart.subtotal;
-export const selectCartTax = (state: { cart: CartState }) => state.cart.tax;
+export const selectCartItemsTotal = (state: { cart: CartState }) => state.cart.itemsTotal;
+export const selectCartBackendCalculated = (state: { cart: CartState }) => state.cart.backendCalculated;
+export const selectCartTotal = (state: { cart: CartState }) =>
+  state.cart.backendCalculated?.totalAmount || state.cart.itemsTotal;
 export const selectCartItemCount = (state: { cart: CartState }) =>
   state.cart.items.reduce((sum, item) => sum + item.quantity, 0);
 export const selectCartIsOpen = (state: { cart: CartState }) => state.cart.isOpen;
@@ -347,5 +342,6 @@ export const selectCartForCheckout = (state: { cart: CartState }) => ({
   customerInfo: state.cart.customerInfo,
   tableNumber: state.cart.tableNumber,
   notes: state.cart.notes,
-  total: state.cart.total,
+  itemsTotal: state.cart.itemsTotal,
+  backendCalculated: state.cart.backendCalculated,
 });

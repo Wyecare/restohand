@@ -39,6 +39,7 @@ import { CashfreePaymentService } from '../payments/cashfree-payment.service';
 import { RestaurantOnboardingService } from '../restaurants/restaurant-onboarding.service';
 import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
 import { SmartGstService } from '../gst/smart-gst.service';
+import { BillCalculatorService } from '../billing/services/bill-calculator.service';
 
 @Injectable()
 export class PublicService {
@@ -62,7 +63,8 @@ export class PublicService {
     private readonly cashfreePaymentService: CashfreePaymentService,
     private readonly restaurantOnboardingService: RestaurantOnboardingService,
     private readonly customerSessionsService: CustomerSessionsService,
-    private readonly smartGstService: SmartGstService
+    private readonly smartGstService: SmartGstService,
+    private readonly billCalculatorService: BillCalculatorService
   ) {}
 
   async getRestaurantBySlug(slug: string) {
@@ -514,23 +516,48 @@ export class PublicService {
     tableId: string,
     restaurantSlug: string
   ) {
-    // First check if session is closed
-    const sessionClosedOrder = await this.orderModel
-      .findOne({
-        restaurantId: new Types.ObjectId(restaurantId),
-        tableId: new Types.ObjectId(tableId),
-        sessionClosed: true,
-      })
-      .lean();
+    // First check if there's an active session for this table using the new session service
+    const activeSession = await this.customerSessionsService.findActiveSessionByTable(tableId);
 
-    const sessionClosed = !!sessionClosedOrder;
+    let sessionClosed = false;
+    let archivedSession = null;
 
-    if (sessionClosed) {
-      // Session is closed - return all orders (including completed) for receipt view
+    // If no active session, check for archived session in history
+    if (!activeSession) {
+      // Try to find the most recent archived session for this table
+      try {
+        const recentOrders = await this.orderModel
+          .find({
+            restaurantId: new Types.ObjectId(restaurantId),
+            tableId: new Types.ObjectId(tableId),
+            sessionId: { $exists: true },
+            paymentStatus: 'paid'
+          })
+          .sort({ createdAt: -1 })
+          .limit(1)
+          .lean();
+
+        if (recentOrders.length > 0 && recentOrders[0].sessionId) {
+          // TODO: Implement session history lookup for new session system
+          // For now, we'll skip archived session lookup during transition
+          // archivedSession = await this.customerSessionsService.findSessionInHistory(
+          //   recentOrders[0].sessionId
+          // );
+
+          // Temporarily disable archived session lookup
+          archivedSession = null;
+        }
+      } catch (error) {
+        console.log('Error checking archived session:', error);
+        // Continue with normal flow if archive check fails
+      }
+    }
+
+    if (sessionClosed && archivedSession) {
+      // Session is archived - return all orders from the archived session
       const orders = await this.orderModel
         .find({
-          restaurantId: new Types.ObjectId(restaurantId),
-          tableId: new Types.ObjectId(tableId),
+          _id: { $in: archivedSession.orderIds },
           status: { $ne: OrderStatus.Cancelled }, // Exclude only cancelled orders
         })
         .sort({ createdAt: 1 });
@@ -623,7 +650,7 @@ export class PublicService {
       })),
     })));
 
-    // Calculate proper session-level tax using Smart GST
+    // Calculate proper session-level tax using Universal Billing Module
     let sessionTotals = {
       subTotalAmount: 0,
       taxAmount: 0,
@@ -636,37 +663,23 @@ export class PublicService {
     };
 
     try {
-      // Prepare items for tax calculation
-      const consolidatedItems = [];
-      for (const order of orders) {
-        for (const item of order.items) {
-          consolidatedItems.push({
-            menuItemId: item.menuItemId.toString(),
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.pricing.unitAmount,
-            discountAmount: item.pricing.discountAmount || 0,
-          });
-        }
-      }
-
-      if (consolidatedItems.length > 0) {
-        // Calculate tax using Smart GST service
-        const taxCalculation = await this.smartGstService.calculateOrderGst(
-          orders[0].restaurantId.toString(),
-          consolidatedItems,
-          orders[0].customerState
-        );
+      if (orders.length > 0) {
+        // Use Universal Billing Module for consistent calculation
+        const orderIds = orders.map(order => order._id.toString());
+        const billCalculation = await this.billCalculatorService.calculateBill({
+          orderIds,
+          includeUnpaid: true,
+        });
 
         sessionTotals = {
-          subTotalAmount: taxCalculation.summary.subtotal,
-          taxAmount: taxCalculation.summary.totalTaxAmount,
-          cgstAmount: taxCalculation.summary.cgstAmount,
-          sgstAmount: taxCalculation.summary.sgstAmount,
-          igstAmount: taxCalculation.summary.igstAmount,
-          discountAmount: 0,
-          roundOffAmount: 0,
-          totalAmount: taxCalculation.summary.totalAmount,
+          subTotalAmount: billCalculation.subTotalAmount,
+          taxAmount: billCalculation.taxAmount,
+          cgstAmount: billCalculation.cgstAmount,
+          sgstAmount: billCalculation.sgstAmount,
+          igstAmount: billCalculation.igstAmount,
+          discountAmount: billCalculation.discountAmount,
+          roundOffAmount: billCalculation.roundOffAmount,
+          totalAmount: billCalculation.totalAmount,
         };
       }
     } catch (error) {
@@ -781,12 +794,28 @@ export class PublicService {
       );
     }
 
+    // Use provided customerSessionId or fallback to finding active session
+    let customerSessionId: string | undefined = orderData.customerSessionId;
+
+    if (!customerSessionId && orderData.tableId) {
+      try {
+        const activeSession = await this.customerSessionsService.findActiveSessionByTable(orderData.tableId);
+        if (activeSession) {
+          customerSessionId = activeSession.sessionId;
+        }
+      } catch (error) {
+        // Log but don't fail if session lookup fails
+        console.log('Failed to get active session for table:', orderData.tableId, error);
+      }
+    }
+
     // Create order using OrdersService
     return this.ordersService.create(
       restaurant.id,
       {
         ...orderData,
         restaurantId: restaurant.id,
+        customerSessionId, // Assign session ID from active session
         paymentMethod: orderData.paymentMethod || 'pending',
       },
       branchId
@@ -1090,46 +1119,73 @@ export class PublicService {
       throw new NotFoundException(`Restaurant ${slug} not found`);
     }
 
-    // Get table session data
-    const tableSession = await this.getTableSessionData(
-      restaurant._id.toString(),
-      tableId,
-      slug
-    );
+    // Check if there's an active customer session for this table
+    const activeSession = await this.customerSessionsService.findActiveSessionByTable(tableId);
+    let orderIds: string[] = [];
 
-    if (!tableSession || tableSession.orders.length === 0) {
+    if (activeSession) {
+      // Get session orders for detailed breakdown
+      const sessionOrders = await this.orderModel.find({
+        customerSessionId: activeSession.sessionId,
+        status: { $ne: 'cancelled' },
+        // Don't filter by payment status - show all orders in the session for receipt
+      }).lean();
+
+      // If no session orders found, fall back to tableId-based orders
+      if (sessionOrders.length === 0) {
+        const tableOrders = await this.orderModel.find({
+          restaurantId: restaurant._id,
+          tableId: new Types.ObjectId(tableId),
+          status: { $ne: 'cancelled' },
+        }).lean();
+
+        if (tableOrders.length > 0) {
+          // Calculate bill for table orders using universal billing
+          const orderIds = tableOrders.map(order => order._id.toString());
+          const billCalculation = await this.billCalculatorService.calculateBill({
+            orderIds,
+            includeUnpaid: true,
+          });
+          return this.formatBillResponse(restaurant, billCalculation, tableOrders, activeSession.tableNumber || `Table ${tableId}`);
+        }
+
+        // No orders found at all
+        const emptyBillCalculation = await this.billCalculatorService.calculateBill({
+          orderIds: [],
+          includeUnpaid: true,
+        });
+        return this.formatBillResponse(restaurant, emptyBillCalculation, [], activeSession.tableNumber || `Table ${tableId}`);
+      }
+
+      // Use session-based billing for orders with customerSessionId
+      const billCalculation = await this.billCalculatorService.calculateSessionBill(activeSession.sessionId);
+      return this.formatBillResponse(restaurant, billCalculation, sessionOrders, activeSession.tableNumber);
+    }
+
+    // Fallback: Check for staff-created orders with tableId (legacy support)
+    const staffOrders = await this.orderModel.find({
+      restaurantId: restaurant._id,
+      tableId: new Types.ObjectId(tableId),
+      // Don't filter by payment status - show all orders for the table
+    }).lean();
+
+    if (staffOrders.length === 0) {
       throw new NotFoundException(`No orders found for table`);
     }
 
-    // Get full order documents
-    const orderIds = tableSession.orders.map((order) => order.id);
-    const fullOrders = await this.orderModel.find({
-      _id: { $in: orderIds.map(id => new Types.ObjectId(id)) },
-    }).lean();
+    // Calculate bill using universal billing calculator for staff orders
+    orderIds = staffOrders.map(order => order._id.toString());
+    const billCalculation = await this.billCalculatorService.calculateBill({
+      orderIds,
+      includeUnpaid: true, // Include all orders for receipt display
+    });
 
-    // Prepare items for tax calculation
-    const consolidatedItems = [];
-    for (const order of fullOrders) {
-      for (const item of order.items) {
-        consolidatedItems.push({
-          menuItemId: item.menuItemId.toString(),
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.pricing.unitAmount,
-          discountAmount: item.pricing.discountAmount || 0,
-        });
-      }
-    }
+    return this.formatBillResponse(restaurant, billCalculation, staffOrders, staffOrders[0]?.tableNumber);
+  }
 
-    // Calculate tax on the consolidated session total using Smart GST
-    const taxCalculation = await this.smartGstService.calculateOrderGst(
-      restaurant._id.toString(),
-      consolidatedItems,
-      fullOrders[0]?.customerState
-    );
-
-    // Format bill data
-    const orders = fullOrders.map((order) => ({
+  private formatBillResponse(restaurant: any, billCalculation: any, orders: any[], tableNumber: string) {
+    // Format orders for response
+    const formattedOrders = orders.map((order) => ({
       orderNumber: order.orderNumber,
       items: order.items.map((item) => ({
         name: item.name,
@@ -1160,16 +1216,17 @@ export class PublicService {
         gstin: restaurant.businessDetails?.gst?.gstin,
       },
       bill: {
-        tableNumber: tableSession.tableNumber,
-        orders,
-        subtotal: taxCalculation.summary.subtotal,
-        taxAmount: taxCalculation.summary.totalTaxAmount,
-        cgstAmount: taxCalculation.summary.cgstAmount,
-        sgstAmount: taxCalculation.summary.sgstAmount,
-        igstAmount: taxCalculation.summary.igstAmount,
-        roundOffAmount: 0, // Round off will be calculated in frontend or later
-        totalAmount: taxCalculation.summary.totalAmount,
-        billGeneratedAt: new Date().toISOString(),
+        tableNumber,
+        orders: formattedOrders,
+        subtotal: billCalculation.subTotalAmount,
+        taxAmount: billCalculation.taxAmount,
+        cgstAmount: billCalculation.cgstAmount,
+        sgstAmount: billCalculation.sgstAmount,
+        igstAmount: billCalculation.igstAmount,
+        discountAmount: billCalculation.discountAmount,
+        roundOffAmount: billCalculation.roundOffAmount,
+        totalAmount: billCalculation.totalAmount,
+        billGeneratedAt: billCalculation.calculatedAt?.toISOString() || new Date().toISOString(),
       },
     };
   }
@@ -1456,6 +1513,65 @@ export class PublicService {
       customerDetails: sessionData?.customerDetails,
     };
     return this.cashfreePaymentService.createSessionPaymentIntent(dto);
+  }
+
+  async getSessionBill(sessionId: string) {
+    // Get session details
+    const sessionData = await this.customerSessionsService.getSessionWithBill(sessionId);
+    if (!sessionData) {
+      throw new Error('Session not found');
+    }
+
+    const { session, bill, orders } = sessionData;
+
+    // Get restaurant details
+    const restaurant = await this.restaurantModel.findById(session.restaurantId).lean();
+    if (!restaurant) {
+      throw new Error('Restaurant not found');
+    }
+
+    // Format orders for receipt display
+    const formattedOrders = orders.map(order => ({
+      orderNumber: order.orderNumber,
+      items: [], // Items are not included in current API response - would need to be added if needed
+      orderTotal: order.totalAmount,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      createdAt: order.createdAt,
+    }));
+
+    return {
+      restaurant: {
+        id: restaurant._id.toString(),
+        name: restaurant.name,
+        address: restaurant.address,
+        phone: restaurant.contactPhone,
+        email: restaurant.contactEmail,
+        gstin: restaurant.businessDetails?.gst?.gstin,
+      },
+      session: {
+        sessionId: session.sessionId,
+        tableNumber: session.tableNumber,
+        customerNumber: session.customerNumber,
+        tableId: session.tableId,
+        startedAt: session.startedAt,
+        closedAt: session.closedAt,
+        status: session.status,
+      },
+      bill: {
+        tableNumber: session.tableNumber,
+        orders: formattedOrders,
+        subtotal: bill.subTotalAmount,
+        taxAmount: bill.taxAmount,
+        cgstAmount: bill.cgstAmount,
+        sgstAmount: bill.sgstAmount,
+        igstAmount: bill.igstAmount,
+        discountAmount: bill.discountAmount,
+        roundOffAmount: bill.roundOffAmount,
+        totalAmount: bill.totalAmount,
+        billGeneratedAt: new Date().toISOString(),
+      },
+    };
   }
 
 }
