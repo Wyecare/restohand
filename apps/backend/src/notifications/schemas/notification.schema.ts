@@ -112,19 +112,34 @@ NotificationSchema.index({ recipientId: 1, status: 1, createdAt: -1 });
 NotificationSchema.index({ type: 1, createdAt: -1 });
 NotificationSchema.index({ urgency: 1, status: 1, createdAt: -1 });
 
-// Unique index to prevent duplicate notifications
-// This ensures one notification per recipient per order/event
+// Unique index to prevent duplicate payment notifications
+// This ensures one payment notification per recipient per order
 NotificationSchema.index(
   {
     restaurantId: 1,
     recipientId: 1,
     type: 1,
-    orderId: 1,
+    orderId: 1
+  },
+  {
+    unique: true,
+    sparse: true, // Allows null values in orderId
+    name: 'unique_payment_notification_per_order'
+  }
+);
+
+// Unique index to prevent duplicate call waiter notifications
+// This ensures one call waiter notification per recipient per call
+NotificationSchema.index(
+  {
+    restaurantId: 1,
+    recipientId: 1,
+    type: 1,
     callWaiterId: 1
   },
   {
     unique: true,
-    sparse: true, // Allows null values in orderId and callWaiterId
-    name: 'unique_notification_per_event'
+    sparse: true, // Allows null values in callWaiterId
+    name: 'unique_call_waiter_notification_per_call'
   }
 );
