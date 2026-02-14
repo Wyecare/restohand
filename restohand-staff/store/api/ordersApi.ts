@@ -167,6 +167,10 @@ export const ordersApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (_result, _error, { restaurantId }) => [
         { type: "Order", id: `LIST-${restaurantId}` },
+        "RestaurantTable",
+        // Invalidate session-related caches since new orders affect session data
+        "CustomerSession",
+        "Bill",
       ],
     }),
 
@@ -179,6 +183,11 @@ export const ordersApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, { restaurantId, orderId }) => [
         { type: "Order", id: orderId },
         { type: "Order", id: `LIST-${restaurantId}` },
+        // Invalidate session-related caches since order status affects session data
+        { type: "CustomerSession", id: "LIST" },
+        { type: "Bill", id: "LIST" },
+        "CustomerSession",
+        "Bill",
       ],
     }),
 
@@ -188,7 +197,14 @@ export const ordersApi = baseApi.injectEndpoints({
         method: "PATCH",
         body,
       }),
-      invalidatesTags: ["Order", "RestaurantTable"],
+      invalidatesTags: (_result, _error, { restaurantId, orderId }) => [
+        { type: "Order", id: orderId },
+        { type: "Order", id: `LIST-${restaurantId}` },
+        "RestaurantTable",
+        // Invalidate session-related caches since payment status affects session data
+        "CustomerSession",
+        "Bill",
+      ],
     }),
 
     generateReceiptQr: builder.query<

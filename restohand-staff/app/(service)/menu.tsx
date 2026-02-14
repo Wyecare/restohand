@@ -11,6 +11,7 @@ import {
 } from '@/store/api/ordersApi';
 import {
   useGetSessionQuery,
+  useGetSessionWithBillQuery,
   useOnOrderPlacedMutation,
 } from '@/store/api/customerSessionsApi';
 import {
@@ -73,7 +74,8 @@ export default function ServiceMenuScreen() {
   const theme = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
 
-  const { tableId, restaurant_slug, sessionId, isNewSession } = useLocalSearchParams();
+  const { tableId, restaurant_slug, sessionId, isNewSession } =
+    useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
   // Get restaurant details
@@ -111,6 +113,13 @@ export default function ServiceMenuScreen() {
   } = useGetSessionQuery(sessionId as string, {
     skip: !sessionId,
   });
+
+  // Get session with orders (session-based instead of table-based)
+  const { data: sessionWithBill, refetch: refetchSessionOrders } =
+    useGetSessionWithBillQuery(sessionId as string, {
+      skip: !sessionId,
+      pollingInterval: 30000, // Poll every 30 seconds to ensure fresh data
+    });
 
   // RTK mutation for creating orders and updating status
   const [createOrder] = useCreateOrderMutation();
@@ -166,31 +175,31 @@ export default function ServiceMenuScreen() {
     activePriceTagId?: string;
   } | null>(null);
 
-  // Check for existing active orders (multiple orders per table)
+  // Check for existing active orders (session-based instead of table-based)
   const activeExistingOrders = useMemo(() => {
-    const existingOrders = selectedTable?.activeOrders || [];
-    return existingOrders.filter(
+    const sessionOrders = sessionWithBill?.orders || [];
+    return sessionOrders.filter(
       (order) =>
         order.paymentStatus !== 'paid' &&
         !['completed', 'cancelled'].includes(order.status)
     );
-  }, [selectedTable?.activeOrders]);
+  }, [sessionWithBill?.orders]);
 
   // For backward compatibility, keep the first order
   const activeExistingOrder = useMemo(() => {
     return activeExistingOrders.length > 0 ? activeExistingOrders[0] : null;
   }, [activeExistingOrders]);
 
-  // Calculate total bill for all active orders
+  // Calculate total bill for all active orders (session-based)
   const totalBillAmount = useMemo(() => {
     return (
-      selectedTable?.totalBillAmount ||
+      sessionWithBill?.bill?.totalAmount ||
       activeExistingOrders.reduce(
         (total, order) => total + order.totalAmount,
         0
       )
     );
-  }, [selectedTable?.totalBillAmount, activeExistingOrders]);
+  }, [sessionWithBill?.bill?.totalAmount, activeExistingOrders]);
 
   // Process menu data
   const categories = data?.menu.categories ?? [];
@@ -517,7 +526,10 @@ export default function ServiceMenuScreen() {
           });
           console.log('✅ DEBUG: Session notified about order placement');
         } catch (error) {
-          console.error('❌ DEBUG: Failed to notify session about order:', error);
+          console.error(
+            '❌ DEBUG: Failed to notify session about order:',
+            error
+          );
           // Don't throw - order was created successfully, session notification is secondary
         }
       }
@@ -527,6 +539,7 @@ export default function ServiceMenuScreen() {
 
       await refetchTables();
       await refetchSession(); // Refresh session to update order count
+      await refetchSessionOrders(); // Refresh session orders list
 
       setSuccessModalData({
         title: 'Order placed! 🎉',
@@ -568,11 +581,13 @@ export default function ServiceMenuScreen() {
   const handleStatusUpdate = async (status: string, progress?: number) => {
     if (!restaurant || !selectedOrderForStatus) return;
 
+    console.log(selectedOrderForStatus);
+
     setIsUpdatingStatus(true);
     try {
       await updateOrderStatus({
         restaurantId: restaurant.id,
-        orderId: selectedOrderForStatus.id,
+        orderId: selectedOrderForStatus._id,
         status: status as any,
         progress,
       }).unwrap();
@@ -881,17 +896,23 @@ export default function ServiceMenuScreen() {
           <View style={styles.tableInfo}>
             <View style={styles.sessionInfo}>
               <Ionicons
-                name={sessionDisplayInfo.isNewSession ? "add-circle" : "time"}
+                name={sessionDisplayInfo.isNewSession ? 'add-circle' : 'time'}
                 size={12}
-                color={sessionDisplayInfo.isNewSession ? theme.brand : theme.icon}
-              />
-              <Text style={[
-                styles.sessionText,
-                {
-                  color: sessionDisplayInfo.isNewSession ? theme.brand : theme.icon,
-                  fontWeight: sessionDisplayInfo.isNewSession ? '600' : '500'
+                color={
+                  sessionDisplayInfo.isNewSession ? theme.brand : theme.icon
                 }
-              ]}>
+              />
+              <Text
+                style={[
+                  styles.sessionText,
+                  {
+                    color: sessionDisplayInfo.isNewSession
+                      ? theme.brand
+                      : theme.icon,
+                    fontWeight: sessionDisplayInfo.isNewSession ? '600' : '500',
+                  },
+                ]}
+              >
                 {sessionDisplayInfo.sessionInfo}
               </Text>
               {sessionDisplayInfo.orderCount > 0 && (
@@ -904,7 +925,9 @@ export default function ServiceMenuScreen() {
               {selectedTable?.capacity && (
                 <View style={styles.tableCapacityInfo}>
                   <Ionicons name="people" size={12} color={theme.icon} />
-                  <Text style={[styles.tableCapacityText, { color: theme.icon }]}>
+                  <Text
+                    style={[styles.tableCapacityText, { color: theme.icon }]}
+                  >
                     {selectedTable.capacity} seats
                   </Text>
                 </View>

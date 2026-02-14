@@ -151,6 +151,8 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       invalidatesTags: (result, error, { sessionId }) => [
         { type: 'CustomerSession', id: sessionId },
         { type: 'CustomerSession', id: 'LIST' },
+        { type: 'Bill', id: sessionId },
+        { type: 'Bill', id: 'LIST' },
       ],
     }),
 

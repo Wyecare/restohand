@@ -2,7 +2,6 @@ import { Colors } from '@/constants/theme';
 import {
   useFindSessionsQuery,
   useCreateCustomerSessionMutation,
-  useCloseSessionMutation,
 } from '@/store/api/customerSessionsApi';
 import {
   useGetRestaurantQuery,
@@ -64,7 +63,6 @@ export default function SessionManagementScreen() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
   const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [closingSessionId, setClosingSessionId] = useState<string | null>(null);
 
   // Get restaurant details
   const { data: restaurant } = useGetRestaurantQuery(
@@ -101,7 +99,6 @@ export default function SessionManagementScreen() {
 
   // Mutations
   const [createCustomerSession] = useCreateCustomerSessionMutation();
-  const [closeSession] = useCloseSessionMutation();
 
   const activeSessions = sessionsData?.sessions || [];
 
@@ -159,39 +156,6 @@ export default function SessionManagementScreen() {
     });
   };
 
-  const handleCloseSession = async (sessionId: string) => {
-    Alert.alert(
-      'Close Session',
-      'Are you sure you want to close this session? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Close Session',
-          style: 'destructive',
-          onPress: async () => {
-            setClosingSessionId(sessionId);
-            try {
-              await closeSession({
-                sessionId,
-                reason: 'staff_closed',
-                notes: 'Closed by staff from session management',
-              }).unwrap();
-
-              refetchSessions();
-              Alert.alert('Success', 'Session closed successfully');
-            } catch (error: any) {
-              Alert.alert(
-                'Error',
-                error?.message || 'Failed to close session'
-              );
-            } finally {
-              setClosingSessionId(null);
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const handleRefresh = () => {
     refetchSessions();
@@ -380,24 +344,6 @@ export default function SessionManagementScreen() {
                     <Ionicons name="restaurant" size={16} color="#ffffff" />
                     <Text style={styles.sessionActionText}>Continue Order</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.sessionActionButton,
-                      styles.closeButton,
-                      { backgroundColor: '#dc2626' },
-                    ]}
-                    onPress={() => handleCloseSession(session.sessionId)}
-                    disabled={closingSessionId === session.sessionId}
-                  >
-                    {closingSessionId === session.sessionId ? (
-                      <ActivityIndicator size={16} color="#ffffff" />
-                    ) : (
-                      <Ionicons name="close-circle" size={16} color="#ffffff" />
-                    )}
-                    <Text style={styles.sessionActionText}>
-                      {closingSessionId === session.sessionId ? 'Closing...' : 'Close Session'}
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             ))}
@@ -583,7 +529,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   continueButton: {},
-  closeButton: {},
   sessionActionText: {
     color: '#ffffff',
     fontSize: 13,
