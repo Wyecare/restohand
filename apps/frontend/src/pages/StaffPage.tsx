@@ -8,14 +8,7 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table';
-import {
-  Filter,
-  Mail,
-  Phone,
-  Clock4,
-  RefreshCcw,
-  Users,
-} from 'lucide-react';
+import { Filter, Mail, Phone, Clock4, RefreshCcw, Users } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { skipToken } from '@reduxjs/toolkit/query';
 
@@ -59,7 +52,6 @@ import {
 import type { StaffMember } from '@/store/api/types';
 import { useStaffTranslation } from '@/hooks/use-translation';
 
-
 export default function StaffPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { currentBranch } = useBranchContext();
@@ -71,6 +63,9 @@ export default function StaffPage() {
     { label: tStaff('roles.chef'), value: 'chef' },
     { label: tStaff('roles.waiter'), value: 'waiter' },
     { label: tStaff('roles.cashier'), value: 'cashier' },
+    { label: tStaff('roles.manager'), value: 'manager' },
+    // owner
+    { label: tStaff('roles.owner'), value: 'owner' },
   ];
 
   // Redirect if no restaurant ID
@@ -139,32 +134,6 @@ export default function StaffPage() {
       return matchStatus && matchRole;
     });
   }, [staff, statusFilter, roleFilter]);
-
-
-  // --- Row actions ---
-  async function handleResetPin(member: StaffMember) {
-    markUpdating(member.id);
-    try {
-      await resetStaffPin(member.id).unwrap();
-
-      toast({
-        title: tStaff('messages.pinReset'),
-        description: tStaff('messages.pinResetSuccess'),
-      });
-
-    } catch (err) {
-      toast({
-        title: tStaff('messages.unableToResetPin'),
-        description:
-          err instanceof Error
-            ? err.message
-            : tStaff('messages.unexpectedError'),
-        variant: 'destructive',
-      });
-    } finally {
-      clearUpdating(member.id);
-    }
-  }
 
   async function handleRoleChange(member: StaffMember, nextRole: string) {
     if (member.roles[0] === nextRole) return;
@@ -316,25 +285,6 @@ export default function StaffPage() {
           );
         },
       },
-      {
-        id: 'actions',
-        header: tStaff('table.actions'),
-        cell: ({ row }) => {
-          const m = row.original;
-          return (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleResetPin(m)}
-              disabled={updatingIds.has(m.id)}
-              className="h-8 px-2 text-xs"
-            >
-              <RefreshCcw className="h-4 w-4 mr-1" />
-              {tStaff('table.resetPin')}
-            </Button>
-          );
-        },
-      },
     ],
     [tStaff, roleOptions, updatingIds]
   );
@@ -348,7 +298,6 @@ export default function StaffPage() {
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-
 
   return (
     <div className="space-y-6">
@@ -557,8 +506,6 @@ export default function StaffPage() {
           )}
         </CardContent>
       </Card>
-
-
     </div>
   );
 }

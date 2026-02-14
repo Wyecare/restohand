@@ -131,41 +131,6 @@ export class PublicController {
     return this.publicService.cancelOrder(slug, orderId);
   }
 
-  @Get('restaurants/:slug/orders/:orderId/bill')
-  async getInvoice(
-    @Param('slug') slug: string,
-    @Param('orderId') orderId: string,
-    @Res() res: Response
-  ) {
-    const invoice = await this.publicService.getInvoice(slug, orderId);
-    res
-      .header('Content-Type', 'text/html; charset=utf-8')
-      .header(
-        'Content-Disposition',
-        `attachment; filename="${invoice.filename}"`
-      )
-      .send(invoice.html);
-  }
-
-  @Get('restaurants/:slug/table/:tableId/bill')
-  async getCombinedTableBill(
-    @Param('slug') slug: string,
-    @Param('tableId') tableId: string,
-    @Res() res: Response
-  ) {
-    const invoice = await this.publicService.getCombinedTableInvoice(
-      slug,
-      tableId
-    );
-    res
-      .header('Content-Type', 'application/pdf')
-      .header(
-        'Content-Disposition',
-        `attachment; filename="${invoice.filename.replace('.html', '.pdf')}"`
-      )
-      .send(invoice.pdf);
-  }
-
   @Post('restaurants/:slug/orders')
   async createOrder(
     @Param('slug') slug: string,
@@ -254,58 +219,6 @@ export class PublicController {
       sessionData
     );
   }
-
-  @Get('restaurants/:slug/table/:tableId/consolidated-bill')
-  async getConsolidatedBill(
-    @Param('slug') slug: string,
-    @Param('tableId') tableId: string
-  ) {
-    return this.publicService.getConsolidatedBill(slug, tableId);
-  }
-
-  @Get('restaurants/:slug/table/:tableId/session-bill')
-  async getSessionBill(
-    @Param('slug') slug: string,
-    @Param('tableId') tableId: string
-  ) {
-    // Find active session for this table
-    const session = await this.customerSessionsService.findActiveSessionByTable(
-      tableId
-    );
-    if (!session) {
-      throw new Error('No active session found for this table');
-    }
-
-    // Use universal billing calculator
-    return this.billCalculatorService.calculateSessionBill(session.sessionId);
-  }
-
-  @Get('restaurants/:slug/session/:sessionId/bill')
-  async getSessionBillBySessionId(
-    @Param('slug') slug: string,
-    @Param('sessionId') sessionId: string
-  ) {
-    // Verify the restaurant slug matches the session's restaurant
-    const restaurant = await this.publicService.getRestaurantBySlug(slug);
-    const session = await this.customerSessionsService.findBySessionId(
-      sessionId
-    );
-
-    if (!session) {
-      throw new Error('Session not found');
-    }
-
-    console.log(`Session found for sessionId ${sessionId}:`, session);
-    console.log(`Verifying session belongs to restaurant ${restaurant.id}`);
-
-    if (session.restaurantId?.toString() !== restaurant.id) {
-      throw new Error('Session does not belong to this restaurant');
-    }
-
-    // Get the session with complete bill calculation using the same format as table bill
-    return this.publicService.getSessionBill(sessionId);
-  }
-
   @Post('account-deletion-request')
   async submitAccountDeletionRequest(
     @Body()

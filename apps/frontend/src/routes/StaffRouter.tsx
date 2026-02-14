@@ -27,6 +27,10 @@ const RoleBasedRedirect = () => {
     return <Navigate to="/kitchen" replace />;
   } else if (roles.includes('waiter') || roles.includes('cashier')) {
     return <Navigate to="/service" replace />;
+  } else if (roles.includes('manager') || roles.includes('owner')) {
+    // Redirect managers and owners to the main dashboard
+    window.location.href = '/';
+    return null;
   } else {
     return <Navigate to="/forbidden" replace />;
   }

@@ -458,9 +458,10 @@ export default function OrdersPage() {
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateOrderPayment] = useUpdateOrderPaymentMutation();
 
-  // Sessions query
-  const sessionQueryArgs = restaurantId ? {
+  // Sessions query - must include branchId for branch filtering
+  const sessionQueryArgs = restaurantId && branchId ? {
     restaurantId,
+    branchId, // Add branch filtering for sessions
     status: sessionStatus !== 'all' ? (sessionStatus as CustomerSession['status']) : undefined,
     page: 1,
     limit: 20,

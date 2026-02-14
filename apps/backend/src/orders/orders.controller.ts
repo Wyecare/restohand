@@ -174,7 +174,11 @@ export class OrdersController {
       }
     }
 
-    const createdOrder = await this.ordersService.create(restaurantId, orderDto, branchId);
+    const createdOrder = await this.ordersService.create(
+      restaurantId,
+      orderDto,
+      branchId
+    );
 
     this.logger.log(`🎉 DEBUG: Order created successfully`, {
       orderId: createdOrder.id,
@@ -244,12 +248,36 @@ export class OrdersController {
   @Get('history')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 20)' })
-  @ApiQuery({ name: 'from', required: false, description: 'Start date (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'to', required: false, description: 'End date (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'search', required: false, description: 'Search by order number, customer name, or table number' })
-  @ApiQuery({ name: 'tableNumber', required: false, description: 'Filter by table number' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Items per page (default: 20)',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    description: 'Start date (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    description: 'End date (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by order number, customer name, or table number',
+  })
+  @ApiQuery({
+    name: 'tableNumber',
+    required: false,
+    description: 'Filter by table number',
+  })
   @ApiOkResponse({
     description: 'Order history with session information',
     schema: {
@@ -277,11 +305,11 @@ export class OrdersController {
                   sessionStarted: { type: 'string' },
                   sessionCompleted: { type: 'string' },
                   totalSessionAmount: { type: 'number' },
-                  orderCount: { type: 'number' }
-                }
-              }
-            }
-          }
+                  orderCount: { type: 'number' },
+                },
+              },
+            },
+          },
         },
         pagination: {
           type: 'object',
@@ -289,16 +317,17 @@ export class OrdersController {
             page: { type: 'number' },
             limit: { type: 'number' },
             total: { type: 'number' },
-            pages: { type: 'number' }
-          }
-        }
-      }
-    }
+            pages: { type: 'number' },
+          },
+        },
+      },
+    },
   })
   @Roles(UserRole.Manager, UserRole.Waiter, UserRole.Cashier)
   async getOrderHistory(
     @Param('restaurantId') restaurantId: string,
-    @Query() query: {
+    @Query()
+    query: {
       page?: number;
       limit?: number;
       from?: string;
@@ -309,7 +338,11 @@ export class OrdersController {
     @Req() req: Request
   ) {
     const user = req.user as AuthenticatedUser;
-    return this.ordersService.getOrderHistory(restaurantId, query, user.branchId);
+    return this.ordersService.getOrderHistory(
+      restaurantId,
+      query,
+      user.branchId
+    );
   }
 
   @Get(':orderId')
@@ -724,34 +757,6 @@ export class OrdersController {
     @Param('orderId') orderId: string
   ) {
     return this.ordersService.listEvents(restaurantId, orderId);
-  }
-
-  @Get(':orderId/bill')
-  @ApiParam({ name: 'restaurantId' })
-  @ApiParam({ name: 'orderId' })
-  @ApiOkResponse({
-    description: 'Generate final bill for the order',
-    schema: {
-      properties: {
-        orderId: { type: 'string' },
-        orderNumber: { type: 'string' },
-        items: { type: 'array' },
-        subtotal: { type: 'number' },
-        taxAmount: { type: 'number' },
-        cgstAmount: { type: 'number' },
-        sgstAmount: { type: 'number' },
-        igstAmount: { type: 'number' },
-        totalAmount: { type: 'number' },
-        billGeneratedAt: { type: 'string' },
-        paymentStatus: { type: 'string' },
-      },
-    },
-  })
-  async generateBill(
-    @Param('restaurantId') restaurantId: string,
-    @Param('orderId') orderId: string
-  ) {
-    return this.ordersService.generateBill(restaurantId, orderId);
   }
 
   // ============= CUSTOMER CART & PAYMENT ENDPOINTS =============
@@ -1190,7 +1195,7 @@ export class OrdersController {
       throw new BadRequestException('No orders found for this session');
     }
 
-    const orderIds = sessionOrders.map(order => order.id);
+    const orderIds = sessionOrders.map((order) => order.id);
 
     // Use existing receipt creation functionality
     return this.ordersService.createReceiptDocument(
@@ -1212,7 +1217,10 @@ export class OrdersController {
   async generateSessionReceiptQr(
     @Param('restaurantId') restaurantId: string,
     @Body()
-    { customerSessionId, tableNumber }: { customerSessionId: string; tableNumber?: string }
+    {
+      customerSessionId,
+      tableNumber,
+    }: { customerSessionId: string; tableNumber?: string }
   ) {
     console.log('DEBUG generateSessionReceiptQr:', {
       restaurantId,
@@ -1264,10 +1272,9 @@ export class OrdersController {
       'http://localhost:4200';
 
     // Use session-based receipt URL with restaurant slug and session ID
-    const receiptUrl = `${baseUrl.replace(
-      /\/$/,
-      ''
-    )}/session-receipt/${restaurant.slug}/${customerSessionId}`;
+    const receiptUrl = `${baseUrl.replace(/\/$/, '')}/session-receipt/${
+      restaurant.slug
+    }/${customerSessionId}`;
 
     const qrCodeDataUrl = await QRCode.toDataURL(receiptUrl, {
       errorCorrectionLevel: 'M',
@@ -1278,7 +1285,7 @@ export class OrdersController {
 
     return {
       customerSessionId,
-      orderIds: sessionOrders.map(order => order.id),
+      orderIds: sessionOrders.map((order) => order.id),
       orderNumbers: sessionOrders.map((o) => o.orderNumber),
       tableNumber: tableNumber || firstOrder?.tableNumber,
       tableId: tableId,
@@ -1301,23 +1308,29 @@ export class OrdersController {
     @Body() { tableId, tableNumber }: { tableId?: string; tableNumber?: string }
   ) {
     if (!tableId && !tableNumber) {
-      throw new BadRequestException('Either tableId or tableNumber must be provided');
+      throw new BadRequestException(
+        'Either tableId or tableNumber must be provided'
+      );
     }
 
     // Find the table first
     let table = null;
 
     if (tableId) {
-      table = await this.tableModel.findOne({
-        _id: tableId,
-        isActive: true,
-      }).lean();
+      table = await this.tableModel
+        .findOne({
+          _id: tableId,
+          isActive: true,
+        })
+        .lean();
     } else if (tableNumber) {
-      table = await this.tableModel.findOne({
-        restaurantId,
-        tableNumber: tableNumber.trim(),
-        isActive: true,
-      }).lean();
+      table = await this.tableModel
+        .findOne({
+          restaurantId,
+          tableNumber: tableNumber.trim(),
+          isActive: true,
+        })
+        .lean();
     }
 
     if (!table) {
@@ -1325,9 +1338,10 @@ export class OrdersController {
     }
 
     // Check for existing active session for this table
-    const existingSession = await this.customerSessionsService.findActiveSessionByTable(
-      table._id.toString()
-    );
+    const existingSession =
+      await this.customerSessionsService.findActiveSessionByTable(
+        table._id.toString()
+      );
 
     if (existingSession) {
       return {
@@ -1339,12 +1353,13 @@ export class OrdersController {
     }
 
     // Create new session using restaurant ID
-    const session = await this.customerSessionsService.createSessionByRestaurantId(
-      restaurantId,
-      table._id.toString(),
-      'Staff App', // userAgent
-      'internal' // ipAddress
-    );
+    const session =
+      await this.customerSessionsService.createSessionByRestaurantId(
+        restaurantId,
+        table._id.toString(),
+        'Staff App', // userAgent
+        'internal' // ipAddress
+      );
 
     return {
       sessionId: session.sessionId,
@@ -1352,21 +1367,6 @@ export class OrdersController {
       tableId: table._id.toString(),
       tableNumber: table.tableNumber,
     };
-  }
-
-  @Get('table/:tableId/consolidated-bill')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
-  @ApiParam({ name: 'restaurantId' })
-  @ApiParam({ name: 'tableId' })
-  @ApiOkResponse({
-    description: 'Consolidated bill for table session (admin version)',
-  })
-  async getAdminConsolidatedBill(
-    @Param('restaurantId') restaurantId: string,
-    @Param('tableId') tableId: string
-  ) {
-    return this.ordersService.getAdminConsolidatedBill(restaurantId, tableId);
   }
 
   @Post('combined-receipt-qr')

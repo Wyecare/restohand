@@ -137,6 +137,7 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       providesTags: (result, error, params) => [
         { type: 'CustomerSession', id: 'LIST' },
         { type: 'CustomerSession', id: `LIST-${params.restaurantId}` },
+        ...(params.branchId ? [{ type: 'CustomerSession' as const, id: `LIST-${params.restaurantId}-${params.branchId}` }] : []),
       ],
     }),
 
@@ -153,6 +154,11 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       invalidatesTags: (result, error, { tableId }) => [
         { type: 'CustomerSession', id: 'LIST' },
         { type: 'CustomerSession', id: tableId },
+        // Invalidate all branch-specific lists since we don't know which branch this table belongs to
+        ...(result ? [
+          { type: 'CustomerSession' as const, id: `LIST-${result.restaurantId}` },
+          ...(result.branchId ? [{ type: 'CustomerSession' as const, id: `LIST-${result.restaurantId}-${result.branchId}` }] : [])
+        ] : [])
       ],
     }),
 
@@ -204,6 +210,7 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (result, error, { sessionId }) => [
         { type: 'CustomerSession', id: sessionId },
+        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
         { type: 'Bill', id: sessionId },
       ],
     }),
@@ -220,6 +227,7 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (result, error, { sessionId }) => [
         { type: 'CustomerSession', id: sessionId },
+        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
         { type: 'Bill', id: sessionId },
       ],
     }),

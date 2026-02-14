@@ -147,6 +147,16 @@ const LoginPage = () => {
             </Button>
           </form>
         </CardContent>
+        <CardFooter>
+          <div className="flex w-full flex-col gap-2 text-center text-xs text-muted-foreground">
+            <p>Don't have an account? </p>
+            <div className="flex justify-center gap-4">
+              <Link to="/register" className="text-primary hover:underline">
+                Create account
+              </Link>
+            </div>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   );

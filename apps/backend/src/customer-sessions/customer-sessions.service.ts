@@ -393,6 +393,9 @@ export class CustomerSessionsService {
     if (query.branchId) filter.branchId = query.branchId;
     if (query.tableId) filter.tableId = query.tableId;
 
+    // Only return sessions that have orders
+    filter.totalOrders = { $gt: 0 };
+
     if (query.startDate && query.endDate) {
       filter.createdAt = {
         $gte: new Date(query.startDate),

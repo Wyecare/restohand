@@ -120,20 +120,11 @@ export class StaffInvitationService {
       );
     }
 
-    // Check for existing active invitation
-    const existingInvitation = await this.invitationModel.findOne({
+    // Delete any existing invitations for this email (used or unused, expired or active)
+    await this.invitationModel.deleteMany({
       restaurantId: actor.restaurantId,
-      branchId: dto.branchId,
       email: dto.email,
-      isUsed: false,
-      expiresAt: { $gt: new Date() },
     });
-
-    if (existingInvitation) {
-      throw new ConflictException(
-        'Active invitation already exists for this email'
-      );
-    }
 
     // Get restaurant info for email
     const restaurant = await this.restaurantModel.findById(actor.restaurantId);
@@ -212,18 +203,20 @@ export class StaffInvitationService {
       const invitation = await this.validateInvitation(invitationToken);
 
       // Get restaurant name
-      const restaurant = await this.restaurantModel.findById(invitation.restaurantId);
+      const restaurant = await this.restaurantModel.findById(
+        invitation.restaurantId
+      );
 
       return {
         valid: true,
         email: invitation.email,
         role: invitation.role,
-        restaurantName: restaurant?.name || 'Unknown Restaurant'
+        restaurantName: restaurant?.name || 'Unknown Restaurant',
       };
     } catch (error: any) {
       return {
         valid: false,
-        message: error.message || 'Invalid or expired invitation token'
+        message: error.message || 'Invalid or expired invitation token',
       };
     }
   }
@@ -371,8 +364,10 @@ export class StaffInvitationService {
     }
 
     // Use staff-specific frontend URL for staff invitations
-    const staffFrontendUrl = this.configService.get<string>('STAFF_FRONTEND_URL');
-    const fallbackFrontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
+    const staffFrontendUrl =
+      this.configService.get<string>('STAFF_FRONTEND_URL');
+    const fallbackFrontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
 
     const frontendUrl = staffFrontendUrl || fallbackFrontendUrl;
     const invitationUrl = `${frontendUrl}/staff-invite-signup?token=${invitation.invitationToken}`;

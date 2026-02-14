@@ -77,7 +77,10 @@ export default function StaffInvitationForm({
 
   // Ensure branchId is set when currentBranch changes
   React.useEffect(() => {
-    if (currentBranch?._id && (!canAccessAllBranches || branches.length === 1)) {
+    if (
+      currentBranch?._id &&
+      (!canAccessAllBranches || branches.length === 1)
+    ) {
       form.setValue('branchId', currentBranch._id);
     }
   }, [currentBranch, canAccessAllBranches, branches.length, form]);
@@ -88,14 +91,10 @@ export default function StaffInvitationForm({
     branches,
     canAccessAllBranches,
     formBranchId: form.watch('branchId'),
-    formErrors: form.formState.errors
+    formErrors: form.formState.errors,
   });
 
   const onSubmit = async (data: InviteStaffForm) => {
-    console.log('🚀 Form submitted with data:', data);
-    console.log('🏢 Current branch:', currentBranch);
-    console.log('🌐 Can access all branches:', canAccessAllBranches);
-
     try {
       const payload = {
         name: data.name,
@@ -105,7 +104,6 @@ export default function StaffInvitationForm({
         role: data.role,
       };
 
-      console.log('📤 Sending payload:', payload);
       await createStaffInvitation(payload).unwrap();
 
       toast({
@@ -126,7 +124,7 @@ export default function StaffInvitationForm({
       toast({
         title: 'Failed to send invitation',
         description: error?.data?.message || 'Please try again',
-        variant: 'destructive',
+        variant: 'default',
       });
     }
   };
@@ -196,7 +194,7 @@ export default function StaffInvitationForm({
                 <FormItem>
                   <FormLabel>Phone Number (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="+919876543210" {...field} />
+                    <Input placeholder="9876543210" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -234,7 +232,9 @@ export default function StaffInvitationForm({
                 <div className="space-y-2">
                   <FormLabel>Branch</FormLabel>
                   <div className="p-3 bg-muted rounded-md border">
-                    <span className="text-sm font-medium">{currentBranch.name}</span>
+                    <span className="text-sm font-medium">
+                      {currentBranch.name}
+                    </span>
                     <span className="text-xs text-muted-foreground ml-2">
                       (Your assigned branch)
                     </span>
