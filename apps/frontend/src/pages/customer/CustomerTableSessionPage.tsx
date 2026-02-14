@@ -5,7 +5,6 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { restaurantsApi } from '@/store/api/restaurantsApi';
 import { generateProfessionalInvoicePDF } from '@/components/ProfessionalInvoicePDF';
 
 // Helper function to convert numbers to words
@@ -546,8 +545,6 @@ export default function CustomerTableSessionPage() {
   const [createSessionPaymentIntent, { isLoading: isCreatingPayment }] =
     useCreateCashfreeSessionPaymentIntentMutation();
   const [verifyPayment] = useVerifyPaymentMutation();
-  const [getConsolidatedBill] =
-    restaurantsApi.useLazyGetConsolidatedBillQuery();
 
   const [showOrderDetails, setShowOrderDetails] = useState<string | null>(null);
 
@@ -655,10 +652,12 @@ export default function CustomerTableSessionPage() {
 
   const handleSessionPayment = async () => {
     const sessionTableId = session?.tableId || tableId;
-    if (!sessionTableId) {
+    const currentSessionId = sessionData?.session?.sessionId || sessionId;
+
+    if (!sessionTableId || !currentSessionId) {
       toast({
         title: 'Error',
-        description: 'Table ID not found',
+        description: 'Session information not found',
         variant: 'destructive',
       });
       return;
@@ -667,21 +666,17 @@ export default function CustomerTableSessionPage() {
     try {
       console.log(
         'Creating payment intent for session:',
-        sessionId,
+        currentSessionId,
         'tableId:',
-        tableId
+        sessionTableId
       );
-      const billResult = await getConsolidatedBill({
-        slug,
-        tableId: sessionTableId,
-      });
 
+      // Create session payment intent directly (backend handles bill calculation)
       const paymentData = await createSessionPaymentIntent({
         slug,
         tableId: sessionTableId,
         sessionData: {
-          customerSessionId:
-            sessionData?.session?.sessionId || `session_${Date.now()}`,
+          customerSessionId: currentSessionId,
           customerDetails: {
             customerName: 'Table Customer',
             customerEmail: 'customer@example.com',
@@ -691,15 +686,14 @@ export default function CustomerTableSessionPage() {
       }).unwrap();
 
       try {
-        const billData = 'data' in billResult ? billResult.data : null;
         localStorage.setItem(
           'lastPaymentSession',
           JSON.stringify({
             slug,
+            sessionId: currentSessionId,
             tableId: sessionTableId,
             orderIds: paymentData.orderIds,
             totalAmount: paymentData.totalAmount,
-            billData,
             timestamp: new Date().toISOString(),
             paymentProvider: 'cashfree',
           })

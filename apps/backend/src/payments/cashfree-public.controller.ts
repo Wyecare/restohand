@@ -108,8 +108,8 @@ export class CashfreePublicController {
   async createSessionPaymentIntent(
     @Param('slug') restaurantSlug: string,
     @Param('tableId') tableId: string,
-    @Body() body?: {
-      customerSessionId?: string;
+    @Body() body: {
+      customerSessionId: string; // Required for session-based payment
       customerDetails?: {
         customerId?: string;
         customerName?: string;
@@ -122,8 +122,8 @@ export class CashfreePublicController {
       const dto: CreateSessionPaymentIntentDto = {
         restaurantSlug,
         tableId,
-        customerSessionId: body?.customerSessionId,
-        customerDetails: body?.customerDetails
+        customerSessionId: body.customerSessionId,
+        customerDetails: body.customerDetails
       };
 
       return await this.cashfreePaymentService.createSessionPaymentIntent(dto);

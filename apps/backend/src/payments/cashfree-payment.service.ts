@@ -31,7 +31,7 @@ export interface CreatePaymentIntentDto {
 export interface CreateSessionPaymentIntentDto {
   restaurantSlug: string;
   tableId: string;
-  customerSessionId?: string;
+  customerSessionId: string; // Required for session-based payment
   customerDetails?: {
     customerId?: string;
     customerName?: string;
@@ -234,7 +234,7 @@ export class CashfreePaymentService {
   ): Promise<SessionPaymentIntentResponse> {
     try {
       this.logger.log(
-        `Creating session payment intent for restaurant: ${dto.restaurantSlug}, table: ${dto.tableId}`
+        `Creating session payment intent for restaurant: ${dto.restaurantSlug}, session: ${dto.customerSessionId}`
       );
 
       // Get restaurant
@@ -247,17 +247,17 @@ export class CashfreePaymentService {
         );
       }
 
-      // Get all unpaid orders for the table session
+      // Get all unpaid orders for the specific customer session
       const unpaidOrders = await this.orderModel.find({
         restaurantId: restaurant.id,
-        tableId: dto.tableId,
+        customerSessionId: dto.customerSessionId, // Session-specific orders only
         status: { $in: ['pending', 'confirmed', 'preparing', 'ready'] }, // Orders ready for payment
         paymentStatus: { $ne: 'paid' },
       });
 
       if (unpaidOrders.length === 0) {
         throw new BadRequestException(
-          'No unpaid orders found for this table session'
+          'No unpaid orders found for this customer session'
         );
       }
 
@@ -324,9 +324,9 @@ export class CashfreePaymentService {
       const canReceiveSettlements =
         await this.cashfreeVendorService.canReceiveSettlements(restaurant.id);
 
-      // Create session order ID
+      // Create session order ID based on customerSessionId
       const sessionOrderId = `session_${dto.restaurantSlug}_${
-        dto.tableId
+        dto.customerSessionId
       }_${Date.now()}`;
 
       // Create Cashfree order for consolidated payment
@@ -353,7 +353,7 @@ export class CashfreePaymentService {
             'BACKEND_URL'
           )}/webhooks/cashfree/payments`,
         },
-        orderNote: `RestoHand Session Payment - ${restaurant.name} - Table ${dto.tableId} (${unpaidOrders.length} orders)`,
+        orderNote: `RestoHand Session Payment - ${restaurant.name} - Session ${dto.customerSessionId} (${unpaidOrders.length} orders)`,
       });
 
       // Update all orders with session payment metadata
