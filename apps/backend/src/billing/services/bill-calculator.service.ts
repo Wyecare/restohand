@@ -672,25 +672,26 @@ export class BillCalculatorService {
    * Update session billing totals based on calculation
    */
   async updateSessionBillingTotals(sessionId: string): Promise<void> {
-    const billCalculation = await this.calculateSessionBill(sessionId);
+    // Use the detailed session bill calculation which includes proper mixed tax calculations
+    const detailedBillCalculation = await this.calculateDetailedSessionBill(sessionId, true);
 
     await this.sessionModel.findOneAndUpdate(
       { sessionId },
       {
         $set: {
-          totalOrders: billCalculation.orderCount,
-          totalAmount: billCalculation.totalAmount,
-          subTotalAmount: billCalculation.subTotalAmount,
-          taxAmount: billCalculation.taxAmount,
-          cgstAmount: billCalculation.cgstAmount,
-          sgstAmount: billCalculation.sgstAmount,
-          igstAmount: billCalculation.igstAmount,
-          discountAmount: billCalculation.discountAmount,
-          roundOffAmount: billCalculation.roundOffAmount,
-          paidAmount: billCalculation.paidAmount,
-          pendingAmount: billCalculation.pendingAmount,
-          allOrdersPaid: billCalculation.pendingAmount === 0,
-          taxType: billCalculation.taxType,
+          totalOrders: detailedBillCalculation.orderBreakdown?.length || 0,
+          totalAmount: detailedBillCalculation.totalAmount, // This will include all taxes, VAT, GST, and branch charges
+          subTotalAmount: detailedBillCalculation.subTotalAmount,
+          taxAmount: detailedBillCalculation.taxAmount,
+          cgstAmount: detailedBillCalculation.cgstAmount,
+          sgstAmount: detailedBillCalculation.sgstAmount,
+          igstAmount: detailedBillCalculation.igstAmount,
+          discountAmount: detailedBillCalculation.discountAmount,
+          roundOffAmount: detailedBillCalculation.roundOffAmount,
+          paidAmount: detailedBillCalculation.paidAmount,
+          pendingAmount: detailedBillCalculation.pendingAmount,
+          allOrdersPaid: detailedBillCalculation.pendingAmount === 0,
+          taxType: detailedBillCalculation.taxType,
           lastActivityAt: new Date(),
         },
       },

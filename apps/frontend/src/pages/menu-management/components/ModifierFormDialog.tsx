@@ -6,8 +6,6 @@ import {
   Plus,
   Trash2,
   GripVertical,
-  Check,
-  ChevronsUpDown,
 } from 'lucide-react';
 import {
   Dialog,
@@ -36,19 +34,6 @@ import {
 } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import {
   useCreateMenuModifierForBranchMutation,
@@ -83,7 +68,6 @@ const modifierFormSchema = z
       .min(1, 'At least one option is required'),
     isActive: z.boolean().default(true),
     displayOrder: z.number().min(0).default(0),
-    applicableMenuItems: z.array(z.string()).default([]),
   })
   .refine((data) => data.minSelections <= data.maxSelections, {
     message: 'Minimum selections cannot exceed maximum selections',
@@ -144,7 +128,6 @@ export function ModifierFormDialog({
   });
   const menuItems = menuItemsData?.data || [];
 
-  const [isMenuItemSelectorOpen, setIsMenuItemSelectorOpen] = useState(false);
 
   const form = useForm<ModifierFormData>({
     resolver: zodResolver(modifierFormSchema),
@@ -168,7 +151,6 @@ export function ModifierFormDialog({
       ],
       isActive: true,
       displayOrder: 0,
-      applicableMenuItems: [],
     },
   });
 
@@ -200,7 +182,6 @@ export function ModifierFormDialog({
         })),
         isActive: modifier.isActive,
         displayOrder: modifier.displayOrder,
-        applicableMenuItems: modifier.applicableMenuItems || [],
       });
     } else {
       form.reset({
@@ -223,7 +204,6 @@ export function ModifierFormDialog({
         ],
         isActive: true,
         displayOrder: 0,
-        applicableMenuItems: [],
       });
     }
   }, [modifier, form]);
@@ -654,130 +634,6 @@ export function ModifierFormDialog({
               </AccordionContent>
             </AccordionItem>
 
-            {/* Menu Items */}
-            <AccordionItem
-              value="menu-items"
-              className="border rounded-lg px-4"
-            >
-              <AccordionTrigger className="text-base font-semibold hover:no-underline">
-                Apply to Menu Items ({form.watch('applicableMenuItems').length}{' '}
-                selected)
-              </AccordionTrigger>
-              <AccordionContent className="pt-4 pb-2">
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Choose which menu items this modifier should be available
-                    for
-                  </p>
-
-                  <Popover
-                    open={isMenuItemSelectorOpen}
-                    onOpenChange={setIsMenuItemSelectorOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={isMenuItemSelectorOpen}
-                        className="w-full justify-between h-12"
-                      >
-                        <span className="truncate">
-                          {form.watch('applicableMenuItems').length === 0
-                            ? 'Select menu items...'
-                            : `${
-                                form.watch('applicableMenuItems').length
-                              } item${
-                                form.watch('applicableMenuItems').length === 1
-                                  ? ''
-                                  : 's'
-                              } selected`}
-                        </span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0">
-                      <Command>
-                        <CommandInput placeholder="Search menu items..." />
-                        <CommandEmpty>No menu items found.</CommandEmpty>
-                        <CommandGroup className="max-h-60 overflow-auto">
-                          {menuItems.map((item) => (
-                            <CommandItem
-                              key={item.id}
-                              onSelect={() => {
-                                const currentIds = form.getValues(
-                                  'applicableMenuItems'
-                                );
-                                const isSelected = currentIds.includes(item.id);
-
-                                if (isSelected) {
-                                  form.setValue(
-                                    'applicableMenuItems',
-                                    currentIds.filter((id) => id !== item.id)
-                                  );
-                                } else {
-                                  form.setValue('applicableMenuItems', [
-                                    ...currentIds,
-                                    item.id,
-                                  ]);
-                                }
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  'mr-2 h-4 w-4',
-                                  form
-                                    .watch('applicableMenuItems')
-                                    .includes(item.id)
-                                    ? 'opacity-100'
-                                    : 'opacity-0'
-                                )}
-                              />
-                              <div>
-                                <div className="font-medium">{item.name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  ₹{item.pricing?.amount}
-                                </div>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-
-                  {form.watch('applicableMenuItems').length > 0 && (
-                    <div>
-                      <Label className="text-sm mb-2 block">
-                        Selected Items:
-                      </Label>
-                      <div className="flex flex-wrap gap-2">
-                        {form.watch('applicableMenuItems').map((itemId) => {
-                          const item = menuItems?.find((i) => i.id === itemId);
-                          return item ? (
-                            <Badge
-                              key={itemId}
-                              variant="secondary"
-                              className="cursor-pointer"
-                              onClick={() => {
-                                const currentIds = form.getValues(
-                                  'applicableMenuItems'
-                                );
-                                form.setValue(
-                                  'applicableMenuItems',
-                                  currentIds.filter((id) => id !== itemId)
-                                );
-                              }}
-                            >
-                              {item.name} ×
-                            </Badge>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
           </Accordion>
 
           <DialogFooter className="gap-2">

@@ -256,20 +256,29 @@ function SessionCard({
                               </div>
                               {item.totalTaxAmount > 0 && (
                                 <div className="text-xs text-gray-500 mt-1">
-                                  GST ({item.gstRate}%) included:{' '}
-                                  {formatCurrency(item.totalTaxAmount)}
-                                  {item.cgstAmount > 0 &&
-                                    ` | CGST: ${formatCurrency(
-                                      item.cgstAmount
-                                    )}`}
-                                  {item.sgstAmount > 0 &&
-                                    ` | SGST: ${formatCurrency(
-                                      item.sgstAmount
-                                    )}`}
-                                  {item.igstAmount > 0 &&
-                                    ` | IGST: ${formatCurrency(
-                                      item.igstAmount
-                                    )}`}
+                                  {item.gstRate > 0 ? (
+                                    <>
+                                      GST ({item.gstRate}%) included:{' '}
+                                      {formatCurrency(item.totalTaxAmount)}
+                                      {item.cgstAmount > 0 &&
+                                        ` | CGST: ${formatCurrency(
+                                          item.cgstAmount
+                                        )}`}
+                                      {item.sgstAmount > 0 &&
+                                        ` | SGST: ${formatCurrency(
+                                          item.sgstAmount
+                                        )}`}
+                                      {item.igstAmount > 0 &&
+                                        ` | IGST: ${formatCurrency(
+                                          item.igstAmount
+                                        )}`}
+                                    </>
+                                  ) : (
+                                    <>
+                                      VAT (25%) included:{' '}
+                                      {formatCurrency(item.totalTaxAmount)}
+                                    </>
+                                  )}
                                 </div>
                               )}
                               {item.hsnCode && (
@@ -344,29 +353,120 @@ function SessionCard({
                       <span>Subtotal</span>
                       <span>{formatCurrency(detailedBill.subTotalAmount)}</span>
                     </div>
-                    {detailedBill.cgstAmount > 0 && (
-                      <div className="flex justify-between">
-                        <span>CGST</span>
-                        <span>{formatCurrency(detailedBill.cgstAmount)}</span>
-                      </div>
+
+                    {/* Branch Charges - Dynamic Display */}
+                    {detailedBill.branchCharges && detailedBill.branchCharges.length > 0 && (
+                      <>
+                        {detailedBill.branchCharges.map((charge, index) => {
+                          let chargeName = charge.name;
+                          if (charge.type === 'percentage') {
+                            chargeName += ` (${charge.value}%)`;
+                          }
+
+                          return (
+                            <div key={index} className="flex justify-between">
+                              <span>{chargeName}</span>
+                              <span>{formatCurrency(charge.amount)}</span>
+                            </div>
+                          );
+                        })}
+                      </>
                     )}
-                    {detailedBill.sgstAmount > 0 && (
-                      <div className="flex justify-between">
-                        <span>SGST</span>
-                        <span>{formatCurrency(detailedBill.sgstAmount)}</span>
-                      </div>
-                    )}
-                    {detailedBill.igstAmount > 0 && (
-                      <div className="flex justify-between">
-                        <span>IGST</span>
-                        <span>{formatCurrency(detailedBill.igstAmount)}</span>
-                      </div>
-                    )}
+
+                    {/* Dynamic Tax breakdown - handle both mixed and simple tax scenarios */}
                     {detailedBill.taxAmount > 0 && (
-                      <div className="flex justify-between font-medium">
-                        <span>Total Tax</span>
-                        <span>{formatCurrency(detailedBill.taxAmount)}</span>
-                      </div>
+                      <>
+                        {/* Check if we have category-wise tax calculations */}
+                        {detailedBill.categoryCalculations && detailedBill.categoryCalculations.length > 0 ? (
+                          <>
+                            {/* Category-wise tax breakdown */}
+                            {detailedBill.categoryCalculations.map((categoryCalc, index) => {
+                              if (categoryCalc.totalTaxAmount === 0) return null;
+
+                              const categoryName = categoryCalc.category
+                                .replace('_', ' ')
+                                .replace(/\b\w/g, (l) => l.toUpperCase());
+
+                              const taxTypeLabel = categoryCalc.taxType === 'vat' ? 'VAT' : 'GST';
+                              const taxRate =
+                                categoryCalc.taxType === 'gst'
+                                  ? categoryCalc.gstRate
+                                  : categoryCalc.vatRate;
+
+                              const displayText = `${categoryName} ${taxTypeLabel}${
+                                taxRate ? ` (${taxRate}%)` : ''
+                              }`;
+
+                              return (
+                                <div key={index} className="flex justify-between">
+                                  <span>{displayText}</span>
+                                  <span>{formatCurrency(categoryCalc.totalTaxAmount)}</span>
+                                </div>
+                              );
+                            })}
+
+                            {/* GST breakdown if GST items exist */}
+                            {(detailedBill.totalGstAmount || 0) > 0 &&
+                             (detailedBill.cgstAmount > 0 || detailedBill.sgstAmount > 0 || detailedBill.igstAmount > 0) && (
+                              <>
+                                <div className="flex justify-between font-medium text-gray-700 pt-1">
+                                  <span>GST Breakdown</span>
+                                  <span></span>
+                                </div>
+
+                                {detailedBill.cgstAmount > 0 && (
+                                  <div className="flex justify-between pl-4">
+                                    <span>CGST</span>
+                                    <span>{formatCurrency(detailedBill.cgstAmount)}</span>
+                                  </div>
+                                )}
+
+                                {detailedBill.sgstAmount > 0 && (
+                                  <div className="flex justify-between pl-4">
+                                    <span>SGST</span>
+                                    <span>{formatCurrency(detailedBill.sgstAmount)}</span>
+                                  </div>
+                                )}
+
+                                {detailedBill.igstAmount > 0 && (
+                                  <div className="flex justify-between pl-4">
+                                    <span>IGST</span>
+                                    <span>{formatCurrency(detailedBill.igstAmount)}</span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {/* Original simple GST breakdown for backward compatibility */}
+                            {detailedBill.cgstAmount > 0 && (
+                              <div className="flex justify-between">
+                                <span>CGST</span>
+                                <span>{formatCurrency(detailedBill.cgstAmount)}</span>
+                              </div>
+                            )}
+                            {detailedBill.sgstAmount > 0 && (
+                              <div className="flex justify-between">
+                                <span>SGST</span>
+                                <span>{formatCurrency(detailedBill.sgstAmount)}</span>
+                              </div>
+                            )}
+                            {detailedBill.igstAmount > 0 && (
+                              <div className="flex justify-between">
+                                <span>IGST</span>
+                                <span>{formatCurrency(detailedBill.igstAmount)}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Total tax - always show */}
+                        <div className="flex justify-between font-medium">
+                          <span>Total Tax</span>
+                          <span>{formatCurrency(detailedBill.taxAmount)}</span>
+                        </div>
+                      </>
                     )}
                     {detailedBill.discountAmount > 0 && (
                       <div className="flex justify-between">

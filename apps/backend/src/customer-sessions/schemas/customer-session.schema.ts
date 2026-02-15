@@ -102,7 +102,13 @@ export const CustomerSessionSchema = SchemaFactory.createForClass(CustomerSessio
 
 // Indexes for efficient queries
 CustomerSessionSchema.index({ restaurantId: 1, tableId: 1, status: 1 });
-CustomerSessionSchema.index({ tableId: 1, customerNumber: 1 }, { unique: true }); // Unique customer number per table
+CustomerSessionSchema.index(
+  { tableId: 1, customerNumber: 1, status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: 'active' } // Only apply unique constraint to active sessions
+  }
+);
 CustomerSessionSchema.index({ branchId: 1, status: 1 });
 CustomerSessionSchema.index({ expiresAt: 1 }); // For auto-cleanup
 CustomerSessionSchema.index({ sessionId: 1 }, { unique: true });

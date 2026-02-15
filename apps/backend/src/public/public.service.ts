@@ -159,10 +159,11 @@ export class PublicService {
 
     // Helper function to get modifiers and active price tag for an item
     const getItemEnhancements = (itemId: string, menuItem: any) => {
-      // Find applicable modifiers for this item
+      // Find applicable modifiers for this item using the menu item's applicableModifiers field
+      const applicableModifierIds = menuItem.applicableModifiers || [];
+      const applicableModifierIdsStr = applicableModifierIds.map(id => id.toString());
       const applicableModifiers = modifiers.filter(modifier =>
-        (modifier.applicableMenuItems && modifier.applicableMenuItems.some(id => id.toString() === itemId)) ||
-        (!modifier.applicableMenuItems || modifier.applicableMenuItems.length === 0) // If no specific items, applies to all
+        applicableModifierIdsStr.includes(modifier._id.toString())
       ).map(modifier => ({
         id: modifier._id.toString(),
         name: modifier.name,

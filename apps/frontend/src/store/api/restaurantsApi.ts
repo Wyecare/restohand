@@ -75,6 +75,43 @@ export interface CreateMenuItemPayload {
   imageUrls?: string[];
   hsnCode?: string;
   gstRateId?: string;
+  // Enhanced POS Features
+  nutritionalInfo?: {
+    calories?: number;
+    protein?: number;
+    carbohydrates?: number;
+    fat?: number;
+    fiber?: number;
+    sugar?: number;
+    sodium?: number;
+    servingSize?: string;
+  };
+  ingredients?: Array<{
+    name: string;
+    quantity?: string;
+    allergens?: string[];
+    isOptional?: boolean;
+    isOrganic?: boolean;
+    isVegan?: boolean;
+    isVegetarian?: boolean;
+    isGlutenFree?: boolean;
+    isDairyFree?: boolean;
+  }>;
+  dietaryInfo?: {
+    isVegan?: boolean;
+    isVegetarian?: boolean;
+    isGlutenFree?: boolean;
+    isDairyFree?: boolean;
+    isNutFree?: boolean;
+    isSpicy?: boolean;
+    isHalal?: boolean;
+    isKosher?: boolean;
+  };
+  applicableModifiers?: string[];
+  priceTagIds?: string[];
+  activePriceTagId?: string;
+  preparationTime?: string;
+  preparationInstructions?: string;
   gstRate?: number;
 }
 

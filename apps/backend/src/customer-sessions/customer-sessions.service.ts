@@ -170,12 +170,12 @@ export class CustomerSessionsService {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
 
-    // Get next customer number for this table
-    const existingSessions = await this.sessionModel.find({
+    // Get next customer number for this table (only count active sessions due to unique constraint)
+    const activeSessions = await this.sessionModel.find({
       tableId: dto.tableId,
-      status: { $in: [SessionStatus.ACTIVE, SessionStatus.CLOSED] },
+      status: SessionStatus.ACTIVE,
     });
-    const customerNumber = (existingSessions.length || 0) + 1;
+    const customerNumber = (activeSessions.length || 0) + 1;
 
     const session = await this.sessionModel.create({
       sessionId,

@@ -247,11 +247,8 @@ export function MenuItemFormDialog({
 
   useEffect(() => {
     if (menuItem) {
-      const assignedModifierIds = availableModifiers
-        .filter((modifier) =>
-          modifier.applicableMenuItems?.includes(menuItem.id)
-        )
-        .map((modifier) => modifier.id);
+      // Use the menu item's own applicableModifiers field instead of checking modifier's applicableMenuItems
+      const assignedModifierIds = menuItem.applicableModifiers || [];
 
       const assignedPriceTagIds = availablePriceTags
         .filter((priceTag) =>
@@ -367,8 +364,8 @@ export function MenuItemFormDialog({
       reader.onloadend = () => {
         newPreviews.push(reader.result as string);
         if (newPreviews.length === validFiles.length) {
-          setImagePreviews(prev => [...prev, ...newPreviews]);
-          setSelectedFiles(prev => [...prev, ...validFiles]);
+          setImagePreviews((prev) => [...prev, ...newPreviews]);
+          setSelectedFiles((prev) => [...prev, ...validFiles]);
         }
       };
       reader.readAsDataURL(file);
@@ -379,15 +376,19 @@ export function MenuItemFormDialog({
   };
 
   const removeNewImage = (index: number) => {
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const removeExistingImage = async (index: number) => {
     if (!restaurantId || !menuItem?.id) return;
 
     // Simple confirmation dialog
-    if (!confirm('Are you sure you want to remove this image? This action cannot be undone.')) {
+    if (
+      !confirm(
+        'Are you sure you want to remove this image? This action cannot be undone.'
+      )
+    ) {
       return;
     }
 
@@ -399,7 +400,7 @@ export function MenuItemFormDialog({
       }).unwrap();
 
       // Update local state after successful removal
-      setExistingImages(prev => prev.filter((_, i) => i !== index));
+      setExistingImages((prev) => prev.filter((_, i) => i !== index));
 
       toast({
         title: 'Success',
@@ -526,7 +527,7 @@ export function MenuItemFormDialog({
       if (selectedFiles.length > 0 && itemId) {
         try {
           await Promise.all(
-            selectedFiles.map(file =>
+            selectedFiles.map((file) =>
               uploadImage({
                 restaurantId,
                 itemId: itemId,
@@ -740,7 +741,9 @@ export function MenuItemFormDialog({
                         <>
                           <Upload className="h-6 w-6 text-muted-foreground" />
                           <p className="text-xs font-medium text-muted-foreground">
-                            {allImages.length === 0 ? 'Upload images' : 'Add more'}
+                            {allImages.length === 0
+                              ? 'Upload images'
+                              : 'Add more'}
                           </p>
                         </>
                       )}
@@ -751,7 +754,11 @@ export function MenuItemFormDialog({
                       accept="image/*"
                       multiple
                       onChange={handleImageUpload}
-                      disabled={isUploadingImage || isRemovingImage || allImages.length >= maxImages}
+                      disabled={
+                        isUploadingImage ||
+                        isRemovingImage ||
+                        allImages.length >= maxImages
+                      }
                       className="hidden"
                     />
                   </label>
@@ -1257,8 +1264,10 @@ export function MenuItemFormDialog({
                               </p>
                               <div className="space-y-1">
                                 {modifier.options
-                                  .filter(option => option.isAvailable)
-                                  .sort((a, b) => a.displayOrder - b.displayOrder)
+                                  .filter((option) => option.isAvailable)
+                                  .sort(
+                                    (a, b) => a.displayOrder - b.displayOrder
+                                  )
                                   .slice(0, 4) // Show first 4 options
                                   .map((option) => (
                                     <div
@@ -1266,7 +1275,9 @@ export function MenuItemFormDialog({
                                       className="flex items-center justify-between text-xs p-2 bg-background rounded border"
                                     >
                                       <div className="flex-1">
-                                        <span className="font-medium">{option.name}</span>
+                                        <span className="font-medium">
+                                          {option.name}
+                                        </span>
                                         {option.description && (
                                           <span className="text-muted-foreground ml-1">
                                             - {option.description}
@@ -1276,29 +1287,40 @@ export function MenuItemFormDialog({
                                       {option.priceAdjustment !== 0 && (
                                         <div className="ml-2">
                                           <Badge
-                                            variant={option.priceAdjustment > 0 ? "default" : "secondary"}
+                                            variant={
+                                              option.priceAdjustment > 0
+                                                ? 'default'
+                                                : 'secondary'
+                                            }
                                             className="text-xs"
                                           >
-                                            {option.priceAdjustment > 0 ? '+' : ''}₹{option.priceAdjustment}
+                                            {option.priceAdjustment > 0
+                                              ? '+'
+                                              : ''}
+                                            ₹{option.priceAdjustment}
                                           </Badge>
                                         </div>
                                       )}
                                     </div>
                                   ))}
-                                {modifier.options.filter(option => option.isAvailable).length > 4 && (
+                                {modifier.options.filter(
+                                  (option) => option.isAvailable
+                                ).length > 4 && (
                                   <div className="text-xs text-muted-foreground text-center py-1">
-                                    +{modifier.options.filter(option => option.isAvailable).length - 4} more options
+                                    +
+                                    {modifier.options.filter(
+                                      (option) => option.isAvailable
+                                    ).length - 4}{' '}
+                                    more options
                                   </div>
                                 )}
                               </div>
 
                               {/* Selection constraints */}
                               <div className="mt-2 text-xs text-muted-foreground">
-                                {modifier.selectionType === 'single' ? (
-                                  "Choose exactly 1 option"
-                                ) : (
-                                  `Choose ${modifier.minSelections}-${modifier.maxSelections} options`
-                                )}
+                                {modifier.selectionType === 'single'
+                                  ? 'Choose exactly 1 option'
+                                  : `Choose ${modifier.minSelections}-${modifier.maxSelections} options`}
                               </div>
                             </div>
                           )}
