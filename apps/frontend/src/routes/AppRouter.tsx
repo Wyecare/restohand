@@ -6,7 +6,6 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
-import OrdersPage from '@/pages/OrdersPage';
 import { MenuManagementPage } from '@/pages/menu-management/MenuManagementPage';
 import RestaurantSettingsPage from '@/pages/RestaurantSettingsPage';
 import SimpleGstSettingsPage from '@/pages/SimpleGstSettingsPage';
@@ -29,6 +28,8 @@ import CashfreeSubscriptionPage from '@/pages/CashfreeSubscriptionPage';
 import BranchManagementPage from '@/pages/BranchManagementPage';
 import KycManagementPage from '@/pages/KycManagementPage';
 import { PdfMenuExtractionTab } from '@/pages/menu-management/tabs/PdfMenuExtractionTab';
+import OrdersPage from '@/pages/orders/OrdersList';
+import SessionsPage from '@/pages/orders/SessionsPage';
 
 const AppRouter = () => {
   return (
@@ -81,7 +82,8 @@ const AppRouter = () => {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="orders" element={<OrdersPage />} />
+          <Route path="orders/list" element={<OrdersPage />} />
+          <Route path="orders/sessions" element={<SessionsPage />} />
           {/* Menu routes with nested structure */}
           <Route path="menu/*" element={<MenuManagementPage />} />
           <Route path="extract-menu" element={<PdfMenuExtractionTab />} />

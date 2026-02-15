@@ -210,9 +210,7 @@ export class MenuCategoriesService {
       displayOrder: doc.displayOrder,
       isActive: doc.isActive,
       imageUrl: doc.imageUrl,
-      defaultGstRateId: doc.defaultGstRateId,
-      defaultGstRate: doc.defaultGstRate,
-      gstCategoryType: doc.gstCategoryType,
+      foodCategory: doc.foodCategory,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };

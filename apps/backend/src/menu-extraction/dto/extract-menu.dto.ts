@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested, IsNumber, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -55,6 +55,16 @@ export class ExtractedCategoryDto {
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @ApiProperty({
+    description: 'Food category for tax classification',
+    enum: ['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream'],
+    example: 'cooked_food',
+    required: false,
+  })
+  @IsEnum(['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream'])
+  @IsOptional()
+  foodCategory?: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
 
   @ApiProperty({
     description: 'Items in this category',

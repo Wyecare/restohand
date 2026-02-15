@@ -35,7 +35,17 @@ import { skipToken } from '@reduxjs/toolkit/query/react';
 const categoryFormSchema = z.object({
   name: z.string().min(1, 'Category name is required'),
   description: z.string().optional(),
-  foodCategory: z.enum(['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream']).default('cooked_food'),
+  foodCategory: z
+    .enum([
+      'cooked_food',
+      'fresh_items',
+      'packaged_items',
+      'beverages',
+      'alcohol',
+      'sweets',
+      'ice_cream',
+    ])
+    .default('cooked_food'),
 });
 
 type CategoryFormData = z.infer<typeof categoryFormSchema>;
@@ -93,6 +103,7 @@ export function CategoryFormDialog({
 
   useEffect(() => {
     if (category) {
+      console.log('Editing category:', category);
       form.reset({
         name: category.name,
         description: category.description || '',
@@ -274,7 +285,9 @@ export function CategoryFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="foodCategory">Food Category (Tax Classification) *</Label>
+            <Label htmlFor="foodCategory">
+              Food Category (Tax Classification) *
+            </Label>
             <Controller
               name="foodCategory"
               control={form.control}

@@ -69,7 +69,8 @@
     "serviceBoard": "Service Board",
     "restaurant": "Restaurant",
     "gst": "GST & Tax",
-    "charges": "Charges & Fees"
+    "charges": "Charges & Fees",
+    "sessions": "Sessions"
   },
   "time": {
     "today": "Today",

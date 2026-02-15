@@ -65,7 +65,18 @@ const managerLinks: NavLink[] = [
     href: '/dashboard',
     icon: LayoutDashboard,
   },
-  { titleKey: 'navigation.orders', href: '/orders', icon: ShoppingBag },
+  // { titleKey: 'navigation.orders', href: '/orders', icon: ShoppingBag },
+  // Orders moving into sub menu oreders and sessions
+  {
+    titleKey: 'navigation.orders',
+    href: '/orders',
+    icon: ShoppingBag,
+    items: [
+      { titleKey: 'navigation.orders', href: '/orders/list' },
+      { titleKey: 'navigation.sessions', href: '/orders/sessions' },
+    ],
+  },
+
   {
     titleKey: 'navigation.menu',
     href: '/menu',
@@ -76,7 +87,7 @@ const managerLinks: NavLink[] = [
       { titleKey: 'navigation.priceTags', href: '/menu/price-tags' },
     ],
   },
-  { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
+  // { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
   { titleKey: 'navigation.branches', href: '/branches', icon: Building2 },
   // { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
   {
