@@ -8,7 +8,8 @@ import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
 import OrdersPage from '@/pages/OrdersPage';
 import { MenuManagementPage } from '@/pages/menu-management/MenuManagementPage';
-import SettingsPageNew from '@/pages/SettingsPageNew';
+import RestaurantSettingsPage from '@/pages/RestaurantSettingsPage';
+import SimpleGstSettingsPage from '@/pages/SimpleGstSettingsPage';
 import OnboardingPage from '@/pages/OnboardingPage';
 import StaffPage from '@/pages/StaffPage';
 import TablesRouter from '@/pages/tables/TablesRouter';
@@ -18,6 +19,7 @@ import ReportsPage from '@/pages/ReportsPage';
 import ReceiptPage from '@/pages/ReceiptPage';
 import ReceiptLookupPage from '@/pages/ReceiptLookupPage';
 import GstSetupWizard from '@/pages/GstSetupWizard';
+import ChargesSettingsPage from '@/pages/ChargesSettingsPage';
 import CustomerQrPage from '@/pages/CustomerQrPage';
 import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
 import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
@@ -47,7 +49,6 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
-
         <Route
           path="/register"
           element={
@@ -56,13 +57,11 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
-
         {/* Public receipt routes */}
         <Route path="/receipts" element={<ReceiptLookupPage />} />
         <Route path="/receipts/:orderNumber" element={<ReceiptPage />} />
         {/* New simplified QR receipt route */}
         <Route path="/receipt/:slug/:tableId" element={<ReceiptPage />} />
-
         <Route
           path="/onboarding"
           element={
@@ -71,7 +70,6 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
-
         {/* Protected routes */}
         <Route
           path="/"
@@ -84,11 +82,9 @@ const AppRouter = () => {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="orders" element={<OrdersPage />} />
-
           {/* Menu routes with nested structure */}
           <Route path="menu/*" element={<MenuManagementPage />} />
           <Route path="extract-menu" element={<PdfMenuExtractionTab />} />
-
           <Route path="staff" element={<StaffPage />} />
           <Route path="tables/*" element={<TablesRouter />} />
           <Route path="command-center" element={<CommandCenterPage />} />
@@ -102,11 +98,20 @@ const AppRouter = () => {
             element={<CashfreeSubscriptionPage />}
           />
           <Route path="kyc" element={<KycManagementPage />} />
-          <Route path="settings" element={<SettingsPageNew />} />
-          <Route path="settings/gst" element={<SettingsPageNew />} />
-          <Route path="settings/gst/setup" element={<GstSetupWizard />} />
-        </Route>
 
+          {/* Settings routes - separate pages, no layout wrapper */}
+          <Route
+            path="settings"
+            element={<Navigate to="/settings/restaurant" replace />}
+          />
+          <Route
+            path="settings/restaurant"
+            element={<RestaurantSettingsPage />}
+          />
+          <Route path="settings/gst" element={<SimpleGstSettingsPage />} />
+          <Route path="settings/gst/setup" element={<GstSetupWizard />} />
+          <Route path="settings/charges" element={<ChargesSettingsPage />} />
+        </Route>
         {/* Error / Fallback */}
         <Route
           path="/forbidden"

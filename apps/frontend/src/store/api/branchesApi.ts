@@ -9,6 +9,17 @@ export interface BranchAddress {
   country: string;
 }
 
+export interface BranchCharge {
+  name: string;
+  description?: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  applicableFor: 'dine_in' | 'takeout' | 'delivery' | 'all';
+  isActive: boolean;
+  includedInGst: boolean;
+  sortOrder: number;
+}
+
 export interface BranchSettings {
   orderNumberPrefix: string;
   enableTakeout: boolean;
@@ -20,6 +31,7 @@ export interface BranchSettings {
   openingTime?: string;
   closingTime?: string;
   operatingDays: number[];
+  charges: BranchCharge[];
 }
 
 export interface Branch {
@@ -123,6 +135,72 @@ export const branchesApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Branches'],
     }),
+
+    // Branch Charges CRUD Operations
+
+    // Get branch charges
+    getBranchCharges: builder.query<BranchCharge[], string>({
+      query: (branchId) => `/branches/${branchId}/charges`,
+      providesTags: (result, error, branchId) => [
+        { type: 'BranchCharges', id: branchId },
+        'BranchCharges',
+      ],
+    }),
+
+    // Add branch charge
+    addBranchCharge: builder.mutation<BranchCharge, { branchId: string; charge: Omit<BranchCharge, 'sortOrder'> }>({
+      query: ({ branchId, charge }) => ({
+        url: `/branches/${branchId}/charges`,
+        method: 'POST',
+        body: charge,
+      }),
+      invalidatesTags: (result, error, { branchId }) => [
+        { type: 'BranchCharges', id: branchId },
+        'BranchCharges',
+        'Branches',
+      ],
+    }),
+
+    // Update branch charge
+    updateBranchCharge: builder.mutation<BranchCharge, { branchId: string; chargeIndex: number; charge: BranchCharge }>({
+      query: ({ branchId, chargeIndex, charge }) => ({
+        url: `/branches/${branchId}/charges/${chargeIndex}`,
+        method: 'PATCH',
+        body: charge,
+      }),
+      invalidatesTags: (result, error, { branchId }) => [
+        { type: 'BranchCharges', id: branchId },
+        'BranchCharges',
+        'Branches',
+      ],
+    }),
+
+    // Delete branch charge
+    deleteBranchCharge: builder.mutation<{ message: string }, { branchId: string; chargeIndex: number }>({
+      query: ({ branchId, chargeIndex }) => ({
+        url: `/branches/${branchId}/charges/${chargeIndex}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, { branchId }) => [
+        { type: 'BranchCharges', id: branchId },
+        'BranchCharges',
+        'Branches',
+      ],
+    }),
+
+    // Reorder branch charges
+    reorderBranchCharges: builder.mutation<BranchCharge[], { branchId: string; charges: BranchCharge[] }>({
+      query: ({ branchId, charges }) => ({
+        url: `/branches/${branchId}/charges/reorder`,
+        method: 'PATCH',
+        body: { charges },
+      }),
+      invalidatesTags: (result, error, { branchId }) => [
+        { type: 'BranchCharges', id: branchId },
+        'BranchCharges',
+        'Branches',
+      ],
+    }),
   }),
 });
 
@@ -135,4 +213,10 @@ export const {
   useCreateBranchMutation,
   useUpdateBranchMutation,
   useDeleteBranchMutation,
+  // Branch charges hooks
+  useGetBranchChargesQuery,
+  useAddBranchChargeMutation,
+  useUpdateBranchChargeMutation,
+  useDeleteBranchChargeMutation,
+  useReorderBranchChargesMutation,
 } = branchesApi;

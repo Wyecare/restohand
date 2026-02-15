@@ -40,6 +40,8 @@ import {
   OrderItemWithGst,
   OrderGstSummary,
 } from '../gst/smart-gst.service';
+import { RestaurantBillingService, CartItem, RestaurantGstConfig } from '../common/services/restaurant-billing.service';
+import { GstService as RestaurantGstService } from '../common/services/gst.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { TableStatusService } from '../restaurant-tables/table-status.service';
 import { TableStatusType } from '../restaurant-tables/schemas/table-status.schema';
@@ -83,6 +85,8 @@ export class OrdersService {
     private readonly ordersSSEService: OrdersSSEService,
     private readonly smartGstService: SmartGstService,
     private readonly gstService: GstService,
+    private readonly restaurantBillingService: RestaurantBillingService,
+    private readonly restaurantGstService: RestaurantGstService,
     private readonly razorpayService: RazorpayService,
     private readonly tableStatusService: TableStatusService,
     private readonly receiptDocumentService: ReceiptDocumentService,
@@ -153,53 +157,24 @@ export class OrdersService {
       );
     }
 
-    // Prepare order items for GST calculation
-    const orderItems: OrderItemGstData[] = dto.items.map((item) => ({
+    // Calculate simple order subtotal (no tax calculation)
+    const subtotal = dto.items.reduce((sum, item) => {
+      const itemTotal = (item.pricing?.unitAmount || 0) * (item.quantity || 1);
+      return sum + itemTotal;
+    }, 0);
+
+
+    // Prepare order items (no tax calculation)
+    const formattedOrderItems = dto.items.map((item) => ({
       menuItemId: item.menuItemId,
-      name: item.name || '', // Use provided name, fallback to empty
+      name: item.name || '',
       quantity: item.quantity || 1,
-      unitPrice: item.pricing?.unitAmount || 0,
-      discountAmount: item.pricing?.discountAmount || 0,
+      pricing: {
+        unitAmount: item.pricing?.unitAmount || 0,
+        currency: 'INR',
+        discountAmount: item.pricing?.discountAmount || 0,
+      }
     }));
-
-    // Calculate GST using our smart service
-    // const { items, summary } = await this.smartGstService.calculateOrderGst(
-    //   restaurantId,
-    //   orderItems,
-    //   customerState
-    // );
-
-    // const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
-    // const finalTotalAmount = this.roundToTwo(
-    //   summary.totalAmount + roundOffAmount
-    // );
-
-    let totalAmount = 0;
-
-    // Map GST calculation results to order schema format
-    const formattedOrderItems = orderItems.map((item) => {
-      totalAmount += item.unitPrice * item.quantity - item.discountAmount;
-      return {
-        menuItemId: item.menuItemId,
-        name: item.name,
-        quantity: item.quantity,
-        pricing: {
-          unitAmount: item.unitPrice,
-          currency: 'INR',
-          taxAmount: 0, // No tax at order level - will be calculated at session payment
-          discountAmount: item.discountAmount,
-        },
-        // gst: {
-        //   hsnCode: item.hsnCode,
-        //   gstRate: item.gstRate,
-        //   cgstAmount: item.cgstAmount,
-        //   sgstAmount: item.sgstAmount,
-        //   igstAmount: item.igstAmount,
-        //   totalTaxAmount: item.totalTaxAmount,
-        //   exemptFromGst: item.exemptFromGst,
-        // },
-      };
-    });
 
     // Debug logging before order creation
     this.logger.log(`💾 DEBUG: About to create order with data:`, {
@@ -232,15 +207,9 @@ export class OrdersService {
       paymentStatus: PaymentStatus.Pending,
       progress: OrderProgressStage.NotStarted,
       paymentMethod,
-      subTotalAmount: totalAmount, // Sum of all item prices
-      grossAmount: totalAmount, // Same as subtotal (no tax at order level)
-      discountAmount: 0,
-      taxAmount: 0, // No tax at individual order level
-      cgstAmount: 0, // Tax will be calculated at session payment level
-      sgstAmount: 0,
-      igstAmount: 0,
-      totalAmount: totalAmount, // Order total without tax
-      roundOffAmount: 0,
+      // Simple amounts (no tax calculation)
+      subtotalAmount: subtotal,
+      totalAmount: subtotal, // Same as subtotal - no tax here
     });
 
     console.log('Created Order successfully:', created);
@@ -265,7 +234,6 @@ export class OrdersService {
       {
         totalAmount: response.totalAmount,
         paymentMethod: response.paymentMethod,
-        taxType: response.taxType,
       }
     );
 
@@ -281,7 +249,7 @@ export class OrdersService {
           created.tableId.toString(),
           'order-created',
           {
-            totalAmount: totalAmount,
+            totalAmount: created.totalAmount,
             createdBy: created.createdBy?.toString(),
             createdByName: 'Order System',
           }
@@ -306,13 +274,13 @@ export class OrdersService {
         );
       }
 
-      const amount = totalAmount.toFixed(2);
+      const amount = created.totalAmount.toFixed(2);
       const params = new URLSearchParams({
         pa: upiConfig.vpa,
         pn: upiConfig.displayName,
         am: amount,
         cu: 'INR',
-        tn: `Order ${response.orderNumber}`,
+        tn: `Order ${created.orderNumber}`,
       });
       response.paymentIntentUrl = `upi://pay?${params.toString()}`;
     }
@@ -367,10 +335,7 @@ export class OrdersService {
     items?: any[];
   }> {
     // Get restaurant and validate
-    const restaurant = await this.restaurantModel
-      .findById(restaurantId)
-      .select('defaultGstRateId applyDefaultGstToMenuItems')
-      .lean();
+    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
 
     if (!restaurant) {
       throw new NotFoundException('Restaurant not found');
@@ -401,27 +366,52 @@ export class OrdersService {
       })
     );
 
-    // Calculate GST using smart service
-    const { items, summary } = await this.smartGstService.calculateOrderGst(
-      restaurantId,
-      orderItems,
+    // Use already fetched restaurant for GST configuration
+
+    const gstConfig = restaurant.businessDetails?.gst;
+    const gstValidation = this.restaurantBillingService.validateGstConfig(gstConfig);
+
+    if (!gstValidation.isValid) {
+      throw new BadRequestException(`GST configuration invalid: ${gstValidation.errors.join(', ')}`);
+    }
+
+    // Convert order items to cart format
+    const cartItems: CartItem[] = orderItems.map(item => ({
+      id: item.menuItemId,
+      name: item.name,
+      price: item.pricing.unitAmount,
+      quantity: item.quantity
+    }));
+
+    // Calculate bill using new restaurant billing service
+    const billCalculation = this.restaurantBillingService.calculateBill(
+      cartItems,
+      gstConfig,
       customerState
     );
 
-    const roundOffAmount = this.calculateRoundOff(summary.totalAmount);
-    const finalTotalAmount = this.roundToTwo(
-      summary.totalAmount + roundOffAmount
-    );
+    // Convert items back to order item format with proper pricing
+    const processedItems = orderItems.map(item => ({
+      ...item,
+      pricing: {
+        ...item.pricing,
+        taxAmount: 0, // No per-item tax - GST calculated at bill level
+      }
+    }));
 
     return {
-      subtotal: summary.subtotal,
-      taxAmount: summary.totalTaxAmount,
-      cgstAmount: summary.cgstAmount,
-      sgstAmount: summary.sgstAmount,
-      igstAmount: summary.igstAmount,
-      roundOffAmount,
-      totalAmount: finalTotalAmount,
-      items,
+      subtotal: billCalculation.subtotal,
+      serviceChargeRate: billCalculation.serviceChargeRate,
+      serviceChargeAmount: billCalculation.serviceChargeAmount,
+      taxableAmount: billCalculation.subtotalWithService,
+      gstRate: billCalculation.gstRate,
+      cgstAmount: billCalculation.cgstAmount,
+      sgstAmount: billCalculation.sgstAmount,
+      igstAmount: billCalculation.igstAmount,
+      totalGstAmount: billCalculation.totalGstAmount,
+      taxType: billCalculation.taxType,
+      grandTotal: billCalculation.grandTotal,
+      items: processedItems,
     };
   }
 
@@ -1717,6 +1707,17 @@ export class OrdersService {
 
         // Close the customer session to prevent reuse in new orders
         if (order.customerSessionId) {
+          // Calculate payment totals from all orders in the session
+          const totalPaidAmount = tableOrders
+            .filter(tableOrder => tableOrder.paymentStatus === PaymentStatus.Paid)
+            .reduce((sum, tableOrder) => sum + tableOrder.totalAmount, 0);
+
+          const totalPendingAmount = tableOrders
+            .filter(tableOrder => tableOrder.paymentStatus !== PaymentStatus.Paid)
+            .reduce((sum, tableOrder) => sum + tableOrder.totalAmount, 0);
+
+          const allOrdersPaid = unpaidOrders.length === 0 && tableOrders.length > 0;
+
           await this.customerSessionModel.findOneAndUpdate(
             { sessionId: order.customerSessionId },
             {
@@ -1725,6 +1726,9 @@ export class OrdersService {
                 closedAt: new Date(),
                 closureReason: SessionClosureReason.PAYMENT_COMPLETED,
                 closureDescription: 'Session automatically closed after payment completion',
+                paidAmount: totalPaidAmount,
+                pendingAmount: totalPendingAmount,
+                allOrdersPaid: allOrdersPaid,
               },
             }
           );
@@ -1733,6 +1737,9 @@ export class OrdersService {
             sessionCompletionId,
             customerSessionId: order.customerSessionId,
             closureReason: SessionClosureReason.PAYMENT_COMPLETED,
+            totalPaidAmount,
+            totalPendingAmount,
+            allOrdersPaid,
           });
         }
 

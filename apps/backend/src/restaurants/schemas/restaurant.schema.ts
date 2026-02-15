@@ -246,36 +246,57 @@ const DocumentsSchema = SchemaFactory.createForClass(Documents);
 class GstConfiguration {
   @Prop({
     type: String,
-    enum: ['standalone', 'hotel_under_7500', 'hotel_above_7500', 'catering'],
-    required: true,
-    default: 'standalone'
+    enum: ['standalone', 'hotel_under_7500', 'hotel_above_7500', 'catering_standalone', 'catering_premium'],
+    required: true
   })
-  establishmentType!: 'standalone' | 'hotel_under_7500' | 'hotel_above_7500' | 'catering';
+  establishmentType!: 'standalone' | 'hotel_under_7500' | 'hotel_above_7500' | 'catering_standalone' | 'catering_premium';
 
-  @Prop({ type: Number, required: true })
-  defaultGstRate!: number; // Auto-calculated: 5 or 18
+  @Prop({ type: Number, required: true, enum: [5, 18] })
+  defaultGstRate!: 5 | 18;
 
   @Prop({ type: Boolean, required: true })
-  canClaimITC!: boolean; // Auto-calculated based on establishmentType
+  canClaimITC!: boolean;
 
   @Prop({ type: String, required: true, trim: true })
-  businessState!: string; // For CGST/SGST vs IGST calculation
+  businessState!: string;
 
   @Prop({
     type: String,
     trim: true,
     uppercase: true,
+    validate: {
+      validator: function(v: string) {
+        if (!v) return true; // Optional field
+        return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Z]{1}[0-9A-Z]{1}$/.test(v);
+      },
+      message: 'Invalid GSTIN format. Must be 15 characters (e.g., 29ABCDE1234F1Z5)'
+    }
   })
   gstin?: string;
 
-  @Prop({ type: Number, min: 0, max: 100 })
-  customGstRate?: number; // Override default rate if needed
+  @Prop({ type: Number, min: 0 })
+  roomTariff?: number; // For hotel validation (required if hotel type)
 
   @Prop({ type: Boolean, default: false })
-  exemptFromGst!: boolean; // For special cases
+  servesAlcohol!: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  enableServiceCharge!: boolean;
+
+  @Prop({ type: Number, min: 0, max: 50 })
+  serviceChargeRate?: number; // Percentage (0-50%)
+
+  @Prop({ type: Boolean, default: false })
+  integratedWithDeliveryPlatforms!: boolean;
 
   @Prop({ type: Boolean, default: true })
-  isGstEnabled!: boolean; // Master switch for GST
+  isGstEnabled!: boolean;
+
+  @Prop({ type: Date, default: Date.now })
+  configuredAt!: Date;
+
+  @Prop({ type: Date })
+  lastUpdatedAt?: Date;
 }
 
 const GstConfigurationSchema = SchemaFactory.createForClass(GstConfiguration);

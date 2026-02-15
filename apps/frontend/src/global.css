@@ -43,11 +43,6 @@
   --border: var(--base-200);
   --input: var(--base-300);
   --ring: var(--base-800);
-  --chart-1: var(--primary);
-  --chart-2: hsl(var(--primary) / 0.8);
-  --chart-3: hsl(var(--primary) / 0.6);
-  --chart-4: hsl(var(--primary) / 0.4);
-  --chart-5: hsl(var(--primary) / 0.2);
   --radius: 0.5rem;
   --sidebar: var(--base-100);
   --sidebar-foreground: var(--base-800);
@@ -71,6 +66,9 @@
   --fc-border-color: var(--border);
   --fc-page-bg-color: var(--muted);
   --fc-today-bg-color: var(--muted);
+
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
 }
 
 .dark {
@@ -92,11 +90,6 @@
   --border: var(--base-800);
   --input: var(--base-700);
   --ring: var(--base-200);
-  --chart-1: var(--primary);
-  --chart-2: hsl(var(--primary) / 0.8);
-  --chart-3: hsl(var(--primary) / 0.6);
-  --chart-4: hsl(var(--primary) / 0.4);
-  --chart-5: hsl(var(--primary) / 0.2);
   --sidebar: var(--base-900);
   --sidebar-foreground: var(--base-200);
   --sidebar-primary: var(--base-50);
@@ -105,6 +98,9 @@
   --sidebar-accent-foreground: var(--base-200);
   --sidebar-border: var(--base-800);
   --sidebar-ring: var(--base-200);
+
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
 }
 
 /* Theme presets */

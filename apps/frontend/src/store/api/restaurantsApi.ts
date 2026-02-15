@@ -57,6 +57,7 @@ export type UpdateRestaurantPayload = Partial<CreateRestaurantPayload>;
 export interface CreateMenuCategoryPayload {
   name: string;
   description?: string;
+  foodCategory?: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
   displayOrder?: number;
   isActive?: boolean;
 }

@@ -33,7 +33,7 @@ export class MenuCategoriesService {
   async findByBranch(
     restaurantId: string,
     branchId: string,
-    query: QueryMenuCategoriesDto = {},
+    query: QueryMenuCategoriesDto = {}
   ): Promise<MenuCategoryListResponseDto> {
     const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query);
 
@@ -47,6 +47,15 @@ export class MenuCategoriesService {
     if (query.isActive !== undefined) {
       filter.isActive = query.isActive === 'true';
     }
+
+    console.log(
+      'Filter for findByBranch:',
+      filter,
+      'Skip:',
+      skip,
+      'Limit:',
+      limit
+    );
 
     // Execute queries in parallel
     const [total, items] = await Promise.all([
@@ -85,7 +94,7 @@ export class MenuCategoriesService {
 
     const filter: FilterQuery<MenuCategoryDocument> = {
       restaurantId,
-      branchId: { $in: branchIds }
+      branchId: { $in: branchIds },
     };
 
     if (query.search) {
@@ -113,7 +122,7 @@ export class MenuCategoriesService {
 
   async findAll(
     restaurantId: string,
-    query: QueryMenuCategoriesDto = {},
+    query: QueryMenuCategoriesDto = {}
   ): Promise<MenuCategoryListResponseDto> {
     const { skip, limit, page } = PaginationUtil.parsePaginationOptions(query);
 
@@ -143,7 +152,10 @@ export class MenuCategoriesService {
     return PaginationUtil.createPaginatedResponse(data, total, page, limit);
   }
 
-  async findOne(restaurantId: string, id: string): Promise<MenuCategoryResponseDto> {
+  async findOne(
+    restaurantId: string,
+    id: string
+  ): Promise<MenuCategoryResponseDto> {
     const category = await this.menuCategoryModel.findOne({
       _id: id,
       restaurantId,

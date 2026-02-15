@@ -28,6 +28,13 @@ export class MenuCategory {
 
   @Prop({ type: String, trim: true })
   imageUrl?: string;
+
+  @Prop({
+    type: String,
+    enum: ['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream'],
+    default: 'cooked_food'
+  })
+  foodCategory!: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
 }
 
 export const MenuCategorySchema = SchemaFactory.createForClass(MenuCategory);

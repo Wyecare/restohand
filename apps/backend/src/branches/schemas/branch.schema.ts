@@ -27,6 +27,35 @@ class BranchAddress {
 const BranchAddressSchema = SchemaFactory.createForClass(BranchAddress);
 
 @Schema({ _id: false })
+export class BranchCharge {
+  @Prop({ type: String, required: true, trim: true })
+  name!: string;
+
+  @Prop({ type: String, trim: true })
+  description?: string;
+
+  @Prop({ type: String, enum: ['percentage', 'fixed'], required: true })
+  type!: 'percentage' | 'fixed';
+
+  @Prop({ type: Number, required: true, min: 0 })
+  value!: number; // percentage (0-100) or fixed amount in paise
+
+  @Prop({ type: String, enum: ['dine_in', 'takeout', 'delivery', 'all'], default: 'all' })
+  applicableFor!: 'dine_in' | 'takeout' | 'delivery' | 'all';
+
+  @Prop({ type: Boolean, default: true })
+  isActive!: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  includedInGst!: boolean; // whether this charge should be included in GST calculation
+
+  @Prop({ type: Number, default: 0 })
+  sortOrder!: number;
+}
+
+const BranchChargeSchema = SchemaFactory.createForClass(BranchCharge);
+
+@Schema({ _id: false })
 class BranchSettings {
   @Prop({ type: String, default: 'ORD' })
   orderNumberPrefix!: string;
@@ -57,6 +86,9 @@ class BranchSettings {
 
   @Prop({ type: [Number], default: [0, 1, 2, 3, 4, 5, 6] })
   operatingDays!: number[]; // 0=Sunday, 1=Monday, etc.
+
+  @Prop({ type: [BranchChargeSchema], default: [] })
+  charges!: BranchCharge[];
 }
 
 const BranchSettingsSchema = SchemaFactory.createForClass(BranchSettings);

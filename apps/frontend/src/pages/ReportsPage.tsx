@@ -312,73 +312,131 @@ const ReportsPage = () => {
         </Card>
       </div>
 
-      {/* Charts Section */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {metrics?.charts.slice(0, 4).map((chart) => (
-          <Card key={chart.title}>
-            <CardHeader>
-              <CardTitle className="text-lg">{chart.title}</CardTitle>
-              {chart.yAxisLabel && (
-                <CardDescription>{chart.yAxisLabel}</CardDescription>
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="h-75">
-                <ResponsiveContainer width="100%" height="100%">
-                  {chart.type === 'line' && (
-                    <RechartsLineChart data={chart.data}>
-                      <XAxis dataKey="label" />
-                      <YAxis />
-                      <Tooltip
-                        formatter={(value) => formatCurrency(Number(value))}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke={chart.colors?.[0] || COLORS[0]}
-                        strokeWidth={2}
-                      />
-                    </RechartsLineChart>
-                  )}
-                  {chart.type === 'area' && (
-                    <AreaChart data={chart.data}>
-                      <XAxis dataKey="label" />
-                      <YAxis />
-                      <Tooltip
-                        formatter={(value) => formatCurrency(Number(value))}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        stroke={chart.colors?.[0] || COLORS[0]}
-                        fill={chart.colors?.[0] || COLORS[0]}
-                        fillOpacity={0.3}
-                      />
-                    </AreaChart>
-                  )}
-                  {chart.type === 'bar' && (
-                    <BarChart data={chart.data}>
-                      <XAxis dataKey="label" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar
-                        dataKey="value"
-                        fill={chart.colors?.[0] || COLORS[0]}
-                      />
-                    </BarChart>
-                  )}
-                  {(chart.type === 'pie' || chart.type === 'donut') && (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-muted-foreground text-sm">
-                        Chart visualization coming soon
+      {/* Charts Section - Compact Layout */}
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+        {metrics?.charts.slice(0, 4).map((chart) => {
+          // Convert UTC hours to local time for hourly charts
+          const chartData = chart.data.map((d, i) => {
+            if (chart.title.includes('Hour') || chart.title.includes('Trend') || chart.title.includes('Volume')) {
+              // For hourly data, convert UTC hour to local time
+              const now = new Date();
+              const localDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), i);
+              const utcHour = localDate.getUTCHours();
+              const originalData = chart.data.find((item, idx) => idx === utcHour) || { value: 0 };
+
+              return {
+                ...d,
+                label: `${i.toString().padStart(2, '0')}:00`,
+                value: originalData.value,
+              };
+            }
+            return d;
+          });
+
+          return (
+            <Card key={chart.title}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{chart.title}</CardTitle>
+                {chart.yAxisLabel && (
+                  <CardDescription className="text-xs">
+                    {chart.yAxisLabel}
+                  </CardDescription>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chart.type === 'line' && (
+                      <RechartsLineChart
+                        data={chartData}
+                        margin={{ left: 0, right: 0, top: 5, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 11 }}
+                          tickMargin={8}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11 }}
+                          tickMargin={8}
+                          width={45}
+                        />
+                        <Tooltip
+                          formatter={(value) => formatCurrency(Number(value))}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke={chart.colors?.[0] || COLORS[0]}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </RechartsLineChart>
+                    )}
+                    {chart.type === 'area' && (
+                      <AreaChart
+                        data={chartData}
+                        margin={{ left: 0, right: 0, top: 5, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 11 }}
+                          tickMargin={8}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11 }}
+                          tickMargin={8}
+                          width={45}
+                        />
+                        <Tooltip
+                          formatter={(value) => formatCurrency(Number(value))}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          stroke={chart.colors?.[0] || COLORS[0]}
+                          fill={chart.colors?.[0] || COLORS[0]}
+                          fillOpacity={0.3}
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    )}
+                    {chart.type === 'bar' && (
+                      <BarChart
+                        data={chartData}
+                        margin={{ left: 0, right: 0, top: 5, bottom: 0 }}
+                      >
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 11 }}
+                          tickMargin={8}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11 }}
+                          tickMargin={8}
+                          width={45}
+                        />
+                        <Tooltip />
+                        <Bar
+                          dataKey="value"
+                          fill={chart.colors?.[0] || COLORS[0]}
+                          radius={4}
+                        />
+                      </BarChart>
+                    )}
+                    {(chart.type === 'pie' || chart.type === 'donut') && (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-muted-foreground text-sm">
+                          Chart visualization coming soon
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Revenue Breakdown */}
@@ -664,7 +722,13 @@ const ReportsPage = () => {
                 Peak Hour
               </div>
               <div className="text-lg font-bold">
-                {metrics?.timeAnalytics.peakHours[0]?.hour || 0}:00
+                {(() => {
+                  const utcHour = metrics?.timeAnalytics.peakHours[0]?.hour || 0;
+                  const now = new Date();
+                  const utcDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), utcHour));
+                  const localHour = utcDate.getHours();
+                  return `${localHour.toString().padStart(2, '0')}:00`;
+                })()}
               </div>
               <div className="text-xs text-muted-foreground">
                 {metrics?.timeAnalytics.peakHours[0]?.orderCount || 0} avg

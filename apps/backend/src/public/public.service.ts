@@ -809,15 +809,17 @@ export class PublicService {
       }
     }
 
+    const orderPayload = {
+      ...orderData,
+      restaurantId: restaurant.id,
+      customerSessionId, // Assign session ID from active session
+      paymentMethod: orderData.paymentMethod || 'pending',
+    };
+
     // Create order using OrdersService
     return this.ordersService.create(
       restaurant.id,
-      {
-        ...orderData,
-        restaurantId: restaurant.id,
-        customerSessionId, // Assign session ID from active session
-        paymentMethod: orderData.paymentMethod || 'pending',
-      },
+      orderPayload,
       branchId
     );
   }

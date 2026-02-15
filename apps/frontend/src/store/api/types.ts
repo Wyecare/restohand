@@ -35,6 +35,28 @@ export interface RestaurantSettings {
   selfOrderingEnabled: boolean;
 }
 
+export interface GstConfiguration {
+  establishmentType: 'standalone' | 'hotel_under_7500' | 'hotel_above_7500' | 'catering_standalone' | 'catering_premium';
+  defaultGstRate: 5 | 18;
+  canClaimITC: boolean;
+  businessState: string;
+  gstin?: string;
+  roomTariff?: number;
+  servesAlcohol: boolean;
+  enableServiceCharge: boolean;
+  serviceChargeRate?: number;
+  integratedWithDeliveryPlatforms: boolean;
+  isGstEnabled: boolean;
+  configuredAt: string;
+  lastUpdatedAt?: string;
+}
+
+export interface BusinessDetails {
+  panNumber?: string;
+  businessType?: 'sole_proprietorship' | 'partnership' | 'private_limited' | 'public_limited';
+  gst?: GstConfiguration;
+}
+
 export interface PaymentConfig {
   linkedAccountId?: string;
   razorpayContactId?: string;
@@ -61,10 +83,11 @@ export interface Restaurant {
   upi: RestaurantUpiConfig;
   settings: RestaurantSettings;
   languages: string[];
-  gstin?: string;
+  gstin?: string; // Legacy field - use businessDetails.gst.gstin instead
   applyDefaultGstToMenuItems: boolean;
   isActive: boolean;
   paymentConfig?: PaymentConfig;
+  businessDetails?: BusinessDetails;
   createdAt: string;
   updatedAt: string;
 }

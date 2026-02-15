@@ -9,6 +9,7 @@ import {
   Min,
   Max,
   IsNumber,
+  IsEnum,
 } from 'class-validator';
 
 export class CreateMenuCategoryDto {
@@ -37,6 +38,16 @@ export class CreateMenuCategoryDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({
+    enum: ['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream'],
+    example: 'cooked_food',
+    required: false,
+    description: 'Food category for tax classification'
+  })
+  @IsOptional()
+  @IsEnum(['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream'])
+  foodCategory?: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
 
   @ApiProperty({
     example: 'https://cdn.restohand.in/categories/beverages.png',

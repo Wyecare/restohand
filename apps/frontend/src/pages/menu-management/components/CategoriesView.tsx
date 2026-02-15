@@ -28,7 +28,9 @@ export function CategoriesView() {
   const categoriesQueryParams =
     restaurantId && branchId ? { restaurantId, branchId } : skipToken;
   const { data: categoriesData, isLoading: categoriesLoading } =
-    useListMenuCategoriesByBranchQuery(categoriesQueryParams);
+    useListMenuCategoriesByBranchQuery(categoriesQueryParams, {
+      limit: 1000, // Fetch all categories without pagination for sidebar
+    });
   const categories = categoriesData?.data || [];
 
   // Fetch menu items for selected category

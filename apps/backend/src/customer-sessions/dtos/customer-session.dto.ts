@@ -103,27 +103,9 @@ export class CustomerSessionResponseDto {
   @ApiPropertyOptional()
   lastActivityAt?: string;
 
-  // Bill breakdown
+  // Session aggregation (basic fields only - detailed billing calculated dynamically)
   @ApiProperty()
   subTotalAmount!: number;
-
-  @ApiProperty()
-  taxAmount!: number;
-
-  @ApiProperty()
-  cgstAmount!: number;
-
-  @ApiProperty()
-  sgstAmount!: number;
-
-  @ApiProperty()
-  igstAmount!: number;
-
-  @ApiProperty()
-  discountAmount!: number;
-
-  @ApiProperty()
-  roundOffAmount!: number;
 
   @ApiProperty()
   paidAmount!: number;
@@ -134,9 +116,6 @@ export class CustomerSessionResponseDto {
   @ApiProperty()
   allOrdersPaid!: boolean;
 
-  @ApiPropertyOptional()
-  taxType?: 'intra-state' | 'inter-state';
-
   @ApiProperty()
   createdAt!: string;
 
@@ -144,30 +123,15 @@ export class CustomerSessionResponseDto {
   updatedAt!: string;
 }
 
+// Note: This DTO is deprecated - billing calculations are now handled by the BillCalculatorService
+// and returned with full tax breakdown. This DTO is kept for backward compatibility but should
+// be replaced with BillCalculation interface from the billing module.
 export class SessionBillCalculationDto {
   @ApiProperty()
   sessionId!: string;
 
   @ApiProperty()
   subTotalAmount!: number;
-
-  @ApiProperty()
-  taxAmount!: number;
-
-  @ApiProperty()
-  cgstAmount!: number;
-
-  @ApiProperty()
-  sgstAmount!: number;
-
-  @ApiProperty()
-  igstAmount!: number;
-
-  @ApiProperty()
-  discountAmount!: number;
-
-  @ApiProperty()
-  roundOffAmount!: number;
 
   @ApiProperty()
   totalAmount!: number;
@@ -177,9 +141,6 @@ export class SessionBillCalculationDto {
 
   @ApiProperty()
   pendingAmount!: number;
-
-  @ApiPropertyOptional()
-  taxType?: 'intra-state' | 'inter-state';
 
   @ApiProperty({ type: 'array', items: { type: 'string' } })
   orderIds!: string[];

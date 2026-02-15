@@ -150,7 +150,6 @@ const DashboardPage = () => {
     },
   } satisfies ChartConfig;
 
-
   // Prepare chart data
   const revenueChartData = useMemo(() => {
     if (!dashboardMetrics?.charts) {
@@ -198,10 +197,27 @@ const DashboardPage = () => {
         };
       });
     }
-    return revenueChart.data.map((d) => ({
-      time: d.label,
-      revenue: d.value,
-    }));
+
+    // Create a proper 24-hour local time array and map UTC data to correct slots
+    return Array.from({ length: 24 }, (_, localHour) => {
+      // Find the UTC hour that corresponds to this local hour
+      const now = new Date();
+      const localDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        localHour
+      );
+      const utcHour = localDate.getUTCHours();
+
+      // Find the revenue for this UTC hour in the data
+      const revenueValue = revenueChart.data[utcHour]?.value || 0;
+
+      return {
+        time: `${localHour.toString().padStart(2, '0')}:00`,
+        revenue: revenueValue,
+      };
+    });
   }, [dashboardMetrics]);
 
   const ordersChartData = useMemo(() => {
@@ -250,10 +266,27 @@ const DashboardPage = () => {
         };
       });
     }
-    return ordersChart.data.map((d) => ({
-      time: d.label,
-      orders: d.value,
-    }));
+
+    // Create a proper 24-hour local time array and map UTC data to correct slots
+    return Array.from({ length: 24 }, (_, localHour) => {
+      // Find the UTC hour that corresponds to this local hour
+      const now = new Date();
+      const localDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        localHour
+      );
+      const utcHour = localDate.getUTCHours();
+
+      // Find the orders count for this UTC hour in the data
+      const ordersValue = ordersChart.data[utcHour]?.value || 0;
+
+      return {
+        time: `${localHour.toString().padStart(2, '0')}:00`,
+        orders: ordersValue,
+      };
+    });
   }, [dashboardMetrics]);
 
   const barChartData = useMemo(() => {
@@ -269,13 +302,31 @@ const DashboardPage = () => {
         revenue: Math.floor(Math.random() * 2000) + 200,
       }));
     }
-    return dashboardMetrics.peakHours.map((peak) => ({
-      hour: `${peak.hour}:00`,
-      orders: peak.orderCount,
-      revenue: peak.revenue,
-    }));
-  }, [dashboardMetrics]);
 
+    // Create a proper 24-hour local time array and map UTC peak hours to correct slots
+    return Array.from({ length: 24 }, (_, localHour) => {
+      // Find the UTC hour that corresponds to this local hour
+      const now = new Date();
+      const localDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        localHour
+      );
+      const utcHour = localDate.getUTCHours();
+
+      // Find the peak data for this UTC hour
+      const peakData = dashboardMetrics.peakHours.find(
+        (p) => p.hour === utcHour
+      );
+
+      return {
+        hour: `${localHour.toString().padStart(2, '0')}:00`,
+        orders: peakData?.orderCount || 0,
+        revenue: peakData?.revenue || 0,
+      };
+    });
+  }, [dashboardMetrics]);
 
   if (!session?.restaurantId) return <Navigate to="/onboarding" replace />;
 
@@ -457,81 +508,86 @@ const DashboardPage = () => {
             </Card>
           </div>
 
-          {/* Charts Row 1: Revenue Line Chart (Full Width) */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue Over Time</CardTitle>
-              <CardDescription>{dashboardMetrics.period.label}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={revenueChartConfig}
-                className="min-h-[300px] w-full"
-              >
-                <LineChart
-                  accessibilityLayer
-                  data={revenueChartData}
-                  margin={{ left: 12, right: 12, top: 12, bottom: 12 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    className="stroke-muted"
-                  />
-                  <XAxis
-                    dataKey="time"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickFormatter={(value) => value}
-                    className="text-muted-foreground"
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickFormatter={(value) => `₹${value}`}
-                    className="text-muted-foreground"
-                  />
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        labelFormatter={(value) => `Time: ${value}`}
-                        formatter={(value) => [`₹${value}`, 'Revenue']}
-                      />
-                    }
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="revenue"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-
-          {/* Charts Row 2: Orders Area Chart + Payment Pie Chart */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Orders Over Time */}
+          {/* Charts Row: All 3 Charts in One Row (Desktop) / Stacked (Mobile) */}
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+            {/* Revenue Line Chart */}
             <Card>
-              <CardHeader>
-                <CardTitle>Orders Over Time</CardTitle>
-                <CardDescription>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Revenue Over Time</CardTitle>
+                <CardDescription className="text-xs">
+                  {dashboardMetrics.period.label}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer
+                  config={revenueChartConfig}
+                  className="h-[200px] w-full"
+                >
+                  <LineChart
+                    accessibilityLayer
+                    data={revenueChartData}
+                    margin={{ left: 0, right: 0, top: 5, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      className="stroke-muted"
+                    />
+                    <XAxis
+                      dataKey="time"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value) => value}
+                      className="text-muted-foreground"
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value) => `₹${value}`}
+                      className="text-muted-foreground"
+                      tick={{ fontSize: 11 }}
+                      width={45}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(value) => `Time: ${value}`}
+                          formatter={(value) => [`₹${value}`, 'Revenue']}
+                        />
+                      }
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+
+            {/* Orders Area Chart */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Orders Over Time</CardTitle>
+                <CardDescription className="text-xs">
                   {dashboardMetrics.period.label}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ChartContainer
                   config={ordersChartConfig}
-                  className="min-h-[250px] w-full"
+                  className="h-[200px] w-full"
                 >
                   <AreaChart
                     accessibilityLayer
                     data={ordersChartData}
-                    margin={{ left: 12, right: 12, top: 12, bottom: 12 }}
+                    margin={{ left: 0, right: 0, top: 5, bottom: 0 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
@@ -544,12 +600,15 @@ const DashboardPage = () => {
                       axisLine={false}
                       tickMargin={8}
                       className="text-muted-foreground"
+                      tick={{ fontSize: 11 }}
                     />
                     <YAxis
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
                       className="text-muted-foreground"
+                      tick={{ fontSize: 11 }}
+                      width={35}
                     />
                     <ChartTooltip
                       content={
@@ -570,40 +629,38 @@ const DashboardPage = () => {
               </CardContent>
             </Card>
 
+            {/* Peak Hours Bar Chart */}
             <Card>
-              <CardHeader>
-                <CardTitle>Peak Hours Analysis</CardTitle>
-                <CardDescription>
-                  Orders by hour - {dashboardMetrics.period.label}
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Peak Hours</CardTitle>
+                <CardDescription className="text-xs">
+                  Orders by hour
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ChartContainer
                   config={barChartConfig}
-                  className="min-h-[300px] w-full"
+                  className="h-[200px] w-full"
                 >
                   <BarChart
                     accessibilityLayer
                     data={barChartData}
-                    margin={{ left: 12, right: 12, top: 12, bottom: 12 }}
+                    margin={{ left: 0, right: 0, top: 5, bottom: 0 }}
                   >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      className="stroke-muted"
-                    />
                     <XAxis
                       dataKey="hour"
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
-                      className="text-muted-foreground"
+                      tick={{ fontSize: 11 }}
                     />
                     <YAxis
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
                       className="text-muted-foreground"
+                      tick={{ fontSize: 11 }}
+                      width={35}
                     />
                     <ChartTooltip
                       content={
@@ -616,7 +673,7 @@ const DashboardPage = () => {
                         />
                       }
                     />
-                    <Bar dataKey="orders" radius={4} />
+                    <Bar dataKey="orders" radius={4} fill="#9fa5ff" />
                   </BarChart>
                 </ChartContainer>
               </CardContent>

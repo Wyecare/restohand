@@ -1,0 +1,472 @@
+# Restaurant GST Settings & Configuration Guide (India)
+
+## Document Overview
+This document provides a comprehensive guide to GST (Goods and Services Tax) settings and configurations for restaurant POS systems in India, based on current regulations as of 2026.
+
+---
+
+## Table of Contents
+1. [GST Rate Structure for Restaurants](#gst-rate-structure-for-restaurants)
+2. [Restaurant Categories](#restaurant-categories)
+3. [Input Tax Credit (ITC)](#input-tax-credit-itc)
+4. [Special Cases & Exceptions](#special-cases--exceptions)
+5. [Food Delivery Platforms](#food-delivery-platforms)
+6. [GST Components (CGST, SGST, IGST)](#gst-components-cgst-sgst-igst)
+7. [Alcohol & Beverages](#alcohol--beverages)
+8. [Service Charge vs GST](#service-charge-vs-gst)
+9. [POS System Configuration](#pos-system-configuration)
+
+---
+
+## GST Rate Structure for Restaurants
+
+### Primary Rates
+Indian restaurants operate under two main GST rates:
+
+| Rate | Description | ITC Eligibility |
+|------|-------------|----------------|
+| **5%** | Standard for most restaurants | ❌ No ITC |
+| **18%** | Premium establishments | ✅ ITC allowed |
+
+---
+
+## Restaurant Categories
+
+### 1. Standalone Restaurants (5% GST)
+**GST Rate:** 5%  
+**ITC:** Not allowed  
+**Applies to:**
+- Independent restaurants (AC and Non-AC both)
+- Cafes
+- Dhabas
+- Quick Service Restaurants (QSR)
+- Cloud kitchens
+- Food courts
+- Takeaway services from standalone restaurants
+
+**Configuration:**
+```javascript
+{
+  establishmentType: 'standalone',
+  gstRate: 5,
+  canClaimITC: false
+}
+```
+
+---
+
+### 2. Hotel Restaurant - Budget (5% GST)
+**GST Rate:** 5%  
+**ITC:** Not allowed  
+**Applies to:**
+- Restaurants within hotels where **room tariff < ₹7,500 per night**
+
+**Configuration:**
+```javascript
+{
+  establishmentType: 'hotel_under_7500',
+  gstRate: 5,
+  canClaimITC: false
+}
+```
+
+---
+
+### 3. Hotel Restaurant - Premium (18% GST)
+**GST Rate:** 18%  
+**ITC:** Allowed  
+**Applies to:**
+- Restaurants within hotels where **room tariff ≥ ₹7,500 per night**
+- Also known as "specified premises"
+- Fine dining establishments in luxury hotels
+- 5-star hotel restaurants
+
+**Configuration:**
+```javascript
+{
+  establishmentType: 'hotel_above_7500',
+  gstRate: 18,
+  canClaimITC: true
+}
+```
+
+---
+
+### 4. Outdoor Catering Services
+
+#### Standalone Outdoor Catering (5% GST)
+**GST Rate:** 5%  
+**ITC:** Not allowed  
+**Applies to:**
+- Independent catering services
+- Event catering (standalone)
+
+**Configuration:**
+```javascript
+{
+  establishmentType: 'catering_standalone',
+  gstRate: 5,
+  canClaimITC: false
+}
+```
+
+#### Premium Hotel Catering (18% GST)
+**GST Rate:** 18%  
+**ITC:** Allowed  
+**Applies to:**
+- Catering services within hotels (room tariff ≥ ₹7,500)
+- Event catering with venue rental
+- Banquet services in premium hotels
+
+**Configuration:**
+```javascript
+{
+  establishmentType: 'catering_premium',
+  gstRate: 18,
+  canClaimITC: true
+}
+```
+
+---
+
+### 5. Special Categories
+
+| Service Type | GST Rate | ITC |
+|-------------|----------|-----|
+| Indian Railways / IRCTC food services | 5% | No |
+| Contract canteen/mess in offices/schools | 5% | No |
+| Food in trains (cooked onboard or supplied) | 5% | No |
+
+---
+
+## Input Tax Credit (ITC)
+
+### What is ITC?
+Input Tax Credit allows businesses to claim credit for GST paid on business purchases (raw materials, equipment, services) and offset it against their GST liability.
+
+### Who Can Claim ITC?
+
+✅ **Can Claim (18% GST establishments):**
+- Premium hotel restaurants (room tariff ≥ ₹7,500)
+- Premium outdoor catering services
+- Can reduce net GST payment to government
+
+❌ **Cannot Claim (5% GST establishments):**
+- Standalone restaurants
+- Budget hotel restaurants (room tariff < ₹7,500)
+- Standard catering services
+- Simpler compliance but no tax credits
+
+### Benefits of ITC
+For 18% GST establishments:
+- Claim GST paid on raw materials
+- Claim GST paid on equipment purchases
+- Claim GST paid on business services
+- Reduces overall tax liability
+
+---
+
+## Special Cases & Exceptions
+
+### Composition Scheme
+**Important:** Restaurants **CANNOT** use the composition scheme if they:
+- Supply food through e-commerce platforms (Zomato/Swiggy)
+- Must use regular GST scheme instead
+
+---
+
+## Food Delivery Platforms
+
+### Major Change (Effective January 1, 2022)
+
+**Before 2022:**
+- Restaurants charged 5% GST on food
+- Platforms charged 18% GST on delivery charges
+
+**After January 1, 2022:**
+- **Platforms (Zomato/Swiggy) collect and pay GST**, not restaurants
+- Platform collects 5% GST on food value from customer
+- Platform pays this GST to government
+- Restaurants only handle GST for dine-in/takeaway at their premises
+
+### Exception
+Premium hotels (room tariff ≥ ₹7,500) still charge and pay 18% GST themselves, even for online orders.
+
+### Delivery Charges
+- Platforms charge **18% GST on delivery fees**
+- This is separate from the 5% food GST
+
+### Commission Treatment
+- Platform charges commission to restaurant
+- Platform invoices restaurant with GST on commission
+- This is a separate transaction
+
+---
+
+## GST Components (CGST, SGST, IGST)
+
+GST is split into different components based on transaction type:
+
+### Intra-State Transactions (Within Same State)
+GST is split equally between Central and State:
+
+**For 5% GST:**
+- CGST: 2.5%
+- SGST: 2.5%
+- Total: 5%
+
+**For 18% GST:**
+- CGST: 9%
+- SGST: 9%
+- Total: 18%
+
+### Inter-State Transactions (Different States)
+GST is charged as Integrated GST:
+
+**For 5% GST:**
+- IGST: 5%
+
+**For 18% GST:**
+- IGST: 18%
+
+### Bill Display Example
+```
+Sub Total:           ₹3,389.50
+CGST @ 2.5%:           ₹84.74
+SGST @ 2.5%:           ₹84.74
+------------------------
+Grand Total:         ₹3,559.98
+```
+
+---
+
+## Alcohol & Beverages
+
+### Alcoholic Beverages
+- **NOT covered under GST**
+- State VAT / Excise Duty applies
+- Taxed by individual state governments
+- Each state has different VAT rates
+
+### Mixed Bills (Food + Alcohol)
+When a bill contains both food and alcohol:
+- GST applies to food and non-alcoholic items
+- State VAT applies to alcoholic beverages
+- Two separate tax calculations on same bill
+
+### Non-Alcoholic Beverages
+
+| Category | GST Rate |
+|----------|----------|
+| Coffee, Tea | 5% (in restaurants) |
+| Soft drinks, Juices | 12% (packaged retail) |
+| Carbonated/Caffeinated drinks | 40% (packaged retail) |
+
+**Note:** In restaurants, beverages follow the restaurant's GST rate (5% or 18%), not retail rates.
+
+---
+
+## Service Charge vs GST
+
+### Service Charge
+- **NOT a tax**
+- Discretionary charge by restaurant
+- Restaurant's income
+- Separate line item on bill
+- Customer can refuse to pay in some cases
+
+### GST
+- **Tax collected for government**
+- Mandatory
+- Restaurant acts as tax collector
+- Must be remitted to government
+
+### Bill Example
+```
+Food Total:          ₹1,000.00
+Service Charge (10%):  ₹100.00
+Subtotal:            ₹1,100.00
+GST @ 5%:               ₹55.00
+------------------------
+Grand Total:         ₹1,155.00
+```
+
+**Note:** GST is calculated on subtotal **including service charge** (if applicable).
+
+---
+
+## POS System Configuration
+
+### Required Settings
+
+#### 1. Restaurant Type Selection
+```typescript
+type RestaurantType = 
+  | 'standalone'              // 5% GST, no ITC
+  | 'hotel_under_7500'        // 5% GST, no ITC  
+  | 'hotel_above_7500'        // 18% GST, with ITC
+  | 'catering_standalone'     // 5% GST, no ITC
+  | 'catering_premium';       // 18% GST, with ITC
+```
+
+#### 2. Business Location
+```typescript
+{
+  businessState: string,      // e.g., "Karnataka", "Maharashtra"
+  gstin?: string              // Optional 15-digit GSTIN
+}
+```
+
+#### 3. GST Configuration Object
+```typescript
+interface GstConfig {
+  establishmentType: RestaurantType;
+  defaultGstRate: 5 | 18;
+  canClaimITC: boolean;
+  businessState: string;
+  gstin?: string;
+}
+```
+
+### Example Configurations
+
+**Standalone Restaurant:**
+```typescript
+{
+  establishmentType: 'standalone',
+  defaultGstRate: 5,
+  canClaimITC: false,
+  businessState: 'Karnataka',
+  gstin: '29ABCDE1234F1Z5'
+}
+```
+
+**Premium Hotel Restaurant:**
+```typescript
+{
+  establishmentType: 'hotel_above_7500',
+  defaultGstRate: 18,
+  canClaimITC: true,
+  businessState: 'Maharashtra',
+  gstin: '27ABCDE1234F1Z5'
+}
+```
+
+---
+
+## GST Rates on Individual Food Items (Retail)
+
+**Note:** These rates apply to **retail/grocery sales**, NOT restaurant dining. Restaurants apply a single rate to the entire bill.
+
+| Category | GST Rate | Examples |
+|----------|----------|----------|
+| Fresh Items | 0% (Nil) | Fresh vegetables, fruits, meat, fish, eggs, milk (unpackaged) |
+| Basic Packaged | 5% | Packaged rice, wheat, milk products, nuts, dried fruits |
+| Processed Foods | 5% | Butter, cheese, refined sugar, pasta, bread items |
+| Sweets & Confectionery | 5% | Mithai, chocolates (reduced from 18%) |
+| Preserved Items | 12% | Jams, jellies, pickles |
+| Luxury Beverages | 40% | Pan masala, carbonated drinks, caffeinated beverages |
+
+---
+
+## Implementation Checklist
+
+### Setup Phase
+- [ ] Determine restaurant type (standalone/hotel/catering)
+- [ ] If hotel restaurant, verify room tariff threshold
+- [ ] Configure GST rate (5% or 18%)
+- [ ] Set ITC eligibility flag
+- [ ] Register business state
+- [ ] Add GSTIN if available
+- [ ] Configure CGST/SGST split for intra-state
+- [ ] Configure IGST for inter-state
+
+### Operational Phase
+- [ ] Calculate GST on subtotal (not per item)
+- [ ] Split GST into CGST/SGST for same-state transactions
+- [ ] Use IGST for different-state transactions
+- [ ] Handle alcohol separately (no GST, use State VAT)
+- [ ] Display service charge separately from GST
+- [ ] Generate compliant tax invoices
+- [ ] Maintain GST records for filing returns
+
+---
+
+## Compliance Requirements
+
+### GSTIN Format
+- 15 characters
+- Format: `StateCode + PAN + EntityCode + CheckDigit`
+- Example: `29ABCDE1234F1Z5`
+  - `29` = Karnataka state code
+  - `ABCDE1234F` = PAN
+  - `1` = Entity number
+  - `Z` = Entity type
+  - `5` = Check digit
+
+### Invoice Requirements
+Every tax invoice must contain:
+- Restaurant name and address
+- GSTIN (if registered)
+- Invoice number and date
+- Customer details (for B2B)
+- Item-wise details
+- Subtotal
+- GST rate and amount (CGST/SGST or IGST)
+- Grand total
+
+---
+
+## Important Updates & Changes
+
+### Recent Changes (2025-2026)
+- **September 22, 2025:** Hotels classified as "specified premises" must charge 18% GST
+- **January 1, 2022:** Food delivery platforms became liable for GST collection
+
+### Future Considerations
+- GST rates subject to periodic review by GST Council
+- Stay updated with government notifications
+- Monitor changes to ITC rules
+- Track updates to e-commerce operator responsibilities
+
+---
+
+## Common Mistakes to Avoid
+
+1. ❌ Applying individual food item GST rates in restaurants
+2. ❌ Charging GST on alcohol (use State VAT instead)
+3. ❌ Calculating GST per item instead of on subtotal
+4. ❌ Not splitting GST into CGST/SGST for intra-state
+5. ❌ Using composition scheme with online delivery platforms
+6. ❌ Treating service charge as GST
+7. ❌ Not maintaining separate records for dine-in vs delivery orders
+
+---
+
+## Glossary
+
+- **CGST:** Central Goods and Services Tax (Central Government's share)
+- **SGST:** State Goods and Services Tax (State Government's share)
+- **IGST:** Integrated Goods and Services Tax (for inter-state transactions)
+- **ITC:** Input Tax Credit (claim on GST paid for business purchases)
+- **GSTIN:** GST Identification Number (15-digit unique identifier)
+- **HSN:** Harmonized System of Nomenclature (product classification code)
+- **E-commerce Operator:** Online platforms like Zomato, Swiggy
+- **Specified Premises:** Hotels with room tariff ≥ ₹7,500 per night
+
+---
+
+## References & Resources
+
+- GST Council Notifications
+- Central Board of Indirect Taxes and Customs (CBIC)
+- GST Portal: https://www.gst.gov.in
+- State GST Departments
+- Notification 17/2017-CTR (E-commerce operators)
+- Section 9(5) of CGST Act 2017
+
+---
+
+**Document Version:** 1.0  
+**Last Updated:** February 2026  
+**Prepared for:** Restaurant POS System Implementation

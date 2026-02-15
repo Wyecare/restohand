@@ -44,7 +44,7 @@ export function CategoriesSidebar({
   };
 
   return (
-    <div className="w-70 border-r bg-muted/30 flex flex-col h-full">
+    <div className="w-70 border-r bg-muted/30 flex flex-col h-full overflow-x-auto">
       {/* Header */}
       <div className="p-2 flex border-b flex-shrink-0 grid-cols-2 justify-between">
         <Button onClick={onAddCategory} className="gap-2 w-[48%]">
@@ -61,7 +61,7 @@ export function CategoriesSidebar({
       </div>
 
       {/* Categories List */}
-      <ScrollArea className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1 overflow-y-auto overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -74,7 +74,7 @@ export function CategoriesSidebar({
             </p>
           </div>
         ) : (
-          <div className="p-2 space-y-1">
+          <div className="p-2 space-y-1 overflow-x-auto">
             {categories.map((category) => {
               const categoryId = category._id || category.id;
               const isSelected = categoryId === selectedCategoryId;
@@ -91,7 +91,7 @@ export function CategoriesSidebar({
                 >
                   <button
                     onClick={() => handleCategoryClick(categoryId)}
-                    className="w-full p-3 flex items-center gap-3 text-left"
+                    className="w-full p-3 flex items-start gap-3 text-left"
                   >
                     {/* Category Image */}
                     {category.imageUrl ? (
@@ -107,19 +107,19 @@ export function CategoriesSidebar({
                     )}
 
                     {/* Category Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">
+                    <div className="flex-1 min-w-0 pr-8">
+                      <div className="font-medium text-sm leading-tight line-clamp-2 break-words">
                         {category.name}
                       </div>
                       {category.description && (
-                        <div className="text-xs text-muted-foreground truncate mt-0.5">
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-1 break-words">
                           {category.description}
                         </div>
                       )}
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1.5">
                         <span
                           className={cn(
-                            'text-xs px-1.5 py-0.5 rounded-full',
+                            'text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap',
                             category.isActive
                               ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                               : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'

@@ -10,8 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2, Upload, X } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/components/ui/use-toast';
@@ -28,9 +35,20 @@ import { skipToken } from '@reduxjs/toolkit/query/react';
 const categoryFormSchema = z.object({
   name: z.string().min(1, 'Category name is required'),
   description: z.string().optional(),
+  foodCategory: z.enum(['cooked_food', 'fresh_items', 'packaged_items', 'beverages', 'alcohol', 'sweets', 'ice_cream']).default('cooked_food'),
 });
 
 type CategoryFormData = z.infer<typeof categoryFormSchema>;
+
+const foodCategories = [
+  { value: 'cooked_food', label: 'Cooked Food (GST 5% or 18%)' },
+  { value: 'beverages', label: 'Beverages (GST 5% or 18%)' },
+  { value: 'alcohol', label: 'Alcoholic Beverages (State VAT)' },
+  { value: 'fresh_items', label: 'Fresh Items (No Tax)' },
+  { value: 'packaged_items', label: 'Packaged Items (GST)' },
+  { value: 'sweets', label: 'Sweets & Confectionery (GST)' },
+  { value: 'ice_cream', label: 'Ice Cream (GST)' },
+] as const;
 
 interface CategoryFormDialogProps {
   open: boolean;
@@ -69,6 +87,7 @@ export function CategoryFormDialog({
     defaultValues: {
       name: '',
       description: '',
+      foodCategory: 'cooked_food',
     },
   });
 
@@ -77,6 +96,7 @@ export function CategoryFormDialog({
       form.reset({
         name: category.name,
         description: category.description || '',
+        foodCategory: (category as any).foodCategory || 'cooked_food',
       });
       setImagePreview(category.imageUrl || '');
       setSelectedFile(null);
@@ -84,6 +104,7 @@ export function CategoryFormDialog({
       form.reset({
         name: '',
         description: '',
+        foodCategory: 'cooked_food',
       });
       setImagePreview('');
       setSelectedFile(null);
@@ -159,6 +180,7 @@ export function CategoryFormDialog({
           body: {
             name: data.name,
             description: data.description,
+            foodCategory: data.foodCategory,
             isActive: category.isActive,
           },
         }).unwrap();
@@ -171,6 +193,7 @@ export function CategoryFormDialog({
           body: {
             name: data.name,
             description: data.description,
+            foodCategory: data.foodCategory,
             displayOrder: categories.length + 1,
             isActive: true,
           },
@@ -248,6 +271,33 @@ export function CategoryFormDialog({
               placeholder="Brief description of the category"
               rows={3}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="foodCategory">Food Category (Tax Classification) *</Label>
+            <Controller
+              name="foodCategory"
+              control={form.control}
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select food category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {foodCategories.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>
+                        {category.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {form.formState.errors.foodCategory && (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.foodCategory.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

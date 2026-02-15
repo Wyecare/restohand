@@ -156,4 +156,132 @@ export class BranchesController {
     await this.branchesService.remove(user.restaurantId!, id);
     return { message: 'Branch deleted successfully' };
   }
+
+  // Branch Charges CRUD endpoints
+
+  @Get(':id/charges')
+  @Roles(UserRole.Owner, UserRole.Manager)
+  @ApiOperation({ summary: 'Get branch charges' })
+  @ApiResponse({ status: 200, description: 'Branch charges retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Branch not found' })
+  async getBranchCharges(@Request() req: any, @Param('id') id: string) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this specific branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(id)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to access this branch'
+      );
+    }
+
+    return this.branchesService.getBranchCharges(user.restaurantId!, id);
+  }
+
+  @Post(':id/charges')
+  @Roles(UserRole.Owner, UserRole.Manager)
+  @ApiOperation({ summary: 'Add branch charge' })
+  @ApiResponse({ status: 201, description: 'Branch charge added successfully' })
+  @ApiResponse({ status: 404, description: 'Branch not found' })
+  async addBranchCharge(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() chargeData: any
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this specific branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(id)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to manage this branch'
+      );
+    }
+
+    return this.branchesService.addBranchCharge(user.restaurantId!, id, chargeData);
+  }
+
+  @Patch(':id/charges/:chargeIndex')
+  @Roles(UserRole.Owner, UserRole.Manager)
+  @ApiOperation({ summary: 'Update branch charge' })
+  @ApiResponse({ status: 200, description: 'Branch charge updated successfully' })
+  @ApiResponse({ status: 404, description: 'Branch or charge not found' })
+  async updateBranchCharge(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Param('chargeIndex') chargeIndex: string,
+    @Body() chargeData: any
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this specific branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(id)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to manage this branch'
+      );
+    }
+
+    return this.branchesService.updateBranchCharge(
+      user.restaurantId!,
+      id,
+      parseInt(chargeIndex),
+      chargeData
+    );
+  }
+
+  @Delete(':id/charges/:chargeIndex')
+  @Roles(UserRole.Owner, UserRole.Manager)
+  @ApiOperation({ summary: 'Delete branch charge' })
+  @ApiResponse({ status: 200, description: 'Branch charge deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Branch or charge not found' })
+  async deleteBranchCharge(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Param('chargeIndex') chargeIndex: string
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this specific branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(id)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to manage this branch'
+      );
+    }
+
+    await this.branchesService.deleteBranchCharge(
+      user.restaurantId!,
+      id,
+      parseInt(chargeIndex)
+    );
+    return { message: 'Branch charge deleted successfully' };
+  }
+
+  @Patch(':id/charges/reorder')
+  @Roles(UserRole.Owner, UserRole.Manager)
+  @ApiOperation({ summary: 'Reorder branch charges' })
+  @ApiResponse({ status: 200, description: 'Branch charges reordered successfully' })
+  @ApiResponse({ status: 404, description: 'Branch not found' })
+  async reorderBranchCharges(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: { charges: any[] }
+  ) {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to manage this specific branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(id)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to manage this branch'
+      );
+    }
+
+    return this.branchesService.reorderBranchCharges(
+      user.restaurantId!,
+      id,
+      body.charges
+    );
+  }
 }

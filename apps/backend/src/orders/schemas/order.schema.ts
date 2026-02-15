@@ -15,47 +15,10 @@ class OrderItemPricing {
   currency!: string;
 
   @Prop({ type: Number, default: 0 })
-  taxAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
   discountAmount!: number;
 }
 
-@Schema({ _id: false })
-class OrderItemGst {
-  @Prop({ type: String, trim: true })
-  hsnCode?: string;
-
-  @Prop({ type: String, trim: true })
-  gstRateId?: string;
-
-  @Prop({ type: Number, default: 0, min: 0, max: 100 })
-  gstRate!: number;
-
-  @Prop({ type: Number, default: 0, min: 0 })
-  cgstAmount!: number;
-
-  @Prop({ type: Number, default: 0, min: 0 })
-  sgstAmount!: number;
-
-  @Prop({ type: Number, default: 0, min: 0 })
-  igstAmount!: number;
-
-  @Prop({ type: Number, default: 0, min: 0 })
-  totalTaxAmount!: number;
-
-  @Prop({ type: Number, default: 0, min: 0 })
-  taxableAmount!: number;
-
-  @Prop({ type: Number, default: 0, min: 0 })
-  totalWithTax!: number;
-
-  @Prop({ type: Number, default: 0, min: 0 })
-  grossAmount!: number;
-
-  @Prop({ type: Boolean, default: false })
-  isTaxInclusive!: boolean;
-}
+// Removed OrderItemGst - GST is now calculated at bill level, not per item
 
 @Schema({ _id: false })
 class OptionSelection {
@@ -85,7 +48,7 @@ class ModifierSelection {
 }
 
 const OrderItemPricingSchema = SchemaFactory.createForClass(OrderItemPricing);
-const OrderItemGstSchema = SchemaFactory.createForClass(OrderItemGst);
+// Removed OrderItemGstSchema - no longer needed
 const OptionSelectionSchema = SchemaFactory.createForClass(OptionSelection);
 const ModifierSelectionSchema = SchemaFactory.createForClass(ModifierSelection);
 
@@ -103,8 +66,7 @@ class OrderItem {
   @Prop({ type: OrderItemPricingSchema, required: true })
   pricing!: OrderItemPricing;
 
-  @Prop({ type: OrderItemGstSchema, required: false })
-  gst?: OrderItemGst;
+  // Removed per-item GST - GST calculated at order level
 
   @Prop({ type: String })
   activePriceTagId?: string;
@@ -195,35 +157,12 @@ export class Order {
   @Prop({ type: [OrderItemSchema], default: [] })
   items!: OrderItem[];
 
+  // Order amounts (no tax calculation - handled by billing module)
   @Prop({ type: Number, min: 0, default: 0 })
-  subTotalAmount!: number;
-
-  @Prop({ type: Number, min: 0, default: 0 })
-  taxAmount!: number;
+  subtotalAmount!: number; // Sum of all item totals (price × quantity)
 
   @Prop({ type: Number, min: 0, default: 0 })
-  cgstAmount!: number; // Total CGST for all items
-
-  @Prop({ type: Number, min: 0, default: 0 })
-  sgstAmount!: number; // Total SGST for all items
-
-  @Prop({ type: Number, min: 0, default: 0 })
-  igstAmount!: number; // Total IGST for all items
-
-  @Prop({ type: String, enum: ['intra-state', 'inter-state'] })
-  taxType?: 'intra-state' | 'inter-state'; // Type of GST applied
-
-  @Prop({ type: Number, min: 0, default: 0 })
-  discountAmount!: number;
-
-  @Prop({ type: Number, min: 0, default: 0 })
-  grossAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
-  roundOffAmount!: number; // Rounding adjustment (can be positive or negative)
-
-  @Prop({ type: Number, min: 0, default: 0 })
-  totalAmount!: number;
+  totalAmount!: number; // Same as subtotal (no tax here)
 
   @Prop({ type: Number, min: 0 })
   finalAmount?: number; // Actual amount collected (may differ from totalAmount due to rounding)

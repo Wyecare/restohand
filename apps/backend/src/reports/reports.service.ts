@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { OrderStatus } from '../common/enums/order-status.enum';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
@@ -41,11 +41,11 @@ export class ReportsService {
 
     this.logger.log(`Generating reports metrics for restaurant ${restaurantId} from ${from.toISOString()} to ${to.toISOString()}`);
 
-    // Build base filter
+    // Build base filter with proper ObjectId conversion
     const baseFilter = {
-      restaurantId,
+      restaurantId: new Types.ObjectId(restaurantId),
       isArchived: false,
-      ...(query.branchId && { branchId: query.branchId }),
+      ...(query.branchId && { branchId: new Types.ObjectId(query.branchId) }),
     };
 
     // Get current and previous period data in parallel
@@ -403,7 +403,10 @@ export class ReportsService {
       type: 'area',
       title: 'Revenue Trend',
       yAxisLabel: 'Revenue (₹)',
-      data: this.generateTimeSeriesData(orders, from, to, 'revenue'),
+      data: hourlyData.map((h) => ({
+        label: `${h.hour}:00`,
+        value: h.revenue,
+      })),
       colors: ['#3b82f6', '#06b6d4'],
     };
 
@@ -412,7 +415,10 @@ export class ReportsService {
       type: 'line',
       title: 'Order Volume',
       yAxisLabel: 'Order Count',
-      data: this.generateTimeSeriesData(orders, from, to, 'count'),
+      data: hourlyData.map((h) => ({
+        label: `${h.hour}:00`,
+        value: h.orderCount,
+      })),
       colors: ['#10b981', '#059669'],
     };
 

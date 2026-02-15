@@ -23,12 +23,12 @@ export class PaginationUtil {
    */
   static parsePaginationOptions(
     options: PaginationOptions = {},
-    maxLimit: number = 100,
+    maxLimit = 10000
   ): PaginationParams {
     const page = Math.max(1, Number(options.page ?? '1'));
     const limit = Math.min(
       Math.max(1, Number(options.limit ?? '20')),
-      maxLimit,
+      maxLimit
     );
     const skip = (page - 1) * limit;
 
@@ -41,7 +41,7 @@ export class PaginationUtil {
   static createMeta(
     total: number,
     page: number,
-    limit: number,
+    limit: number
   ): PaginationMetaDto {
     const totalPages = Math.ceil(total / limit);
     const hasNext = page < totalPages;
@@ -64,7 +64,7 @@ export class PaginationUtil {
     data: T[],
     total: number,
     page: number,
-    limit: number,
+    limit: number
   ): PaginatedResult<T> {
     return {
       data,

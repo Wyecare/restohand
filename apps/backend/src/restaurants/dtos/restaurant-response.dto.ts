@@ -4,10 +4,12 @@ import { RestaurantUpiConfigDto } from './upi-config.dto';
 import { RestaurantSettingsDto } from './restaurant-settings.dto';
 
 class GstConfigResponseDto {
-  @ApiProperty()
+  @ApiProperty({
+    enum: ['standalone', 'hotel_under_7500', 'hotel_above_7500', 'catering_standalone', 'catering_premium']
+  })
   establishmentType!: string;
 
-  @ApiProperty()
+  @ApiProperty({ enum: [5, 18] })
   defaultGstRate!: number;
 
   @ApiProperty()
@@ -18,17 +20,44 @@ class GstConfigResponseDto {
 
   @ApiProperty({ required: false })
   gstin?: string;
+
+  @ApiProperty({ required: false })
+  roomTariff?: number;
+
+  @ApiProperty()
+  servesAlcohol!: boolean;
+
+  @ApiProperty()
+  enableServiceCharge!: boolean;
+
+  @ApiProperty({ required: false })
+  serviceChargeRate?: number;
+
+  @ApiProperty()
+  integratedWithDeliveryPlatforms!: boolean;
+
+  @ApiProperty()
+  isGstEnabled!: boolean;
+
+  @ApiProperty()
+  configuredAt!: string;
+
+  @ApiProperty({ required: false })
+  lastUpdatedAt?: string;
 }
 
 class BusinessDetailsResponseDto {
   @ApiProperty({ required: false })
   panNumber?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({
+    enum: ['sole_proprietorship', 'partnership', 'private_limited', 'public_limited'],
+    required: false
+  })
   businessType?: string;
 
-  @ApiProperty({ type: GstConfigResponseDto })
-  gst!: GstConfigResponseDto;
+  @ApiProperty({ type: GstConfigResponseDto, required: false })
+  gst?: GstConfigResponseDto;
 }
 
 export class RestaurantResponseDto {

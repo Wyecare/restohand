@@ -227,4 +227,101 @@ export class BranchesService {
 
     return this.create(restaurantId, defaultBranchData);
   }
+
+  // Branch Charges CRUD methods
+
+  async getBranchCharges(restaurantId: string, branchId: string): Promise<any[]> {
+    const branch = await this.findOne(restaurantId, branchId);
+    return branch.settings?.charges || [];
+  }
+
+  async addBranchCharge(restaurantId: string, branchId: string, chargeData: any): Promise<any> {
+    const branch = await this.findOne(restaurantId, branchId);
+
+    // Get current charges and calculate next sort order
+    const currentCharges = branch.settings?.charges || [];
+    const nextSortOrder = currentCharges.length;
+
+    const newCharge = {
+      ...chargeData,
+      sortOrder: nextSortOrder,
+    };
+
+    // Add charge to the charges array
+    const updatedCharges = [...currentCharges, newCharge];
+
+    await this.branchModel.findByIdAndUpdate(branchId, {
+      $set: { 'settings.charges': updatedCharges }
+    });
+
+    this.logger.log(`Added charge to branch ${branchId} for restaurant ${restaurantId}`);
+    return newCharge;
+  }
+
+  async updateBranchCharge(
+    restaurantId: string,
+    branchId: string,
+    chargeIndex: number,
+    chargeData: any
+  ): Promise<any> {
+    const branch = await this.findOne(restaurantId, branchId);
+
+    const charges = [...(branch.settings?.charges || [])];
+
+    if (chargeIndex < 0 || chargeIndex >= charges.length) {
+      throw new NotFoundException('Charge not found');
+    }
+
+    // Update the charge at the specified index
+    charges[chargeIndex] = { ...charges[chargeIndex], ...chargeData };
+
+    await this.branchModel.findByIdAndUpdate(branchId, {
+      $set: { 'settings.charges': charges }
+    });
+
+    this.logger.log(`Updated charge ${chargeIndex} for branch ${branchId} in restaurant ${restaurantId}`);
+    return charges[chargeIndex];
+  }
+
+  async deleteBranchCharge(restaurantId: string, branchId: string, chargeIndex: number): Promise<void> {
+    const branch = await this.findOne(restaurantId, branchId);
+
+    const charges = [...(branch.settings?.charges || [])];
+
+    if (chargeIndex < 0 || chargeIndex >= charges.length) {
+      throw new NotFoundException('Charge not found');
+    }
+
+    // Remove the charge at the specified index
+    charges.splice(chargeIndex, 1);
+
+    // Reindex remaining charges
+    const reindexedCharges = charges.map((charge, index) => ({
+      ...charge,
+      sortOrder: index,
+    }));
+
+    await this.branchModel.findByIdAndUpdate(branchId, {
+      $set: { 'settings.charges': reindexedCharges }
+    });
+
+    this.logger.log(`Deleted charge ${chargeIndex} from branch ${branchId} in restaurant ${restaurantId}`);
+  }
+
+  async reorderBranchCharges(restaurantId: string, branchId: string, newChargesOrder: any[]): Promise<any[]> {
+    await this.findOne(restaurantId, branchId); // Validate branch exists
+
+    // Reindex charges to maintain consistent sort order
+    const reindexedCharges = newChargesOrder.map((charge, index) => ({
+      ...charge,
+      sortOrder: index,
+    }));
+
+    await this.branchModel.findByIdAndUpdate(branchId, {
+      $set: { 'settings.charges': reindexedCharges }
+    });
+
+    this.logger.log(`Reordered charges for branch ${branchId} in restaurant ${restaurantId}`);
+    return reindexedCharges;
+  }
 }

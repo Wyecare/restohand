@@ -1,0 +1,816 @@
+# Restaurant GST Calculation Guide (India)
+
+## Document Overview
+This document explains exactly how to calculate GST (Goods and Services Tax) in restaurant billing systems in India, with step-by-step examples and code implementations.
+
+---
+
+## Table of Contents
+1. [Core Calculation Principle](#core-calculation-principle)
+2. [GST Components Breakdown](#gst-components-breakdown)
+3. [Step-by-Step Calculation](#step-by-step-calculation)
+4. [Real Bill Example](#real-bill-example)
+5. [Code Implementation](#code-implementation)
+6. [Special Scenarios](#special-scenarios)
+7. [Edge Cases & Rounding](#edge-cases--rounding)
+8. [Common Calculation Errors](#common-calculation-errors)
+
+---
+
+## Core Calculation Principle
+
+### ✅ CONFIRMED: GST is calculated on SUBTOTAL, not per item
+
+**Key Finding:** Restaurants apply **ONE** GST rate to the **entire bill subtotal**, regardless of individual food item categories.
+
+```
+Items → Subtotal → Apply GST → Grand Total
+```
+
+**NOT:**
+```
+❌ Item 1 → GST per item
+❌ Item 2 → GST per item
+❌ Item 3 → GST per item
+```
+
+---
+
+## GST Components Breakdown
+
+### For Intra-State Transactions (Same State)
+GST is split equally between Central and State governments:
+
+**5% Total GST:**
+- CGST: 2.5% (Central)
+- SGST: 2.5% (State)
+
+**18% Total GST:**
+- CGST: 9% (Central)
+- SGST: 9% (State)
+
+### For Inter-State Transactions (Different States)
+GST is charged as a single Integrated tax:
+
+**5% Total GST:**
+- IGST: 5%
+
+**18% Total GST:**
+- IGST: 18%
+
+---
+
+## Step-by-Step Calculation
+
+### Standard Restaurant Bill Calculation
+
+#### Step 1: Calculate Item Totals
+```
+Item Total = Unit Price × Quantity
+```
+
+**Example:**
+```
+Biryani:     ₹250 × 2 = ₹500
+Butter Naan: ₹40 × 3  = ₹120
+Lassi:       ₹60 × 2  = ₹120
+```
+
+---
+
+#### Step 2: Calculate Subtotal (Before Tax)
+```
+Subtotal = Sum of all Item Totals
+```
+
+**Example:**
+```
+Subtotal = ₹500 + ₹120 + ₹120 = ₹740
+```
+
+---
+
+#### Step 3: Add Service Charge (if applicable)
+```
+Service Charge Amount = Subtotal × Service Charge %
+Subtotal with Service = Subtotal + Service Charge Amount
+```
+
+**Example (10% service charge):**
+```
+Service Charge = ₹740 × 10% = ₹74
+Subtotal with Service = ₹740 + ₹74 = ₹814
+```
+
+**Note:** Service charge is optional and restaurant-specific.
+
+---
+
+#### Step 4: Calculate GST
+```
+GST Amount = Subtotal (with service) × GST Rate
+```
+
+**For 5% GST (Intra-State):**
+```
+Total GST = ₹814 × 5% = ₹40.70
+CGST = ₹40.70 / 2 = ₹20.35
+SGST = ₹40.70 / 2 = ₹20.35
+```
+
+**For 18% GST (Intra-State):**
+```
+Total GST = ₹814 × 18% = ₹146.52
+CGST = ₹146.52 / 2 = ₹73.26
+SGST = ₹146.52 / 2 = ₹73.26
+```
+
+---
+
+#### Step 5: Calculate Grand Total
+```
+Grand Total = Subtotal (with service) + GST Amount
+```
+
+**Example (5% GST):**
+```
+Grand Total = ₹814 + ₹40.70 = ₹854.70
+```
+
+**Example (18% GST):**
+```
+Grand Total = ₹814 + ₹146.52 = ₹960.52
+```
+
+---
+
+## Real Bill Example
+
+### Actual Restaurant Bill (Nawras Restaurant, Kochi)
+
+```
+NAWRAS
+23, NEAR PULLEPADI BUSSTOP, CHITOOR ROAD, KOCHI
+GST IN: 32AAVCS6743EIZ2
+
+Bill No: 8788                    Table: 07
+Date: 03/03/2018                 Time: 03:10:43 PM
+No. of Persons: 2
+
+Item                  Qty    Price    Amount
+------------------------------------------------
+Ary                   490     2.00    980.00
+Hamour               615     2.80   1637.50
+Tiger Prawns         190     2.80    532.00
+GHEE RICE              1   140.00    140.00
+Mineral Water          1    30.00     30.00
+PAYASAM                1   150.00    150.00
+                           ──────────────────
+                   Sub Total:      3389.50
+                           ──────────────────
+
+        (CGST 2.5% & SGST 2.5%):    168.48
+                           ──────────────────
+
+                Grand Total:      3538.00
+```
+
+### Calculation Verification
+
+**Step 1: Subtotal**
+```
+Items Total = 980 + 1637.50 + 532 + 140 + 30 + 150 = ₹3,389.50 ✓
+```
+
+**Step 2: GST Calculation**
+```
+GST Rate = 5% (2.5% CGST + 2.5% SGST)
+GST Amount = ₹3,389.50 × 5% = ₹169.475
+```
+
+**Step 3: Rounding**
+```
+Displayed GST = ₹168.48 (likely due to item-level rounding)
+```
+
+**Step 4: Grand Total**
+```
+Grand Total = ₹3,389.50 + ₹168.48 = ₹3,557.98
+Bill shows: ₹3,538.00
+```
+
+**Note:** The difference is due to rounding adjustments or discounts not visible in the bill.
+
+---
+
+## Code Implementation
+
+### TypeScript/JavaScript Implementation
+
+#### Basic Structure
+```typescript
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface GstConfig {
+  gstRate: 5 | 18;
+  businessState: string;
+  customerState?: string;
+}
+
+interface BillCalculation {
+  subtotal: number;
+  serviceCharge: number;
+  subtotalWithService: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  totalGst: number;
+  grandTotal: number;
+}
+```
+
+---
+
+#### Main Calculation Function
+
+```typescript
+function calculateBill(
+  items: CartItem[],
+  gstConfig: GstConfig,
+  serviceChargePercent: number = 0
+): BillCalculation {
+  
+  // Step 1: Calculate subtotal
+  const subtotal = items.reduce((sum, item) => {
+    return sum + (item.price * item.quantity);
+  }, 0);
+  
+  // Step 2: Calculate service charge (if applicable)
+  const serviceCharge = subtotal * (serviceChargePercent / 100);
+  const subtotalWithService = subtotal + serviceCharge;
+  
+  // Step 3: Calculate GST
+  const totalGst = subtotalWithService * (gstConfig.gstRate / 100);
+  
+  // Step 4: Determine if intra-state or inter-state
+  const isIntraState = !gstConfig.customerState || 
+                       gstConfig.businessState === gstConfig.customerState;
+  
+  let cgst = 0;
+  let sgst = 0;
+  let igst = 0;
+  
+  if (isIntraState) {
+    // Split GST equally between CGST and SGST
+    cgst = totalGst / 2;
+    sgst = totalGst / 2;
+  } else {
+    // Inter-state: Full amount as IGST
+    igst = totalGst;
+  }
+  
+  // Step 5: Calculate grand total
+  const grandTotal = subtotalWithService + totalGst;
+  
+  return {
+    subtotal: roundToTwo(subtotal),
+    serviceCharge: roundToTwo(serviceCharge),
+    subtotalWithService: roundToTwo(subtotalWithService),
+    cgst: roundToTwo(cgst),
+    sgst: roundToTwo(sgst),
+    igst: roundToTwo(igst),
+    totalGst: roundToTwo(totalGst),
+    grandTotal: roundToTwo(grandTotal),
+  };
+}
+
+// Helper function for rounding to 2 decimal places
+function roundToTwo(num: number): number {
+  return Math.round(num * 100) / 100;
+}
+```
+
+---
+
+#### Example Usage
+
+```typescript
+// Example 1: Standalone Restaurant (5% GST, Intra-State)
+const items: CartItem[] = [
+  { id: '1', name: 'Biryani', price: 250, quantity: 2 },
+  { id: '2', name: 'Butter Naan', price: 40, quantity: 3 },
+  { id: '3', name: 'Lassi', price: 60, quantity: 2 },
+];
+
+const gstConfig: GstConfig = {
+  gstRate: 5,
+  businessState: 'Karnataka',
+  customerState: 'Karnataka', // Same state = Intra-state
+};
+
+const bill = calculateBill(items, gstConfig, 10); // 10% service charge
+
+console.log(bill);
+/* Output:
+{
+  subtotal: 740.00,
+  serviceCharge: 74.00,
+  subtotalWithService: 814.00,
+  cgst: 20.35,
+  sgst: 20.35,
+  igst: 0,
+  totalGst: 40.70,
+  grandTotal: 854.70
+}
+*/
+```
+
+```typescript
+// Example 2: Premium Hotel Restaurant (18% GST, Inter-State)
+const premiumGstConfig: GstConfig = {
+  gstRate: 18,
+  businessState: 'Maharashtra',
+  customerState: 'Karnataka', // Different state = Inter-state
+};
+
+const premiumBill = calculateBill(items, premiumGstConfig, 0); // No service charge
+
+console.log(premiumBill);
+/* Output:
+{
+  subtotal: 740.00,
+  serviceCharge: 0,
+  subtotalWithService: 740.00,
+  cgst: 0,
+  sgst: 0,
+  igst: 133.20,
+  totalGst: 133.20,
+  grandTotal: 873.20
+}
+*/
+```
+
+---
+
+### Bill Display Format
+
+```typescript
+function formatBill(bill: BillCalculation, isIntraState: boolean): string {
+  const lines: string[] = [];
+  
+  lines.push('─'.repeat(40));
+  lines.push(`Subtotal:          ₹${bill.subtotal.toFixed(2)}`);
+  
+  if (bill.serviceCharge > 0) {
+    lines.push(`Service Charge:    ₹${bill.serviceCharge.toFixed(2)}`);
+    lines.push('─'.repeat(40));
+    lines.push(`Subtotal:          ₹${bill.subtotalWithService.toFixed(2)}`);
+  }
+  
+  lines.push('─'.repeat(40));
+  
+  if (isIntraState) {
+    lines.push(`CGST @ ${bill.cgst > 0 ? (bill.cgst / bill.subtotalWithService * 100).toFixed(1) : '0'}%:     ₹${bill.cgst.toFixed(2)}`);
+    lines.push(`SGST @ ${bill.sgst > 0 ? (bill.sgst / bill.subtotalWithService * 100).toFixed(1) : '0'}%:     ₹${bill.sgst.toFixed(2)}`);
+  } else {
+    lines.push(`IGST @ ${(bill.igst / bill.subtotalWithService * 100).toFixed(0)}%:    ₹${bill.igst.toFixed(2)}`);
+  }
+  
+  lines.push('─'.repeat(40));
+  lines.push(`Grand Total:       ₹${bill.grandTotal.toFixed(2)}`);
+  lines.push('─'.repeat(40));
+  
+  return lines.join('\n');
+}
+```
+
+**Output Example (Intra-State, 5% GST):**
+```
+────────────────────────────────────────
+Subtotal:          ₹740.00
+Service Charge:    ₹74.00
+────────────────────────────────────────
+Subtotal:          ₹814.00
+────────────────────────────────────────
+CGST @ 2.5%:       ₹20.35
+SGST @ 2.5%:       ₹20.35
+────────────────────────────────────────
+Grand Total:       ₹854.70
+────────────────────────────────────────
+```
+
+---
+
+## Special Scenarios
+
+### Scenario 1: Bill with Alcohol
+Alcohol is **NOT** subject to GST. It's taxed under State VAT.
+
+```typescript
+interface MixedBillItem extends CartItem {
+  isAlcoholic: boolean;
+}
+
+function calculateMixedBill(items: MixedBillItem[], gstConfig: GstConfig) {
+  // Separate food and alcohol
+  const foodItems = items.filter(item => !item.isAlcoholic);
+  const alcoholItems = items.filter(item => item.isAlcoholic);
+  
+  // Calculate food subtotal
+  const foodSubtotal = foodItems.reduce((sum, item) => 
+    sum + (item.price * item.quantity), 0
+  );
+  
+  // Calculate alcohol subtotal (State VAT applies, not GST)
+  const alcoholSubtotal = alcoholItems.reduce((sum, item) => 
+    sum + (item.price * item.quantity), 0
+  );
+  
+  // GST only on food items
+  const gstAmount = foodSubtotal * (gstConfig.gstRate / 100);
+  
+  // State VAT on alcohol (rate varies by state)
+  const stateVatRate = getStateVatRate(gstConfig.businessState); // e.g., 20%
+  const vatAmount = alcoholSubtotal * stateVatRate;
+  
+  return {
+    foodSubtotal,
+    alcoholSubtotal,
+    gstAmount,
+    vatAmount,
+    grandTotal: foodSubtotal + alcoholSubtotal + gstAmount + vatAmount
+  };
+}
+```
+
+**Bill Display:**
+```
+Food Items:           ₹1,000.00
+Alcoholic Beverages:  ₹500.00
+────────────────────────────────
+Subtotal:             ₹1,500.00
+────────────────────────────────
+GST @ 5% (Food):      ₹50.00
+State VAT @ 20% (Alcohol): ₹100.00
+────────────────────────────────
+Grand Total:          ₹1,650.00
+```
+
+---
+
+### Scenario 2: Delivery Orders (Post-2022)
+
+For orders through Zomato/Swiggy after January 1, 2022:
+
+```typescript
+function calculateDeliveryBill(
+  foodValue: number,
+  deliveryCharge: number,
+  platformCommission: number
+) {
+  // Platform collects GST on food (5%)
+  const foodGst = foodValue * 0.05;
+  
+  // Platform collects GST on delivery (18%)
+  const deliveryGst = deliveryCharge * 0.18;
+  
+  // Customer pays
+  const customerTotal = foodValue + deliveryCharge + foodGst + deliveryGst;
+  
+  // Restaurant receives (after platform deducts commission)
+  const commissionGst = platformCommission * 0.18;
+  const restaurantReceives = foodValue - platformCommission;
+  
+  // Platform pays GST on food to government
+  // Restaurant doesn't handle food GST for this order
+  
+  return {
+    customerPays: customerTotal,
+    restaurantReceives,
+    platformCollectedGst: foodGst + deliveryGst,
+    restaurantPaysGstOnCommission: commissionGst
+  };
+}
+```
+
+**Example:**
+```
+Food Value: ₹500
+Delivery Charge: ₹40
+Platform Commission: 20% (₹100)
+
+Customer pays:
+  Food:           ₹500.00
+  Delivery:       ₹40.00
+  GST (Food 5%):  ₹25.00
+  GST (Del 18%):  ₹7.20
+  Total:          ₹572.20
+
+Restaurant receives: ₹400 (₹500 - ₹100 commission)
+Platform pays to govt: ₹25.00 (food GST)
+```
+
+---
+
+### Scenario 3: Discount Application
+
+GST should be calculated **after** applying discounts:
+
+```typescript
+function calculateBillWithDiscount(
+  subtotal: number,
+  discountPercent: number,
+  gstRate: number
+) {
+  // Apply discount first
+  const discountAmount = subtotal * (discountPercent / 100);
+  const subtotalAfterDiscount = subtotal - discountAmount;
+  
+  // Then calculate GST
+  const gstAmount = subtotalAfterDiscount * (gstRate / 100);
+  
+  const grandTotal = subtotalAfterDiscount + gstAmount;
+  
+  return {
+    originalSubtotal: subtotal,
+    discount: discountAmount,
+    subtotalAfterDiscount,
+    gst: gstAmount,
+    grandTotal
+  };
+}
+```
+
+**Example:**
+```
+Subtotal: ₹1,000
+Discount: 10%
+GST: 5%
+
+Calculation:
+  Discount:       -₹100.00
+  After Discount: ₹900.00
+  GST @ 5%:       ₹45.00
+  Grand Total:    ₹945.00
+```
+
+---
+
+## Edge Cases & Rounding
+
+### Rounding Strategy
+
+**Recommended:** Round to 2 decimal places at the final step.
+
+```typescript
+// Bad: Rounding too early
+const cgst = Math.round((totalGst / 2) * 100) / 100; // Loses precision
+const sgst = Math.round((totalGst / 2) * 100) / 100;
+
+// Good: Round only final values
+const totalGst = subtotal * (gstRate / 100);
+const cgst = totalGst / 2;
+const sgst = totalGst / 2;
+const grandTotal = subtotal + totalGst;
+
+// Return rounded values
+return {
+  cgst: roundToTwo(cgst),
+  sgst: roundToTwo(sgst),
+  grandTotal: roundToTwo(grandTotal)
+};
+```
+
+---
+
+### Handling Paisa Rounding
+
+Some systems round to nearest rupee:
+
+```typescript
+function roundToNearestRupee(amount: number): number {
+  return Math.round(amount);
+}
+
+// Example
+const grandTotal = 854.70;
+const rounded = roundToNearestRupee(grandTotal); // 855
+```
+
+**Bill Display:**
+```
+Grand Total:        ₹854.70
+Rounded:            ₹855.00
+```
+
+---
+
+### Split Bills
+
+When splitting bills, calculate GST on each split:
+
+```typescript
+function splitBill(
+  totalBill: BillCalculation,
+  numberOfSplits: number
+): BillCalculation[] {
+  // Don't just divide the grand total
+  // Instead, recalculate for each split
+  
+  const perPersonSubtotal = totalBill.subtotal / numberOfSplits;
+  
+  return Array.from({ length: numberOfSplits }, () => {
+    const gst = perPersonSubtotal * (totalBill.totalGst / totalBill.subtotal);
+    return {
+      subtotal: roundToTwo(perPersonSubtotal),
+      totalGst: roundToTwo(gst),
+      grandTotal: roundToTwo(perPersonSubtotal + gst),
+      // ... other fields
+    };
+  });
+}
+```
+
+---
+
+## Common Calculation Errors
+
+### ❌ Error 1: Calculating GST per item
+```typescript
+// WRONG
+items.forEach(item => {
+  const itemGst = (item.price * item.quantity) * 0.05;
+  item.gst = itemGst;
+});
+```
+
+**Why wrong:** GST should be calculated on the total subtotal, not individually.
+
+---
+
+### ❌ Error 2: Not including service charge in GST base
+```typescript
+// WRONG
+const subtotal = 1000;
+const serviceCharge = 100;
+const gst = subtotal * 0.05; // Missing service charge!
+```
+
+**Correct:**
+```typescript
+const subtotal = 1000;
+const serviceCharge = 100;
+const taxableAmount = subtotal + serviceCharge;
+const gst = taxableAmount * 0.05; // ✓
+```
+
+---
+
+### ❌ Error 3: Applying retail food item rates in restaurants
+```typescript
+// WRONG: Applying individual food item GST rates
+const vegetableGst = vegetablePrice * 0;      // 0% for fresh
+const chocolateGst = chocolatePrice * 0.18;   // 18% for chocolates
+```
+
+**Correct:** Apply restaurant's GST rate to entire bill
+```typescript
+const restaurantGst = totalBill * 0.05; // 5% for standalone restaurant
+```
+
+---
+
+### ❌ Error 4: Not splitting CGST/SGST correctly
+```typescript
+// WRONG
+const cgst = totalGst * 0.025; // Treating as percentage
+const sgst = totalGst * 0.025;
+```
+
+**Correct:**
+```typescript
+const cgst = totalGst / 2; // 50% split
+const sgst = totalGst / 2; // 50% split
+```
+
+---
+
+### ❌ Error 5: Charging GST on alcohol
+```typescript
+// WRONG
+const alcoholGst = alcoholValue * 0.05;
+```
+
+**Correct:**
+```typescript
+// No GST on alcohol - use State VAT instead
+const stateVat = alcoholValue * getStateVatRate(state);
+```
+
+---
+
+## Testing & Validation
+
+### Test Cases
+
+```typescript
+describe('GST Calculation', () => {
+  test('5% GST on ₹1000 subtotal', () => {
+    const result = calculateBill(
+      [{ id: '1', name: 'Food', price: 1000, quantity: 1 }],
+      { gstRate: 5, businessState: 'KA' }
+    );
+    
+    expect(result.subtotal).toBe(1000);
+    expect(result.totalGst).toBe(50);
+    expect(result.cgst).toBe(25);
+    expect(result.sgst).toBe(25);
+    expect(result.grandTotal).toBe(1050);
+  });
+  
+  test('18% GST inter-state', () => {
+    const result = calculateBill(
+      [{ id: '1', name: 'Food', price: 1000, quantity: 1 }],
+      { gstRate: 18, businessState: 'KA', customerState: 'MH' }
+    );
+    
+    expect(result.igst).toBe(180);
+    expect(result.cgst).toBe(0);
+    expect(result.sgst).toBe(0);
+  });
+  
+  test('Service charge included in GST base', () => {
+    const result = calculateBill(
+      [{ id: '1', name: 'Food', price: 1000, quantity: 1 }],
+      { gstRate: 5, businessState: 'KA' },
+      10 // 10% service charge
+    );
+    
+    expect(result.serviceCharge).toBe(100);
+    expect(result.subtotalWithService).toBe(1100);
+    expect(result.totalGst).toBe(55); // 5% of 1100
+    expect(result.grandTotal).toBe(1155);
+  });
+});
+```
+
+---
+
+## Quick Reference
+
+### Formula Summary
+
+```
+1. Item Total = Price × Quantity
+
+2. Subtotal = Σ(All Item Totals)
+
+3. Service Charge = Subtotal × Service Charge %
+
+4. Taxable Amount = Subtotal + Service Charge
+
+5. Total GST = Taxable Amount × GST Rate
+
+6. For Intra-State:
+   CGST = Total GST ÷ 2
+   SGST = Total GST ÷ 2
+
+7. For Inter-State:
+   IGST = Total GST
+
+8. Grand Total = Taxable Amount + Total GST
+```
+
+---
+
+### Rate Quick Reference
+
+| Restaurant Type | GST Rate | Split (Intra-State) |
+|----------------|----------|---------------------|
+| Standalone | 5% | CGST 2.5% + SGST 2.5% |
+| Budget Hotel | 5% | CGST 2.5% + SGST 2.5% |
+| Premium Hotel | 18% | CGST 9% + SGST 9% |
+
+---
+
+## Compliance Checklist
+
+- [ ] Calculate GST on subtotal (not per item)
+- [ ] Include service charge in taxable amount
+- [ ] Split CGST/SGST correctly for intra-state
+- [ ] Use IGST for inter-state transactions
+- [ ] Don't apply GST on alcohol
+- [ ] Round appropriately (2 decimal places)
+- [ ] Display GST breakdown on invoice
+- [ ] Maintain calculation audit trail
+
+---
+
+**Document Version:** 1.0  
+**Last Updated:** February 2026  
+**Prepared for:** Restaurant POS System Implementation

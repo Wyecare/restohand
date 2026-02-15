@@ -1,7 +1,7 @@
 export const DEFAULT_THEME = {
-  preset: 'lavender-dream',
-  radius: 'default',
-  scale: 'none',
+  preset: 'ocean-breeze',
+  radius: 'lg',
+  scale: 'lg',
   contentLayout: 'full',
 } as const;
 

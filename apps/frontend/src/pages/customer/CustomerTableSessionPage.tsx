@@ -796,6 +796,26 @@ export default function CustomerTableSessionPage() {
                 <span>Subtotal</span>
                 <span>{formatCurrency(bill?.subTotalAmount || 0)}</span>
               </div>
+
+              {/* Branch Charges - Dynamic Display */}
+              {bill?.branchCharges && bill.branchCharges.length > 0 && (
+                <>
+                  {bill.branchCharges.map((charge, index) => (
+                    <div key={index} className="rh-summary-row">
+                      <span>
+                        {charge.name}
+                        {charge.type === 'percentage' && (
+                          <span style={{ fontSize: '11px', opacity: 0.7 }}>
+                            {' '}({charge.value}%)
+                          </span>
+                        )}
+                      </span>
+                      <span>{formatCurrency(charge.amount || 0)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
               {(bill?.taxAmount || 0) > 0 && (
                 <div className="rh-summary-row">
                   <span>Tax</span>

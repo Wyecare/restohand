@@ -32,6 +32,7 @@ import { QueryRestaurantsDto } from './dtos/query-restaurants.dto';
 import { RestaurantsService } from './restaurants.service';
 import { RestaurantOnboardingService } from './restaurant-onboarding.service';
 import { CashfreeVendorService } from '../payments/cashfree-vendor.service';
+import { GstService, RestaurantType } from '../common/services/gst.service';
 
 @ApiTags('restaurants')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -41,7 +42,8 @@ export class RestaurantsController {
     private readonly restaurantsService: RestaurantsService,
     private readonly onboardingService: RestaurantOnboardingService,
     @Inject(forwardRef(() => CashfreeVendorService))
-    private readonly cashfreeVendorService: CashfreeVendorService
+    private readonly cashfreeVendorService: CashfreeVendorService,
+    private readonly gstService: GstService
   ) {}
 
   @Post()
@@ -133,16 +135,14 @@ export class RestaurantsController {
       }
     }
   })
-  async getPaymentStatus(@Param('id') id: string) {
-    const restaurant = await this.restaurantsService.findById(id);
-
+  async getPaymentStatus(@Param('id') _id: string) {
     return {
-      status: restaurant.paymentConfig?.status || 'pending_setup',
-      canReceivePayments: restaurant.paymentConfig?.canReceivePayments || false,
-      linkedAccountId: restaurant.paymentConfig?.linkedAccountId,
-      error: restaurant.paymentConfig?.error,
-      setupAttempts: restaurant.paymentConfig?.setupAttempts || 0,
-      lastAttempt: restaurant.paymentConfig?.lastAttempt?.toISOString(),
+      status: 'pending_setup',
+      canReceivePayments: false,
+      linkedAccountId: undefined,
+      error: undefined,
+      setupAttempts: 0,
+      lastAttempt: undefined,
     };
   }
 
@@ -279,5 +279,59 @@ export class RestaurantsController {
   })
   async verifyCashfreeVendorBankAccount(@Param('id') restaurantId: string) {
     return this.cashfreeVendorService.verifyRestaurantBankAccount(restaurantId);
+  }
+
+  @Post(':id/gst/validate')
+  @Roles(UserRole.Manager)
+  @ApiParam({ name: 'id', description: 'Restaurant ID' })
+  @ApiOkResponse({
+    description: 'GST configuration validation result',
+    schema: {
+      type: 'object',
+      properties: {
+        isValid: { type: 'boolean' },
+        gstRate: { type: 'number', enum: [5, 18] },
+        canClaimITC: { type: 'boolean' },
+        errors: { type: 'array', items: { type: 'string' } }
+      }
+    }
+  })
+  async validateGstConfiguration(
+    @Param('id') _restaurantId: string,
+    @Body() body: {
+      establishmentType: RestaurantType;
+      roomTariff?: number;
+      businessState: string;
+      gstin?: string;
+    }
+  ) {
+    // Validate establishment type and room tariff
+    const gstValidation = this.gstService.validateGstConfiguration(
+      body.establishmentType,
+      body.roomTariff
+    );
+
+    // Validate GSTIN if provided
+    const gstinValidation = this.gstService.validateGstin(
+      body.gstin || '',
+      body.businessState
+    );
+
+    return {
+      ...gstValidation,
+      errors: [...gstValidation.errors, ...gstinValidation.errors]
+    };
+  }
+
+  @Get('gst/states')
+  @ApiOkResponse({
+    description: 'List of all Indian states',
+    schema: {
+      type: 'array',
+      items: { type: 'string' }
+    }
+  })
+  async getIndianStates() {
+    return this.gstService.getIndianStates();
   }
 }

@@ -18,7 +18,7 @@ export class PaginationQueryDto {
   })
   @IsOptional()
   @IsNumberString()
-  limit?: string = '20';
+  limit?: string = '1000';
 }
 
 export class PaginationMetaDto {

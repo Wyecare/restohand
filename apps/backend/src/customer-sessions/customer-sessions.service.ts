@@ -357,8 +357,8 @@ export class CustomerSessionsService {
       throw new NotFoundException('Session not found');
     }
 
-    // Get bill calculation
-    const bill = await this.billCalculatorService.calculateSessionBill(
+    // Get bill calculation with detailed category-based tax breakdown
+    const bill = await this.billCalculatorService.calculateDetailedSessionBill(
       sessionId
     );
 
@@ -520,16 +520,9 @@ export class CustomerSessionsService {
         ? new Date(session.lastActivityAt).toISOString()
         : undefined,
       subTotalAmount: session.subTotalAmount,
-      taxAmount: session.taxAmount,
-      cgstAmount: session.cgstAmount,
-      sgstAmount: session.sgstAmount,
-      igstAmount: session.igstAmount,
-      discountAmount: session.discountAmount,
-      roundOffAmount: session.roundOffAmount,
       paidAmount: session.paidAmount,
       pendingAmount: session.pendingAmount,
       allOrdersPaid: session.allOrdersPaid,
-      taxType: session.taxType,
       createdAt: (session as any).createdAt?.toISOString() || new Date().toISOString(),
       updatedAt: (session as any).updatedAt?.toISOString() || new Date().toISOString(),
     };

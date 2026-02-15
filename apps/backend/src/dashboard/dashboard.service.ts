@@ -16,29 +16,35 @@ import {
   TopMenuItem,
   RecentOrder,
 } from './dto/dashboard-metrics.dto';
+import { Types } from 'mongoose';
 
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
 
   constructor(
-    @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
+    @InjectModel(Order.name) private orderModel: Model<OrderDocument>
   ) {}
 
   async getDashboardMetrics(
     restaurantId: string,
-    query: DashboardQueryDto,
+    query: DashboardQueryDto
   ): Promise<DashboardMetricsDto> {
     const { from, to } = this.getDateRange(query);
-    const { from: previousFrom, to: previousTo } = this.getPreviousDateRange(from, to);
+    const { from: previousFrom, to: previousTo } = this.getPreviousDateRange(
+      from,
+      to
+    );
 
-    this.logger.log(`Generating dashboard metrics for restaurant ${restaurantId} from ${from.toISOString()} to ${to.toISOString()}`);
+    this.logger.log(
+      `Generating dashboard metrics for restaurant ${restaurantId} from ${from.toISOString()} to ${to.toISOString()}`
+    );
 
-    // Build base filter
+    // Build base filter with proper ObjectId conversion
     const baseFilter = {
-      restaurantId,
+      restaurantId: new Types.ObjectId(restaurantId),
       isArchived: false,
-      ...(query.branchId && { branchId: query.branchId }),
+      ...(query.branchId && { branchId: new Types.ObjectId(query.branchId) }),
     };
 
     // Get current and previous period data in parallel
@@ -83,7 +89,7 @@ export class DashboardService {
   private async getOrdersInPeriod(
     baseFilter: any,
     from: Date,
-    to: Date,
+    to: Date
   ): Promise<OrderDocument[]> {
     return this.orderModel
       .find({
@@ -96,7 +102,7 @@ export class DashboardService {
 
   private async getRecentOrders(
     baseFilter: any,
-    limit: number,
+    limit: number
   ): Promise<RecentOrder[]> {
     const orders = await this.orderModel
       .find(baseFilter)
@@ -114,7 +120,7 @@ export class DashboardService {
       totalAmount: order.totalAmount,
       createdAt: order.createdAt,
       timeSinceOrdered: Math.floor(
-        (Date.now() - order.createdAt.getTime()) / (1000 * 60),
+        (Date.now() - order.createdAt.getTime()) / (1000 * 60)
       ),
     }));
   }
@@ -122,7 +128,7 @@ export class DashboardService {
   private async getTopMenuItems(
     baseFilter: any,
     from: Date,
-    to: Date,
+    to: Date
   ): Promise<TopMenuItem[]> {
     const pipeline = [
       {
@@ -162,7 +168,7 @@ export class DashboardService {
   private async getHourlyData(
     baseFilter: any,
     from: Date,
-    to: Date,
+    to: Date
   ): Promise<{ hour: number; orderCount: number; revenue: number }[]> {
     const pipeline = [
       {
@@ -179,10 +185,19 @@ export class DashboardService {
           revenue: { $sum: '$totalAmount' },
         },
       },
-      { $sort: { '_id': 1 } },
+      { $sort: { _id: 1 } },
     ];
 
     const results = await this.orderModel.aggregate(pipeline).exec();
+
+    console.log(
+      '🔍 Hourly aggregation pipeline:',
+      JSON.stringify(pipeline, null, 2)
+    );
+    console.log(
+      '🔍 Hourly aggregation results:',
+      JSON.stringify(results, null, 2)
+    );
 
     // Fill missing hours with 0
     const hourlyData = Array.from({ length: 24 }, (_, hour) => {
@@ -194,42 +209,58 @@ export class DashboardService {
       };
     });
 
+    console.log('🔍 Final hourly data:', JSON.stringify(hourlyData, null, 2));
+
     return hourlyData;
   }
 
   private calculateRevenueMetrics(
     currentOrders: OrderDocument[],
-    previousOrders: OrderDocument[],
+    previousOrders: OrderDocument[]
   ): RevenueMetrics {
     const currentRevenue = this.calculateRevenueByType(currentOrders);
     const previousRevenue = this.calculateRevenueByType(previousOrders);
 
     return {
-      total: this.createMetricValue(currentRevenue.total, previousRevenue.total),
+      total: this.createMetricValue(
+        currentRevenue.total,
+        previousRevenue.total
+      ),
       cash: this.createMetricValue(currentRevenue.cash, previousRevenue.cash),
       upi: this.createMetricValue(currentRevenue.upi, previousRevenue.upi),
       averageTicket: this.createMetricValue(
         currentOrders.length ? currentRevenue.total / currentOrders.length : 0,
-        previousOrders.length ? previousRevenue.total / previousOrders.length : 0,
+        previousOrders.length
+          ? previousRevenue.total / previousOrders.length
+          : 0
       ),
     };
   }
 
   private calculateOrderMetrics(
     currentOrders: OrderDocument[],
-    previousOrders: OrderDocument[],
+    previousOrders: OrderDocument[]
   ): OrderMetrics {
     const currentStats = this.calculateOrderStats(currentOrders);
     const previousStats = this.calculateOrderStats(previousOrders);
 
     return {
       total: this.createMetricValue(currentStats.total, previousStats.total),
-      completed: this.createMetricValue(currentStats.completed, previousStats.completed),
-      pending: this.createMetricValue(currentStats.pending, previousStats.pending),
-      cancelled: this.createMetricValue(currentStats.cancelled, previousStats.cancelled),
+      completed: this.createMetricValue(
+        currentStats.completed,
+        previousStats.completed
+      ),
+      pending: this.createMetricValue(
+        currentStats.pending,
+        previousStats.pending
+      ),
+      cancelled: this.createMetricValue(
+        currentStats.cancelled,
+        previousStats.cancelled
+      ),
       averageCompletionTime: this.createMetricValue(
         currentStats.averageCompletionTime,
-        previousStats.averageCompletionTime,
+        previousStats.averageCompletionTime
       ),
     };
   }
@@ -254,7 +285,7 @@ export class DashboardService {
     orders: OrderDocument[],
     hourlyData: { hour: number; orderCount: number; revenue: number }[],
     from: Date,
-    to: Date,
+    to: Date
   ): ChartData[] {
     const charts: ChartData[] = [];
 
@@ -263,7 +294,10 @@ export class DashboardService {
       type: 'line',
       title: 'Revenue Over Time',
       yAxisLabel: 'Revenue (₹)',
-      data: this.generateTimeSeriesData(orders, from, to, 'revenue'),
+      data: hourlyData.map((h) => ({
+        label: `${h.hour}:00`,
+        value: h.revenue,
+      })),
     };
 
     // Orders over time chart
@@ -271,7 +305,10 @@ export class DashboardService {
       type: 'area',
       title: 'Orders Over Time',
       yAxisLabel: 'Order Count',
-      data: this.generateTimeSeriesData(orders, from, to, 'count'),
+      data: hourlyData.map((h) => ({
+        label: `${h.hour}:00`,
+        value: h.orderCount,
+      })),
     };
 
     // Peak hours chart
@@ -301,9 +338,11 @@ export class DashboardService {
     orders: OrderDocument[],
     from: Date,
     to: Date,
-    type: 'revenue' | 'count',
+    type: 'revenue' | 'count'
   ): ChartDataPoint[] {
-    const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil(
+      (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)
+    );
 
     if (diffDays <= 1) {
       // Hourly data for same day
@@ -319,13 +358,14 @@ export class DashboardService {
 
   private generateHourlyTimeSeriesData(
     orders: OrderDocument[],
-    type: 'revenue' | 'count',
+    type: 'revenue' | 'count'
   ): ChartDataPoint[] {
     const hourlyData = Array.from({ length: 24 }, (_, hour) => {
       const hourOrders = orders.filter((o) => o.createdAt.getHours() === hour);
-      const value = type === 'revenue'
-        ? hourOrders.reduce((sum, o) => sum + o.totalAmount, 0)
-        : hourOrders.length;
+      const value =
+        type === 'revenue'
+          ? hourOrders.reduce((sum, o) => sum + o.totalAmount, 0)
+          : hourOrders.length;
 
       return {
         label: `${hour}:00`,
@@ -340,7 +380,7 @@ export class DashboardService {
     orders: OrderDocument[],
     from: Date,
     to: Date,
-    type: 'revenue' | 'count',
+    type: 'revenue' | 'count'
   ): ChartDataPoint[] {
     const data: ChartDataPoint[] = [];
     const currentDate = new Date(from);
@@ -351,9 +391,10 @@ export class DashboardService {
         return orderDate === currentDate.toDateString();
       });
 
-      const value = type === 'revenue'
-        ? dayOrders.reduce((sum, o) => sum + o.totalAmount, 0)
-        : dayOrders.length;
+      const value =
+        type === 'revenue'
+          ? dayOrders.reduce((sum, o) => sum + o.totalAmount, 0)
+          : dayOrders.length;
 
       data.push({
         label: currentDate.toLocaleDateString(),
@@ -370,7 +411,7 @@ export class DashboardService {
     orders: OrderDocument[],
     from: Date,
     to: Date,
-    type: 'revenue' | 'count',
+    type: 'revenue' | 'count'
   ): ChartDataPoint[] {
     const data: ChartDataPoint[] = [];
     const currentDate = new Date(from);
@@ -386,9 +427,10 @@ export class DashboardService {
         return o.createdAt >= currentDate && o.createdAt <= weekEnd;
       });
 
-      const value = type === 'revenue'
-        ? weekOrders.reduce((sum, o) => sum + o.totalAmount, 0)
-        : weekOrders.length;
+      const value =
+        type === 'revenue'
+          ? weekOrders.reduce((sum, o) => sum + o.totalAmount, 0)
+          : weekOrders.length;
 
       data.push({
         label: `${currentDate.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`,
@@ -401,7 +443,9 @@ export class DashboardService {
     return data;
   }
 
-  private generatePaymentDistributionData(orders: OrderDocument[]): ChartDataPoint[] {
+  private generatePaymentDistributionData(
+    orders: OrderDocument[]
+  ): ChartDataPoint[] {
     const cashCount = orders.filter((o) => o.paymentMethod === 'cash').length;
     const upiCount = orders.filter((o) => o.paymentMethod === 'upi').length;
 
@@ -412,7 +456,9 @@ export class DashboardService {
   }
 
   private calculateRevenueByType(orders: OrderDocument[]) {
-    const completedOrders = orders.filter((o) => o.status !== OrderStatus.Cancelled);
+    const completedOrders = orders.filter(
+      (o) => o.status !== OrderStatus.Cancelled
+    );
 
     const total = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0);
     const cash = completedOrders
@@ -427,23 +473,33 @@ export class DashboardService {
 
   private calculateOrderStats(orders: OrderDocument[]) {
     const total = orders.length;
-    const completed = orders.filter((o) => o.status === OrderStatus.Completed).length;
-    const pending = orders.filter((o) => o.status === OrderStatus.Pending).length;
-    const cancelled = orders.filter((o) => o.status === OrderStatus.Cancelled).length;
+    const completed = orders.filter(
+      (o) => o.status === OrderStatus.Completed
+    ).length;
+    const pending = orders.filter(
+      (o) => o.status === OrderStatus.Pending
+    ).length;
+    const cancelled = orders.filter(
+      (o) => o.status === OrderStatus.Cancelled
+    ).length;
 
     // Calculate average completion time for completed orders
-    const completedOrders = orders.filter((o) => o.status === OrderStatus.Completed);
+    const completedOrders = orders.filter(
+      (o) => o.status === OrderStatus.Completed
+    );
     const averageCompletionTime = completedOrders.length
       ? completedOrders.reduce((sum, o) => {
           const completionTime = o.updatedAt.getTime() - o.createdAt.getTime();
-          return sum + (completionTime / (1000 * 60)); // Convert to minutes
+          return sum + completionTime / (1000 * 60); // Convert to minutes
         }, 0) / completedOrders.length
       : 0;
 
     return { total, completed, pending, cancelled, averageCompletionTime };
   }
 
-  private calculatePeakHours(hourlyData: { hour: number; orderCount: number; revenue: number }[]) {
+  private calculatePeakHours(
+    hourlyData: { hour: number; orderCount: number; revenue: number }[]
+  ) {
     return hourlyData.sort((a, b) => b.orderCount - a.orderCount);
   }
 
@@ -508,7 +564,11 @@ export class DashboardService {
     };
   }
 
-  private getPeriodLabel(query: DashboardQueryDto, from: Date, to: Date): string {
+  private getPeriodLabel(
+    query: DashboardQueryDto,
+    from: Date,
+    to: Date
+  ): string {
     if (query.from && query.to) {
       return `${from.toLocaleDateString()} - ${to.toLocaleDateString()}`;
     }

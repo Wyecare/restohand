@@ -59,7 +59,6 @@ interface NavLink {
   icon: React.ElementType;
   items?: SubNavItem[];
 }
-
 const managerLinks: NavLink[] = [
   {
     titleKey: 'navigation.dashboard',
@@ -100,7 +99,16 @@ const managerLinks: NavLink[] = [
     icon: CreditCard,
   },
   { titleKey: 'navigation.kyc', href: '/kyc', icon: Shield },
-  { titleKey: 'navigation.settings', href: '/settings', icon: Settings },
+  {
+    titleKey: 'navigation.settings',
+    href: '/settings',
+    icon: Settings,
+    items: [
+      { titleKey: 'navigation.restaurant', href: '/settings/restaurant' },
+      { titleKey: 'navigation.gst', href: '/settings/gst' },
+      { titleKey: 'navigation.charges', href: '/settings/charges' },
+    ],
+  },
 ];
 
 const kitchenLinks: NavLink[] = [

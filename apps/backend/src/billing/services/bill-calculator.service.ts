@@ -2,9 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Order, OrderDocument } from '../../orders/schemas/order.schema';
-import { CustomerSession, CustomerSessionDocument } from '../../customer-sessions/schemas/customer-session.schema';
-import { Restaurant, RestaurantDocument } from '../../restaurants/schemas/restaurant.schema';
-import { SmartGstService, OrderItemGstData, OrderItemWithGst } from '../../gst/smart-gst.service';
+import {
+  CustomerSession,
+  CustomerSessionDocument,
+} from '../../customer-sessions/schemas/customer-session.schema';
+import {
+  Restaurant,
+  RestaurantDocument,
+} from '../../restaurants/schemas/restaurant.schema';
+import { Branch, BranchDocument } from '../../branches/schemas/branch.schema';
+import { MenuItem, MenuItemDocument } from '../../menu-items/schemas/menu-item.schema';
+import { MenuCategory, MenuCategoryDocument } from '../../menu-categories/schemas/menu-category.schema';
+import {
+  RestaurantBillingService,
+  CartItem,
+  RestaurantGstConfig,
+  BranchCharge,
+} from '../../common/services/restaurant-billing.service';
 
 export interface BillCalculation {
   // Order-level totals
@@ -17,6 +31,16 @@ export interface BillCalculation {
   grossAmount: number;
   totalAmount: number;
   roundOffAmount: number;
+
+  // Branch charges
+  branchCharges: Array<{
+    name: string;
+    type: 'percentage' | 'fixed';
+    value: number;
+    amount: number;
+    includedInGst: boolean;
+  }>;
+  totalBranchCharges: number;
 
   // Payment tracking
   paidAmount: number;
@@ -33,6 +57,25 @@ export interface BillCalculation {
   // Calculation metadata
   calculatedAt: Date;
   currency: string;
+
+  // Mixed tax support (optional fields for mixed GST/VAT bills)
+  categoryCalculations?: Array<{
+    category: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
+    subtotal: number;
+    taxType: 'gst' | 'vat' | 'exempt';
+    gstRate?: number;
+    vatRate?: number;
+    gstAmount?: number;
+    vatAmount?: number;
+    totalTaxAmount: number;
+    totalWithTax: number;
+  }>;
+  totalGstAmount?: number;
+  totalVatAmount?: number;
+  gstSubtotal?: number;
+  vatSubtotal?: number;
+  exemptSubtotal?: number;
+  stateVatAmount?: number;
 }
 
 export interface BillItemDetail {
@@ -100,7 +143,13 @@ export class BillCalculatorService {
     private readonly sessionModel: Model<CustomerSessionDocument>,
     @InjectModel(Restaurant.name)
     private readonly restaurantModel: Model<RestaurantDocument>,
-    private readonly smartGstService: SmartGstService
+    @InjectModel(Branch.name)
+    private readonly branchModel: Model<BranchDocument>,
+    @InjectModel(MenuItem.name)
+    private readonly menuItemModel: Model<MenuItemDocument>,
+    @InjectModel(MenuCategory.name)
+    private readonly menuCategoryModel: Model<MenuCategoryDocument>,
+    private readonly restaurantBillingService: RestaurantBillingService
   ) {}
 
   /**
@@ -114,17 +163,35 @@ export class BillCalculatorService {
     includeUnpaid?: boolean;
     includeCancelled?: boolean;
   }): Promise<BillCalculation> {
-    const { sessionId, orderIds, orderId, includeUnpaid = true, includeCancelled = false } = params;
+    const {
+      sessionId,
+      orderIds,
+      orderId,
+      includeUnpaid = true,
+      includeCancelled = false,
+    } = params;
 
     let orders: OrderDocument[] = [];
 
     // Determine which orders to include in calculation
     if (sessionId) {
-      orders = await this.getOrdersBySession(sessionId, includeUnpaid, includeCancelled);
+      orders = await this.getOrdersBySession(
+        sessionId,
+        includeUnpaid,
+        includeCancelled
+      );
     } else if (orderIds) {
-      orders = await this.getOrdersByIds(orderIds, includeUnpaid, includeCancelled);
+      orders = await this.getOrdersByIds(
+        orderIds,
+        includeUnpaid,
+        includeCancelled
+      );
     } else if (orderId) {
-      orders = await this.getOrdersByIds([orderId], includeUnpaid, includeCancelled);
+      orders = await this.getOrdersByIds(
+        [orderId],
+        includeUnpaid,
+        includeCancelled
+      );
     } else {
       throw new Error('Must provide sessionId, orderIds, or orderId');
     }
@@ -134,80 +201,168 @@ export class BillCalculatorService {
     }
 
     // Get restaurant for tax configuration
-    const restaurant = await this.restaurantModel.findById(orders[0].restaurantId);
+    const restaurant = await this.restaurantModel.findById(
+      orders[0].restaurantId
+    );
     if (!restaurant) {
       throw new Error('Restaurant not found for bill calculation');
     }
 
-    // Extract all items from all orders for Smart GST calculation
-    const allOrderItems: OrderItemGstData[] = [];
+    // Get restaurant GST configuration from restaurant object
+    const gstSchema = restaurant.businessDetails?.gst;
+    if (!gstSchema) {
+      throw new Error('Restaurant GST configuration not found');
+    }
+
+    // Convert schema to interface format for RestaurantBillingService
+    const gstConfig: RestaurantGstConfig = {
+      establishmentType:
+        gstSchema.establishmentType as RestaurantGstConfig['establishmentType'],
+      defaultGstRate:
+        gstSchema.defaultGstRate as RestaurantGstConfig['defaultGstRate'],
+      canClaimITC: gstSchema.canClaimITC,
+      businessState: gstSchema.businessState,
+      gstin: gstSchema.gstin,
+      enableServiceCharge: (gstSchema as any).enableServiceCharge || false,
+      serviceChargeRate: (gstSchema as any).serviceChargeRate || 0,
+      integratedWithDeliveryPlatforms:
+        (gstSchema as any).integratedWithDeliveryPlatforms || false,
+      isGstEnabled: (gstSchema as any).isGstEnabled !== false,
+    };
+
+    // Get branch charges (if branchId is available in orders)
+    let branchCharges: BranchCharge[] = [];
+    let orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in';
+
+    const firstOrderBranchId = orders[0].branchId;
+    if (firstOrderBranchId) {
+      const branch = await this.branchModel.findById(firstOrderBranchId);
+      if (branch && branch.settings?.charges) {
+        branchCharges = branch.settings.charges as BranchCharge[];
+      }
+
+      // Determine order type from first order
+      orderType = orders[0].orderType || 'dine_in';
+    }
+
+    // Extract all items from all orders for bill-level GST calculation
+    const allOrderItems: CartItem[] = [];
     for (const order of orders) {
       for (const item of order.items) {
         allOrderItems.push({
-          menuItemId: item.menuItemId.toString(),
+          id: item.menuItemId.toString(),
           name: item.name,
           quantity: item.quantity,
-          unitPrice: item.pricing.unitAmount,
-          discountAmount: item.pricing.discountAmount || 0,
+          price: item.pricing.unitAmount,
         });
       }
     }
 
-    // Use Smart GST to calculate proper tax on all items
-    const gstCalculation = await this.smartGstService.calculateOrderGst(
-      restaurant._id.toString(),
+    // Use RestaurantBillingService for correct bill-level GST calculation
+    const billCalculation = this.restaurantBillingService.calculateBill(
       allOrderItems,
-      orders[0]?.customerState // Use customer state from first order if available
+      gstConfig,
+      orders[0]?.customerState, // Use customer state from first order if available
+      branchCharges,
+      orderType
     );
 
-    // Calculate payment tracking
-    const paidAmount = orders.reduce((sum, order) => sum + (order.paidAmount || 0), 0);
-    const pendingAmount = gstCalculation.summary.totalAmount - paidAmount;
+    // Create order breakdown first to get accurate payment tracking
+    const orderBreakdown = await this.createOrderBreakdown(
+      orders,
+      gstConfig,
+      branchCharges,
+      orderType
+    );
 
-    // Create order breakdown with proper Smart GST calculation per order
-    const orderBreakdown = await this.createSmartGstOrderBreakdown(orders, restaurant._id.toString());
+    // Calculate payment tracking from order breakdown and adjust for rounding discrepancies
+    const orderBreakdownPaidAmount = orderBreakdown.reduce((sum, orderBill) => {
+      return sum + orderBill.paidAmount;
+    }, 0);
 
-    // Apply round-off to final total
-    const finalTotal = this.roundToTwo(gstCalculation.summary.totalAmount);
-    const roundOffAmount = finalTotal - gstCalculation.summary.totalAmount;
+    // If there's a small rounding discrepancy, adjust the last paid order to match session total
+    const sessionTotal = billCalculation.grandTotal;
+    const discrepancy = this.roundToTwo(
+      sessionTotal - orderBreakdownPaidAmount
+    );
+
+    let paidAmount = orderBreakdownPaidAmount;
+
+    if (Math.abs(discrepancy) > 0 && Math.abs(discrepancy) <= 0.05) {
+      // Find the last paid order and adjust its paid amount to eliminate the discrepancy
+      const lastPaidOrderIndex = orderBreakdown
+        .map((order, index) => ({ ...order, index }))
+        .filter((order) => order.paymentStatus === 'paid')
+        .pop()?.index;
+
+      if (lastPaidOrderIndex !== undefined) {
+        orderBreakdown[lastPaidOrderIndex].paidAmount = this.roundToTwo(
+          orderBreakdown[lastPaidOrderIndex].paidAmount + discrepancy
+        );
+        paidAmount = sessionTotal; // Now they match exactly
+      }
+    }
+
+    const pendingAmount = this.roundToTwo(sessionTotal - paidAmount);
 
     return {
-      // Use Smart GST calculated amounts
-      subTotalAmount: gstCalculation.summary.subtotal,
-      taxAmount: gstCalculation.summary.totalTaxAmount,
-      cgstAmount: gstCalculation.summary.cgstAmount,
-      sgstAmount: gstCalculation.summary.sgstAmount,
-      igstAmount: gstCalculation.summary.igstAmount,
-      discountAmount: gstCalculation.summary.discountAmount,
-      grossAmount: gstCalculation.summary.taxableAmount, // Subtotal minus discount
-      totalAmount: finalTotal,
-      roundOffAmount: this.roundToTwo(roundOffAmount),
+      // Use RestaurantBillingService calculated amounts
+      subTotalAmount: billCalculation.subtotal,
+      taxAmount: (billCalculation as any).totalTaxAmount || billCalculation.totalGstAmount,
+      cgstAmount: billCalculation.cgstAmount,
+      sgstAmount: billCalculation.sgstAmount,
+      igstAmount: billCalculation.igstAmount,
+      discountAmount: 0, // No discounts in current implementation
+      grossAmount: billCalculation.subtotalWithCharges, // Subtotal + service charge + branch charges
+      totalAmount: billCalculation.grandTotal,
+      roundOffAmount: 0, // No rounding in current implementation
+
+      // Branch charges
+      branchCharges: billCalculation.branchCharges,
+      totalBranchCharges: billCalculation.totalBranchCharges,
 
       // Payment tracking
       paidAmount,
       pendingAmount,
 
       // Metadata
-      taxType: gstCalculation.summary.taxType,
+      taxType: billCalculation.taxType,
       orderCount: orders.length,
       itemCount: allOrderItems.length,
       orderBreakdown,
       calculatedAt: new Date(),
-      currency: restaurant.address?.country === 'IN' ? 'INR' : 'USD',
+      currency: 'INR',
+
+      // Mixed tax support - include if available
+      ...((billCalculation as any).categoryCalculations && {
+        categoryCalculations: (billCalculation as any).categoryCalculations,
+        totalGstAmount: (billCalculation as any).totalGstAmount,
+        totalVatAmount: (billCalculation as any).totalVatAmount,
+        gstSubtotal: (billCalculation as any).gstSubtotal,
+        vatSubtotal: (billCalculation as any).vatSubtotal,
+        exemptSubtotal: (billCalculation as any).exemptSubtotal,
+        stateVatAmount: (billCalculation as any).stateVatAmount,
+      }),
     };
   }
 
   /**
    * Calculate bill for a customer session
    */
-  async calculateSessionBill(sessionId: string, includeUnpaid = true): Promise<BillCalculation> {
+  async calculateSessionBill(
+    sessionId: string,
+    includeUnpaid = true
+  ): Promise<BillCalculation> {
     return this.calculateBill({ sessionId, includeUnpaid });
   }
 
   /**
    * Calculate bill for specific orders
    */
-  async calculateOrdersBill(orderIds: string[], includeUnpaid = true): Promise<BillCalculation> {
+  async calculateOrdersBill(
+    orderIds: string[],
+    includeUnpaid = true
+  ): Promise<BillCalculation> {
     return this.calculateBill({ orderIds, includeUnpaid });
   }
 
@@ -221,7 +376,10 @@ export class BillCalculatorService {
   /**
    * Calculate detailed bill with item-level breakdown for a customer session
    */
-  async calculateDetailedSessionBill(sessionId: string, includeUnpaid = true): Promise<DetailedBillCalculation> {
+  async calculateDetailedSessionBill(
+    sessionId: string,
+    includeUnpaid = true
+  ): Promise<DetailedBillCalculation> {
     // Get session details first
     const session = await this.sessionModel
       .findOne({ sessionId })
@@ -238,7 +396,11 @@ export class BillCalculatorService {
     }
 
     // Get all orders for this session
-    const orders = await this.getOrdersBySession(sessionId, includeUnpaid, false);
+    const orders = await this.getOrdersBySession(
+      sessionId,
+      includeUnpaid,
+      false
+    );
 
     if (orders.length === 0) {
       return {
@@ -265,87 +427,233 @@ export class BillCalculatorService {
       };
     }
 
-    // Extract all items from all orders for Smart GST calculation
-    const allOrderItems: OrderItemGstData[] = [];
+    // Get restaurant GST configuration from restaurant object
+    const gstSchema = restaurant.businessDetails?.gst;
+    if (!gstSchema) {
+      throw new Error('Restaurant GST configuration not found');
+    }
+
+    // Convert schema to interface format for RestaurantBillingService
+    const gstConfig: RestaurantGstConfig = {
+      establishmentType:
+        gstSchema.establishmentType as RestaurantGstConfig['establishmentType'],
+      defaultGstRate:
+        gstSchema.defaultGstRate as RestaurantGstConfig['defaultGstRate'],
+      canClaimITC: gstSchema.canClaimITC,
+      businessState: gstSchema.businessState,
+      gstin: gstSchema.gstin,
+      enableServiceCharge: (gstSchema as any).enableServiceCharge || false,
+      serviceChargeRate: (gstSchema as any).serviceChargeRate || 0,
+      integratedWithDeliveryPlatforms:
+        (gstSchema as any).integratedWithDeliveryPlatforms || false,
+      isGstEnabled: (gstSchema as any).isGstEnabled !== false,
+    };
+
+    // Get branch charges (if branchId is available in orders)
+    let branchCharges: BranchCharge[] = [];
+    let orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in';
+
+    const firstOrderBranchId = orders[0].branchId;
+    if (firstOrderBranchId) {
+      const branch = await this.branchModel.findById(firstOrderBranchId);
+      if (branch && branch.settings?.charges) {
+        branchCharges = branch.settings.charges as BranchCharge[];
+      }
+
+      // Determine order type from first order
+      orderType = orders[0].orderType || 'dine_in';
+    }
+
+    // Extract all items from all orders for bill-level GST calculation
+    // Include category information for mixed tax calculations
+    const allOrderItems: CartItem[] = [];
+
     for (const order of orders) {
       for (const item of order.items) {
+        // Get category information from menu item
+        let foodCategory = 'cooked_food'; // default
+
+        if (item.menuItemId) {
+          try {
+            const menuItem = await this.menuItemModel.findById(item.menuItemId);
+            console.log(`🍺 Debug - Menu item ${item.name}:`, {
+              itemId: item.menuItemId,
+              categoryId: menuItem?.categoryId,
+              hasMenuItem: !!menuItem,
+            });
+
+            if (menuItem && menuItem.categoryId) {
+              const category = await this.menuCategoryModel.findById(
+                menuItem.categoryId
+              );
+              console.log(`🍺 Debug - Category for ${item.name}:`, {
+                categoryId: menuItem.categoryId,
+                categoryName: category?.name,
+                foodCategory: (category as any)?.foodCategory,
+                hasCategory: !!category,
+              });
+
+              if (category && (category as any).foodCategory) {
+                foodCategory = (category as any).foodCategory;
+              }
+            }
+          } catch (error) {
+            console.log(error, 'error');
+            // If we can't find category info, default to cooked_food
+            console.log(
+              'Could not fetch category info for item:',
+              item.menuItemId
+            );
+          }
+        }
+
         allOrderItems.push({
-          menuItemId: item.menuItemId.toString(),
+          id: item.menuItemId.toString(),
           name: item.name,
           quantity: item.quantity,
-          unitPrice: item.pricing.unitAmount,
-          discountAmount: item.pricing.discountAmount || 0,
+          price: item.pricing.unitAmount,
+          foodCategory: foodCategory as any,
         });
       }
     }
 
-    // Use Smart GST to calculate proper tax on all items
-    const gstCalculation = await this.smartGstService.calculateOrderGst(
-      restaurant._id.toString(),
-      allOrderItems,
-      orders[0]?.customerState
+    // Check if we have mixed food categories that require different tax treatments
+    const uniqueCategories = Array.from(
+      new Set(allOrderItems.map((item) => item.foodCategory))
     );
+    const hasMixedTaxCategories =
+      uniqueCategories.some((cat) => cat === 'alcohol') ||
+      uniqueCategories.some((cat) => cat === 'fresh_items');
 
-    // Create detailed item breakdown
-    const allItems: BillItemDetail[] = gstCalculation.items.map((item: OrderItemWithGst) => ({
-      menuItemId: item.menuItemId,
+    console.log('🍺 Debug - Final billing decision:', {
+      uniqueCategories,
+      hasMixedTaxCategories,
+      willUseMixedBill: hasMixedTaxCategories,
+      allItems: allOrderItems.map((item) => ({
+        name: item.name,
+        foodCategory: item.foodCategory,
+      })),
+    });
+
+    // Use appropriate billing method based on item categories
+    const billCalculation = hasMixedTaxCategories
+      ? this.restaurantBillingService.calculateMixedBill(
+          allOrderItems,
+          gstConfig,
+          orders[0]?.customerState,
+          branchCharges,
+          orderType
+        )
+      : this.restaurantBillingService.calculateBill(
+          allOrderItems,
+          gstConfig,
+          orders[0]?.customerState, // Use customer state from first order if available
+          branchCharges,
+          orderType
+        );
+
+    // Create simplified item breakdown (no per-item GST breakdown in new system)
+    const allItems: BillItemDetail[] = allOrderItems.map((item) => ({
+      menuItemId: item.id,
       name: item.name,
       quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      discountAmount: item.discountAmount,
-      taxableAmount: item.taxableAmount,
-      gstRate: item.gstRate,
-      cgstAmount: item.cgstAmount,
-      sgstAmount: item.sgstAmount,
-      igstAmount: item.igstAmount,
-      totalTaxAmount: item.totalTaxAmount,
-      totalWithTax: item.totalWithTax,
-      hsnCode: item.hsnCode,
+      unitPrice: item.price,
+      discountAmount: 0,
+      taxableAmount: item.price * item.quantity,
+      gstRate: gstConfig.defaultGstRate,
+      cgstAmount: 0, // GST calculated at bill level, not per item
+      sgstAmount: 0,
+      igstAmount: 0,
+      totalTaxAmount: 0,
+      totalWithTax: item.price * item.quantity,
+      hsnCode: undefined,
     }));
 
-    // Calculate payment tracking
-    const paidAmount = orders.reduce((sum, order) => sum + (order.paidAmount || 0), 0);
-    const pendingAmount = gstCalculation.summary.totalAmount - paidAmount;
+    // Create detailed order breakdown first to get accurate payment tracking
+    const orderBreakdown = await this.createOrderBreakdown(
+      orders,
+      gstConfig,
+      branchCharges,
+      orderType
+    );
 
-    // Create detailed order breakdown
-    const orderBreakdown = await this.createDetailedOrderBreakdown(orders, restaurant._id.toString());
+    // Calculate payment tracking from order breakdown and adjust for rounding discrepancies
+    const orderBreakdownPaidAmount = orderBreakdown.reduce((sum, orderBill) => {
+      return sum + orderBill.paidAmount;
+    }, 0);
 
-    // Apply round-off to final total
-    const finalTotal = this.roundToTwo(gstCalculation.summary.totalAmount);
-    const roundOffAmount = finalTotal - gstCalculation.summary.totalAmount;
+    // If there's a small rounding discrepancy, adjust the last paid order to match session total
+    const sessionTotal = billCalculation.grandTotal;
+    const discrepancy = this.roundToTwo(
+      sessionTotal - orderBreakdownPaidAmount
+    );
+
+    let paidAmount = orderBreakdownPaidAmount;
+
+    if (Math.abs(discrepancy) > 0 && Math.abs(discrepancy) <= 0.05) {
+      // Find the last paid order and adjust its paid amount to eliminate the discrepancy
+      const lastPaidOrderIndex = orderBreakdown
+        .map((order, index) => ({ ...order, index }))
+        .filter((order) => order.paymentStatus === 'paid')
+        .pop()?.index;
+
+      if (lastPaidOrderIndex !== undefined) {
+        orderBreakdown[lastPaidOrderIndex].paidAmount = this.roundToTwo(
+          orderBreakdown[lastPaidOrderIndex].paidAmount + discrepancy
+        );
+        paidAmount = sessionTotal; // Now they match exactly
+      }
+    }
+
+    const pendingAmount = this.roundToTwo(sessionTotal - paidAmount);
 
     return {
-      // Use Smart GST calculated amounts
-      subTotalAmount: gstCalculation.summary.subtotal,
-      taxAmount: gstCalculation.summary.totalTaxAmount,
-      cgstAmount: gstCalculation.summary.cgstAmount,
-      sgstAmount: gstCalculation.summary.sgstAmount,
-      igstAmount: gstCalculation.summary.igstAmount,
-      discountAmount: gstCalculation.summary.discountAmount,
-      grossAmount: gstCalculation.summary.taxableAmount,
-      totalAmount: finalTotal,
-      roundOffAmount: this.roundToTwo(roundOffAmount),
+      // Use RestaurantBillingService calculated amounts
+      subTotalAmount: billCalculation.subtotal,
+      taxAmount: (billCalculation as any).totalTaxAmount || billCalculation.totalGstAmount,
+      cgstAmount: billCalculation.cgstAmount,
+      sgstAmount: billCalculation.sgstAmount,
+      igstAmount: billCalculation.igstAmount,
+      discountAmount: 0, // No discounts in current implementation
+      grossAmount: billCalculation.subtotalWithCharges, // Subtotal + service charge + branch charges
+      totalAmount: billCalculation.grandTotal,
+      roundOffAmount: 0, // No rounding in current implementation
+
+      // Branch charges
+      branchCharges: billCalculation.branchCharges,
+      totalBranchCharges: billCalculation.totalBranchCharges,
 
       // Payment tracking
       paidAmount,
       pendingAmount,
 
       // Metadata
-      taxType: gstCalculation.summary.taxType,
+      taxType: billCalculation.taxType,
       orderCount: orders.length,
       itemCount: allOrderItems.length,
       orderBreakdown,
       calculatedAt: new Date(),
-      currency: restaurant.address?.country === 'IN' ? 'INR' : 'USD',
+      currency: 'INR',
+
+      // Mixed tax support - include if available
+      ...((billCalculation as any).categoryCalculations && {
+        categoryCalculations: (billCalculation as any).categoryCalculations,
+        totalGstAmount: (billCalculation as any).totalGstAmount,
+        totalVatAmount: (billCalculation as any).totalVatAmount,
+        gstSubtotal: (billCalculation as any).gstSubtotal,
+        vatSubtotal: (billCalculation as any).vatSubtotal,
+        exemptSubtotal: (billCalculation as any).exemptSubtotal,
+        stateVatAmount: (billCalculation as any).stateVatAmount,
+      }),
 
       // Additional detailed data
       restaurant: {
         id: restaurant._id.toString(),
         name: restaurant.name,
         address: restaurant.address,
-        phone: restaurant.phone,
-        email: restaurant.email,
-        gstin: restaurant.gstin,
+        phone: restaurant.contactPhone,
+        email: restaurant.contactEmail,
+        gstin: restaurant.businessDetails?.gst?.gstin,
       },
       session: {
         sessionId: session.sessionId,
@@ -470,153 +778,197 @@ export class BillCalculatorService {
     };
   }
 
-  private determineTaxType(orders: OrderDocument[]): 'intra-state' | 'inter-state' | null {
-    const taxTypes = [...new Set(orders.map(order => order.taxType).filter(Boolean))];
+  private determineTaxType(
+    orders: OrderDocument[]
+  ): 'intra-state' | 'inter-state' | null {
+    const taxTypes = [
+      ...new Set(orders.map((order) => order.taxType).filter(Boolean)),
+    ];
 
     if (taxTypes.length === 0) return null;
-    if (taxTypes.length === 1) return taxTypes[0] as 'intra-state' | 'inter-state';
+    if (taxTypes.length === 1)
+      return taxTypes[0] as 'intra-state' | 'inter-state';
 
     // Mixed tax types - default to intra-state
     return 'intra-state';
   }
 
   /**
-   * Create order breakdown using Smart GST for each order
+   * Create order breakdown with proportional GST distribution from combined bill calculation
    */
-  private async createSmartGstOrderBreakdown(orders: OrderDocument[], restaurantId: string): Promise<OrderBillBreakdown[]> {
+  private async createOrderBreakdown(
+    orders: OrderDocument[],
+    gstConfig: any,
+    branchCharges?: BranchCharge[],
+    orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in'
+  ): Promise<OrderBillBreakdown[]> {
     const breakdown: OrderBillBreakdown[] = [];
+
+    // First, get the combined bill calculation for proper tax distribution
+    // Include category information for mixed tax calculations
+    const allOrderItems: CartItem[] = [];
+    for (const order of orders) {
+      for (const item of order.items) {
+        // Get category information from menu item
+        let foodCategory = 'cooked_food'; // default
+
+        if (item.menuItemId) {
+          try {
+            const menuItem = await this.menuItemModel.findById(item.menuItemId);
+            if (menuItem && menuItem.categoryId) {
+              const category = await this.menuCategoryModel.findById(menuItem.categoryId);
+              if (category && (category as any).foodCategory) {
+                foodCategory = (category as any).foodCategory;
+              }
+            }
+          } catch (error) {
+            // If we can't find category info, default to cooked_food
+            console.log('Could not fetch category info for item in order breakdown:', item.menuItemId);
+          }
+        }
+
+        allOrderItems.push({
+          id: item.menuItemId.toString(),
+          name: item.name,
+          quantity: item.quantity,
+          price: item.pricing.unitAmount,
+          foodCategory: foodCategory as any,
+        });
+      }
+    }
+
+    // Check if we have mixed food categories that require different tax treatments
+    const uniqueCategories = Array.from(
+      new Set(allOrderItems.map((item) => item.foodCategory))
+    );
+    const hasMixedTaxCategories =
+      uniqueCategories.some((cat) => cat === 'alcohol') ||
+      uniqueCategories.some((cat) => cat === 'fresh_items');
+
+    // Calculate combined bill for tax distribution - use appropriate method
+    const combinedBillCalculation = hasMixedTaxCategories
+      ? this.restaurantBillingService.calculateMixedBill(
+          allOrderItems,
+          gstConfig,
+          orders[0]?.customerState,
+          branchCharges,
+          orderType
+        )
+      : this.restaurantBillingService.calculateBill(
+          allOrderItems,
+          gstConfig,
+          orders[0]?.customerState,
+          branchCharges,
+          orderType
+        );
+
+    const combinedSubtotal = combinedBillCalculation.subtotal;
+    const combinedServiceCharge = combinedBillCalculation.serviceChargeAmount;
 
     for (const order of orders) {
       // Extract items from this order
-      const orderItems: OrderItemGstData[] = order.items.map(item => ({
-        menuItemId: item.menuItemId.toString(),
+      const orderItems: CartItem[] = order.items.map((item) => ({
+        id: item.menuItemId.toString(),
         name: item.name,
         quantity: item.quantity,
-        unitPrice: item.pricing.unitAmount,
-        discountAmount: item.pricing.discountAmount || 0,
+        price: item.pricing.unitAmount,
       }));
 
-      // Calculate Smart GST for this individual order
-      const gstCalculation = await this.smartGstService.calculateOrderGst(
-        restaurantId,
-        orderItems,
-        order.customerState
+      // Calculate this order's subtotal
+      const orderSubtotal = orderItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
       );
 
-      // Apply round-off
-      const finalTotal = this.roundToTwo(gstCalculation.summary.totalAmount);
-      const roundOffAmount = finalTotal - gstCalculation.summary.totalAmount;
+      // Calculate proportional distribution based on this order's contribution
+      const orderProportion =
+        combinedSubtotal > 0 ? orderSubtotal / combinedSubtotal : 0;
+
+      // Distribute service charge proportionally
+      const orderServiceChargeAmount = this.roundToTwo(
+        combinedServiceCharge * orderProportion
+      );
+      const orderTaxableAmount = orderSubtotal + orderServiceChargeAmount;
+
+      // Distribute tax amounts proportionally - handle both GST and mixed tax
+      const orderCgstAmount = this.roundToTwo(
+        combinedBillCalculation.cgstAmount * orderProportion
+      );
+      const orderSgstAmount = this.roundToTwo(
+        combinedBillCalculation.sgstAmount * orderProportion
+      );
+      const orderIgstAmount = this.roundToTwo(
+        combinedBillCalculation.igstAmount * orderProportion
+      );
+
+      // For mixed tax calculations, use total tax amount instead of just GST
+      const totalTaxAmount = (combinedBillCalculation as any).totalTaxAmount || combinedBillCalculation.totalGstAmount;
+      const orderTotalTaxAmount = this.roundToTwo(
+        totalTaxAmount * orderProportion
+      );
+
+      // Distribute branch charges proportionally
+      const orderBranchChargeAmount = this.roundToTwo(
+        combinedBillCalculation.totalBranchCharges * orderProportion
+      );
+
+      const orderGrandTotal =
+        orderTaxableAmount + orderTotalTaxAmount + orderBranchChargeAmount;
+      const paidAmount = order.paymentStatus === 'paid' ? orderGrandTotal : 0;
 
       breakdown.push({
         orderId: order._id.toString(),
         orderNumber: order.orderNumber,
-        subTotalAmount: gstCalculation.summary.subtotal,
-        taxAmount: gstCalculation.summary.totalTaxAmount,
-        cgstAmount: gstCalculation.summary.cgstAmount,
-        sgstAmount: gstCalculation.summary.sgstAmount,
-        igstAmount: gstCalculation.summary.igstAmount,
-        discountAmount: gstCalculation.summary.discountAmount,
-        totalAmount: finalTotal,
-        roundOffAmount: this.roundToTwo(roundOffAmount),
-        paidAmount: order.paidAmount || 0,
-        pendingAmount: finalTotal - (order.paidAmount || 0),
+        subTotalAmount: this.roundToTwo(orderSubtotal),
+        taxAmount: orderTotalTaxAmount,
+        cgstAmount: orderCgstAmount,
+        sgstAmount: orderSgstAmount,
+        igstAmount: orderIgstAmount,
+        discountAmount: 0, // No discounts in current implementation
+        totalAmount: this.roundToTwo(orderGrandTotal),
+        roundOffAmount: 0, // No rounding in current implementation
+        paidAmount: this.roundToTwo(paidAmount),
+        pendingAmount: this.roundToTwo(orderGrandTotal - paidAmount),
         paymentStatus: order.paymentStatus,
         itemCount: orderItems.length,
-        createdAt: order.createdAt,
+        createdAt: (order as any).createdAt || new Date(),
+        items: orderItems.map((item) => {
+          const itemSubtotal = item.price * item.quantity;
+          const itemProportion =
+            orderSubtotal > 0 ? itemSubtotal / orderSubtotal : 0;
+          const itemTaxAmount = this.roundToTwo(
+            orderTotalTaxAmount * itemProportion
+          );
+          const itemCgstAmount = this.roundToTwo(
+            orderCgstAmount * itemProportion
+          );
+          const itemSgstAmount = this.roundToTwo(
+            orderSgstAmount * itemProportion
+          );
+          const itemIgstAmount = this.roundToTwo(
+            orderIgstAmount * itemProportion
+          );
+
+          return {
+            menuItemId: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            discountAmount: 0,
+            taxableAmount: this.roundToTwo(itemSubtotal),
+            gstRate: gstConfig.defaultGstRate,
+            cgstAmount: itemCgstAmount,
+            sgstAmount: itemSgstAmount,
+            igstAmount: itemIgstAmount,
+            totalTaxAmount: itemTaxAmount,
+            totalWithTax: this.roundToTwo(itemSubtotal + itemTaxAmount),
+            hsnCode: undefined,
+          };
+        }),
       });
     }
 
     return breakdown;
-  }
-
-  /**
-   * Create detailed order breakdown with item-level details using Smart GST
-   */
-  private async createDetailedOrderBreakdown(orders: OrderDocument[], restaurantId: string): Promise<OrderBillBreakdown[]> {
-    const breakdown: OrderBillBreakdown[] = [];
-
-    for (const order of orders) {
-      // Extract items from this order
-      const orderItems: OrderItemGstData[] = order.items.map(item => ({
-        menuItemId: item.menuItemId.toString(),
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: item.pricing.unitAmount,
-        discountAmount: item.pricing.discountAmount || 0,
-      }));
-
-      // Calculate Smart GST for this individual order
-      const gstCalculation = await this.smartGstService.calculateOrderGst(
-        restaurantId,
-        orderItems,
-        order.customerState
-      );
-
-      // Apply round-off
-      const finalTotal = this.roundToTwo(gstCalculation.summary.totalAmount);
-      const roundOffAmount = finalTotal - gstCalculation.summary.totalAmount;
-
-      // Create detailed item breakdown for this order
-      const itemDetails: BillItemDetail[] = gstCalculation.items.map((item: OrderItemWithGst) => ({
-        menuItemId: item.menuItemId,
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discountAmount: item.discountAmount,
-        taxableAmount: item.taxableAmount,
-        gstRate: item.gstRate,
-        cgstAmount: item.cgstAmount,
-        sgstAmount: item.sgstAmount,
-        igstAmount: item.igstAmount,
-        totalTaxAmount: item.totalTaxAmount,
-        totalWithTax: item.totalWithTax,
-        hsnCode: item.hsnCode,
-      }));
-
-      breakdown.push({
-        orderId: order._id.toString(),
-        orderNumber: order.orderNumber,
-        subTotalAmount: gstCalculation.summary.subtotal,
-        taxAmount: gstCalculation.summary.totalTaxAmount,
-        cgstAmount: gstCalculation.summary.cgstAmount,
-        sgstAmount: gstCalculation.summary.sgstAmount,
-        igstAmount: gstCalculation.summary.igstAmount,
-        discountAmount: gstCalculation.summary.discountAmount,
-        totalAmount: finalTotal,
-        roundOffAmount: this.roundToTwo(roundOffAmount),
-        paidAmount: order.paidAmount || 0,
-        pendingAmount: finalTotal - (order.paidAmount || 0),
-        paymentStatus: order.paymentStatus,
-        itemCount: orderItems.length,
-        createdAt: order.createdAt,
-        items: itemDetails,
-      });
-    }
-
-    return breakdown;
-  }
-
-  /**
-   * DEPRECATED: Create order breakdown (old aggregation method)
-   */
-  private createOrderBreakdown(orders: OrderDocument[]): OrderBillBreakdown[] {
-    return orders.map(order => ({
-      orderId: order._id.toString(),
-      orderNumber: order.orderNumber,
-      subTotalAmount: this.roundToTwo(order.subTotalAmount || 0),
-      taxAmount: this.roundToTwo(order.taxAmount || 0),
-      cgstAmount: this.roundToTwo(order.cgstAmount || 0),
-      sgstAmount: this.roundToTwo(order.sgstAmount || 0),
-      igstAmount: this.roundToTwo(order.igstAmount || 0),
-      discountAmount: this.roundToTwo(order.discountAmount || 0),
-      totalAmount: this.roundToTwo(order.totalAmount || 0),
-      roundOffAmount: this.roundToTwo(order.roundOffAmount || 0),
-      paidAmount: order.paymentStatus === 'paid' ? this.roundToTwo(order.totalAmount || 0) : 0,
-      pendingAmount: order.paymentStatus !== 'paid' ? this.roundToTwo(order.totalAmount || 0) : 0,
-      paymentStatus: order.paymentStatus,
-      itemCount: order.items.length,
-      createdAt: order.createdAt,
-    }));
   }
 
   private createEmptyBillCalculation(): BillCalculation {

@@ -84,27 +84,9 @@ export class CustomerSession {
   @Prop({ type: Number })
   lastActivityAt?: Date;
 
-  // Billing aggregation (computed fields)
+  // Session aggregation (basic fields only - billing calculated dynamically)
   @Prop({ type: Number, default: 0 })
   subTotalAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
-  taxAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
-  cgstAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
-  sgstAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
-  igstAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
-  discountAmount!: number;
-
-  @Prop({ type: Number, default: 0 })
-  roundOffAmount!: number;
 
   @Prop({ type: Number, default: 0 })
   paidAmount!: number;
@@ -114,9 +96,6 @@ export class CustomerSession {
 
   @Prop({ type: Boolean, default: false })
   allOrdersPaid!: boolean;
-
-  @Prop({ type: String })
-  taxType?: 'intra-state' | 'inter-state';
 }
 
 export const CustomerSessionSchema = SchemaFactory.createForClass(CustomerSession);

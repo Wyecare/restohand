@@ -63,6 +63,17 @@ export interface BillCalculation {
   grossAmount: number;
   totalAmount: number;
   roundOffAmount: number;
+
+  // Branch charges
+  branchCharges: Array<{
+    name: string;
+    type: 'percentage' | 'fixed';
+    value: number;
+    amount: number;
+    includedInGst: boolean;
+  }>;
+  totalBranchCharges: number;
+
   paidAmount: number;
   pendingAmount: number;
   taxType: 'intra-state' | 'inter-state' | null;
@@ -71,6 +82,25 @@ export interface BillCalculation {
   orderBreakdown: OrderBillBreakdown[];
   calculatedAt: string;
   currency: string;
+
+  // Mixed tax support (optional fields for backward compatibility)
+  categoryCalculations?: Array<{
+    category: 'cooked_food' | 'fresh_items' | 'packaged_items' | 'beverages' | 'alcohol' | 'sweets' | 'ice_cream';
+    subtotal: number;
+    taxType: 'gst' | 'vat' | 'exempt';
+    gstRate?: number;
+    vatRate?: number;
+    gstAmount?: number;
+    vatAmount?: number;
+    totalTaxAmount: number;
+    totalWithTax: number;
+  }>;
+  totalGstAmount?: number;
+  totalVatAmount?: number;
+  gstSubtotal?: number;
+  vatSubtotal?: number;
+  exemptSubtotal?: number;
+  stateVatAmount?: number;
 }
 
 export interface OrderBillBreakdown {

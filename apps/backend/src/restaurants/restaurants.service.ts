@@ -15,6 +15,7 @@ import { RestaurantResponseDto } from './dtos/restaurant-response.dto';
 import { UsersService } from '../users/users.service';
 import { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { UserRole } from '../common/enums/user-role.enum';
+import { GstService } from '../common/services/gst.service';
 
 interface PaginatedRestaurants {
   data: RestaurantResponseDto[];
@@ -28,7 +29,8 @@ export class RestaurantsService {
   constructor(
     @InjectModel(Restaurant.name)
     private readonly restaurantModel: Model<RestaurantDocument>,
-    private readonly usersService: UsersService
+    private readonly usersService: UsersService,
+    private readonly gstService: GstService
   ) {}
 
   async create(
@@ -146,19 +148,50 @@ export class RestaurantsService {
       await this.ensureSlugUnique(dto.slug, id);
     }
 
+    // Validate GST configuration if provided
+    if (dto.businessDetails?.gst) {
+      await this.validateGstConfiguration(dto.businessDetails.gst);
+    }
+
+    const updateData = { ...dto };
+
+    // Handle GST configuration updates
+    if (dto.businessDetails?.gst) {
+      const gstConfig = dto.businessDetails.gst;
+
+      // Auto-calculate GST rate and ITC eligibility
+      const validation = this.gstService.validateGstConfiguration(
+        gstConfig.establishmentType!,
+        gstConfig.roomTariff
+      );
+
+      if (!validation.isValid) {
+        throw new ConflictException(validation.errors.join(', '));
+      }
+
+      // Set calculated values
+      updateData.businessDetails = {
+        ...dto.businessDetails,
+        gst: {
+          ...gstConfig,
+          defaultGstRate: validation.gstRate,
+          canClaimITC: validation.canClaimITC,
+          gstin: gstConfig.gstin?.trim().toUpperCase(),
+          lastUpdatedAt: new Date(),
+        }
+      };
+    }
+
     const updated = await this.restaurantModel.findByIdAndUpdate(
       id,
-      {
-        $set: {
-          ...dto,
-          gstin: dto.gstin?.trim().toUpperCase() ?? dto.gstin,
-        },
-      },
+      { $set: updateData },
       { new: true, runValidators: true }
     );
+
     if (!updated) {
       throw new NotFoundException(`Restaurant ${id} not found`);
     }
+
     return this.toDto(updated);
   }
 
@@ -181,8 +214,55 @@ export class RestaurantsService {
     }
   }
 
+  private async validateGstConfiguration(gstConfig: any): Promise<void> {
+    if (!gstConfig.establishmentType || !gstConfig.businessState) {
+      throw new ConflictException('Establishment type and business state are required');
+    }
+
+    // Validate state
+    if (!this.gstService.isValidState(gstConfig.businessState)) {
+      throw new ConflictException('Invalid business state');
+    }
+
+    // Validate GSTIN if provided
+    if (gstConfig.gstin) {
+      const gstinValidation = this.gstService.validateGstin(
+        gstConfig.gstin,
+        gstConfig.businessState
+      );
+      if (!gstinValidation.isValid) {
+        throw new ConflictException(gstinValidation.errors.join(', '));
+      }
+    }
+  }
+
   private toDto(doc: RestaurantDocument): RestaurantResponseDto {
     const restaurant = doc.toObject();
+
+    // Format business details with GST config
+    let businessDetails = undefined;
+    if (restaurant.businessDetails) {
+      businessDetails = {
+        panNumber: restaurant.businessDetails.panNumber,
+        businessType: restaurant.businessDetails.businessType,
+        gst: restaurant.businessDetails.gst ? {
+          establishmentType: restaurant.businessDetails.gst.establishmentType,
+          defaultGstRate: restaurant.businessDetails.gst.defaultGstRate,
+          canClaimITC: restaurant.businessDetails.gst.canClaimITC,
+          businessState: restaurant.businessDetails.gst.businessState,
+          gstin: restaurant.businessDetails.gst.gstin,
+          roomTariff: restaurant.businessDetails.gst.roomTariff,
+          servesAlcohol: restaurant.businessDetails.gst.servesAlcohol,
+          enableServiceCharge: restaurant.businessDetails.gst.enableServiceCharge,
+          serviceChargeRate: restaurant.businessDetails.gst.serviceChargeRate,
+          integratedWithDeliveryPlatforms: restaurant.businessDetails.gst.integratedWithDeliveryPlatforms,
+          isGstEnabled: restaurant.businessDetails.gst.isGstEnabled,
+          configuredAt: restaurant.businessDetails.gst.configuredAt?.toISOString(),
+          lastUpdatedAt: restaurant.businessDetails.gst.lastUpdatedAt?.toISOString(),
+        } : undefined
+      };
+    }
+
     return {
       id: doc._id.toString(),
       name: restaurant.name,
@@ -200,7 +280,7 @@ export class RestaurantsService {
       isActive: restaurant.isActive,
       createdAt: restaurant.createdAt?.toISOString(),
       updatedAt: restaurant.updatedAt?.toISOString(),
-      businessDetails: restaurant.businessDetails,
+      businessDetails,
     };
   }
 }
