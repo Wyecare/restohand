@@ -874,9 +874,13 @@ export default function ServicePaymentScreen() {
                           <Text style={[styles.itemCalculation, { color: theme.icon }]}>
                             {item.quantity} × {formatCurrency(pricePerUnitWithTax)} = {formatCurrency(item.totalWithTax)}
                           </Text>
-                          {item.gstRate > 0 && (
+                          {item.totalTaxAmount > 0 && (
                             <Text style={[styles.gstInfo, { color: theme.icon }]}>
-                              GST @ {item.gstRate}% • Tax: {formatCurrency(item.totalTaxAmount)}
+                              {item.gstRate > 0 ? (
+                                `GST @ ${item.gstRate}% • Tax: ${formatCurrency(item.totalTaxAmount)}`
+                              ) : (
+                                `VAT (25%) • Tax: ${formatCurrency(item.totalTaxAmount)}`
+                              )}
                             </Text>
                           )}
                           {item.hsnCode && (
@@ -945,48 +949,162 @@ export default function ServicePaymentScreen() {
                   </Text>
                 </View>
 
-                {detailedSessionBill.cgstAmount > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
-                      CGST
-                    </Text>
-                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
-                      {formatCurrency(detailedSessionBill.cgstAmount)}
-                    </Text>
-                  </View>
+                {/* Branch Charges - Dynamic Display */}
+                {detailedSessionBill.branchCharges && detailedSessionBill.branchCharges.length > 0 && (
+                  <>
+                    {detailedSessionBill.branchCharges.map((charge, index) => {
+                      let chargeName = charge.name;
+                      if (charge.type === 'percentage') {
+                        chargeName += ` (${charge.value}%)`;
+                      }
+
+                      return (
+                        <View key={index} style={styles.breakdownRow}>
+                          <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                            {chargeName}
+                          </Text>
+                          <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                            {formatCurrency(charge.amount)}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </>
                 )}
 
-                {detailedSessionBill.sgstAmount > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
-                      SGST
-                    </Text>
-                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
-                      {formatCurrency(detailedSessionBill.sgstAmount)}
-                    </Text>
-                  </View>
-                )}
-
-                {detailedSessionBill.igstAmount > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
-                      IGST
-                    </Text>
-                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
-                      {formatCurrency(detailedSessionBill.igstAmount)}
-                    </Text>
-                  </View>
-                )}
-
+                {/* Dynamic Tax breakdown - handle both mixed and simple tax scenarios */}
                 {detailedSessionBill.taxAmount > 0 && (
-                  <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.text, fontWeight: '600' }]}>
-                      Total Tax
-                    </Text>
-                    <Text style={[styles.breakdownAmount, { color: theme.text, fontWeight: '600' }]}>
-                      {formatCurrency(detailedSessionBill.taxAmount)}
-                    </Text>
-                  </View>
+                  <>
+                    {/* Check if we have category-wise tax calculations */}
+                    {detailedSessionBill.categoryCalculations && detailedSessionBill.categoryCalculations.length > 0 ? (
+                      <>
+                        {/* Category-wise tax breakdown */}
+                        {detailedSessionBill.categoryCalculations.map((categoryCalc, index) => {
+                          if (categoryCalc.totalTaxAmount === 0) return null;
+
+                          const categoryName = categoryCalc.category
+                            .replace('_', ' ')
+                            .replace(/\b\w/g, (l) => l.toUpperCase());
+
+                          const taxTypeLabel = categoryCalc.taxType === 'vat' ? 'VAT' : 'GST';
+                          const taxRate =
+                            categoryCalc.taxType === 'gst'
+                              ? categoryCalc.gstRate
+                              : categoryCalc.vatRate;
+
+                          const displayText = `${categoryName} ${taxTypeLabel}${
+                            taxRate ? ` (${taxRate}%)` : ''
+                          }`;
+
+                          return (
+                            <View key={index} style={styles.breakdownRow}>
+                              <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                                {displayText}
+                              </Text>
+                              <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                {formatCurrency(categoryCalc.totalTaxAmount)}
+                              </Text>
+                            </View>
+                          );
+                        })}
+
+                        {/* GST breakdown if GST items exist */}
+                        {(detailedSessionBill.totalGstAmount || 0) > 0 &&
+                         (detailedSessionBill.cgstAmount > 0 || detailedSessionBill.sgstAmount > 0 || detailedSessionBill.igstAmount > 0) && (
+                          <>
+                            <View style={styles.breakdownRow}>
+                              <Text style={[styles.breakdownLabel, { color: theme.text, fontWeight: '600' }]}>
+                                GST Breakdown
+                              </Text>
+                              <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                {/* Empty for header */}
+                              </Text>
+                            </View>
+
+                            {detailedSessionBill.cgstAmount > 0 && (
+                              <View style={styles.breakdownRow}>
+                                <Text style={[styles.breakdownLabel, { color: theme.icon, paddingLeft: 16 }]}>
+                                  CGST
+                                </Text>
+                                <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                  {formatCurrency(detailedSessionBill.cgstAmount)}
+                                </Text>
+                              </View>
+                            )}
+
+                            {detailedSessionBill.sgstAmount > 0 && (
+                              <View style={styles.breakdownRow}>
+                                <Text style={[styles.breakdownLabel, { color: theme.icon, paddingLeft: 16 }]}>
+                                  SGST
+                                </Text>
+                                <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                  {formatCurrency(detailedSessionBill.sgstAmount)}
+                                </Text>
+                              </View>
+                            )}
+
+                            {detailedSessionBill.igstAmount > 0 && (
+                              <View style={styles.breakdownRow}>
+                                <Text style={[styles.breakdownLabel, { color: theme.icon, paddingLeft: 16 }]}>
+                                  IGST
+                                </Text>
+                                <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                  {formatCurrency(detailedSessionBill.igstAmount)}
+                                </Text>
+                              </View>
+                            )}
+                          </>
+                        )}
+
+                      </>
+                    ) : (
+                      <>
+                        {/* Original simple GST breakdown for backward compatibility */}
+                        {detailedSessionBill.cgstAmount > 0 && (
+                          <View style={styles.breakdownRow}>
+                            <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                              CGST
+                            </Text>
+                            <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                              {formatCurrency(detailedSessionBill.cgstAmount)}
+                            </Text>
+                          </View>
+                        )}
+
+                        {detailedSessionBill.sgstAmount > 0 && (
+                          <View style={styles.breakdownRow}>
+                            <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                              SGST
+                            </Text>
+                            <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                              {formatCurrency(detailedSessionBill.sgstAmount)}
+                            </Text>
+                          </View>
+                        )}
+
+                        {detailedSessionBill.igstAmount > 0 && (
+                          <View style={styles.breakdownRow}>
+                            <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                              IGST
+                            </Text>
+                            <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                              {formatCurrency(detailedSessionBill.igstAmount)}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+
+                    {/* Total tax - always show */}
+                    <View style={styles.breakdownRow}>
+                      <Text style={[styles.breakdownLabel, { color: theme.text, fontWeight: '600' }]}>
+                        Total Tax
+                      </Text>
+                      <Text style={[styles.breakdownAmount, { color: theme.text, fontWeight: '600' }]}>
+                        {formatCurrency(detailedSessionBill.taxAmount)}
+                      </Text>
+                    </View>
+                  </>
                 )}
 
                 {detailedSessionBill.discountAmount > 0 && (
