@@ -282,24 +282,36 @@ export class CreateMenuItemDto {
   @IsMongoId({ each: true })
   applicableModifiers?: string[];
 
+  // Special Pricing
   @ApiProperty({
-    example: ['66f0e5ec2ed1f1a1c4f9c7e5', '66f0e5ec2ed1f1a1c4f9c7e6'],
+    example: true,
     required: false,
-    description: 'Price tag IDs this item can use',
+    description: 'Whether this item has special pricing active',
   })
   @IsOptional()
-  @IsArray()
-  @IsMongoId({ each: true })
-  priceTagIds?: string[];
+  @IsBoolean()
+  hasSpecialPrice?: boolean;
 
   @ApiProperty({
-    example: '66f0e5ec2ed1f1a1c4f9c7e5',
+    example: 199.99,
     required: false,
-    description: 'Currently selected price tag for ordering',
+    description: 'Special/discounted price when hasSpecialPrice is true',
   })
   @IsOptional()
-  @IsMongoId()
-  activePriceTagId?: string;
+  @IsNumber()
+  @Min(0, { message: 'Special price must be positive' })
+  specialPrice?: number;
+
+  @ApiProperty({
+    example: 'Happy Hour Special',
+    required: false,
+    description: 'Label for the special pricing (e.g., Happy Hour, Weekend Deal)',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100, { message: 'Special price label must not exceed 100 characters' })
+  specialPriceLabel?: string;
 
   @ApiProperty({ example: '15 minutes', required: false })
   @IsOptional()

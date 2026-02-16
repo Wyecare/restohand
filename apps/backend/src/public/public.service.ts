@@ -188,39 +188,27 @@ export class PublicService {
         })),
       }));
 
-      // Find active price tag for this item - ONLY use the admin's explicit choice
-      let activePriceTag = null;
+      // Check if item has special pricing enabled
+      let specialPricing = null;
 
-      // Only use the activePriceTagId set by admin - no priority logic, no fallbacks
-      if (menuItem.activePriceTagId) {
-        activePriceTag = priceTags.find(priceTag =>
-          priceTag._id.toString() === menuItem.activePriceTagId.toString() && priceTag.isActive
-        );
+      if (menuItem.hasSpecialPrice && menuItem.specialPrice) {
+        const originalPrice = menuItem.pricing.amount;
+        const specialPrice = menuItem.specialPrice;
+        const discountValue = originalPrice - specialPrice;
+
+        specialPricing = {
+          isActive: true,
+          label: menuItem.specialPriceLabel || 'Special Price',
+          originalPrice: originalPrice,
+          specialPrice: specialPrice,
+          discountValue: discountValue,
+          discountPercentage: Math.round((discountValue / originalPrice) * 100),
+        };
       }
-
-      // No fallback - if no activePriceTagId is explicitly set, then no price tag is active
 
       return {
         modifiers: applicableModifiers,
-        activePriceTag: activePriceTag ? (() => {
-          // Find the specific pricing for this item
-          const itemPricing = activePriceTag.itemPrices.find(itemPrice =>
-            itemPrice.menuItemId.toString() === itemId && itemPrice.isActive
-          );
-
-          const effectivePrice = itemPricing?.price || 0;
-          const originalPrice = menuItem.pricing.amount;
-          const actualDiscountValue = originalPrice - effectivePrice;
-
-          return {
-            id: activePriceTag._id.toString(),
-            name: activePriceTag.name,
-            discountType: itemPricing?.discountType || 'fixed',
-            discountValue: actualDiscountValue, // Actual discount amount
-            effectivePrice: effectivePrice, // The final price after discount
-            validUntil: activePriceTag.validUntil,
-          };
-        })() : null,
+        specialPricing: specialPricing,
       };
     };
 
@@ -244,7 +232,7 @@ export class PublicService {
             imageUrls: item.imageUrls,
             isAvailable: item.isAvailable,
             modifiers: enhancements.modifiers,
-            activePriceTag: enhancements.activePriceTag,
+            specialPricing: enhancements.specialPricing,
           };
         }),
     }));

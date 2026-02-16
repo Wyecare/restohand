@@ -491,7 +491,11 @@ export class MenuItemsService {
       nutritionalInfo: doc.nutritionalInfo,
       ingredients: doc.ingredients,
       applicableModifiers: doc.applicableModifiers?.map(id => id.toString()) || [],
-      activePriceTagId: doc.activePriceTagId,
+
+      // Special Pricing
+      hasSpecialPrice: doc.hasSpecialPrice,
+      specialPrice: doc.specialPrice,
+      specialPriceLabel: doc.specialPriceLabel,
 
       // Dietary Information
       isVegan: doc.isVegan,

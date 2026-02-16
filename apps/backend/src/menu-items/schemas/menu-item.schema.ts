@@ -149,11 +149,15 @@ export class MenuItem {
   @Prop({ type: [SchemaTypes.ObjectId], ref: 'MenuModifier', default: [] })
   applicableModifiers!: string[]; // Modifiers that can be applied to this item
 
-  @Prop({ type: [String], default: [] })
-  priceTagIds!: string[]; // Price tags this item can use
+  // Special Pricing System
+  @Prop({ type: Boolean, default: false })
+  hasSpecialPrice!: boolean; // Whether special pricing is active
 
-  @Prop({ type: String })
-  activePriceTagId?: string; // Currently selected price tag for ordering
+  @Prop({ type: Number, min: 0 })
+  specialPrice?: number; // Special/discounted price
+
+  @Prop({ type: String, trim: true })
+  specialPriceLabel?: string; // e.g., "Happy Hour", "Weekend Special"
 
   // Dietary Information (can be computed from ingredients or manually set)
   @Prop({ type: Object })
@@ -206,6 +210,5 @@ export const MenuItemSchema = SchemaFactory.createForClass(MenuItem);
 MenuItemSchema.index({ restaurantId: 1, branchId: 1, categoryId: 1, displayOrder: 1 });
 MenuItemSchema.index({ branchId: 1, categoryId: 1 });
 MenuItemSchema.index({ applicableModifiers: 1 });
-MenuItemSchema.index({ activePriceTagId: 1 });
 MenuItemSchema.index({ isVegan: 1, isVegetarian: 1, isGlutenFree: 1 });
 MenuItemSchema.index({ allergens: 1 });

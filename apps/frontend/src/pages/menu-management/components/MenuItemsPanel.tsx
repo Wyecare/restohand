@@ -103,7 +103,7 @@ export function MenuItemsPanel({
     >
       {/* Header */}
       <div className="bg-background border-b">
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-0">
           {/* Title and Add Button */}
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -119,18 +119,6 @@ export function MenuItemsPanel({
               Add Item
             </Button>
           </div>
-
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              placeholder="Search items..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 text-base"
-            />
-          </div>
-
           {/* Stats */}
           {items.length > 0 && (
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -209,7 +197,8 @@ function ItemCard({
       className={cn(
         'relative bg-background rounded-lg border-2 overflow-hidden transition-all hover:shadow-md',
         item.isAvailable ? 'border-border' : 'border-muted opacity-60',
-        isHighlighted && 'border-yellow-500 bg-yellow-50 shadow-lg ring-2 ring-yellow-200'
+        isHighlighted &&
+          'border-yellow-500 bg-yellow-50 shadow-lg ring-2 ring-yellow-200'
       )}
     >
       {/* Action Menu */}
@@ -256,7 +245,9 @@ function ItemCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setCurrentImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1);
+                    setCurrentImageIndex((prev) =>
+                      prev === 0 ? images.length - 1 : prev - 1
+                    );
                   }}
                   className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   aria-label="Previous image"
@@ -266,7 +257,9 @@ function ItemCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setCurrentImageIndex(prev => prev === images.length - 1 ? 0 : prev + 1);
+                    setCurrentImageIndex((prev) =>
+                      prev === images.length - 1 ? 0 : prev + 1
+                    );
                   }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   aria-label="Next image"
@@ -287,8 +280,8 @@ function ItemCard({
                       setCurrentImageIndex(index);
                     }}
                     className={cn(
-                      "w-2 h-2 rounded-full transition-colors",
-                      index === currentImageIndex ? "bg-white" : "bg-white/50"
+                      'w-2 h-2 rounded-full transition-colors',
+                      index === currentImageIndex ? 'bg-white' : 'bg-white/50'
                     )}
                     aria-label={`View image ${index + 1}`}
                   />
@@ -325,10 +318,32 @@ function ItemCard({
         <div>
           <h3 className="font-semibold text-lg line-clamp-1">{item.name}</h3>
           <div className="flex items-baseline justify-between mt-1">
-            <span className="text-2xl font-bold text-primary">
-              {currency === 'INR' ? '₹' : currency}
-              {amount.toFixed(0)}
-            </span>
+            <div className="flex flex-col">
+              {item.hasSpecialPrice && item.specialPrice ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold text-muted-foreground line-through">
+                      {currency === 'INR' ? '₹' : currency}
+                      {amount.toFixed(0)}
+                    </span>
+                    <span className="text-2xl font-bold text-green-600">
+                      {currency === 'INR' ? '₹' : currency}
+                      {item.specialPrice.toFixed(0)}
+                    </span>
+                  </div>
+                  {item.specialPriceLabel && (
+                    <span className="text-xs text-green-600 font-medium">
+                      {item.specialPriceLabel}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-2xl font-bold text-primary">
+                  {currency === 'INR' ? '₹' : currency}
+                  {amount.toFixed(0)}
+                </span>
+              )}
+            </div>
             {item.preparationTime && (
               <span className="text-xs text-muted-foreground">
                 {item.preparationTime} min
@@ -369,7 +384,10 @@ function ItemCard({
                 variant="secondary"
                 className="text-xs bg-red-100 text-red-700 border-red-200"
               >
-                <span role="img" aria-label="spicy">🌶️</span> Spicy
+                <span role="img" aria-label="spicy">
+                  🌶️
+                </span>{' '}
+                Spicy
               </Badge>
             )}
             {item.dietaryInfo.isHalal && (

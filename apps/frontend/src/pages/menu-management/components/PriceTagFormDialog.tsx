@@ -49,6 +49,7 @@ import {
 import {
   useListMenuItemsByBranchQuery,
   useSearchMenuByBranchQuery,
+  useUpdateMenuItemMutation,
 } from '@/store/api/restaurantsApi';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
@@ -165,6 +166,7 @@ export function PriceTagFormDialog({
     useCreateMenuPriceTagForBranchMutation();
   const [updatePriceTag, { isLoading: isUpdating }] =
     useUpdateMenuPriceTagMutation();
+  const [updateMenuItem] = useUpdateMenuItemMutation();
 
   const form = useForm<PriceTagFormData>({
     resolver: zodResolver(priceTagFormSchema),
@@ -238,27 +240,79 @@ export function PriceTagFormDialog({
         displayOrder: 0,
       };
 
+      let priceTagResult: any;
       if (priceTag) {
-        await updatePriceTag({
+        priceTagResult = await updatePriceTag({
           restaurantId,
           priceTagId: priceTag.id,
           body: payload,
         }).unwrap();
 
+        // For updates, only set as active for items that DON'T already have an active price tag
+        await Promise.all(
+          data.itemPrices.map(async (itemPrice) => {
+            const menuItem = itemsMap.get(itemPrice.menuItemId);
+            if (menuItem && !menuItem.activePriceTagId) {
+              // Only update if item doesn't have an active price tag
+              const { id, ...menuItemWithoutId } = menuItem; // Remove id field
+              await updateMenuItem({
+                restaurantId,
+                itemId: itemPrice.menuItemId,
+                body: {
+                  ...menuItemWithoutId,
+                  pricing: { amount: menuItem.pricing.amount, currency: 'INR' },
+                  activePriceTagId: priceTag.id, // Set this price tag as active
+                },
+              }).unwrap();
+            }
+          })
+        );
+
+        const updatedItemsCount = data.itemPrices.filter(itemPrice => {
+          const menuItem = itemsMap.get(itemPrice.menuItemId);
+          return menuItem && !menuItem.activePriceTagId;
+        }).length;
+
         toast({
           title: 'Success',
-          description: 'Price tag updated successfully',
+          description: updatedItemsCount > 0
+            ? `Price tag updated and set as active for ${updatedItemsCount} items (items without existing active tags)`
+            : 'Price tag updated (no items auto-activated - they already have active price tags)',
         });
       } else {
-        await createPriceTag({
+        priceTagResult = await createPriceTag({
           restaurantId,
           branchId,
           body: payload,
         }).unwrap();
 
+        // CRITICAL: Auto-set the new price tag as active ONLY for items without existing active price tags
+        const itemsActivated: string[] = [];
+        await Promise.all(
+          data.itemPrices.map(async (itemPrice) => {
+            const menuItem = itemsMap.get(itemPrice.menuItemId);
+            if (menuItem && !menuItem.activePriceTagId) {
+              // Only update if item doesn't have an active price tag
+              const { id, ...menuItemWithoutId } = menuItem; // Remove id field
+              await updateMenuItem({
+                restaurantId,
+                itemId: itemPrice.menuItemId,
+                body: {
+                  ...menuItemWithoutId,
+                  pricing: { amount: menuItem.pricing.amount, currency: 'INR' },
+                  activePriceTagId: priceTagResult.id, // Set new price tag as active
+                },
+              }).unwrap();
+              itemsActivated.push(menuItem.name);
+            }
+          })
+        );
+
         toast({
           title: 'Success',
-          description: 'Price tag created successfully',
+          description: itemsActivated.length > 0
+            ? `Price tag created and set as active for ${itemsActivated.length} items (${itemsActivated.join(', ')})`
+            : 'Price tag created (no items auto-activated - they already have active price tags)',
         });
       }
 

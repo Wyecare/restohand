@@ -17,6 +17,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { GlobalMenuSearch } from '@/components/menu/GlobalMenuSearch';
+import { useToast } from '@/hooks/use-toast';
+import { MenuSearchResultItem } from '@/store/api/restaurantsApi';
 
 interface CategoriesSidebarProps {
   categories: any[];
@@ -40,6 +43,7 @@ export function CategoriesSidebar({
   const navigate = useNavigate();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const selectedCategoryRef = useRef<HTMLButtonElement>(null);
+  const { toast } = useToast();
 
   const handleCategoryClick = (categoryId: string) => {
     navigate(`/menu/items/categories/${categoryId}`);
@@ -48,10 +52,16 @@ export function CategoriesSidebar({
 
   // Auto-scroll to selected category
   useEffect(() => {
-    if (selectedCategoryId && selectedCategoryRef.current && scrollAreaRef.current) {
+    if (
+      selectedCategoryId &&
+      selectedCategoryRef.current &&
+      scrollAreaRef.current
+    ) {
       // Small timeout to ensure DOM has updated after navigation
       const timeoutId = setTimeout(() => {
-        const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+        const scrollContainer = scrollAreaRef.current?.querySelector(
+          '[data-radix-scroll-area-viewport]'
+        );
         const selectedElement = selectedCategoryRef.current;
 
         if (scrollContainer && selectedElement) {
@@ -64,10 +74,13 @@ export function CategoriesSidebar({
 
           if (isAboveView || isBelowView) {
             // Calculate scroll position to center the element
-            const scrollTop = selectedElement.offsetTop - scrollContainer.clientHeight / 2 + selectedElement.clientHeight / 2;
+            const scrollTop =
+              selectedElement.offsetTop -
+              scrollContainer.clientHeight / 2 +
+              selectedElement.clientHeight / 2;
             scrollContainer.scrollTo({
               top: Math.max(0, scrollTop),
-              behavior: 'smooth'
+              behavior: 'smooth',
             });
           }
         }
@@ -77,9 +90,37 @@ export function CategoriesSidebar({
     }
   }, [selectedCategoryId]);
 
+  const handleSearchResultSelect = (result: MenuSearchResultItem) => {
+    if (result.type === 'category') {
+      navigate(`/menu/items/categories/${result.id}`);
+      toast({
+        title: 'Category Selected',
+        description: `Navigated to ${result.name}`,
+      });
+    } else if (result.type === 'item') {
+      // Navigate to the item's category with highlight parameter
+      if (result.categoryId) {
+        navigate(
+          `/menu/items/categories/${result.categoryId}?highlight=${result.id}`
+        );
+        toast({
+          title: 'Menu Item Found',
+          description: `Found "${result.name}" in ${
+            result.categoryName || 'category'
+          }`,
+        });
+      }
+    }
+  };
+
   return (
-    <div className="w-70 border-r bg-muted/30 flex flex-col h-full overflow-x-auto">
+    <div className="w-70 p-1 bg-muted/30 flex flex-col h-full overflow-x-auto justify-center shadow-md">
       {/* Header */}
+      <GlobalMenuSearch
+        onResultSelect={handleSearchResultSelect}
+        placeholder="Search menu categories and items..."
+        className="w-full"
+      />
       <div className="p-2 flex border-b flex-shrink-0 grid-cols-2 justify-between">
         <Button onClick={onAddCategory} className="gap-2 w-[48%]">
           Add Category
@@ -95,7 +136,10 @@ export function CategoriesSidebar({
       </div>
 
       {/* Categories List */}
-      <ScrollArea ref={scrollAreaRef} className="flex-1 overflow-y-auto overflow-x-auto">
+      <ScrollArea
+        ref={scrollAreaRef}
+        className="flex-1 overflow-y-auto overflow-x-auto"
+      >
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -119,14 +163,14 @@ export function CategoriesSidebar({
                   className={cn(
                     'group relative rounded-lg border transition-all',
                     isSelected
-                      ? 'bg-background border-primary shadow-sm'
-                      : 'bg-background/50 border-transparent hover:bg-background hover:border-border'
+                      ? 'bg-primary border-secondary shadow-sm text-gray-50'
+                      : 'bg-background/50 shadow-sm hover:bg-background hover:border-border'
                   )}
                 >
                   <button
                     ref={isSelected ? selectedCategoryRef : undefined}
                     onClick={() => handleCategoryClick(categoryId)}
-                    className="w-full p-3 flex items-start gap-3 text-left"
+                    className="w-full p-3 flex items-start gap-3 text-left cursor-pointer olo"
                   >
                     {/* Category Image */}
                     {category.imageUrl ? (

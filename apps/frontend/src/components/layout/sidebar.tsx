@@ -84,7 +84,6 @@ const managerLinks: NavLink[] = [
     items: [
       { titleKey: 'navigation.items', href: '/menu/items' },
       { titleKey: 'navigation.modifiers', href: '/menu/modifiers' },
-      { titleKey: 'navigation.priceTags', href: '/menu/price-tags' },
     ],
   },
   // { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },

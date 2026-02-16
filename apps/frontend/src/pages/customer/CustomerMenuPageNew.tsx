@@ -50,7 +50,10 @@ import { formatCurrency } from '@/lib/billing';
 import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
 // TODO: Re-enable when search functionality is fixed
 // import { CustomerMenuSearch } from '@/components/customer/CustomerMenuSearch';
-import { clearExpiredSessionData, hasCustomerSessionData } from '@/utils/sessionCleanup';
+import {
+  clearExpiredSessionData,
+  hasCustomerSessionData,
+} from '@/utils/sessionCleanup';
 import {
   Dialog,
   DialogContent,
@@ -612,7 +615,9 @@ const getBrowserSessionId = () => {
 const getCachedSession = (tableId: string) => {
   try {
     const browserSessionId = getBrowserSessionId();
-    const cached = localStorage.getItem(`customerSession_${tableId}_${browserSessionId}`);
+    const cached = localStorage.getItem(
+      `customerSession_${tableId}_${browserSessionId}`
+    );
     if (!cached) return null;
 
     const session = JSON.parse(cached);
@@ -665,13 +670,18 @@ const getPreviousTableSessions = (tableId: string) => {
       }
     }
 
-    return sessions.sort((a, b) => new Date(b.cachedAt).getTime() - new Date(a.cachedAt).getTime());
+    return sessions.sort(
+      (a, b) => new Date(b.cachedAt).getTime() - new Date(a.cachedAt).getTime()
+    );
   } catch {
     return [];
   }
 };
 
-const cacheSession = (tableId: string, session: { sessionId: string; customerNumber: number; tableNumber: string }) => {
+const cacheSession = (
+  tableId: string,
+  session: { sessionId: string; customerNumber: number; tableNumber: string }
+) => {
   try {
     const browserSessionId = getBrowserSessionId();
     const sessionData = {
@@ -681,7 +691,10 @@ const cacheSession = (tableId: string, session: { sessionId: string; customerNum
       expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours
       cachedAt: new Date().toISOString(),
     };
-    localStorage.setItem(`customerSession_${tableId}_${browserSessionId}`, JSON.stringify(sessionData));
+    localStorage.setItem(
+      `customerSession_${tableId}_${browserSessionId}`,
+      JSON.stringify(sessionData)
+    );
   } catch (error) {
     console.error('Failed to cache session:', error);
   }
@@ -725,11 +738,20 @@ const SessionDetectionModal = ({
         className="bg-white rounded-xl p-6 max-w-md w-full space-y-4"
       >
         <div className="text-center">
-          <AccessibleEmoji symbol="👋" label="Welcome back" className="text-3xl mb-3" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome back!</h2>
+          <AccessibleEmoji
+            symbol="👋"
+            label="Welcome back"
+            className="text-3xl mb-3"
+          />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Welcome back!
+          </h2>
           <p className="text-gray-600 text-sm">
-            We found {sessions.length === 1 ? 'a previous session' : `${sessions.length} previous sessions`} at this table.
-            Would you like to continue or start fresh?
+            We found{' '}
+            {sessions.length === 1
+              ? 'a previous session'
+              : `${sessions.length} previous sessions`}{' '}
+            at this table. Would you like to continue or start fresh?
           </p>
         </div>
 
@@ -1019,7 +1041,10 @@ export default function CustomerMenuPageNew() {
 
       setCurrentSession(sessionData);
       cacheSession(tableIdFromUrl, sessionData);
-      console.log(`✨ New Customer #${response.customerNumber} session created:`, response.sessionId);
+      console.log(
+        `✨ New Customer #${response.customerNumber} session created:`,
+        response.sessionId
+      );
     } catch (error) {
       console.error('Failed to create new session:', error);
       toast({
@@ -1034,7 +1059,11 @@ export default function CustomerMenuPageNew() {
 
   // Session initialization - check cache first, then create if needed
   useEffect(() => {
-    console.log('🔥 Session useEffect triggered:', { slug, tableIdFromUrl, timestamp: new Date().toISOString() });
+    console.log('🔥 Session useEffect triggered:', {
+      slug,
+      tableIdFromUrl,
+      timestamp: new Date().toISOString(),
+    });
 
     const initializeSession = async () => {
       console.log('🔥 initializeSession called:', { slug, tableIdFromUrl });
@@ -1061,7 +1090,9 @@ export default function CustomerMenuPageNew() {
       // Smart session detection - check for any previous sessions at this table
       const previousTableSessions = getPreviousTableSessions(tableIdFromUrl);
       if (previousTableSessions.length > 0) {
-        console.log(`🔍 Found ${previousTableSessions.length} previous session(s) at this table`);
+        console.log(
+          `🔍 Found ${previousTableSessions.length} previous session(s) at this table`
+        );
         setPreviousSessions(previousTableSessions);
         setShowSessionDetection(true);
         setPendingSessionCreation(true);
@@ -1090,7 +1121,10 @@ export default function CustomerMenuPageNew() {
 
         setCurrentSession(sessionData);
         cacheSession(tableIdFromUrl, sessionData);
-        console.log(`🔥 Customer #${response.customerNumber} session created:`, response.sessionId);
+        console.log(
+          `🔥 Customer #${response.customerNumber} session created:`,
+          response.sessionId
+        );
       } catch (error) {
         console.error('🔥 Failed to create session:', error);
         toast({
@@ -1131,7 +1165,7 @@ export default function CustomerMenuPageNew() {
     name: string;
     price: number;
     modifiers: any[];
-    activePriceTagId?: string;
+    specialPricing?: any;
   } | null>(null);
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -1302,7 +1336,7 @@ export default function CustomerMenuPageNew() {
         price: totalPrice,
         categoryId: 'unknown', // Category context not available in modal
         categoryName: 'Unknown',
-        activePriceTagId: selectedMenuItem.activePriceTagId,
+        specialPricing: selectedMenuItem.specialPricing,
         selectedModifiers: selections,
         notes: notes,
       })
@@ -1316,7 +1350,7 @@ export default function CustomerMenuPageNew() {
     name: string,
     pricing: MenuItemPricing,
     modifiers: any[] = [],
-    activePriceTag: any = null,
+    specialPricing: any = null,
     categoryId: string = '',
     categoryName: string = ''
   ) => {
@@ -1324,9 +1358,9 @@ export default function CustomerMenuPageNew() {
       setSelectedMenuItem({
         id,
         name,
-        price: getEffectivePrice({ pricing, activePriceTag }),
+        price: getEffectivePrice({ pricing, specialPricing }),
         modifiers: modifiers,
-        activePriceTagId: activePriceTag?.id,
+        specialPricing: specialPricing,
       });
       setModifierModalOpen(true);
     } else {
@@ -1335,10 +1369,10 @@ export default function CustomerMenuPageNew() {
           id: `${id}-${Date.now()}`,
           menuItemId: id,
           name,
-          price: getEffectivePrice({ pricing, activePriceTag }),
+          price: getEffectivePrice({ pricing, specialPricing }),
           categoryId,
           categoryName,
-          activePriceTagId: activePriceTag?.id,
+          specialPricing: specialPricing,
         })
       );
     }
@@ -1367,8 +1401,8 @@ export default function CustomerMenuPageNew() {
   };
 
   const getEffectivePrice = (item: any): number => {
-    if (item.activePriceTag && item.activePriceTag.effectivePrice) {
-      return item.activePriceTag.effectivePrice;
+    if (item.specialPricing && item.specialPricing.isActive) {
+      return item.specialPricing.specialPrice;
     }
     return item.pricing.amount;
   };
@@ -1628,7 +1662,8 @@ export default function CustomerMenuPageNew() {
               >
                 <div className="rh-mini-banner-dot"></div>
                 <span className="rh-mini-banner-text">
-                  Table {currentSession?.tableNumber} • Customer #{currentSession?.customerNumber}
+                  Table {currentSession?.tableNumber} • Customer #
+                  {currentSession?.customerNumber}
                 </span>
                 <button
                   className="rh-mini-banner-btn"
@@ -1804,12 +1839,12 @@ export default function CustomerMenuPageNew() {
                   <div className="rh-item-details">
                     <h3 className="rh-item-name">{item.name}</h3>
                     <div className="rh-item-price">
-                      {item.activePriceTag ? (
+                      {item.specialPricing && item.specialPricing.isActive ? (
                         <>
                           <span className="rh-item-price-old">
                             {formatCurrency(item.pricing.amount)}
                           </span>
-                          {formatCurrency(getEffectivePrice(item))}
+                          {formatCurrency(item.specialPricing.specialPrice)}
                         </>
                       ) : (
                         formatCurrency(item.pricing.amount)
@@ -1834,7 +1869,7 @@ export default function CustomerMenuPageNew() {
                               item.name,
                               item.pricing,
                               item.modifiers || [],
-                              item.activePriceTag,
+                              item.specialPricing,
                               item._categoryId,
                               item._categoryName
                             )
@@ -1852,7 +1887,7 @@ export default function CustomerMenuPageNew() {
                             item.name,
                             item.pricing,
                             item.modifiers || [],
-                            item.activePriceTag,
+                            item.specialPricing,
                             item._categoryId,
                             item._categoryName
                           )

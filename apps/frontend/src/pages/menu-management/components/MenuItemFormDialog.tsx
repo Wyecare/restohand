@@ -19,14 +19,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Loader2, Upload, X, Plus, Trash2, Leaf, Flame } from 'lucide-react';
+import { Loader2, Upload, X, Plus, Trash2, Leaf } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -38,12 +31,10 @@ import {
   useRemoveMenuItemImageMutation,
 } from '@/store/api/restaurantsApi';
 import { useListMenuModifiersByBranchQuery } from '@/store/api/menuModifiersApi';
-import { useListMenuPriceTagsByBranchQuery } from '@/store/api/menuPriceTagsApi';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import type { MenuModifier } from '@/store/api/menuModifiersApi';
-import type { MenuPriceTag } from '@/store/api/menuPriceTagsApi';
 
 const ingredientSchema = z.object({
   name: z.string().min(1, 'Ingredient name is required'),
@@ -88,8 +79,11 @@ const menuItemFormSchema = z.object({
   preparationTime: z.string().optional(),
   preparationInstructions: z.string().optional(),
   applicableModifiers: z.array(z.string()).default([]),
-  priceTagIds: z.array(z.string()).default([]),
-  activePriceTagId: z.string().optional(),
+
+  // Special Pricing
+  hasSpecialPrice: z.boolean().default(false),
+  specialPrice: z.number().min(0).optional(),
+  specialPriceLabel: z.string().max(100).optional(),
 });
 
 type MenuItemFormData = z.infer<typeof menuItemFormSchema>;
@@ -147,8 +141,10 @@ interface MenuItem {
   preparationTime?: string;
   preparationInstructions?: string;
   applicableModifiers?: string[];
-  priceTagIds?: string[];
-  activePriceTagId?: string;
+  // Special Pricing
+  hasSpecialPrice?: boolean;
+  specialPrice?: number;
+  specialPriceLabel?: string;
 }
 
 interface MenuItemFormDialogProps {
@@ -178,27 +174,26 @@ export function MenuItemFormDialog({
     useUploadMenuItemImageMutation();
   const [removeImage, { isLoading: isRemovingImage }] =
     useRemoveMenuItemImageMutation();
+  // REMOVED: const [createPriceTag] = useCreateMenuPriceTagForBranchMutation();
 
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
 
-  // Fetch available modifiers and price tags
+  // REMOVED: Quick Price Tag state - replaced with simple special pricing
+
+  // Fetch available modifiers
   const modifiersQuery =
     restaurantId && branchId ? { restaurantId, branchId } : skipToken;
   const { data: modifiersData } =
     useListMenuModifiersByBranchQuery(modifiersQuery);
-  const { data: priceTagsData } =
-    useListMenuPriceTagsByBranchQuery(modifiersQuery);
+
 
   const availableModifiers = useMemo(
     () => modifiersData?.data || [],
     [modifiersData?.data]
   );
-  const availablePriceTags = useMemo(
-    () => priceTagsData?.data || [],
-    [priceTagsData?.data]
-  );
+
 
   const form = useForm<MenuItemFormData>({
     resolver: zodResolver(menuItemFormSchema),
@@ -231,8 +226,10 @@ export function MenuItemFormDialog({
       preparationTime: '',
       preparationInstructions: '',
       applicableModifiers: [],
-      priceTagIds: [],
-      activePriceTagId: undefined,
+      // Special Pricing
+      hasSpecialPrice: false,
+      specialPrice: undefined,
+      specialPriceLabel: '',
     },
   });
 
@@ -247,16 +244,10 @@ export function MenuItemFormDialog({
 
   useEffect(() => {
     if (menuItem) {
+
       // Use the menu item's own applicableModifiers field instead of checking modifier's applicableMenuItems
       const assignedModifierIds = menuItem.applicableModifiers || [];
 
-      const assignedPriceTagIds = availablePriceTags
-        .filter((priceTag) =>
-          priceTag.itemPrices?.some(
-            (itemPrice) => itemPrice.menuItemId === menuItem.id
-          )
-        )
-        .map((priceTag) => priceTag.id);
 
       form.reset({
         name: menuItem.name,
@@ -287,8 +278,9 @@ export function MenuItemFormDialog({
         preparationTime: menuItem.preparationTime,
         preparationInstructions: menuItem.preparationInstructions || '',
         applicableModifiers: assignedModifierIds,
-        priceTagIds: assignedPriceTagIds,
-        activePriceTagId: menuItem.activePriceTagId,
+        hasSpecialPrice: menuItem.hasSpecialPrice ?? false,
+        specialPrice: menuItem.specialPrice ?? 0,
+        specialPriceLabel: menuItem.specialPriceLabel ?? '',
       });
       setExistingImages(menuItem.imageUrls || []);
       setImagePreviews([]);
@@ -323,14 +315,13 @@ export function MenuItemFormDialog({
         preparationTime: '',
         preparationInstructions: '',
         applicableModifiers: [],
-        priceTagIds: [],
-        activePriceTagId: undefined,
       });
       setExistingImages([]);
       setImagePreviews([]);
       setSelectedFiles([]);
     }
-  }, [menuItem, availableModifiers, availablePriceTags, form]);
+  }, [menuItem, availableModifiers, form]);
+
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -473,6 +464,8 @@ export function MenuItemFormDialog({
     form.setValue('dietaryInfo.isNutFree', isNutFree);
   };
 
+  // REMOVED: createAndApplyPriceTag - replaced with simple special pricing
+
   const onSubmit = async (data: MenuItemFormData) => {
     if (!restaurantId || !categoryId || !branchId) {
       toast({
@@ -500,8 +493,10 @@ export function MenuItemFormDialog({
         preparationTime: data.preparationTime,
         preparationInstructions: data.preparationInstructions,
         applicableModifiers: data.applicableModifiers,
-        priceTagIds: data.priceTagIds,
-        activePriceTagId: data.activePriceTagId,
+        // Special pricing fields
+        hasSpecialPrice: data.hasSpecialPrice,
+        specialPrice: data.specialPrice,
+        specialPriceLabel: data.specialPriceLabel,
       };
 
       if (menuItem) {
@@ -1332,149 +1327,93 @@ export function MenuItemFormDialog({
               </AccordionItem>
             )}
 
-            {/* Price Tags */}
-            {availablePriceTags.length > 0 && (
-              <AccordionItem value="pricing" className="border rounded-lg px-4">
-                <AccordionTrigger className="text-base font-semibold hover:no-underline">
-                  Price Tags ({form.watch('priceTagIds')?.length || 0} selected)
-                </AccordionTrigger>
-                <AccordionContent className="pt-4 pb-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {availablePriceTags.map((priceTag: MenuPriceTag) => (
-                      <div
-                        key={priceTag.id}
-                        className="flex items-start space-x-3 p-3 border rounded-lg bg-muted/30"
-                      >
-                        <Checkbox
-                          id={`pricetag-${priceTag.id}`}
-                          checked={form
-                            .watch('priceTagIds')
-                            ?.includes(priceTag.id)}
-                          onCheckedChange={(checked) => {
-                            const current = form.getValues('priceTagIds') || [];
-                            if (checked) {
-                              form.setValue('priceTagIds', [
-                                ...current,
-                                priceTag.id,
-                              ]);
-                            } else {
-                              const newPriceTagIds = current.filter(
-                                (id) => id !== priceTag.id
-                              );
-                              form.setValue('priceTagIds', newPriceTagIds);
 
-                              // Clear active price tag if it was the one being removed
-                              const currentActivePriceTagId =
-                                form.getValues('activePriceTagId');
-                              if (currentActivePriceTagId === priceTag.id) {
-                                form.setValue('activePriceTagId', undefined);
-                              }
-                            }
-                          }}
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div
-                              className="w-3 h-3 rounded-full shrink-0"
-                              style={{ backgroundColor: priceTag.color }}
-                            />
-                            <Label
-                              htmlFor={`pricetag-${priceTag.id}`}
-                              className="font-medium cursor-pointer"
-                            >
-                              {priceTag.name}
-                            </Label>
-                          </div>
-                          {priceTag.description && (
-                            <p className="text-sm text-muted-foreground">
-                              {priceTag.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
-                            {priceTag.isActive && (
-                              <Badge className="bg-green-600 text-white text-xs">
-                                Active
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className="text-xs">
-                              Priority {priceTag.priority}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+            {/* Special Pricing */}
+            <AccordionItem value="special-pricing" className="border rounded-lg px-4">
+              <AccordionTrigger className="text-base font-semibold hover:no-underline">
+                💰 Special Pricing
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 pb-2">
+                <div className="space-y-6 p-4 bg-muted/30 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-lg font-semibold">Enable Special Pricing</Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Offer this item at a special price instead of the regular price
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.watch('hasSpecialPrice')}
+                      onCheckedChange={(checked) => {
+                        form.setValue('hasSpecialPrice', checked);
+                        if (!checked) {
+                          form.setValue('specialPrice', undefined);
+                          form.setValue('specialPriceLabel', '');
+                        }
+                      }}
+                    />
                   </div>
 
-                  {/* Active Price Tag Selection */}
-                  {form.watch('priceTagIds')?.length > 0 && (
-                    <div className="mt-6 pt-4 border-t">
-                      <Label className="text-base font-semibold">
-                        Active Price Tag for Customers
-                      </Label>
-                      <p className="text-sm text-muted-foreground mt-1 mb-3">
-                        Choose which price tag customers will see when ordering
-                        this item
-                      </p>
+                  {form.watch('hasSpecialPrice') && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="special-price">Special Price (₹) *</Label>
+                          <Input
+                            id="special-price"
+                            type="number"
+                            placeholder="299"
+                            step="0.01"
+                            min="0"
+                            {...form.register('specialPrice', { valueAsNumber: true })}
+                            className="mt-2"
+                          />
+                          {form.formState.errors.specialPrice && (
+                            <p className="text-sm text-destructive mt-1">
+                              {form.formState.errors.specialPrice.message}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="special-price-label">Label (Optional)</Label>
+                          <Input
+                            id="special-price-label"
+                            placeholder="Happy Hour Special"
+                            {...form.register('specialPriceLabel')}
+                            className="mt-2"
+                          />
+                          {form.formState.errors.specialPriceLabel && (
+                            <p className="text-sm text-destructive mt-1">
+                              {form.formState.errors.specialPriceLabel.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
-                      <Select
-                        value={form.watch('activePriceTagId') || ''}
-                        onValueChange={(value) => {
-                          form.setValue(
-                            'activePriceTagId',
-                            value === '' ? undefined : value
-                          );
-                        }}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Use base price (no price tag)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">
-                            <div className="flex items-center gap-2">
-                              <span className="w-3 h-3 rounded-full bg-gray-400"></span>
-                              <span>Use base price (no price tag)</span>
-                            </div>
-                          </SelectItem>
-                          {form.watch('priceTagIds')?.map((priceTagId) => {
-                            const priceTag = availablePriceTags.find(
-                              (pt) => pt.id === priceTagId
-                            );
-                            if (!priceTag) return null;
-                            return (
-                              <SelectItem key={priceTag.id} value={priceTag.id}>
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-3 h-3 rounded-full shrink-0"
-                                    style={{ backgroundColor: priceTag.color }}
-                                  />
-                                  <span>{priceTag.name}</span>
-                                  {priceTag.isActive && (
-                                    <Badge className="bg-green-600 text-white text-xs ml-2">
-                                      Active
-                                    </Badge>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-
-                      {form.watch('activePriceTagId') && (
-                        <div className="mt-2 p-3 bg-muted/30 rounded-lg">
-                          <p className="text-sm">
-                            <span className="font-medium">Selected:</span>{' '}
-                            {availablePriceTags.find(
-                              (pt) => pt.id === form.watch('activePriceTagId')
-                            )?.name || 'Unknown'}
-                          </p>
+                      {/* Price Comparison */}
+                      {form.watch('specialPrice') && form.watch('price') && form.watch('specialPrice') < form.watch('price') && (
+                        <div className="p-4 bg-muted/50 rounded-lg">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium">Regular Price:</span>
+                            <span className="text-sm">₹{form.watch('price')?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-semibold text-green-600">Special Price:</span>
+                            <span className="text-sm font-semibold text-green-600">₹{form.watch('specialPrice')?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm text-muted-foreground">
+                            <span>You Save:</span>
+                            <span>₹{((form.watch('price') || 0) - (form.watch('specialPrice') || 0)).toFixed(2)} ({Math.round((((form.watch('price') || 0) - (form.watch('specialPrice') || 0)) / (form.watch('price') || 1)) * 100)}% OFF)</span>
+                          </div>
                         </div>
                       )}
                     </div>
                   )}
-                </AccordionContent>
-              </AccordionItem>
-            )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* REMOVED: Complex Price Tags System - Replaced with Simple Special Pricing Above */}
           </Accordion>
 
           <DialogFooter className="gap-2">
