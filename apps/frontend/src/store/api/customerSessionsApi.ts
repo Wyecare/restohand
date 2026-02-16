@@ -261,6 +261,56 @@ export const customerSessionsApi = baseApi.injectEndpoints({
         { type: 'Bill', id: sessionId },
       ],
     }),
+
+    // Close session manually
+    closeSession: builder.mutation<
+      CustomerSession,
+      { sessionId: string; reason?: string; notes?: string }
+    >({
+      query: ({ sessionId, reason, notes }) => ({
+        url: `/customer-sessions/${sessionId}/close`,
+        method: 'PATCH',
+        body: { reason, notes },
+      }),
+      invalidatesTags: (result, error, { sessionId }) => [
+        { type: 'CustomerSession', id: sessionId },
+        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
+        { type: 'Bill', id: sessionId },
+      ],
+    }),
+
+    // Delete empty session
+    deleteSession: builder.mutation<
+      { success: boolean },
+      { sessionId: string }
+    >({
+      query: ({ sessionId }) => ({
+        url: `/customer-sessions/${sessionId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, { sessionId }) => [
+        { type: 'CustomerSession', id: sessionId },
+        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
+        { type: 'Bill', id: sessionId },
+      ],
+    }),
+
+    // Handle order cancelled event in session
+    onOrderCancelled: builder.mutation<
+      { success: boolean },
+      { sessionId: string; orderId: string }
+    >({
+      query: ({ sessionId, orderId }) => ({
+        url: `/customer-sessions/${sessionId}/events/order-cancelled`,
+        method: 'POST',
+        body: { orderId },
+      }),
+      invalidatesTags: (result, error, { sessionId }) => [
+        { type: 'CustomerSession', id: sessionId },
+        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
+        { type: 'Bill', id: sessionId },
+      ],
+    }),
   }),
 });
 
@@ -274,4 +324,7 @@ export const {
   useGetActiveSessionByTableQuery,
   useOnOrderPlacedMutation,
   useOnOrderPaidMutation,
+  useCloseSessionMutation,
+  useDeleteSessionMutation,
+  useOnOrderCancelledMutation,
 } = customerSessionsApi;

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -139,6 +140,19 @@ export class CustomerSessionsController {
     );
   }
 
+  @Delete(':sessionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Waiter, UserRole.Cashier)
+  @ApiOperation({ summary: 'Delete an empty session (staff only)' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiResponse({ status: 200 })
+  async deleteSession(
+    @Param('sessionId') sessionId: string
+  ): Promise<{ success: boolean }> {
+    await this.customerSessionsService.deleteSession(sessionId);
+    return { success: true };
+  }
+
   // ADMIN ENDPOINTS (Manager only)
 
   @Post('maintenance/close-expired')
@@ -186,6 +200,17 @@ export class CustomerSessionsController {
     @Body() body: { orderId: string }
   ): Promise<{ success: boolean }> {
     await this.customerSessionsService.onOrderPaid(sessionId, body.orderId);
+    return { success: true };
+  }
+
+  @Post(':sessionId/events/order-cancelled')
+  @ApiOperation({ summary: 'Handle order cancelled event in session' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  async onOrderCancelled(
+    @Param('sessionId') sessionId: string,
+    @Body() body: { orderId: string }
+  ): Promise<{ success: boolean }> {
+    await this.customerSessionsService.onOrderCancelled(sessionId, body.orderId);
     return { success: true };
   }
 }

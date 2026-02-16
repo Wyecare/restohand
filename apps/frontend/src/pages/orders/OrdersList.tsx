@@ -47,8 +47,10 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   useListOrdersByBranchQuery,
   useUpdateOrderStatusMutation,
-  useUpdateOrderPaymentMutation,
 } from '@/store/api/ordersApi';
+import {
+  useOnOrderCancelledMutation,
+} from '@/store/api/customerSessionsApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { skipToken } from '@reduxjs/toolkit/query';
@@ -67,16 +69,6 @@ const statusOptions: Array<{ label: string; value: Order['status'] | 'all' }> =
     { label: 'Cancelled', value: 'cancelled' },
   ];
 
-const paymentOptions: Array<{
-  label: string;
-  value: Order['paymentStatus'] | 'all';
-}> = [
-  { label: 'All payments', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Paid', value: 'paid' },
-  { label: 'Failed', value: 'failed' },
-  { label: 'Refunded', value: 'refunded' },
-];
 
 const ORDER_CANCELLABLE_STATUSES: Array<Order['status']> = [
   'pending',
@@ -90,14 +82,11 @@ export default function OrdersPage() {
   const { toast } = useToast();
 
   const [status, setStatus] = React.useState<string>('all');
-  const [paymentStatus, setPaymentStatus] = React.useState<string>('all');
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   console.log(
     'Rendering OrdersPage with status:',
-    status,
-    'and paymentStatus:',
-    paymentStatus
+    status
   );
 
   console.log('Current Branch:', currentBranch);
@@ -109,10 +98,6 @@ export default function OrdersPage() {
           restaurantId,
           branchId,
           status: status !== 'all' ? (status as Order['status']) : undefined,
-          paymentStatus:
-            paymentStatus !== 'all'
-              ? (paymentStatus as Order['paymentStatus'])
-              : undefined,
           limit: 20,
           page: 1,
         }
@@ -120,7 +105,7 @@ export default function OrdersPage() {
 
   const { data, isLoading, refetch } = useListOrdersByBranchQuery(queryArgs);
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
-  const [updateOrderPayment] = useUpdateOrderPaymentMutation();
+  const [onOrderCancelled] = useOnOrderCancelledMutation();
 
   useOrdersSocket({ onEvent: refetch, enabled: !!restaurantId });
 
@@ -147,25 +132,6 @@ export default function OrdersPage() {
     }
   };
 
-  const handleMarkPaid = async (orderId: string) => {
-    if (!restaurantId) return;
-
-    try {
-      await updateOrderPayment({
-        restaurantId,
-        orderId,
-        paymentStatus: 'paid',
-      }).unwrap();
-      toast({ title: 'Marked as Paid' });
-    } catch (error) {
-      toast({
-        title: 'Unable to mark as paid',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error',
-        variant: 'destructive',
-      });
-    }
-  };
 
   const handleCancelOrder = async (order: Order) => {
     if (!restaurantId || order.status === 'cancelled') {
@@ -198,6 +164,20 @@ export default function OrdersPage() {
         status: 'cancelled',
         statusNote: 'Cancelled by staff',
       }).unwrap();
+
+      // Notify session service about the cancellation if this is a customer session order
+      if (order.customerSessionId) {
+        try {
+          await onOrderCancelled({
+            sessionId: order.customerSessionId,
+            orderId: order.id,
+          }).unwrap();
+        } catch (sessionError) {
+          // Session might have been deleted, but that's okay
+          console.log('Session event handling completed (session may have been deleted)');
+        }
+      }
+
       toast({ title: 'Order cancelled' });
     } catch (error) {
       toast({
@@ -252,27 +232,6 @@ export default function OrdersPage() {
         ),
       },
       {
-        accessorKey: 'paymentStatus',
-        header: 'Payment',
-        cell: ({ row }) => (
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs capitalize ${
-              row.original.paymentStatus === 'paid'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-orange-100 text-orange-700'
-            }`}
-          >
-            {row.original.paymentStatus}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'paymentMethod',
-        header: 'Method',
-        cell: ({ row }) =>
-          row.original.paymentMethod === 'cash' ? 'Cash' : 'UPI',
-      },
-      {
         accessorKey: 'totalAmount',
         header: ({ column }) => (
           <Button
@@ -298,15 +257,6 @@ export default function OrdersPage() {
                 Mark Ready
               </Button>
             )}
-            {row.original.paymentStatus !== 'paid' && (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => handleMarkPaid(row.original.id)}
-              >
-                Mark Paid
-              </Button>
-            )}
             {row.original.status !== 'cancelled' &&
               row.original.status !== 'completed' &&
               ORDER_CANCELLABLE_STATUSES.includes(row.original.status) && (
@@ -324,7 +274,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [handleStatusUpdate, handleMarkPaid, handleCancelOrder]
+    [handleStatusUpdate, handleCancelOrder]
   );
 
   const table = useReactTable({
@@ -341,7 +291,7 @@ export default function OrdersPage() {
     total: orders.length,
     pending: orders.filter((o) => o.status === 'pending').length,
     completed: orders.filter((o) => o.status === 'completed').length,
-    paid: orders.filter((o) => o.paymentStatus === 'paid').length,
+    ready: orders.filter((o) => o.status === 'ready').length,
   };
 
   return (
@@ -377,18 +327,6 @@ export default function OrdersPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={paymentStatus} onValueChange={setPaymentStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="Payment" />
-              </SelectTrigger>
-              <SelectContent>
-                {paymentOptions.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </PopoverContent>
         </Popover>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -411,16 +349,16 @@ export default function OrdersPage() {
           iconColor="orange"
         />
         <MetricsCard
-          title="Completed"
-          value={orderStats.completed}
+          title="Ready"
+          value={orderStats.ready}
           icon={CheckCircle}
           iconColor="green"
         />
         <MetricsCard
-          title="Paid"
-          value={orderStats.paid}
-          icon={CreditCard}
-          iconColor="purple"
+          title="Completed"
+          value={orderStats.completed}
+          icon={CheckCircle}
+          iconColor="blue"
         />
       </MetricsGrid>
 

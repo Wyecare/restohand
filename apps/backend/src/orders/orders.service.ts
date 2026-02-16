@@ -690,6 +690,33 @@ export class OrdersService {
       }
     }
 
+    // Handle customer session events
+    if (updated.customerSessionId) {
+      try {
+        if (updated.status === OrderStatus.Cancelled) {
+          // Notify session service about order cancellation
+          const response = await fetch(
+            `http://localhost:3000/customer-sessions/${updated.customerSessionId}/events/order-cancelled`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId: updated._id.toString() }),
+            }
+          );
+
+          if (!response.ok) {
+            console.error(`Failed to notify session of order cancellation: ${response.status}`);
+          }
+        }
+      } catch (error) {
+        console.error(
+          `Failed to notify session ${updated.customerSessionId} of order cancellation:`,
+          error
+        );
+        // Don't fail the order update if session update fails
+      }
+    }
+
     this.ordersGateway.emitOrderUpdated(response);
     this.ordersSSEService.emitOrderUpdated(response);
     return response;

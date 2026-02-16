@@ -266,6 +266,19 @@ export class CustomerSessionsService {
     await this.billCalculatorService.updateSessionBillingTotals(sessionId);
     const updatedSession = await this.sessionModel.findOne({ sessionId });
 
+    // Check if session has any non-cancelled orders
+    const activeOrderCount = await this.orderModel.countDocuments({
+      customerSessionId: sessionId,
+      status: { $ne: 'cancelled' },
+    });
+
+    // If no active orders, delete the session instead of closing it
+    if (activeOrderCount === 0) {
+      await this.deleteSession(sessionId);
+      // Return a dummy response since the session was deleted
+      throw new NotFoundException('Session was deleted due to no active orders');
+    }
+
     // Close the session
     updatedSession!.status = SessionStatus.CLOSED;
     updatedSession!.closedAt = new Date();
@@ -287,6 +300,39 @@ export class CustomerSessionsService {
     });
 
     return this.toResponseDto(updatedSession!);
+  }
+
+  /**
+   * Delete an empty session
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    const session = await this.sessionModel.findOne({ sessionId });
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    // Check if session has any orders
+    const orderCount = await this.orderModel.countDocuments({
+      customerSessionId: session.sessionId,
+      status: { $ne: 'cancelled' }, // Only count non-cancelled orders
+    });
+
+    if (orderCount > 0) {
+      throw new BadRequestException('Cannot delete session with active orders');
+    }
+
+    // Delete the session
+    await this.sessionModel.deleteOne({ sessionId });
+
+    // Log session deletion
+    await this.logSessionAction({
+      sessionId: sessionId,
+      customerSessionId: session._id.toString(),
+      action: SessionAction.SESSION_DELETED || 'SESSION_DELETED' as any,
+      description: 'Session deleted due to no active orders',
+      actorType: 'staff',
+      metadata: { reason: 'empty_session' },
+    });
   }
 
   /**
@@ -341,6 +387,41 @@ export class CustomerSessionsService {
         sessionId,
         SessionClosureReason.PAYMENT_COMPLETED
       );
+    }
+  }
+
+  /**
+   * Handle order cancellation in session
+   */
+  async onOrderCancelled(sessionId: string, orderId: string): Promise<void> {
+    const session = await this.sessionModel.findOne({ sessionId });
+    if (!session) return;
+
+    // Recalculate session totals after cancellation
+    await this.billCalculatorService.updateSessionBillingTotals(sessionId);
+
+    const updatedSession = await this.sessionModel.findOne({ sessionId });
+
+    // Log the cancellation
+    await this.logSessionAction({
+      sessionId,
+      customerSessionId: session._id.toString(),
+      action: SessionAction.ORDER_CANCELLED || 'ORDER_CANCELLED' as any,
+      orderId,
+      description: 'Order cancelled in session',
+      sessionTotalAmount: updatedSession?.totalAmount,
+      sessionOrderCount: updatedSession?.totalOrders,
+    });
+
+    // Check if session has any non-cancelled orders left
+    const activeOrderCount = await this.orderModel.countDocuments({
+      customerSessionId: sessionId,
+      status: { $ne: 'cancelled' },
+    });
+
+    // Auto-delete session if no active orders remain
+    if (activeOrderCount === 0) {
+      await this.deleteSession(sessionId);
     }
   }
 

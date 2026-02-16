@@ -10,6 +10,8 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
+  DollarSign,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,17 +36,21 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import MetricsCard, { MetricsGrid } from '@/components/MetricsCard';
 import {
   useFindSessionsQuery,
+  useCloseSessionMutation,
   type CustomerSession,
 } from '@/store/api/customerSessionsApi';
 import {
+  useUpdateOrderPaymentMutation,
+} from '@/store/api/ordersApi';
+import {
   useGetDetailedSessionBillQuery,
-  type DetailedBillCalculation,
 } from '@/store/api/billingApi';
 import { downloadThermalReceipt } from '@/components/DetailedThermalReceiptPDF';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { useBranchContext } from '@/contexts/BranchContext';
+import { useToast } from '@/components/ui/use-toast';
 
 const sessionStatusOptions: Array<{
   label: string;
@@ -67,6 +73,8 @@ interface SessionCardProps {
     label: string;
     className: string;
   };
+  onMarkAllPaid: (sessionId: string) => void;
+  onCloseSession: (sessionId: string) => void;
 }
 
 function SessionCard({
@@ -76,6 +84,8 @@ function SessionCard({
   formatCurrency,
   formatDate,
   getStatusConfig,
+  onMarkAllPaid,
+  onCloseSession,
 }: SessionCardProps) {
   const [pdfLoading, setPdfLoading] = React.useState(false);
 
@@ -100,16 +110,14 @@ function SessionCard({
         const { billingApi } = await import('@/store/api/billingApi');
         const { store } = await import('@/store');
 
-        const result = await store.dispatch(
-          billingApi.endpoints.getDetailedSessionBill.initiate({
-            sessionId: session.sessionId,
-            includeUnpaid: true,
-          })
-        );
-
-        if (result.data) {
-          billData = result.data;
-        } else {
+        try {
+          billData = await store.dispatch(
+            billingApi.endpoints.getDetailedSessionBill.initiate({
+              sessionId: session.sessionId,
+              includeUnpaid: true,
+            })
+          ).unwrap();
+        } catch {
           throw new Error('Failed to fetch detailed bill data');
         }
       }
@@ -170,6 +178,36 @@ function SessionCard({
                 </div>
 
                 <div className="flex items-center space-x-2">
+                  {/* Payment and Close Actions for Active Sessions */}
+                  {session.status === 'active' && (
+                    <>
+                      {!session.allOrdersPaid && session.pendingAmount > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMarkAllPaid(session.sessionId);
+                          }}
+                        >
+                          <DollarSign className="h-4 w-4 mr-1" />
+                          Mark Paid
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCloseSession(session.sessionId);
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Close
+                      </Button>
+                    </>
+                  )}
+
                   {session.status === 'closed' && (
                     <Button
                       variant="outline"
@@ -552,11 +590,16 @@ function SessionCard({
 export default function SessionsPage() {
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { currentBranch } = useBranchContext();
+  const { toast } = useToast();
 
   const [sessionStatus, setSessionStatus] = React.useState<string>('all');
   const [expandedSessions, setExpandedSessions] = React.useState<Set<string>>(
     new Set()
   );
+
+  // Mutations
+  const [closeSession] = useCloseSessionMutation();
+  const [updateOrderPayment] = useUpdateOrderPaymentMutation();
 
   const branchId = currentBranch?._id;
 
@@ -636,6 +679,89 @@ export default function SessionsPage() {
       }
       return newSet;
     });
+  };
+
+  const handleMarkAllPaid = async (sessionId: string) => {
+    if (!restaurantId) return;
+
+    const session = sessions.find(s => s.sessionId === sessionId);
+    if (!session) return;
+
+    try {
+      // Get the session bill to find unpaid orders
+      const { billingApi } = await import('@/store/api/billingApi');
+      const { store } = await import('@/store');
+
+      const result = await store.dispatch(
+        billingApi.endpoints.getDetailedSessionBill.initiate({
+          sessionId: sessionId,
+          includeUnpaid: true,
+        })
+      ).unwrap();
+
+      if (result) {
+        const unpaidOrders = result.orderBreakdown.filter(
+          (order: { paymentStatus: string; orderId: string }) => order.paymentStatus !== 'paid'
+        );
+
+        // Mark each unpaid order as paid
+        for (const order of unpaidOrders) {
+          await updateOrderPayment({
+            restaurantId,
+            orderId: order.orderId,
+            paymentStatus: 'paid',
+          }).unwrap();
+        }
+
+        toast({
+          title: 'Success',
+          description: `Marked ${unpaidOrders.length} orders as paid`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error?.data?.message || 'Failed to mark orders as paid',
+      });
+    }
+  };
+
+  const handleCloseSession = async (sessionId: string) => {
+    if (!restaurantId) return;
+
+    const confirmClose = typeof window === 'undefined'
+      ? true
+      : window.confirm('Close this session? This action cannot be undone.');
+
+    if (!confirmClose) return;
+
+    try {
+      await closeSession({
+        sessionId,
+        reason: 'staff_closed',
+        notes: 'Closed manually by staff',
+      }).unwrap();
+
+      toast({
+        title: 'Success',
+        description: 'Session closed successfully',
+      });
+    } catch (error: any) {
+      // Check if session was deleted instead of closed
+      if (error?.status === 404 && error?.data?.message?.includes('deleted due to no active orders')) {
+        toast({
+          title: 'Success',
+          description: 'Session deleted successfully (no active orders)',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error?.data?.message || 'Failed to close session',
+        });
+      }
+    }
   };
 
   const sessionStats = {
@@ -740,6 +866,8 @@ export default function SessionsPage() {
                   formatCurrency={formatCurrency}
                   formatDate={formatDate}
                   getStatusConfig={getStatusConfig}
+                  onMarkAllPaid={handleMarkAllPaid}
+                  onCloseSession={handleCloseSession}
                 />
               ))}
             </div>
