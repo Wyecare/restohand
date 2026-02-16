@@ -32,6 +32,7 @@ interface MenuItemsPanelProps {
   onAddItem: () => void;
   onEditItem: (item: any) => void;
   onDeleteItem: (item: any) => void;
+  highlightItemId?: string | null;
   isMobile?: boolean;
 }
 
@@ -42,6 +43,7 @@ export function MenuItemsPanel({
   onAddItem,
   onEditItem,
   onDeleteItem,
+  highlightItemId,
   isMobile = false,
 }: MenuItemsPanelProps) {
   const { toast } = useToast();
@@ -172,6 +174,7 @@ export function MenuItemsPanel({
                   onEdit={onEditItem}
                   onDelete={onDeleteItem}
                   onToggleAvailability={handleToggleAvailability}
+                  isHighlighted={highlightItemId === item.id}
                 />
               ))}
             </div>
@@ -188,11 +191,13 @@ function ItemCard({
   onEdit,
   onDelete,
   onToggleAvailability,
+  isHighlighted = false,
 }: {
   item: any;
   onEdit: (item: any) => void;
   onDelete: (item: any) => void;
   onToggleAvailability: (item: any) => void;
+  isHighlighted?: boolean;
 }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const amount = item.pricing?.amount || 0;
@@ -203,7 +208,8 @@ function ItemCard({
     <div
       className={cn(
         'relative bg-background rounded-lg border-2 overflow-hidden transition-all hover:shadow-md',
-        item.isAvailable ? 'border-border' : 'border-muted opacity-60'
+        item.isAvailable ? 'border-border' : 'border-muted opacity-60',
+        isHighlighted && 'border-yellow-500 bg-yellow-50 shadow-lg ring-2 ring-yellow-200'
       )}
     >
       {/* Action Menu */}

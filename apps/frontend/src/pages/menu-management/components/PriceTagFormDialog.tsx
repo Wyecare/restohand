@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -46,7 +46,11 @@ import {
   useCreateMenuPriceTagForBranchMutation,
   useUpdateMenuPriceTagMutation,
 } from '@/store/api/menuPriceTagsApi';
-import { useListMenuItemsByBranchQuery } from '@/store/api/restaurantsApi';
+import {
+  useListMenuItemsByBranchQuery,
+  useSearchMenuByBranchQuery,
+} from '@/store/api/restaurantsApi';
+import { useDebounce } from '@/hooks/use-debounce';
 import { useJwtAuth } from '@/contexts/JwtAuthProvider';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { skipToken } from '@reduxjs/toolkit/query/react';
@@ -89,11 +93,73 @@ export function PriceTagFormDialog({
   const branchId = currentBranch?._id || '';
 
   const [isItemSelectorOpen, setIsItemSelectorOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const { data: menuItemsData } = useListMenuItemsByBranchQuery(
     restaurantId && branchId ? { restaurantId, branchId } : skipToken
   );
-  const menuItems = menuItemsData?.data || [];
+
+  // Wrap menuItems in useMemo to prevent useEffect dependency issues
+  const menuItems = useMemo(
+    () => menuItemsData?.data || [],
+    [menuItemsData?.data]
+  );
+
+  // Use search API when user is searching
+  const { data: searchResults } = useSearchMenuByBranchQuery(
+    debouncedSearchQuery.trim().length > 0 && restaurantId && branchId
+      ? {
+          restaurantId,
+          branchId,
+          query: debouncedSearchQuery.trim(),
+          limit: 50,
+        }
+      : skipToken
+  );
+
+  // Create a combined items map for easy lookup
+  const itemsMap = useMemo(() => {
+    const map = new Map();
+
+    // Add all menu items
+    menuItems.forEach((item) => {
+      map.set(item.id, item);
+    });
+
+    // Add/override with search results (in case they're more recent)
+    if (searchResults?.results) {
+      searchResults.results
+        .filter((result) => result.type === 'item')
+        .forEach((result) => {
+          map.set(result.id, {
+            id: result.id,
+            name: result.name,
+            description: result.description,
+            pricing: {
+              amount: result.pricing?.amount || 0,
+              currency: result.pricing?.currency || 'INR',
+            },
+            isAvailable: result.isAvailable,
+            categoryId: result.categoryId,
+          });
+        });
+    }
+
+    return map;
+  }, [menuItems, searchResults]);
+
+  // Display either search results or all menu items
+  const displayItems = useMemo(() => {
+    if (searchQuery.trim().length > 0 && searchResults) {
+      return searchResults.results
+        .filter((result) => result.type === 'item')
+        .map((result) => itemsMap.get(result.id))
+        .filter(Boolean);
+    }
+    return menuItems;
+  }, [searchQuery, searchResults, menuItems, itemsMap]);
 
   const [createPriceTag, { isLoading: isCreating }] =
     useCreateMenuPriceTagForBranchMutation();
@@ -110,20 +176,13 @@ export function PriceTagFormDialog({
     },
   });
 
-  const { fields: priceFields, replace: replacePriceFields } = useFieldArray({
-    control: form.control,
-    name: 'itemPrices',
-  });
-
   useEffect(() => {
     if (priceTag) {
       const currentItemIds =
         priceTag.itemPrices?.map((item) => item.menuItemId) || [];
       const itemPricesData =
         priceTag.itemPrices?.map((itemPrice) => {
-          const menuItem = menuItems.find(
-            (item) => item.id === itemPrice.menuItemId
-          );
+          const menuItem = itemsMap.get(itemPrice.menuItemId);
           return {
             menuItemId: itemPrice.menuItemId,
             price: itemPrice.price,
@@ -146,7 +205,7 @@ export function PriceTagFormDialog({
         itemPrices: [],
       });
     }
-  }, [priceTag, menuItems, form]);
+  }, [priceTag, itemsMap, form]);
 
   const onSubmit = async (data: PriceTagFormData) => {
     if (!restaurantId || !branchId) {
@@ -219,6 +278,7 @@ export function PriceTagFormDialog({
     const isSelected = currentItems.includes(itemId);
 
     if (isSelected) {
+      // Remove item
       const newItems = currentItems.filter((id) => id !== itemId);
       const newPrices = currentPrices.filter(
         (price) => price.menuItemId !== itemId
@@ -226,14 +286,15 @@ export function PriceTagFormDialog({
       form.setValue('selectedItems', newItems);
       form.setValue('itemPrices', newPrices);
     } else {
-      const menuItem = menuItems.find((item) => item.id === itemId);
-      if (menuItem) {
+      // Add item - use itemsMap which includes both menu items and search results
+      const item = itemsMap.get(itemId);
+      if (item) {
         const newItems = [...currentItems, itemId];
         const newPriceEntry = {
           menuItemId: itemId,
-          price: menuItem.pricing.amount,
-          currentPrice: menuItem.pricing.amount,
-          itemName: menuItem.name,
+          price: item.pricing.amount,
+          currentPrice: item.pricing.amount,
+          itemName: item.name,
         };
         const newPrices = [...currentPrices, newPriceEntry];
 
@@ -328,15 +389,23 @@ export function PriceTagFormDialog({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Search menu items..." />
+                <PopoverContent className="w-[600px] p-0">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search menu items..."
+                      value={searchQuery}
+                      onValueChange={setSearchQuery}
+                    />
                     <CommandEmpty>No menu items found.</CommandEmpty>
-                    <CommandGroup className="max-h-60 overflow-auto">
-                      {menuItems.map((item) => (
+                    <CommandGroup className="max-h-[400px] overflow-y-auto">
+                      {displayItems.map((item) => (
                         <CommandItem
                           key={item.id}
-                          onSelect={() => toggleItem(item.id)}
+                          value={item.id}
+                          onSelect={() => {
+                            toggleItem(item.id);
+                          }}
+                          className="cursor-pointer"
                         >
                           <Check
                             className={cn(
@@ -346,7 +415,7 @@ export function PriceTagFormDialog({
                                 : 'opacity-0'
                             )}
                           />
-                          <div>
+                          <div className="flex-1">
                             <div className="font-medium">{item.name}</div>
                             <div className="text-sm text-muted-foreground">
                               ₹{item.pricing.amount}
@@ -371,7 +440,7 @@ export function PriceTagFormDialog({
                   <Label className="text-sm mb-2 block">Selected Items:</Label>
                   <div className="flex flex-wrap gap-2">
                     {form.watch('selectedItems').map((itemId) => {
-                      const item = menuItems.find((i) => i.id === itemId);
+                      const item = itemsMap.get(itemId);
                       return item ? (
                         <Badge
                           key={itemId}
@@ -404,9 +473,7 @@ export function PriceTagFormDialog({
 
                     <div className="space-y-3">
                       {form.watch('itemPrices').map((itemPrice, index) => {
-                        const menuItem = menuItems.find(
-                          (item) => item.id === itemPrice.menuItemId
-                        );
+                        const menuItem = itemsMap.get(itemPrice.menuItemId);
                         const priceDiff =
                           itemPrice.price - itemPrice.currentPrice;
                         const isDiscount = priceDiff < 0;

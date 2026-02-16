@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -37,11 +38,44 @@ export function CategoriesSidebar({
   onCategoryClick,
 }: CategoriesSidebarProps) {
   const navigate = useNavigate();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const selectedCategoryRef = useRef<HTMLButtonElement>(null);
 
   const handleCategoryClick = (categoryId: string) => {
     navigate(`/menu/items/categories/${categoryId}`);
     onCategoryClick?.();
   };
+
+  // Auto-scroll to selected category
+  useEffect(() => {
+    if (selectedCategoryId && selectedCategoryRef.current && scrollAreaRef.current) {
+      // Small timeout to ensure DOM has updated after navigation
+      const timeoutId = setTimeout(() => {
+        const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+        const selectedElement = selectedCategoryRef.current;
+
+        if (scrollContainer && selectedElement) {
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const elementRect = selectedElement.getBoundingClientRect();
+
+          // Check if element is outside the visible area
+          const isAboveView = elementRect.top < containerRect.top;
+          const isBelowView = elementRect.bottom > containerRect.bottom;
+
+          if (isAboveView || isBelowView) {
+            // Calculate scroll position to center the element
+            const scrollTop = selectedElement.offsetTop - scrollContainer.clientHeight / 2 + selectedElement.clientHeight / 2;
+            scrollContainer.scrollTo({
+              top: Math.max(0, scrollTop),
+              behavior: 'smooth'
+            });
+          }
+        }
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedCategoryId]);
 
   return (
     <div className="w-70 border-r bg-muted/30 flex flex-col h-full overflow-x-auto">
@@ -61,7 +95,7 @@ export function CategoriesSidebar({
       </div>
 
       {/* Categories List */}
-      <ScrollArea className="flex-1 overflow-y-auto overflow-x-auto">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 overflow-y-auto overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -90,6 +124,7 @@ export function CategoriesSidebar({
                   )}
                 >
                   <button
+                    ref={isSelected ? selectedCategoryRef : undefined}
                     onClick={() => handleCategoryClick(categoryId)}
                     className="w-full p-3 flex items-start gap-3 text-left"
                   >

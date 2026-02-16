@@ -117,6 +117,45 @@ export interface CreateMenuItemPayload {
 
 export type UpdateMenuItemPayload = Partial<CreateMenuItemPayload>;
 
+export interface MenuSearchQueryParams {
+  restaurantId: string;
+  branchId: string;
+  query: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface MenuSearchResultItem {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'category' | 'item';
+  categoryId?: string;
+  categoryName?: string;
+  imageUrl?: string;
+  pricing?: {
+    amount: number;
+    currency: string;
+  };
+  isAvailable?: boolean;
+  isActive: boolean;
+  tags?: string[];
+  relevanceScore: number;
+}
+
+export interface MenuSearchResponse {
+  results: MenuSearchResultItem[];
+  totalResults: number;
+  categoriesFound: number;
+  itemsFound: number;
+  query: string;
+  searchTime: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface CreateRestaurantTablePayload {
   tableNumber: string;
   displayName?: string;
@@ -721,6 +760,20 @@ export const restaurantsApi = baseApi.injectEndpoints({
       }),
     }),
 
+    // Public menu search endpoint
+    searchPublicMenuBySlug: builder.query<
+      MenuSearchResponse,
+      { slug: string; query: string; table?: string; tableId?: string; page?: number; limit?: number }
+    >({
+      query: ({ slug, ...params }) => ({
+        url: `/public/restaurants/${slug}/menu/search`,
+        params,
+      }),
+      providesTags: (_result, _error, { slug }) => [
+        { type: 'PublicMenu', id: `SEARCH-${slug}` },
+      ],
+    }),
+
     getPublicOrder: builder.query<
       PublicOrder,
       { slug: string; orderId: string }
@@ -1290,6 +1343,21 @@ export const restaurantsApi = baseApi.injectEndpoints({
         { type: 'Dashboard' as const, id: restaurantId },
       ],
     }),
+
+    // Menu search endpoint
+    searchMenuByBranch: builder.query<
+      MenuSearchResponse,
+      MenuSearchQueryParams
+    >({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/menu/categories/search/branch/${branchId}`,
+        params,
+      }),
+      providesTags: (_result, _error, { restaurantId, branchId }) => [
+        { type: 'MenuCategory', id: `SEARCH-${restaurantId}-${branchId}` },
+        { type: 'MenuItem', id: `SEARCH-${restaurantId}-${branchId}` },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -1368,4 +1436,8 @@ export const {
   useSyncCashfreeVendorStatusMutation,
   // Dashboard hooks
   useGetDashboardMetricsQuery,
+  // Menu search hooks
+  useSearchMenuByBranchQuery,
+  // Public menu search hooks
+  useSearchPublicMenuBySlugQuery,
 } = restaurantsApi;

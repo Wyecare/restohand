@@ -37,6 +37,7 @@ import { MenuCategoryListResponseDto } from './dtos/menu-category-list-response.
 import { MenuCategoryResponseDto } from './dtos/menu-category-response.dto';
 import { QueryMenuCategoriesDto } from './dtos/query-menu-categories.dto';
 import { UpdateMenuCategoryDto } from './dtos/update-menu-category.dto';
+import { MenuSearchQueryDto, MenuSearchResponseDto } from './dtos/menu-search.dto';
 import { MenuCategoriesService } from './menu-categories.service';
 
 const multerConfig = {
@@ -244,5 +245,26 @@ export class MenuCategoriesController {
       },
       category: updatedCategory,
     };
+  }
+
+  @Get('search/branch/:branchId')
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'branchId' })
+  @ApiOkResponse({ type: MenuSearchResponseDto })
+  async searchMenuByBranch(
+    @Request() req: any,
+    @Param('restaurantId') restaurantId: string,
+    @Param('branchId') branchId: string,
+    @Query() query: MenuSearchQueryDto,
+  ): Promise<MenuSearchResponseDto> {
+    const user = req.user as AuthenticatedUser;
+
+    // Check if user has permission to access this branch
+    const permissions = await this.branchPermissions.getBranchPermissions(user);
+    if (!permissions.canManageBranch(branchId)) {
+      throw new ForbiddenException('Insufficient permissions to search this branch menu');
+    }
+
+    return this.menuCategoriesService.searchMenuByBranch(restaurantId, branchId, query);
   }
 }

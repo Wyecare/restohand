@@ -7,6 +7,7 @@ import {
   MenuCategory,
   MenuCategorySchema,
 } from './schemas/menu-category.schema';
+import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema';
 import { MenuCategoriesController } from './menu-categories.controller';
 import { MenuCategoriesService } from './menu-categories.service';
 import { ImageUploadService } from '../common/services/image-upload.service';
@@ -17,6 +18,7 @@ import { ImageUploadService } from '../common/services/image-upload.service';
     UsersModule,
     MongooseModule.forFeature([
       { name: MenuCategory.name, schema: MenuCategorySchema },
+      { name: MenuItem.name, schema: MenuItemSchema },
     ]),
     MulterModule.register({
       limits: {

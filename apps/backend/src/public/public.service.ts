@@ -40,6 +40,7 @@ import { RestaurantOnboardingService } from '../restaurants/restaurant-onboardin
 import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
 import { SmartGstService } from '../gst/smart-gst.service';
 import { BillCalculatorService } from '../billing/services/bill-calculator.service';
+import { MenuSearchQueryDto, MenuSearchResponseDto, MenuSearchResultItem } from '../menu-categories/dtos/menu-search.dto';
 
 @Injectable()
 export class PublicService {
@@ -1575,6 +1576,191 @@ export class PublicService {
         billGeneratedAt: new Date().toISOString(),
       },
     };
+  }
+
+  async searchPublicMenuBySlug(
+    slug: string,
+    query: MenuSearchQueryDto,
+    branchId?: string,
+    tableId?: string
+  ): Promise<MenuSearchResponseDto> {
+    const startTime = Date.now();
+
+    // Get restaurant first
+    const restaurant = await this.restaurantModel.findOne({
+      slug,
+      isActive: true
+    }).lean();
+
+    if (!restaurant) {
+      throw new NotFoundException(`Restaurant with slug ${slug} not found`);
+    }
+
+    const restaurantId = restaurant._id.toString();
+
+    // Determine branch from table if provided
+    let searchBranchId = branchId;
+    if (tableId && !searchBranchId) {
+      const table = await this.tableModel.findById(tableId).lean();
+      if (table) {
+        searchBranchId = table.branchId?.toString();
+      }
+    }
+
+    // If still no branch ID, use the restaurant's default branch
+    if (!searchBranchId) {
+      searchBranchId = restaurant.defaultBranchId?.toString() || restaurantId;
+    }
+
+    const { skip, limit, page } = this.parsePaginationOptions(query);
+
+    const searchRegex = new RegExp(query.query, 'i');
+    const baseFilter: any = { restaurantId, branchId: searchBranchId };
+
+    // Only show active and available items for public
+    baseFilter.isActive = true;
+
+    // Search categories
+    const categoriesFilter = {
+      ...baseFilter,
+      $or: [
+        { name: searchRegex },
+        { description: searchRegex }
+      ]
+    };
+
+    // Search menu items
+    const itemsFilter = {
+      ...baseFilter,
+      isAvailable: true, // Only available items for customers
+      $or: [
+        { name: searchRegex },
+        { description: searchRegex },
+        { tags: searchRegex }
+      ]
+    };
+
+    // Execute searches in parallel
+    const [
+      matchingCategories,
+      matchingItems,
+      categoriesTotal,
+      itemsTotal
+    ] = await Promise.all([
+      this.categoryModel
+        .find(categoriesFilter)
+        .sort({ displayOrder: 1, name: 1 })
+        .lean(),
+      this.itemModel
+        .find(itemsFilter)
+        .populate('categoryId', 'name')
+        .sort({ displayOrder: 1, name: 1 })
+        .lean(),
+      this.categoryModel.countDocuments(categoriesFilter),
+      this.itemModel.countDocuments(itemsFilter)
+    ]);
+
+    // Convert to search result items and calculate relevance scores
+    const categoryResults: MenuSearchResultItem[] = matchingCategories.map(category => {
+      const relevanceScore = this.calculateRelevanceScore(query.query, category.name, category.description);
+      return {
+        id: category._id.toString(),
+        name: category.name,
+        description: category.description,
+        type: 'category' as const,
+        imageUrl: category.imageUrl,
+        isActive: category.isActive,
+        relevanceScore
+      };
+    });
+
+    const itemResults: MenuSearchResultItem[] = matchingItems.map(item => {
+      const relevanceScore = this.calculateRelevanceScore(query.query, item.name, item.description, item.tags);
+      return {
+        id: item._id.toString(),
+        name: item.name,
+        description: item.description,
+        type: 'item' as const,
+        categoryId: item.categoryId?._id?.toString() || item.categoryId?.toString(),
+        categoryName: (item.categoryId as any)?.name,
+        imageUrl: item.imageUrls?.[0],
+        pricing: item.pricing,
+        isAvailable: item.isAvailable,
+        isActive: item.isActive,
+        tags: item.tags,
+        relevanceScore
+      };
+    });
+
+    // Combine and sort by relevance score
+    const allResults = [...categoryResults, ...itemResults]
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .slice(skip, skip + limit);
+
+    const totalResults = categoriesTotal + itemsTotal;
+    const totalPages = Math.ceil(totalResults / limit);
+    const searchTime = Date.now() - startTime;
+
+    return {
+      results: allResults,
+      totalResults,
+      categoriesFound: categoriesTotal,
+      itemsFound: itemsTotal,
+      query: query.query,
+      searchTime,
+      page,
+      limit,
+      totalPages
+    };
+  }
+
+  private parsePaginationOptions(query: { page?: number; limit?: number }) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(50, Math.max(1, query.limit || 20));
+    const skip = (page - 1) * limit;
+    return { skip, limit, page };
+  }
+
+  private calculateRelevanceScore(
+    searchQuery: string,
+    name: string,
+    description?: string,
+    tags?: string[]
+  ): number {
+    let score = 0;
+    const lowerQuery = searchQuery.toLowerCase();
+    const lowerName = name.toLowerCase();
+    const lowerDescription = description?.toLowerCase() || '';
+
+    // Exact match in name (highest score)
+    if (lowerName === lowerQuery) {
+      score += 100;
+    }
+    // Name starts with query
+    else if (lowerName.startsWith(lowerQuery)) {
+      score += 80;
+    }
+    // Name contains query
+    else if (lowerName.includes(lowerQuery)) {
+      score += 60;
+    }
+
+    // Description matches
+    if (lowerDescription.includes(lowerQuery)) {
+      score += 30;
+    }
+
+    // Tags match
+    if (tags?.some(tag => tag.toLowerCase().includes(lowerQuery))) {
+      score += 40;
+    }
+
+    // Boost shorter names (more likely to be exact matches)
+    if (name.length < 20) {
+      score += 10;
+    }
+
+    return score;
   }
 
 }

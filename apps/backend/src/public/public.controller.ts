@@ -11,6 +11,8 @@ import {
 import { PublicService } from './public.service';
 import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
 import { BillCalculatorService } from '../billing/services/bill-calculator.service';
+import { MenuSearchQueryDto, MenuSearchResponseDto } from '../menu-categories/dtos/menu-search.dto';
+import { ApiOkResponse } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 
 @Controller('public')
@@ -98,6 +100,15 @@ export class PublicController {
     }
 
     return { restaurant, menu, tableSession };
+  }
+
+  @Get('restaurants/:slug/menu/search')
+  @ApiOkResponse({ type: MenuSearchResponseDto })
+  async searchPublicMenu(
+    @Param('slug') slug: string,
+    @Query() query: MenuSearchQueryDto
+  ): Promise<MenuSearchResponseDto> {
+    return this.publicService.searchPublicMenuBySlug(slug, query, undefined, query.tableId);
   }
 
   @Get('restaurants/:slug/table/:tableId/session')

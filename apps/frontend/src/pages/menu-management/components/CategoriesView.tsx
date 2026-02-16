@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { CategoriesSidebar } from './CategoriesSidebar';
 import { MenuItemsPanel } from './MenuItemsPanel';
 import { CategoryFormDialog } from './CategoryFormDialog';
@@ -17,6 +17,8 @@ import {
 
 export function CategoriesView() {
   const { categoryId } = useParams();
+  const [searchParams] = useSearchParams();
+  const highlightItemId = searchParams.get('highlight');
   const { user } = useJwtAuth();
   const { currentBranch } = useBranchContext();
   const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -109,6 +111,7 @@ export function CategoriesView() {
             onAddItem={handleAddMenuItem}
             onEditItem={handleEditMenuItem}
             onDeleteItem={handleDeleteMenuItem}
+            highlightItemId={highlightItemId}
           />
         </>
       ) : (
@@ -132,6 +135,7 @@ export function CategoriesView() {
                 onAddItem={handleAddMenuItem}
                 onEditItem={handleEditMenuItem}
                 onDeleteItem={handleDeleteMenuItem}
+                highlightItemId={highlightItemId}
                 isMobile
               />
             </DialogContent>
