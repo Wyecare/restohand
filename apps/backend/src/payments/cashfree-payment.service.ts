@@ -15,7 +15,7 @@ import {
 } from '../restaurants/schemas/restaurant.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
 import { ConfigService } from '@nestjs/config';
-import { SmartGstService } from '../gst/smart-gst.service';
+import { BillCalculatorService } from '../billing/services/bill-calculator.service';
 
 export interface CreatePaymentIntentDto {
   orderId: string;
@@ -72,7 +72,7 @@ export class CashfreePaymentService {
     private readonly cashfreeService: CashfreeService,
     private readonly cashfreeVendorService: CashfreeVendorService,
     private readonly configService: ConfigService,
-    private readonly smartGstService: SmartGstService
+    private readonly billCalculatorService: BillCalculatorService
   ) {}
 
   /**
@@ -163,9 +163,10 @@ export class CashfreePaymentService {
       );
 
       const environment = this.configService.get('NODE_ENV');
-      const cashfreeBaseUrl = environment === 'production'
-        ? 'https://cashfree.com/pg/view/sessions'
-        : 'https://sandbox.cashfree.com/pg/view/sessions';
+      const cashfreeBaseUrl =
+        environment === 'production'
+          ? 'https://cashfree.com/pg/view/sessions'
+          : 'https://sandbox.cashfree.com/pg/view/sessions';
 
       return {
         paymentSessionId: cashfreeOrder.paymentSessionId,
@@ -280,18 +281,29 @@ export class CashfreePaymentService {
           }
         }
 
-        if (consolidatedItems.length > 0) {
-          // Use Smart GST service for accurate tax-included calculation
-          const taxCalculation = await this.smartGstService.calculateOrderGst(
-            restaurant.id,
-            consolidatedItems,
-            unpaidOrders[0].customerState || 'KA'
+        // Use centralized billing service for accurate calculation (includes all taxes, charges, and fees)
+        try {
+          console.log(
+            dto.customerSessionId,
+            'Calculating bill breakdown for session payment intent...'
           );
-
-          totalAmount = taxCalculation.summary.totalAmount;
-          this.logger.log(`Recalculated total with taxes: ${totalAmount}`);
-        } else {
-          // Fallback to order totals if no valid items
+          const billCalculation =
+            await this.billCalculatorService.calculateDetailedSessionBill(
+              dto.customerSessionId
+            );
+          totalAmount = billCalculation.totalAmount;
+          console.log(
+            totalAmount,
+            'Total amount calculated by billing service'
+          );
+          this.logger.log(
+            `Using centralized billing calculation: ${totalAmount}`
+          );
+        } catch (billError) {
+          this.logger.warn(
+            `Failed to calculate bill using billing service: ${billError.message}`
+          );
+          // Fallback to order totals if billing service fails
           totalAmount = unpaidOrders.reduce(
             (sum, order) => sum + (order.totalAmount || 0),
             0
@@ -299,7 +311,10 @@ export class CashfreePaymentService {
           this.logger.warn(`Using fallback calculation: ${totalAmount}`);
         }
       } catch (error) {
-        this.logger.error('Failed to recalculate totals, using order amounts', error);
+        this.logger.error(
+          'Failed to recalculate totals, using order amounts',
+          error
+        );
         totalAmount = unpaidOrders.reduce(
           (sum, order) => sum + (order.totalAmount || 0),
           0
@@ -380,15 +395,14 @@ export class CashfreePaymentService {
       );
 
       this.logger.log(
-        `Session payment intent created: ${
-          cashfreeOrder.paymentSessionId
-        } for ${unpaidOrders.length} orders, total: ₹${totalAmount}`
+        `Session payment intent created: ${cashfreeOrder.paymentSessionId} for ${unpaidOrders.length} orders, total: ₹${totalAmount}`
       );
 
       const environment = this.configService.get('NODE_ENV');
-      const cashfreeBaseUrl = environment === 'production'
-        ? 'https://cashfree.com/pg/view/sessions'
-        : 'https://sandbox.cashfree.com/pg/view/sessions';
+      const cashfreeBaseUrl =
+        environment === 'production'
+          ? 'https://cashfree.com/pg/view/sessions'
+          : 'https://sandbox.cashfree.com/pg/view/sessions';
 
       return {
         paymentSessionId: cashfreeOrder.paymentSessionId,

@@ -133,7 +133,7 @@ function SessionCard({
     <div className="border rounded-lg">
       <Collapsible open={isExpanded} onOpenChange={onToggleExpanded}>
         <CollapsibleTrigger asChild>
-          <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+          <div className="p-4 cursor-pointer ">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="flex flex-col">
@@ -205,7 +205,7 @@ function SessionCard({
             ) : detailedBill ? (
               <div className="mt-4 space-y-4">
                 {/* Restaurant Info */}
-                <div className="bg-gray-50 p-3 rounded">
+                <div className="p-3 rounded">
                   <h4 className="font-medium mb-2">Restaurant Details</h4>
                   <div className="text-sm space-y-1">
                     <div className="font-medium">
@@ -242,10 +242,7 @@ function SessionCard({
                         item.totalWithTax / item.quantity;
 
                       return (
-                        <div
-                          key={index}
-                          className="bg-white p-3 rounded border"
-                        >
+                        <div key={index} className="p-3 rounded border">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <div className="font-medium">{item.name}</div>
@@ -308,10 +305,7 @@ function SessionCard({
                     Orders ({detailedBill.orderBreakdown.length})
                   </h4>
                   {detailedBill.orderBreakdown.map((order) => (
-                    <div
-                      key={order.orderId}
-                      className="bg-gray-50 p-3 rounded mb-2"
-                    >
+                    <div key={order.orderId} className=" p-3 rounded mb-2">
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-medium">
@@ -341,7 +335,7 @@ function SessionCard({
                 </div>
 
                 {/* Detailed Bill Summary */}
-                <div className="mt-4 p-4 bg-blue-50 rounded">
+                <div className="mt-4 p-4  rounded">
                   <div className="flex justify-between items-center font-medium mb-3">
                     <span>Session Total</span>
                     <span className="text-lg">
@@ -355,87 +349,116 @@ function SessionCard({
                     </div>
 
                     {/* Branch Charges - Dynamic Display */}
-                    {detailedBill.branchCharges && detailedBill.branchCharges.length > 0 && (
-                      <>
-                        {detailedBill.branchCharges.map((charge, index) => {
-                          let chargeName = charge.name;
-                          if (charge.type === 'percentage') {
-                            chargeName += ` (${charge.value}%)`;
-                          }
+                    {detailedBill.branchCharges &&
+                      detailedBill.branchCharges.length > 0 && (
+                        <>
+                          {detailedBill.branchCharges.map((charge, index) => {
+                            let chargeName = charge.name;
+                            if (charge.type === 'percentage') {
+                              chargeName += ` (${charge.value}%)`;
+                            }
 
-                          return (
-                            <div key={index} className="flex justify-between">
-                              <span>{chargeName}</span>
-                              <span>{formatCurrency(charge.amount)}</span>
-                            </div>
-                          );
-                        })}
-                      </>
-                    )}
+                            return (
+                              <div key={index} className="flex justify-between">
+                                <span>{chargeName}</span>
+                                <span>{formatCurrency(charge.amount)}</span>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
 
                     {/* Dynamic Tax breakdown - handle both mixed and simple tax scenarios */}
                     {detailedBill.taxAmount > 0 && (
                       <>
                         {/* Check if we have category-wise tax calculations */}
-                        {detailedBill.categoryCalculations && detailedBill.categoryCalculations.length > 0 ? (
+                        {detailedBill.categoryCalculations &&
+                        detailedBill.categoryCalculations.length > 0 ? (
                           <>
                             {/* Category-wise tax breakdown */}
-                            {detailedBill.categoryCalculations.map((categoryCalc, index) => {
-                              if (categoryCalc.totalTaxAmount === 0) return null;
+                            {detailedBill.categoryCalculations.map(
+                              (categoryCalc, index) => {
+                                if (categoryCalc.totalTaxAmount === 0)
+                                  return null;
 
-                              const categoryName = categoryCalc.category
-                                .replace('_', ' ')
-                                .replace(/\b\w/g, (l) => l.toUpperCase());
+                                const categoryName = categoryCalc.category
+                                  .replace('_', ' ')
+                                  .replace(/\b\w/g, (l) => l.toUpperCase());
 
-                              const taxTypeLabel = categoryCalc.taxType === 'vat' ? 'VAT' : 'GST';
-                              const taxRate =
-                                categoryCalc.taxType === 'gst'
-                                  ? categoryCalc.gstRate
-                                  : categoryCalc.vatRate;
+                                const taxTypeLabel =
+                                  categoryCalc.taxType === 'vat'
+                                    ? 'VAT'
+                                    : 'GST';
+                                const taxRate =
+                                  categoryCalc.taxType === 'gst'
+                                    ? categoryCalc.gstRate
+                                    : categoryCalc.vatRate;
 
-                              const displayText = `${categoryName} ${taxTypeLabel}${
-                                taxRate ? ` (${taxRate}%)` : ''
-                              }`;
+                                const displayText = `${categoryName} ${taxTypeLabel}${
+                                  taxRate ? ` (${taxRate}%)` : ''
+                                }`;
 
-                              return (
-                                <div key={index} className="flex justify-between">
-                                  <span>{displayText}</span>
-                                  <span>{formatCurrency(categoryCalc.totalTaxAmount)}</span>
-                                </div>
-                              );
-                            })}
+                                return (
+                                  <div
+                                    key={index}
+                                    className="flex justify-between"
+                                  >
+                                    <span>{displayText}</span>
+                                    <span>
+                                      {formatCurrency(
+                                        categoryCalc.totalTaxAmount
+                                      )}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                            )}
 
                             {/* GST breakdown if GST items exist */}
                             {(detailedBill.totalGstAmount || 0) > 0 &&
-                             (detailedBill.cgstAmount > 0 || detailedBill.sgstAmount > 0 || detailedBill.igstAmount > 0) && (
-                              <>
-                                <div className="flex justify-between font-medium text-gray-700 pt-1">
-                                  <span>GST Breakdown</span>
-                                  <span></span>
-                                </div>
-
-                                {detailedBill.cgstAmount > 0 && (
-                                  <div className="flex justify-between pl-4">
-                                    <span>CGST</span>
-                                    <span>{formatCurrency(detailedBill.cgstAmount)}</span>
+                              (detailedBill.cgstAmount > 0 ||
+                                detailedBill.sgstAmount > 0 ||
+                                detailedBill.igstAmount > 0) && (
+                                <>
+                                  <div className="flex justify-between font-medium text-gray-700 pt-1">
+                                    <span>GST Breakdown</span>
+                                    <span></span>
                                   </div>
-                                )}
 
-                                {detailedBill.sgstAmount > 0 && (
-                                  <div className="flex justify-between pl-4">
-                                    <span>SGST</span>
-                                    <span>{formatCurrency(detailedBill.sgstAmount)}</span>
-                                  </div>
-                                )}
+                                  {detailedBill.cgstAmount > 0 && (
+                                    <div className="flex justify-between pl-4">
+                                      <span>CGST</span>
+                                      <span>
+                                        {formatCurrency(
+                                          detailedBill.cgstAmount
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
 
-                                {detailedBill.igstAmount > 0 && (
-                                  <div className="flex justify-between pl-4">
-                                    <span>IGST</span>
-                                    <span>{formatCurrency(detailedBill.igstAmount)}</span>
-                                  </div>
-                                )}
-                              </>
-                            )}
+                                  {detailedBill.sgstAmount > 0 && (
+                                    <div className="flex justify-between pl-4">
+                                      <span>SGST</span>
+                                      <span>
+                                        {formatCurrency(
+                                          detailedBill.sgstAmount
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {detailedBill.igstAmount > 0 && (
+                                    <div className="flex justify-between pl-4">
+                                      <span>IGST</span>
+                                      <span>
+                                        {formatCurrency(
+                                          detailedBill.igstAmount
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
                           </>
                         ) : (
                           <>
@@ -443,19 +466,25 @@ function SessionCard({
                             {detailedBill.cgstAmount > 0 && (
                               <div className="flex justify-between">
                                 <span>CGST</span>
-                                <span>{formatCurrency(detailedBill.cgstAmount)}</span>
+                                <span>
+                                  {formatCurrency(detailedBill.cgstAmount)}
+                                </span>
                               </div>
                             )}
                             {detailedBill.sgstAmount > 0 && (
                               <div className="flex justify-between">
                                 <span>SGST</span>
-                                <span>{formatCurrency(detailedBill.sgstAmount)}</span>
+                                <span>
+                                  {formatCurrency(detailedBill.sgstAmount)}
+                                </span>
                               </div>
                             )}
                             {detailedBill.igstAmount > 0 && (
                               <div className="flex justify-between">
                                 <span>IGST</span>
-                                <span>{formatCurrency(detailedBill.igstAmount)}</span>
+                                <span>
+                                  {formatCurrency(detailedBill.igstAmount)}
+                                </span>
                               </div>
                             )}
                           </>
