@@ -33,7 +33,8 @@ export const useFCMToken = (): FCMTokenHookResult => {
   // Request notification permissions
   const requestPermissions = useCallback(async (): Promise<boolean> => {
     try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
       if (existingStatus !== 'granted') {
@@ -78,37 +79,42 @@ export const useFCMToken = (): FCMTokenHookResult => {
   }, []);
 
   // Send token to backend
-  const sendTokenToBackend = useCallback(async (token: string): Promise<boolean> => {
-    if (!authState.idToken) {
-      console.warn('⚠️ No auth token available, skipping FCM token registration');
-      return false;
-    }
-
-    try {
-      const response = await fetch(`${env.apiUrl}/call-waiter/fcm-token`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authState.idToken}`,
-        },
-        body: JSON.stringify({
-          fcmToken: token,
-        }),
-      });
-
-      if (response.ok) {
-        console.log('✅ FCM token sent to backend successfully');
-        return true;
-      } else {
-        const error = await response.text();
-        console.error('❌ Failed to send FCM token to backend:', error);
+  const sendTokenToBackend = useCallback(
+    async (token: string): Promise<boolean> => {
+      if (!authState.idToken) {
+        console.warn(
+          '⚠️ No auth token available, skipping FCM token registration'
+        );
         return false;
       }
-    } catch (error) {
-      console.error('❌ Network error sending FCM token:', error);
-      return false;
-    }
-  }, [authState.idToken]);
+
+      try {
+        const response = await fetch(`${env.apiUrl}/call-waiter/fcm-token`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authState.idToken}`,
+          },
+          body: JSON.stringify({
+            fcmToken: token,
+          }),
+        });
+
+        if (response.ok) {
+          console.log('✅ FCM token sent to backend successfully');
+          return true;
+        } else {
+          const error = await response.text();
+          console.error('❌ Failed to send FCM token to backend:', error);
+          return false;
+        }
+      } catch (error) {
+        console.error('❌ Network error sending FCM token:', error);
+        return false;
+      }
+    },
+    [authState.idToken]
+  );
 
   // Main registration function
   const registerToken = useCallback(async (): Promise<boolean> => {
@@ -141,7 +147,10 @@ export const useFCMToken = (): FCMTokenHookResult => {
         return false;
       }
 
-      console.log('📱 Device push token obtained:', token.substring(0, 50) + '...');
+      console.log(
+        '📱 Device push token obtained:',
+        token.substring(0, 50) + '...'
+      );
       setFcmToken(token);
 
       // Step 3: Send to backend

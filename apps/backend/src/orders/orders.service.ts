@@ -41,6 +41,7 @@ import {
   OrderGstSummary,
 } from '../gst/smart-gst.service';
 import { RestaurantBillingService, CartItem, RestaurantGstConfig } from '../common/services/restaurant-billing.service';
+import { BillCalculatorService } from '../billing/services/bill-calculator.service';
 import { GstService as RestaurantGstService } from '../common/services/gst.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { TableStatusService } from '../restaurant-tables/table-status.service';
@@ -86,6 +87,7 @@ export class OrdersService {
     private readonly smartGstService: SmartGstService,
     private readonly gstService: GstService,
     private readonly restaurantBillingService: RestaurantBillingService,
+    private readonly billCalculatorService: BillCalculatorService,
     private readonly restaurantGstService: RestaurantGstService,
     private readonly razorpayService: RazorpayService,
     private readonly tableStatusService: TableStatusService,
@@ -334,20 +336,8 @@ export class OrdersService {
     totalAmount: number;
     items?: any[];
   }> {
-    // Get restaurant and validate
-    const restaurant = await this.restaurantModel.findById(restaurantId).lean();
-
-    if (!restaurant) {
-      throw new NotFoundException('Restaurant not found');
-    }
-
-    const defaultGstRateId = restaurant.defaultGstRateId;
-
-    // Use restaurant's state for customer state
-    const customerState = restaurant.address?.state;
-
-    // Prepare order items for GST calculation with modifiers and price tags
-    const orderItems: OrderItemGstData[] = await Promise.all(
+    // Prepare cart items with correct pricing
+    const cartItems: CartItem[] = await Promise.all(
       dto.items.map(async (item) => {
         const effectivePrice = await this.calculateEffectiveItemPrice(
           restaurantId,
@@ -357,61 +347,50 @@ export class OrdersService {
         );
 
         return {
-          menuItemId: item.menuItemId,
-          name: '', // Will be filled from menu item
+          id: item.menuItemId,
+          name: item.name || '', // Use provided name or empty string
           quantity: item.quantity,
-          unitPrice: effectivePrice,
-          discountAmount: item.pricing?.discountAmount || 0,
+          price: effectivePrice,
         };
       })
     );
 
-    // Use already fetched restaurant for GST configuration
-
-    const gstConfig = restaurant.businessDetails?.gst;
-    const gstValidation = this.restaurantBillingService.validateGstConfig(gstConfig);
-
-    if (!gstValidation.isValid) {
-      throw new BadRequestException(`GST configuration invalid: ${gstValidation.errors.join(', ')}`);
+    // Try to get branch ID from table ID if available
+    let branchId: string | undefined;
+    if (dto.tableId) {
+      try {
+        const table = await this.restaurantModel.findOne(
+          { 'branches.tables._id': dto.tableId },
+          { 'branches.$': 1 }
+        );
+        if (table?.branches?.[0]?.tables) {
+          branchId = table.branches[0]._id?.toString();
+        }
+      } catch (error) {
+        // If we can't find branch, proceed without it
+        console.warn('Could not determine branch ID from table ID:', dto.tableId);
+      }
     }
 
-    // Convert order items to cart format
-    const cartItems: CartItem[] = orderItems.map(item => ({
-      id: item.menuItemId,
-      name: item.name,
-      price: item.pricing.unitAmount,
-      quantity: item.quantity
-    }));
-
-    // Calculate bill using new restaurant billing service
-    const billCalculation = this.restaurantBillingService.calculateBill(
+    // Use the centralized billing service for cart calculation
+    const billCalculation = await this.billCalculatorService.calculateCartTotal(
+      restaurantId,
       cartItems,
-      gstConfig,
-      customerState
+      dto.customerState, // Use customer state from DTO if provided
+      'dine_in', // Default to dine_in for cart calculations
+      branchId // Use branch ID if we found it
     );
 
-    // Convert items back to order item format with proper pricing
-    const processedItems = orderItems.map(item => ({
-      ...item,
-      pricing: {
-        ...item.pricing,
-        taxAmount: 0, // No per-item tax - GST calculated at bill level
-      }
-    }));
-
+    // Return in the expected format
     return {
       subtotal: billCalculation.subtotal,
-      serviceChargeRate: billCalculation.serviceChargeRate,
-      serviceChargeAmount: billCalculation.serviceChargeAmount,
-      taxableAmount: billCalculation.subtotalWithService,
-      gstRate: billCalculation.gstRate,
+      taxAmount: billCalculation.taxAmount,
       cgstAmount: billCalculation.cgstAmount,
       sgstAmount: billCalculation.sgstAmount,
       igstAmount: billCalculation.igstAmount,
-      totalGstAmount: billCalculation.totalGstAmount,
-      taxType: billCalculation.taxType,
-      grandTotal: billCalculation.grandTotal,
-      items: processedItems,
+      roundOffAmount: billCalculation.roundOffAmount,
+      totalAmount: billCalculation.totalAmount,
+      items: cartItems,
     };
   }
 

@@ -363,13 +363,22 @@ export class StaffInvitationService {
       return;
     }
 
-    // Use staff-specific frontend URL for staff invitations
+    // Use role-specific frontend URL for staff invitations
     const staffFrontendUrl =
       this.configService.get<string>('STAFF_FRONTEND_URL');
-    const fallbackFrontendUrl =
+    const adminFrontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:4200';
 
-    const frontendUrl = staffFrontendUrl || fallbackFrontendUrl;
+    // Determine which frontend to use based on role
+    let frontendUrl: string;
+    if (invitation.role === UserRole.Manager || invitation.role === UserRole.Owner) {
+      // Managers and owners should use admin frontend
+      frontendUrl = adminFrontendUrl;
+    } else {
+      // Waiters, chefs, cashiers use staff frontend
+      frontendUrl = staffFrontendUrl || adminFrontendUrl;
+    }
+
     const invitationUrl = `${frontendUrl}/staff-invite-signup?token=${invitation.invitationToken}`;
 
     console.log('Invitation URL:', invitationUrl);

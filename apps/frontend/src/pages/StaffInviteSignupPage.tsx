@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { getDomainType } from '@/utils/domain';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -108,14 +109,38 @@ const StaffInviteSignupPage = () => {
 
       console.log('✅ Staff signup completed successfully');
 
-      // Redirect to appropriate interface based on role
-      if (authResponse.user.role === 'chef') {
-        navigate('/kitchen');
-      } else if (
-        authResponse.user.role === 'waiter' ||
-        authResponse.user.role === 'cashier'
-      ) {
-        navigate('/service');
+      // Redirect to appropriate interface based on role and domain
+      const domainType = getDomainType();
+      const role = authResponse.user.role;
+
+      if (role === 'manager' || role === 'owner') {
+        // Managers and owners should go to admin dashboard
+        if (domainType === 'admin') {
+          navigate('/dashboard');
+        } else {
+          // If somehow they're on staff domain, redirect to admin domain
+          window.location.href = '/'; // This will redirect to admin.restohand.com
+        }
+      } else if (role === 'chef') {
+        // Chefs should go to kitchen interface (staff domain)
+        if (domainType === 'staff') {
+          navigate('/kitchen');
+        } else {
+          // If they're on admin domain, redirect to staff domain
+          const currentHost = window.location.host;
+          const staffHost = currentHost.replace('admin.', 'staff.');
+          window.location.href = `${window.location.protocol}//${staffHost}/kitchen`;
+        }
+      } else if (role === 'waiter' || role === 'cashier') {
+        // Waiters/cashiers should go to service interface (staff domain)
+        if (domainType === 'staff') {
+          navigate('/service');
+        } else {
+          // If they're on admin domain, redirect to staff domain
+          const currentHost = window.location.host;
+          const staffHost = currentHost.replace('admin.', 'staff.');
+          window.location.href = `${window.location.protocol}//${staffHost}/service`;
+        }
       } else {
         navigate('/forbidden');
       }

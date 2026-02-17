@@ -1,10 +1,11 @@
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { AuthGuard } from '@/components/AuthGuard';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import StaffInviteSignupPage from '@/pages/StaffInviteSignupPage';
 import DashboardPage from '@/pages/DashboardPage';
 import { MenuManagementPage } from '@/pages/menu-management/MenuManagementPage';
 import RestaurantSettingsPage from '@/pages/RestaurantSettingsPage';
@@ -20,10 +21,7 @@ import ReceiptLookupPage from '@/pages/ReceiptLookupPage';
 import GstSetupWizard from '@/pages/GstSetupWizard';
 import ChargesSettingsPage from '@/pages/ChargesSettingsPage';
 import CustomerQrPage from '@/pages/CustomerQrPage';
-import FloorPlanDashboardPage from '@/pages/FloorPlanDashboardPage';
-import FloorPlanConfigPage from '@/pages/FloorPlanConfigPage';
 import InventoryPage from '@/pages/InventoryPage';
-import RecipesPage from '@/pages/RecipesPage';
 import CashfreeSubscriptionPage from '@/pages/CashfreeSubscriptionPage';
 import BranchManagementPage from '@/pages/BranchManagementPage';
 import KycManagementPage from '@/pages/KycManagementPage';
@@ -55,6 +53,14 @@ const AppRouter = () => {
           element={
             <AuthGuard requireAuth={false} redirectAuthenticatedTo="/dashboard">
               <RegisterPage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/staff-invite-signup"
+          element={
+            <AuthGuard requireAuth={false}>
+              <StaffInviteSignupPage />
             </AuthGuard>
           }
         />

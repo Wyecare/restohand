@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -226,11 +226,16 @@ export default function ServiceTablesScreen() {
       refetchService(),
       // Refresh FCM token in background
       refreshToken().catch((error) => {
+        console.log(error);
         console.warn('FCM token refresh failed:', error);
       }),
     ]);
     setRefreshing(false);
   };
+
+  useEffect(() => {
+    onRefresh();
+  }, [restaurantId]);
 
   const handleLogout = () => {
     dispatch(clearAuthState());

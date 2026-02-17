@@ -56,6 +56,19 @@ export class RestaurantOnboardingService {
   ): Promise<Restaurant> {
     this.logger.log(`Starting SaaS onboarding for restaurant: ${data.name}`);
 
+    // Check if restaurant with this name already exists for this user
+    const baseSlug = this.generateSlug(data.name);
+    const existingRestaurant = await this.restaurantModel.findOne({
+      slug: baseSlug
+    });
+
+    if (existingRestaurant) {
+      this.logger.warn(`Restaurant with name "${data.name}" (slug: ${baseSlug}) already exists`);
+      throw new BadRequestException(
+        `A restaurant with the name "${data.name}" already exists. Please choose a different name or contact support if this is your restaurant.`
+      );
+    }
+
     try {
       // 1. Attempt to create Razorpay linked account for direct settlement
       let linkedAccountId = null;
@@ -305,6 +318,25 @@ export class RestaurantOnboardingService {
         `Failed to onboard restaurant: ${error.message}`,
         error.stack
       );
+
+      // Handle MongoDB duplicate key error specifically for restaurant slug
+      if (error.code === 11000 && error.keyPattern && error.keyPattern.slug) {
+        const duplicateSlug = error.keyValue?.slug || this.generateSlug(data.name);
+        this.logger.warn(`Duplicate restaurant slug detected: ${duplicateSlug}`);
+        throw new BadRequestException(
+          `A restaurant with the name "${data.name}" already exists. Please choose a different name or contact support if this is your restaurant.`
+        );
+      }
+
+      // Handle other MongoDB duplicate key errors
+      if (error.code === 11000) {
+        const duplicateField = Object.keys(error.keyPattern || {})[0] || 'field';
+        this.logger.warn(`Duplicate ${duplicateField} detected during restaurant creation`);
+        throw new BadRequestException(
+          `A restaurant with this ${duplicateField} already exists. Please use different details.`
+        );
+      }
+
       throw new BadRequestException(
         `Restaurant onboarding failed: ${error.message}`
       );

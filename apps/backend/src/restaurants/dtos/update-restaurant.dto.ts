@@ -109,6 +109,14 @@ class GstConfigDto {
   @IsOptional()
   @IsBoolean()
   isGstEnabled?: boolean;
+
+  @ApiProperty({
+    description: 'Timestamp when GST configuration was set up',
+    type: Date,
+    required: false
+  })
+  @IsOptional()
+  configuredAt?: Date;
 }
 
 class BusinessDetailsDto {

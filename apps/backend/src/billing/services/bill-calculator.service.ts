@@ -374,6 +374,96 @@ export class BillCalculatorService {
   }
 
   /**
+   * Calculate cart total BEFORE creating an order - for preview/cart calculations
+   * This method takes cart items and restaurant info to calculate what the bill would be
+   */
+  async calculateCartTotal(
+    restaurantId: string,
+    cartItems: CartItem[],
+    customerState?: string,
+    orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in',
+    branchId?: string
+  ): Promise<{
+    subtotal: number;
+    taxAmount: number;
+    cgstAmount: number;
+    sgstAmount: number;
+    igstAmount: number;
+    grossAmount: number;
+    totalAmount: number;
+    roundOffAmount: number;
+    branchCharges: Array<{
+      name: string;
+      type: 'percentage' | 'fixed';
+      value: number;
+      amount: number;
+      includedInGst: boolean;
+    }>;
+    totalBranchCharges: number;
+    taxType: 'intra-state' | 'inter-state' | null;
+  }> {
+    // Get restaurant for tax configuration
+    const restaurant = await this.restaurantModel.findById(restaurantId);
+    if (!restaurant) {
+      throw new Error('Restaurant not found for cart calculation');
+    }
+
+    // Get restaurant GST configuration from restaurant object
+    const gstSchema = restaurant.businessDetails?.gst;
+    if (!gstSchema) {
+      throw new Error('Restaurant GST configuration not found');
+    }
+
+    // Convert schema to interface format for RestaurantBillingService
+    const gstConfig: RestaurantGstConfig = {
+      establishmentType:
+        gstSchema.establishmentType as RestaurantGstConfig['establishmentType'],
+      defaultGstRate:
+        gstSchema.defaultGstRate as RestaurantGstConfig['defaultGstRate'],
+      canClaimITC: gstSchema.canClaimITC,
+      businessState: gstSchema.businessState,
+      gstin: gstSchema.gstin,
+      enableServiceCharge: (gstSchema as any).enableServiceCharge || false,
+      serviceChargeRate: (gstSchema as any).serviceChargeRate || 0,
+      integratedWithDeliveryPlatforms:
+        (gstSchema as any).integratedWithDeliveryPlatforms || false,
+      isGstEnabled: (gstSchema as any).isGstEnabled !== false,
+    };
+
+    // Get branch charges (if branchId is provided)
+    let branchCharges: BranchCharge[] = [];
+    if (branchId) {
+      const branch = await this.branchModel.findById(branchId);
+      if (branch && branch.settings?.charges) {
+        branchCharges = branch.settings.charges as BranchCharge[];
+      }
+    }
+
+    // Use RestaurantBillingService for calculation
+    const billCalculation = this.restaurantBillingService.calculateBill(
+      cartItems,
+      gstConfig,
+      customerState,
+      branchCharges,
+      orderType
+    );
+
+    return {
+      subtotal: billCalculation.subtotal,
+      taxAmount: billCalculation.totalGstAmount,
+      cgstAmount: billCalculation.cgstAmount,
+      sgstAmount: billCalculation.sgstAmount,
+      igstAmount: billCalculation.igstAmount,
+      grossAmount: billCalculation.subtotalWithCharges,
+      totalAmount: billCalculation.grandTotal,
+      roundOffAmount: 0, // No rounding in current implementation
+      branchCharges: billCalculation.branchCharges,
+      totalBranchCharges: billCalculation.totalBranchCharges,
+      taxType: billCalculation.taxType,
+    };
+  }
+
+  /**
    * Calculate detailed bill with item-level breakdown for a customer session
    */
   async calculateDetailedSessionBill(

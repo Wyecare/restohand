@@ -49,6 +49,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
+import { BillingModule } from '../billing/billing.module';
 import { CustomerSession, CustomerSessionSchema } from '../customer-sessions/schemas/customer-session.schema';
 import { PublicModule } from '../public/public.module';
 
@@ -73,6 +74,7 @@ import { PublicModule } from '../public/public.module';
     MenuPriceTagsModule,
     NotificationsModule,
     CustomerSessionsModule,
+    BillingModule,
     forwardRef(() => PublicModule),
     MongooseModule.forFeature([
       { name: Order.name, schema: OrderSchema },

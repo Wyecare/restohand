@@ -22,6 +22,7 @@ import {
 } from '@/store/slices/authSlice';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { Navigate } from 'react-router-dom';
+import { env } from '@/config/env';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 const OnboardingPage = () => {
@@ -41,7 +42,6 @@ const OnboardingPage = () => {
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [businessType, setBusinessType] = useState<'sole_proprietorship' | 'partnership' | 'private_limited' | 'public_limited'>('sole_proprietorship');
-  const [restaurantType, setRestaurantType] = useState<'regular' | 'premium'>('regular');
   const [gstNumber, setGstNumber] = useState('');
   const [panNumber, setPanNumber] = useState('');
 
@@ -85,8 +85,6 @@ const OnboardingPage = () => {
     }
 
     try {
-      await getFirebaseAuth().currentUser?.getIdToken(true);
-
       const onboardingData = {
         name,
         email,
@@ -99,7 +97,6 @@ const OnboardingPage = () => {
           country: 'IN',
         },
         businessType,
-        restaurantType,
         gstNumber: gstNumber || undefined,
         panNumber: panNumber || undefined,
         // Include KYC fields if provided
@@ -117,24 +114,72 @@ const OnboardingPage = () => {
         }),
       };
 
-      await onboardRestaurant(onboardingData).unwrap();
+      const onboardingResponse = await onboardRestaurant(onboardingData).unwrap();
 
       toast({
         title: 'Restaurant onboarded successfully!',
         description: 'Your SaaS subscription is now active with a 30-day free trial.'
       });
 
-      // Force token refresh to trigger auth state update with restaurant info
-      await getFirebaseAuth().currentUser?.getIdToken(true);
+      // Force token refresh to get updated restaurant info in JWT
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        try {
+          const refreshResponse = await fetch(`${env.apiBaseUrl}/auth/refresh`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              refresh_token: refreshToken,
+            }),
+          });
 
-      // Navigate immediately - the AuthProvider will handle the token update
-      navigate('/dashboard', { replace: true });
+          if (refreshResponse.ok) {
+            const authData = await refreshResponse.json();
+
+            // Update stored tokens
+            localStorage.setItem('access_token', authData.access_token);
+            localStorage.setItem('refresh_token', authData.refresh_token);
+
+            // Update Redux auth state with new restaurant info
+            const updatedSession = {
+              ...session,
+              restaurantId: authData.user.restaurantId || onboardingResponse.restaurant.id,
+            };
+
+            // Update the session in Redux
+            // Note: This will trigger AuthGuard to allow access to protected routes
+            window.location.href = '/settings/gst/setup'; // Force reload and go to GST setup
+            return;
+          }
+        } catch (refreshError) {
+          console.warn('Token refresh failed, continuing with direct navigation:', refreshError);
+        }
+      }
+
+      // Fallback: Navigate to GST setup
+      navigate('/settings/gst/setup', { replace: true });
     } catch (error) {
       console.error('[OnboardingPage] SaaS onboarding failed', error);
+
+      // Extract error message from RTK Query error response
+      let errorMessage = 'Unexpected error occurred';
+
+      if (error && typeof error === 'object') {
+        // RTK Query error structure
+        if ('data' in error && error.data && typeof error.data === 'object') {
+          errorMessage = (error.data as any)?.message || errorMessage;
+        }
+        // Standard Error object
+        else if ('message' in error && typeof error.message === 'string') {
+          errorMessage = error.message;
+        }
+      }
+
       toast({
         title: 'Unable to onboard restaurant',
-        description:
-          error instanceof Error ? error.message : 'Unexpected error occurred',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -257,28 +302,6 @@ const OnboardingPage = () => {
                   </Select>
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="restaurantType">Restaurant Type *</Label>
-                  <Select value={restaurantType} onValueChange={(value: 'regular' | 'premium') => setRestaurantType(value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select restaurant type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="regular">
-                        <div className="flex flex-col">
-                          <div className="font-medium">Regular Restaurant</div>
-                          <div className="text-xs text-muted-foreground">5% GST - Most restaurants, dhabas, cafes</div>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="premium">
-                        <div className="flex flex-col">
-                          <div className="font-medium">Premium Restaurant</div>
-                          <div className="text-xs text-muted-foreground">18% GST - Fine dining, luxury establishments</div>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="grid gap-2">
