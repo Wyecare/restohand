@@ -4,10 +4,16 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Restaurant, RestaurantDocument } from '../restaurants/schemas/restaurant.schema';
 import { Order, OrderDocument } from '../orders/schemas/order.schema';
+import { VatConfiguration, VatConfigurationDocument } from './schemas/vat-configuration.schema';
 import { UserRole } from '../common/enums/user-role.enum';
 import { CreateSuperAdminDto } from './dtos/create-super-admin.dto';
 import { CreateCashfreePlanDto } from './dtos/create-cashfree-plan.dto';
 import { UpdateCashfreePlanDto } from './dtos/update-cashfree-plan.dto';
+import {
+  CreateVatConfigurationDto,
+  UpdateVatConfigurationDto,
+  BulkStateVatRateDto
+} from './dtos/vat-configuration.dto';
 import { SubscriptionPlansService } from '../subscription-plans/subscription-plans.service';
 import { CreateSubscriptionPlanDto } from '../subscription-plans/dtos/create-subscription-plan.dto';
 import * as bcrypt from 'bcryptjs';
@@ -20,6 +26,7 @@ export class SuperAdminService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Restaurant.name) private restaurantModel: Model<RestaurantDocument>,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
+    @InjectModel(VatConfiguration.name) private vatConfigurationModel: Model<VatConfigurationDocument>,
     private readonly subscriptionPlansService: SubscriptionPlansService
   ) {}
 
@@ -496,5 +503,335 @@ export class SuperAdminService {
       this.logger.error(`Failed to import Cashfree plan ${cashfreePlanId}: ${error.message}`, error.stack);
       throw new Error(`Failed to import Cashfree plan: ${error.message}`);
     }
+  }
+
+  // ============= VAT CONFIGURATION MANAGEMENT =============
+
+  async getAllVatConfigurations(activeOnly = false) {
+    try {
+      const filter = activeOnly ? { isActive: true } : {};
+      const configurations = await this.vatConfigurationModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .lean();
+
+      this.logger.log(`Retrieved ${configurations.length} VAT configurations (activeOnly: ${activeOnly})`);
+      return configurations.map(config => ({
+        ...config,
+        id: config._id.toString(),
+      }));
+    } catch (error) {
+      this.logger.error(`Failed to get VAT configurations: ${error.message}`, error.stack);
+      throw new Error(`Failed to retrieve VAT configurations: ${error.message}`);
+    }
+  }
+
+  async getVatConfiguration(id: string) {
+    try {
+      const configuration = await this.vatConfigurationModel.findById(id).lean();
+      if (!configuration) {
+        throw new NotFoundException(`VAT configuration with ID ${id} not found`);
+      }
+
+      return {
+        ...configuration,
+        id: configuration._id.toString(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get VAT configuration ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new Error(`Failed to retrieve VAT configuration: ${error.message}`);
+    }
+  }
+
+  async createVatConfiguration(createDto: CreateVatConfigurationDto, adminId: string) {
+    try {
+      // Check if configuration name already exists
+      const existingConfig = await this.vatConfigurationModel.findOne({
+        configurationName: createDto.configurationName
+      });
+
+      if (existingConfig) {
+        throw new Error(`VAT configuration with name "${createDto.configurationName}" already exists`);
+      }
+
+      const newConfiguration = new this.vatConfigurationModel({
+        ...createDto,
+        createdBy: adminId,
+        lastModifiedBy: adminId,
+      });
+
+      const savedConfig = await newConfiguration.save();
+      this.logger.log(`Created VAT configuration: ${savedConfig.configurationName} by admin ${adminId}`);
+
+      return {
+        ...savedConfig.toObject(),
+        id: savedConfig._id.toString(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create VAT configuration: ${error.message}`, error.stack);
+      throw new Error(`Failed to create VAT configuration: ${error.message}`);
+    }
+  }
+
+  async updateVatConfiguration(id: string, updateDto: UpdateVatConfigurationDto, adminId: string) {
+    try {
+      const existingConfig = await this.vatConfigurationModel.findById(id);
+      if (!existingConfig) {
+        throw new NotFoundException(`VAT configuration with ID ${id} not found`);
+      }
+
+      // If updating name, check for duplicates
+      if (updateDto.configurationName && updateDto.configurationName !== existingConfig.configurationName) {
+        const duplicateConfig = await this.vatConfigurationModel.findOne({
+          configurationName: updateDto.configurationName,
+          _id: { $ne: id }
+        });
+
+        if (duplicateConfig) {
+          throw new Error(`VAT configuration with name "${updateDto.configurationName}" already exists`);
+        }
+      }
+
+      const updatedConfig = await this.vatConfigurationModel.findByIdAndUpdate(
+        id,
+        {
+          ...updateDto,
+          lastModifiedBy: adminId,
+          updatedAt: new Date(),
+        },
+        { new: true }
+      ).lean();
+
+      this.logger.log(`Updated VAT configuration: ${id} by admin ${adminId}`);
+      return {
+        ...updatedConfig,
+        id: updatedConfig._id.toString(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to update VAT configuration ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new Error(`Failed to update VAT configuration: ${error.message}`);
+    }
+  }
+
+  async deleteVatConfiguration(id: string, adminId: string) {
+    try {
+      const configuration = await this.vatConfigurationModel.findById(id);
+      if (!configuration) {
+        throw new NotFoundException(`VAT configuration with ID ${id} not found`);
+      }
+
+      // Don't allow deletion of active configurations
+      if (configuration.isActive) {
+        throw new Error('Cannot delete active VAT configuration. Deactivate it first.');
+      }
+
+      await this.vatConfigurationModel.findByIdAndDelete(id);
+      this.logger.log(`Deleted VAT configuration: ${id} by admin ${adminId}`);
+
+      return { message: 'VAT configuration deleted successfully' };
+    } catch (error) {
+      this.logger.error(`Failed to delete VAT configuration ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new Error(`Failed to delete VAT configuration: ${error.message}`);
+    }
+  }
+
+  async activateVatConfiguration(id: string, adminId: string) {
+    try {
+      const configuration = await this.vatConfigurationModel.findById(id);
+      if (!configuration) {
+        throw new NotFoundException(`VAT configuration with ID ${id} not found`);
+      }
+
+      // Deactivate all other configurations
+      await this.vatConfigurationModel.updateMany(
+        { _id: { $ne: id } },
+        { isActive: false, lastModifiedBy: adminId, updatedAt: new Date() }
+      );
+
+      // Activate the selected configuration
+      const activatedConfig = await this.vatConfigurationModel.findByIdAndUpdate(
+        id,
+        { isActive: true, lastModifiedBy: adminId, updatedAt: new Date() },
+        { new: true }
+      ).lean();
+
+      this.logger.log(`Activated VAT configuration: ${id} by admin ${adminId}`);
+      return {
+        message: 'VAT configuration activated successfully',
+        configuration: {
+          ...activatedConfig,
+          id: activatedConfig._id.toString(),
+        }
+      };
+    } catch (error) {
+      this.logger.error(`Failed to activate VAT configuration ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new Error(`Failed to activate VAT configuration: ${error.message}`);
+    }
+  }
+
+  async bulkUpdateStateVatRates(id: string, bulkUpdateDto: BulkStateVatRateDto, adminId: string) {
+    try {
+      const configuration = await this.vatConfigurationModel.findById(id);
+      if (!configuration) {
+        throw new NotFoundException(`VAT configuration with ID ${id} not found`);
+      }
+
+      // Update or add state configurations
+      for (const stateName of bulkUpdateDto.stateNames) {
+        const existingStateIndex = configuration.stateConfigurations.findIndex(
+          state => state.stateName === stateName
+        );
+
+        const stateConfig = {
+          stateName,
+          stateCode: this.getStateCode(stateName),
+          alcoholVatRates: bulkUpdateDto.alcoholVatRates,
+          defaultVatRate: bulkUpdateDto.defaultVatRate,
+          isActive: true,
+          lastUpdated: new Date(),
+        };
+
+        if (existingStateIndex >= 0) {
+          // Update existing state
+          configuration.stateConfigurations[existingStateIndex] = stateConfig;
+        } else {
+          // Add new state
+          configuration.stateConfigurations.push(stateConfig);
+        }
+      }
+
+      configuration.lastModifiedBy = adminId;
+      configuration.updatedAt = new Date();
+      const updatedConfig = await configuration.save();
+
+      this.logger.log(`Bulk updated VAT rates for ${bulkUpdateDto.stateNames.length} states in configuration ${id} by admin ${adminId}`);
+      return {
+        message: 'State VAT rates updated successfully',
+        updatedStates: bulkUpdateDto.stateNames,
+        configuration: {
+          ...updatedConfig.toObject(),
+          id: updatedConfig._id.toString(),
+        }
+      };
+    } catch (error) {
+      this.logger.error(`Failed to bulk update VAT rates for configuration ${id}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new Error(`Failed to bulk update state VAT rates: ${error.message}`);
+    }
+  }
+
+  async getStateVatRate(id: string, stateName: string, alcoholType?: string) {
+    try {
+      const configuration = await this.vatConfigurationModel.findById(id);
+      if (!configuration) {
+        throw new NotFoundException(`VAT configuration with ID ${id} not found`);
+      }
+
+      const stateConfig = configuration.stateConfigurations.find(
+        state => state.stateName.toLowerCase() === stateName.toLowerCase()
+      );
+
+      if (!stateConfig) {
+        return {
+          stateName,
+          alcoholType: alcoholType || 'general',
+          vatRate: configuration.globalDefaultVatRate,
+          source: 'global'
+        };
+      }
+
+      if (alcoholType && alcoholType !== 'general') {
+        const alcoholRate = stateConfig.alcoholVatRates.find(
+          rate => rate.alcoholType === alcoholType
+        );
+
+        if (alcoholRate) {
+          return {
+            stateName,
+            alcoholType,
+            vatRate: alcoholRate.vatRate,
+            source: 'specific'
+          };
+        }
+      }
+
+      return {
+        stateName,
+        alcoholType: alcoholType || 'general',
+        vatRate: stateConfig.defaultVatRate,
+        source: 'default'
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get VAT rate for ${stateName}: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) throw error;
+      throw new Error(`Failed to get state VAT rate: ${error.message}`);
+    }
+  }
+
+  async getActiveVatConfiguration() {
+    try {
+      const activeConfig = await this.vatConfigurationModel.findOne({ isActive: true }).lean();
+
+      if (!activeConfig) {
+        this.logger.warn('No active VAT configuration found');
+        return null;
+      }
+
+      return {
+        ...activeConfig,
+        id: activeConfig._id.toString(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get active VAT configuration: ${error.message}`, error.stack);
+      throw new Error(`Failed to retrieve active VAT configuration: ${error.message}`);
+    }
+  }
+
+  // Helper method to get state codes (this should ideally be a separate service or config)
+  private getStateCode(stateName: string): string {
+    const stateCodes: Record<string, string> = {
+      'Andhra Pradesh': 'AP',
+      'Arunachal Pradesh': 'AR',
+      'Assam': 'AS',
+      'Bihar': 'BR',
+      'Chhattisgarh': 'CG',
+      'Goa': 'GA',
+      'Gujarat': 'GJ',
+      'Haryana': 'HR',
+      'Himachal Pradesh': 'HP',
+      'Jharkhand': 'JH',
+      'Karnataka': 'KA',
+      'Kerala': 'KL',
+      'Madhya Pradesh': 'MP',
+      'Maharashtra': 'MH',
+      'Manipur': 'MN',
+      'Meghalaya': 'ML',
+      'Mizoram': 'MZ',
+      'Nagaland': 'NL',
+      'Odisha': 'OR',
+      'Punjab': 'PB',
+      'Rajasthan': 'RJ',
+      'Sikkim': 'SK',
+      'Tamil Nadu': 'TN',
+      'Telangana': 'TG',
+      'Tripura': 'TR',
+      'Uttar Pradesh': 'UP',
+      'Uttarakhand': 'UK',
+      'West Bengal': 'WB',
+      'Delhi': 'DL',
+      'Jammu and Kashmir': 'JK',
+      'Ladakh': 'LA',
+      'Lakshadweep': 'LD',
+      'Puducherry': 'PY',
+      'Andaman and Nicobar Islands': 'AN',
+      'Chandigarh': 'CH',
+      'Dadra and Nagar Haveli and Daman and Diu': 'DN'
+    };
+
+    return stateCodes[stateName] || stateName.substring(0, 2).toUpperCase();
   }
 }

@@ -12,6 +12,7 @@ import { HsnCode, HsnCodeSchema } from './schemas/hsn-code.schema';
 import { TaxInvoice, TaxInvoiceSchema } from './schemas/tax-invoice.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema';
+import { VatConfiguration, VatConfigurationSchema } from '../super-admin/schemas/vat-configuration.schema';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { MenuItem, MenuItemSchema } from '../menu-items/schemas/menu-item.schema
       { name: TaxInvoice.name, schema: TaxInvoiceSchema },
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: MenuItem.name, schema: MenuItemSchema },
+      { name: VatConfiguration.name, schema: VatConfigurationSchema },
     ]),
     AuthModule,
   ],

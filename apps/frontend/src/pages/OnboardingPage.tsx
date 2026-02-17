@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { useOnboardRestaurantMutation } from '@/store/api/subscriptionsApi';
+import { IndianState, INDIAN_STATES } from '@/types/indian-states';
 import { useAppSelector } from '@/store/hooks';
 import {
   selectActiveRestaurantId,
@@ -39,7 +40,7 @@ const OnboardingPage = () => {
   const [phone, setPhone] = useState('');
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
-  const [state, setState] = useState('');
+  const [state, setState] = useState<IndianState | ''>('');
   const [postalCode, setPostalCode] = useState('');
   const [businessType, setBusinessType] = useState<'sole_proprietorship' | 'partnership' | 'private_limited' | 'public_limited'>('sole_proprietorship');
   const [gstNumber, setGstNumber] = useState('');
@@ -263,12 +264,18 @@ const OnboardingPage = () => {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="state">State *</Label>
-                    <Input
-                      id="state"
-                      value={state}
-                      onChange={(event) => setState(event.target.value)}
-                      required
-                    />
+                    <Select value={state} onValueChange={(value: IndianState) => setState(value)} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your state *" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INDIAN_STATES.map((stateName) => (
+                          <SelectItem key={stateName} value={stateName}>
+                            {stateName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="postalCode">Postal Code *</Label>

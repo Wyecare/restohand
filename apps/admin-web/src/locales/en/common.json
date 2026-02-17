@@ -6,7 +6,8 @@
     "settlements": "Settlements",
     "analytics": "Analytics",
     "superAdmins": "Super Admins",
-    "subscriptionPlans": "Subscription Plans"
+    "subscriptionPlans": "Subscription Plans",
+    "vatConfiguration": "VAT Configuration"
   },
   "common": {
     "loading": "Loading...",

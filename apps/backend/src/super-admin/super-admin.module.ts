@@ -5,6 +5,7 @@ import { SuperAdminService } from './super-admin.service';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Restaurant, RestaurantSchema } from '../restaurants/schemas/restaurant.schema';
 import { Order, OrderSchema } from '../orders/schemas/order.schema';
+import { VatConfiguration, VatConfigurationSchema } from './schemas/vat-configuration.schema';
 import { AuthModule } from '../auth/auth.module';
 import { SubscriptionPlansModule } from '../subscription-plans/subscription-plans.module';
 
@@ -14,6 +15,7 @@ import { SubscriptionPlansModule } from '../subscription-plans/subscription-plan
       { name: User.name, schema: UserSchema },
       { name: Restaurant.name, schema: RestaurantSchema },
       { name: Order.name, schema: OrderSchema },
+      { name: VatConfiguration.name, schema: VatConfigurationSchema },
     ]),
     AuthModule,
     SubscriptionPlansModule,

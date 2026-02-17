@@ -11,6 +11,13 @@ import type {
   SuperAdminListResponse,
   CreateSuperAdminPayload,
   SuperAdminUser,
+  VatConfiguration,
+  CreateVatConfigurationPayload,
+  UpdateVatConfigurationPayload,
+  BulkStateVatRatePayload,
+  StateVatRateResponse,
+  VatConfigurationActivationResponse,
+  BulkUpdateResponse,
 } from './types';
 
 export const adminApi = baseApi.injectEndpoints({
@@ -97,6 +104,78 @@ export const adminApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['SuperAdmin'],
     }),
+
+    // VAT Configuration Management
+    getAllVatConfigurations: builder.query<VatConfiguration[], { activeOnly?: boolean }>({
+      query: ({ activeOnly = false } = {}) => ({
+        url: '/admin/vat-configurations',
+        params: activeOnly ? { active: 'true' } : {},
+      }),
+      providesTags: ['VatConfiguration'],
+    }),
+
+    getVatConfiguration: builder.query<VatConfiguration, string>({
+      query: (id) => `/admin/vat-configurations/${id}`,
+      providesTags: (result, error, id) => [{ type: 'VatConfiguration', id }],
+    }),
+
+    getActiveVatConfiguration: builder.query<VatConfiguration | null, void>({
+      query: () => '/admin/active-vat-configuration',
+      providesTags: ['VatConfiguration'],
+    }),
+
+    createVatConfiguration: builder.mutation<VatConfiguration, CreateVatConfigurationPayload>({
+      query: (configData) => ({
+        url: '/admin/vat-configurations',
+        method: 'POST',
+        body: configData,
+      }),
+      invalidatesTags: ['VatConfiguration'],
+    }),
+
+    updateVatConfiguration: builder.mutation<VatConfiguration, { id: string; data: UpdateVatConfigurationPayload }>({
+      query: ({ id, data }) => ({
+        url: `/admin/vat-configurations/${id}`,
+        method: 'PUT',
+        body: data,
+      }),
+      invalidatesTags: ['VatConfiguration'],
+    }),
+
+    deleteVatConfiguration: builder.mutation<{ message: string }, string>({
+      query: (id) => ({
+        url: `/admin/vat-configurations/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['VatConfiguration'],
+    }),
+
+    activateVatConfiguration: builder.mutation<VatConfigurationActivationResponse, string>({
+      query: (id) => ({
+        url: `/admin/vat-configurations/${id}/activate`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['VatConfiguration'],
+    }),
+
+    bulkUpdateStateVatRates: builder.mutation<BulkUpdateResponse, { id: string; data: BulkStateVatRatePayload }>({
+      query: ({ id, data }) => ({
+        url: `/admin/vat-configurations/${id}/bulk-update-states`,
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['VatConfiguration'],
+    }),
+
+    getStateVatRate: builder.query<StateVatRateResponse, { id: string; stateName: string; alcoholType?: string }>({
+      query: ({ id, stateName, alcoholType }) => ({
+        url: `/admin/vat-configurations/${id}/states/${stateName}/rate`,
+        params: alcoholType ? { alcoholType } : {},
+      }),
+      providesTags: (result, error, { id, stateName }) => [
+        { type: 'VatConfiguration', id: `${id}-${stateName}` }
+      ],
+    }),
   }),
 });
 
@@ -120,4 +199,15 @@ export const {
   // Super Admin Management
   useGetSuperAdminsQuery,
   useCreateSuperAdminMutation,
+
+  // VAT Configuration Management
+  useGetAllVatConfigurationsQuery,
+  useGetVatConfigurationQuery,
+  useGetActiveVatConfigurationQuery,
+  useCreateVatConfigurationMutation,
+  useUpdateVatConfigurationMutation,
+  useDeleteVatConfigurationMutation,
+  useActivateVatConfigurationMutation,
+  useBulkUpdateStateVatRatesMutation,
+  useGetStateVatRateQuery,
 } = adminApi;

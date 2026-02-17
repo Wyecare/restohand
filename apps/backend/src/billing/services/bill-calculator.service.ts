@@ -230,18 +230,45 @@ export class BillCalculatorService {
       isGstEnabled: (gstSchema as any).isGstEnabled !== false,
     };
 
-    // Get branch charges (if branchId is available in orders)
+    // Get branch charges and state from session's branchId (if sessionId provided)
     let branchCharges: BranchCharge[] = [];
     let orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in';
+    let branchState: string | null = null;
 
-    const firstOrderBranchId = orders[0].branchId;
-    if (firstOrderBranchId) {
-      const branch = await this.branchModel.findById(firstOrderBranchId);
-      if (branch && branch.settings?.charges) {
-        branchCharges = branch.settings.charges as BranchCharge[];
+    if (sessionId) {
+      // Get branch info from session
+      const session = await this.sessionModel
+        .findOne({ sessionId })
+        .populate('branchId')
+        .lean();
+
+      if (session && session.branchId) {
+        const branch = session.branchId as any; // populated branch
+        if (branch && branch.settings?.charges) {
+          branchCharges = branch.settings.charges as BranchCharge[];
+        }
+        // Get branch state for VAT calculation
+        if (branch && branch.address?.state) {
+          branchState = branch.address.state;
+        }
       }
+    } else {
+      // Fallback to order-based branch lookup for non-session calculations
+      const firstOrderBranchId = orders[0].branchId;
+      if (firstOrderBranchId) {
+        const branch = await this.branchModel.findById(firstOrderBranchId);
+        if (branch && branch.settings?.charges) {
+          branchCharges = branch.settings.charges as BranchCharge[];
+        }
+        // Get branch state for VAT calculation
+        if (branch && branch.address?.state) {
+          branchState = branch.address.state;
+        }
+      }
+    }
 
-      // Determine order type from first order
+    // Determine order type from first order
+    if (orders.length > 0) {
       orderType = orders[0].orderType || 'dine_in';
     }
 
@@ -258,19 +285,37 @@ export class BillCalculatorService {
       }
     }
 
-    // Use RestaurantBillingService for correct bill-level GST calculation
-    const billCalculation = this.restaurantBillingService.calculateBill(
-      allOrderItems,
-      gstConfig,
-      orders[0]?.customerState, // Use customer state from first order if available
-      branchCharges,
-      orderType
+    // Check if we need mixed billing (GST + VAT) based on item categories
+    const uniqueCategories = Array.from(
+      new Set(allOrderItems.map((item) => (item as any).foodCategory || 'cooked_food'))
     );
+    const hasMixedTaxCategories =
+      uniqueCategories.some((cat) => cat === 'alcohol') ||
+      uniqueCategories.some((cat) => cat === 'fresh_items');
+
+    // Use RestaurantBillingService for correct bill-level calculation
+    const billCalculation = hasMixedTaxCategories
+      ? await this.restaurantBillingService.calculateMixedBill(
+          allOrderItems,
+          gstConfig,
+          branchState || gstConfig.businessState, // Use branch state if available, fallback to restaurant state
+          orders[0]?.customerState, // Use customer state from first order if available
+          branchCharges,
+          orderType
+        )
+      : this.restaurantBillingService.calculateBill(
+          allOrderItems,
+          gstConfig,
+          orders[0]?.customerState, // Use customer state from first order if available
+          branchCharges,
+          orderType
+        );
 
     // Create order breakdown first to get accurate payment tracking
     const orderBreakdown = await this.createOrderBreakdown(
       orders,
       gstConfig,
+      branchState,
       branchCharges,
       orderType
     );
@@ -474,6 +519,7 @@ export class BillCalculatorService {
     const session = await this.sessionModel
       .findOne({ sessionId })
       .populate('restaurantId')
+      .populate('branchId')
       .lean();
 
     if (!session) {
@@ -539,18 +585,24 @@ export class BillCalculatorService {
       isGstEnabled: (gstSchema as any).isGstEnabled !== false,
     };
 
-    // Get branch charges (if branchId is available in orders)
+    // Get branch charges from session's branchId
     let branchCharges: BranchCharge[] = [];
     let orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in';
+    let branchState: string | null = null;
 
-    const firstOrderBranchId = orders[0].branchId;
-    if (firstOrderBranchId) {
-      const branch = await this.branchModel.findById(firstOrderBranchId);
+    if (session.branchId) {
+      const branch = session.branchId as any; // populated branch
       if (branch && branch.settings?.charges) {
         branchCharges = branch.settings.charges as BranchCharge[];
       }
+      // Get branch state for VAT calculation
+      if (branch && branch.address?.state) {
+        branchState = branch.address.state;
+      }
+    }
 
-      // Determine order type from first order
+    // Determine order type from first order
+    if (orders.length > 0) {
       orderType = orders[0].orderType || 'dine_in';
     }
 
@@ -627,9 +679,10 @@ export class BillCalculatorService {
 
     // Use appropriate billing method based on item categories
     const billCalculation = hasMixedTaxCategories
-      ? this.restaurantBillingService.calculateMixedBill(
+      ? await this.restaurantBillingService.calculateMixedBill(
           allOrderItems,
           gstConfig,
+          branchState || gstConfig.businessState, // Use branch state if available, fallback to restaurant state
           orders[0]?.customerState,
           branchCharges,
           orderType
@@ -663,6 +716,7 @@ export class BillCalculatorService {
     const orderBreakdown = await this.createOrderBreakdown(
       orders,
       gstConfig,
+      branchState,
       branchCharges,
       orderType
     );
@@ -890,6 +944,7 @@ export class BillCalculatorService {
   private async createOrderBreakdown(
     orders: OrderDocument[],
     gstConfig: any,
+    branchState: string | null,
     branchCharges?: BranchCharge[],
     orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in'
   ): Promise<OrderBillBreakdown[]> {
@@ -938,9 +993,10 @@ export class BillCalculatorService {
 
     // Calculate combined bill for tax distribution - use appropriate method
     const combinedBillCalculation = hasMixedTaxCategories
-      ? this.restaurantBillingService.calculateMixedBill(
+      ? await this.restaurantBillingService.calculateMixedBill(
           allOrderItems,
           gstConfig,
+          branchState || gstConfig.businessState, // Use branch state for VAT calculation
           orders[0]?.customerState,
           branchCharges,
           orderType

@@ -143,6 +143,75 @@ export interface SuperAdminListResponse {
   superAdmins: SuperAdminUser[];
 }
 
+// VAT Configuration Types
+export interface AlcoholVatRate {
+  alcoholType: 'beer' | 'wine' | 'spirits' | 'general';
+  vatRate: number;
+  description?: string;
+}
+
+export interface StateVatConfiguration {
+  stateName: string;
+  stateCode: string;
+  alcoholVatRates: AlcoholVatRate[];
+  defaultVatRate: number;
+  isActive?: boolean;
+  notes?: string;
+}
+
+export interface VatConfiguration {
+  id: string;
+  configurationName: string;
+  stateConfigurations: StateVatConfiguration[];
+  globalDefaultVatRate: number;
+  isActive: boolean;
+  description?: string;
+  createdBy?: string;
+  lastModifiedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateVatConfigurationPayload {
+  configurationName: string;
+  stateConfigurations: StateVatConfiguration[];
+  globalDefaultVatRate?: number;
+  isActive?: boolean;
+  description?: string;
+}
+
+export interface UpdateVatConfigurationPayload {
+  configurationName?: string;
+  stateConfigurations?: StateVatConfiguration[];
+  globalDefaultVatRate?: number;
+  isActive?: boolean;
+  description?: string;
+}
+
+export interface BulkStateVatRatePayload {
+  stateNames: string[];
+  alcoholVatRates: AlcoholVatRate[];
+  defaultVatRate: number;
+}
+
+export interface StateVatRateResponse {
+  stateName: string;
+  alcoholType: string;
+  vatRate: number;
+  source: 'specific' | 'default' | 'global';
+}
+
+export interface VatConfigurationActivationResponse {
+  message: string;
+  configuration: VatConfiguration;
+}
+
+export interface BulkUpdateResponse {
+  message: string;
+  updatedStates: string[];
+  configuration: VatConfiguration;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
   data?: T;

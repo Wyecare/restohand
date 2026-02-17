@@ -27,6 +27,7 @@ import {
   Users,
   Settings,
   CreditCard,
+  Calculator,
 } from 'lucide-react';
 
 interface NavLink {
@@ -65,6 +66,11 @@ const superAdminLinks: NavLink[] = [
     titleKey: 'navigation.subscriptionPlans',
     href: '/subscription-plans',
     icon: CreditCard,
+  },
+  {
+    titleKey: 'navigation.vatConfiguration',
+    href: '/vat-configuration',
+    icon: Calculator,
   },
 ];
 

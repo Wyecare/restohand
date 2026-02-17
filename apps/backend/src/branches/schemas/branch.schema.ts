@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, SchemaTypes } from 'mongoose';
+import { IndianState, INDIAN_STATES } from '../../common/enums/indian-states.enum';
 
 export type BranchDocument = Branch & Document;
 
@@ -14,8 +15,8 @@ class BranchAddress {
   @Prop({ type: String, required: true, trim: true })
   city!: string;
 
-  @Prop({ type: String, required: true, trim: true })
-  state!: string;
+  @Prop({ type: String, required: true, trim: true, enum: INDIAN_STATES })
+  state!: IndianState;
 
   @Prop({ type: String, required: true, trim: true })
   postalCode!: string;

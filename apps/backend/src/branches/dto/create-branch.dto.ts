@@ -1,6 +1,48 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsArray, ValidateNested, IsEmail, IsPhoneNumber, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsArray, ValidateNested, IsEmail, IsPhoneNumber, Min, Max, IsEnum, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IndianState, INDIAN_STATES } from '../../common/enums/indian-states.enum';
+
+export class BranchChargeDto {
+  @ApiProperty({ description: 'Charge name' })
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional({ description: 'Charge description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ description: 'Charge type', enum: ['percentage', 'fixed'] })
+  @IsIn(['percentage', 'fixed'])
+  type!: 'percentage' | 'fixed';
+
+  @ApiProperty({ description: 'Charge value (percentage 0-100 or fixed amount in paise)', minimum: 0 })
+  @IsNumber()
+  @Min(0)
+  value!: number;
+
+  @ApiProperty({ description: 'Applicable for order types', enum: ['dine_in', 'takeout', 'delivery', 'all'], default: 'all' })
+  @IsOptional()
+  @IsIn(['dine_in', 'takeout', 'delivery', 'all'])
+  applicableFor?: 'dine_in' | 'takeout' | 'delivery' | 'all';
+
+  @ApiPropertyOptional({ description: 'Is charge active', default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Include in GST calculation', default: false })
+  @IsOptional()
+  @IsBoolean()
+  includedInGst?: boolean;
+
+  @ApiPropertyOptional({ description: 'Sort order', default: 0, minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sortOrder?: number;
+}
 
 export class BranchAddressDto {
   @ApiProperty({ description: 'Address line 1' })
@@ -16,9 +58,14 @@ export class BranchAddressDto {
   @IsString()
   city!: string;
 
-  @ApiProperty({ description: 'State' })
-  @IsString()
-  state!: string;
+  @ApiProperty({
+    description: 'State',
+    enum: IndianState,
+    enumName: 'IndianState',
+    example: IndianState.KARNATAKA
+  })
+  @IsEnum(IndianState, { message: 'State must be a valid Indian state' })
+  state!: IndianState;
 
   @ApiProperty({ description: 'Postal code' })
   @IsString()
@@ -90,6 +137,13 @@ export class BranchSettingsDto {
   @Min(0, { each: true })
   @Max(6, { each: true })
   operatingDays?: number[];
+
+  @ApiPropertyOptional({ description: 'Branch charges', type: [BranchChargeDto], default: [] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BranchChargeDto)
+  charges?: BranchChargeDto[];
 }
 
 export class CreateBranchDto {

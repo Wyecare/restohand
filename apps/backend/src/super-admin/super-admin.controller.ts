@@ -22,6 +22,12 @@ import { SuperAdminService } from './super-admin.service';
 import { CreateSuperAdminDto } from './dtos/create-super-admin.dto';
 import { CreateCashfreePlanDto } from './dtos/create-cashfree-plan.dto';
 import { UpdateCashfreePlanDto } from './dtos/update-cashfree-plan.dto';
+import {
+  CreateVatConfigurationDto,
+  UpdateVatConfigurationDto,
+  VatConfigurationResponseDto,
+  BulkStateVatRateDto
+} from './dtos/vat-configuration.dto';
 
 @ApiTags('super-admin')
 @Controller('admin')
@@ -237,5 +243,134 @@ export class SuperAdminController {
       planId,
       req.user.id
     );
+  }
+
+  // ============= VAT CONFIGURATION MANAGEMENT =============
+
+  @Get('vat-configurations')
+  @ApiOperation({ summary: 'Get all VAT configurations' })
+  @ApiResponse({
+    status: 200,
+    description: 'VAT configurations retrieved successfully',
+    type: [VatConfigurationResponseDto]
+  })
+  async getAllVatConfigurations(
+    @Query('active') activeOnly?: string
+  ) {
+    return this.superAdminService.getAllVatConfigurations(activeOnly === 'true');
+  }
+
+  @Get('vat-configurations/:id')
+  @ApiOperation({ summary: 'Get VAT configuration by ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'VAT configuration retrieved successfully',
+    type: VatConfigurationResponseDto
+  })
+  async getVatConfiguration(@Param('id') id: string) {
+    return this.superAdminService.getVatConfiguration(id);
+  }
+
+  @Post('vat-configurations')
+  @ApiOperation({ summary: 'Create new VAT configuration' })
+  @ApiResponse({
+    status: 201,
+    description: 'VAT configuration created successfully',
+    type: VatConfigurationResponseDto
+  })
+  async createVatConfiguration(
+    @Body() createDto: CreateVatConfigurationDto,
+    @Request() req: any
+  ) {
+    return this.superAdminService.createVatConfiguration(createDto, req.user.id);
+  }
+
+  @Put('vat-configurations/:id')
+  @ApiOperation({ summary: 'Update VAT configuration' })
+  @ApiResponse({
+    status: 200,
+    description: 'VAT configuration updated successfully',
+    type: VatConfigurationResponseDto
+  })
+  async updateVatConfiguration(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateVatConfigurationDto,
+    @Request() req: any
+  ) {
+    return this.superAdminService.updateVatConfiguration(id, updateDto, req.user.id);
+  }
+
+  @Delete('vat-configurations/:id')
+  @ApiOperation({ summary: 'Delete VAT configuration' })
+  @ApiResponse({
+    status: 200,
+    description: 'VAT configuration deleted successfully'
+  })
+  async deleteVatConfiguration(
+    @Param('id') id: string,
+    @Request() req: any
+  ) {
+    return this.superAdminService.deleteVatConfiguration(id, req.user.id);
+  }
+
+  @Post('vat-configurations/:id/activate')
+  @ApiOperation({ summary: 'Activate VAT configuration (deactivates others)' })
+  @ApiResponse({
+    status: 200,
+    description: 'VAT configuration activated successfully'
+  })
+  async activateVatConfiguration(
+    @Param('id') id: string,
+    @Request() req: any
+  ) {
+    return this.superAdminService.activateVatConfiguration(id, req.user.id);
+  }
+
+  @Post('vat-configurations/:id/bulk-update-states')
+  @ApiOperation({ summary: 'Bulk update VAT rates for multiple states' })
+  @ApiResponse({
+    status: 200,
+    description: 'State VAT rates updated successfully'
+  })
+  async bulkUpdateStateVatRates(
+    @Param('id') id: string,
+    @Body() bulkUpdateDto: BulkStateVatRateDto,
+    @Request() req: any
+  ) {
+    return this.superAdminService.bulkUpdateStateVatRates(id, bulkUpdateDto, req.user.id);
+  }
+
+  @Get('vat-configurations/:id/states/:stateName/rate')
+  @ApiOperation({ summary: 'Get VAT rate for specific state and alcohol type' })
+  @ApiResponse({
+    status: 200,
+    description: 'VAT rate retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        stateName: { type: 'string' },
+        alcoholType: { type: 'string' },
+        vatRate: { type: 'number' },
+        source: { type: 'string', enum: ['specific', 'default', 'global'] }
+      }
+    }
+  })
+  async getStateVatRate(
+    @Param('id') id: string,
+    @Param('stateName') stateName: string,
+    @Query('alcoholType') alcoholType?: string
+  ) {
+    return this.superAdminService.getStateVatRate(id, stateName, alcoholType);
+  }
+
+  @Get('active-vat-configuration')
+  @ApiOperation({ summary: 'Get currently active VAT configuration' })
+  @ApiResponse({
+    status: 200,
+    description: 'Active VAT configuration retrieved successfully',
+    type: VatConfigurationResponseDto
+  })
+  async getActiveVatConfiguration() {
+    return this.superAdminService.getActiveVatConfiguration();
   }
 }

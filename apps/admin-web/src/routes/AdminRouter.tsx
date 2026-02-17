@@ -15,6 +15,7 @@ import SettlementsPage from '@/pages/SettlementsPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import SuperAdminsPage from '@/pages/SuperAdminsPage';
 import SubscriptionPlansPage from '@/pages/SubscriptionPlansPage';
+import VatConfigurationPage from '@/pages/VatConfigurationPage';
 import SettingsPage from '@/pages/SettingsPage';
 import ProfilePage from '@/pages/ProfilePage';
 
@@ -55,6 +56,7 @@ const AdminRouter = () => {
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="super-admins" element={<SuperAdminsPage />} />
           <Route path="subscription-plans" element={<SubscriptionPlansPage />} />
+          <Route path="vat-configuration" element={<VatConfigurationPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

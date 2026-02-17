@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { VatConfiguration, VatConfigurationDocument } from '../../super-admin/schemas/vat-configuration.schema';
+import { IndianState } from '../enums/indian-states.enum';
 
 export interface CartItem {
   id: string;
@@ -12,7 +16,7 @@ export interface RestaurantGstConfig {
   establishmentType: 'standalone' | 'hotel_under_7500' | 'hotel_above_7500' | 'catering_standalone' | 'catering_premium';
   defaultGstRate: 5 | 18;
   canClaimITC: boolean;
-  businessState: string;
+  businessState: IndianState;
   gstin?: string;
   enableServiceCharge: boolean;
   serviceChargeRate?: number;
@@ -107,6 +111,11 @@ export interface MixedBillCalculation extends Omit<BillCalculation, 'gstRate' | 
 
 @Injectable()
 export class RestaurantBillingService {
+
+  constructor(
+    @InjectModel(VatConfiguration.name)
+    private vatConfigurationModel: Model<VatConfigurationDocument>
+  ) {}
 
   /**
    * Calculate complete bill breakdown for Indian restaurants
@@ -315,13 +324,14 @@ export class RestaurantBillingService {
   /**
    * Calculate mixed bill with category-based taxation (GST for food, VAT for alcohol, exempt for fresh items)
    */
-  calculateMixedBill(
+  async calculateMixedBill(
     items: CartItem[],
     gstConfig: RestaurantGstConfig,
+    branchState: IndianState,
     customerState?: string,
     branchCharges?: BranchCharge[],
     orderType: 'dine_in' | 'takeout' | 'delivery' = 'dine_in'
-  ): MixedBillCalculation {
+  ): Promise<MixedBillCalculation> {
 
     // Step 1: Calculate subtotal
     const subtotal = items.reduce((sum, item) => {
@@ -379,7 +389,7 @@ export class RestaurantBillingService {
       const categorySubtotal = categoryItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
       // Determine tax treatment for this category
-      const taxInfo = this.getCategoryTaxInfo(category, gstConfig);
+      const taxInfo = await this.getCategoryTaxInfo(category, gstConfig, branchState);
 
       let categoryTaxAmount = 0;
       let categoryTotal = categorySubtotal;
@@ -494,16 +504,18 @@ export class RestaurantBillingService {
   /**
    * Get tax information for a food category
    */
-  private getCategoryTaxInfo(
+  private async getCategoryTaxInfo(
     category: string,
-    gstConfig: RestaurantGstConfig
-  ): { taxType: 'gst' | 'vat' | 'exempt'; gstRate?: number; vatRate?: number } {
+    gstConfig: RestaurantGstConfig,
+    branchState: IndianState
+  ): Promise<{ taxType: 'gst' | 'vat' | 'exempt'; gstRate?: number; vatRate?: number }> {
 
     switch (category) {
       case 'alcohol':
+        const vatRate = await this.getStateVatRate(branchState);
         return {
           taxType: 'vat',
-          vatRate: this.getStateVatRate(gstConfig.businessState)
+          vatRate
         };
 
       case 'fresh_items':
@@ -523,27 +535,124 @@ export class RestaurantBillingService {
   }
 
   /**
-   * Get state VAT rate for alcoholic beverages
-   * This should be configurable per state, but for now using reasonable defaults
+   * Get state VAT rate for alcoholic beverages from dynamic VAT configuration
+   * Falls back to hardcoded rates if no active configuration is found
    */
-  private getStateVatRate(state: string): number {
-    // Default VAT rates for alcohol by state
-    const stateVatRates: Record<string, number> = {
-      'Karnataka': 20,
-      'Maharashtra': 25,
-      'Tamil Nadu': 20,
-      'Kerala': 25,
-      'Delhi': 20,
-      'Goa': 20,
-      'Gujarat': 25, // Dry state, but for completeness
-      'Rajasthan': 25,
-      'Punjab': 20,
-      'Haryana': 25,
-      'Uttar Pradesh': 20,
-      'West Bengal': 20,
-    };
+  private async getStateVatRate(state: IndianState, alcoholType: string = 'general'): Promise<number> {
+    try {
+      // Get the active VAT configuration
+      const activeConfig = await this.vatConfigurationModel.findOne({ isActive: true }).lean();
 
-    return stateVatRates[state] || 20; // Default 20% if state not found
+      if (activeConfig) {
+        // Find state configuration
+        const stateConfig = activeConfig.stateConfigurations.find(
+          config => config.stateName === state
+        );
+
+        if (stateConfig) {
+          // Try to find specific alcohol type rate
+          const alcoholRate = stateConfig.alcoholVatRates.find(
+            rate => rate.alcoholType === alcoholType
+          );
+
+          if (alcoholRate) {
+            return alcoholRate.vatRate;
+          }
+
+          // Fall back to state's default VAT rate
+          return stateConfig.defaultVatRate;
+        }
+
+        // Fall back to global default VAT rate
+        return activeConfig.globalDefaultVatRate;
+      }
+
+      // Fallback to hardcoded rates if no active configuration
+      const fallbackVatRates: Record<IndianState, number> = {
+        [IndianState.KARNATAKA]: 20,
+        [IndianState.MAHARASHTRA]: 25,
+        [IndianState.TAMIL_NADU]: 20,
+        [IndianState.KERALA]: 25,
+        [IndianState.DELHI]: 20,
+        [IndianState.GOA]: 20,
+        [IndianState.GUJARAT]: 25,
+        [IndianState.RAJASTHAN]: 25,
+        [IndianState.PUNJAB]: 20,
+        [IndianState.HARYANA]: 25,
+        [IndianState.UTTAR_PRADESH]: 20,
+        [IndianState.WEST_BENGAL]: 20,
+        [IndianState.ANDHRA_PRADESH]: 22,
+        [IndianState.TELANGANA]: 22,
+        [IndianState.MADHYA_PRADESH]: 20,
+        [IndianState.CHHATTISGARH]: 20,
+        [IndianState.ODISHA]: 18,
+        [IndianState.BIHAR]: 18,
+        [IndianState.ASSAM]: 18,
+        [IndianState.JHARKHAND]: 20,
+        [IndianState.HIMACHAL_PRADESH]: 18,
+        [IndianState.UTTARAKHAND]: 18,
+        [IndianState.JAMMU_AND_KASHMIR]: 20,
+        [IndianState.ARUNACHAL_PRADESH]: 18,
+        [IndianState.NAGALAND]: 18,
+        [IndianState.MANIPUR]: 18,
+        [IndianState.MIZORAM]: 18,
+        [IndianState.TRIPURA]: 18,
+        [IndianState.MEGHALAYA]: 18,
+        [IndianState.SIKKIM]: 18,
+        [IndianState.LADAKH]: 20,
+        [IndianState.LAKSHADWEEP]: 20,
+        [IndianState.PUDUCHERRY]: 20,
+        [IndianState.ANDAMAN_AND_NICOBAR_ISLANDS]: 20,
+        [IndianState.CHANDIGARH]: 20,
+        [IndianState.DADRA_AND_NAGAR_HAVELI_AND_DAMAN_AND_DIU]: 20
+      };
+
+      return fallbackVatRates[state] || 20;
+    } catch (error) {
+      console.error('Error fetching VAT rate from configuration:', error);
+
+      // Fallback to hardcoded rates on error
+      const fallbackVatRates: Record<IndianState, number> = {
+        [IndianState.KARNATAKA]: 20,
+        [IndianState.MAHARASHTRA]: 25,
+        [IndianState.TAMIL_NADU]: 20,
+        [IndianState.KERALA]: 25,
+        [IndianState.DELHI]: 20,
+        [IndianState.GOA]: 20,
+        [IndianState.GUJARAT]: 25,
+        [IndianState.RAJASTHAN]: 25,
+        [IndianState.PUNJAB]: 20,
+        [IndianState.HARYANA]: 25,
+        [IndianState.UTTAR_PRADESH]: 20,
+        [IndianState.WEST_BENGAL]: 20,
+        [IndianState.ANDHRA_PRADESH]: 22,
+        [IndianState.TELANGANA]: 22,
+        [IndianState.MADHYA_PRADESH]: 20,
+        [IndianState.CHHATTISGARH]: 20,
+        [IndianState.ODISHA]: 18,
+        [IndianState.BIHAR]: 18,
+        [IndianState.ASSAM]: 18,
+        [IndianState.JHARKHAND]: 20,
+        [IndianState.HIMACHAL_PRADESH]: 18,
+        [IndianState.UTTARAKHAND]: 18,
+        [IndianState.JAMMU_AND_KASHMIR]: 20,
+        [IndianState.ARUNACHAL_PRADESH]: 18,
+        [IndianState.NAGALAND]: 18,
+        [IndianState.MANIPUR]: 18,
+        [IndianState.MIZORAM]: 18,
+        [IndianState.TRIPURA]: 18,
+        [IndianState.MEGHALAYA]: 18,
+        [IndianState.SIKKIM]: 18,
+        [IndianState.LADAKH]: 20,
+        [IndianState.LAKSHADWEEP]: 20,
+        [IndianState.PUDUCHERRY]: 20,
+        [IndianState.ANDAMAN_AND_NICOBAR_ISLANDS]: 20,
+        [IndianState.CHANDIGARH]: 20,
+        [IndianState.DADRA_AND_NAGAR_HAVELI_AND_DAMAN_AND_DIU]: 20
+      };
+
+      return fallbackVatRates[state] || 20;
+    }
   }
 
   /**

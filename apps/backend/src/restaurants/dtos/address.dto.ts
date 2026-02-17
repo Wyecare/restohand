@@ -5,7 +5,9 @@ import {
   MaxLength,
   MinLength,
   IsIn,
+  IsEnum,
 } from 'class-validator';
+import { IndianState } from '../../common/enums/indian-states.enum';
 
 export class RestaurantAddressDto {
   @ApiProperty({ example: '123 MG Road', minLength: 3, maxLength: 120 })
@@ -26,11 +28,14 @@ export class RestaurantAddressDto {
   @MaxLength(60)
   city!: string;
 
-  @ApiProperty({ example: 'Kerala' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(60)
-  state!: string;
+  @ApiProperty({
+    description: 'State',
+    enum: IndianState,
+    enumName: 'IndianState',
+    example: IndianState.KERALA
+  })
+  @IsEnum(IndianState, { message: 'State must be a valid Indian state' })
+  state!: IndianState;
 
   @ApiProperty({ example: '682001' })
   @IsString()

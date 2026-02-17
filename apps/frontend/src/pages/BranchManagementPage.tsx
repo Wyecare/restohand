@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
@@ -50,6 +51,7 @@ import {
   type CreateBranchPayload,
   type UpdateBranchPayload,
 } from '@/store/api/branchesApi';
+import { IndianState, INDIAN_STATES } from '@/types/indian-states';
 
 const BranchManagementPage: React.FC = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -80,7 +82,7 @@ const BranchManagementPage: React.FC = () => {
       line1: '',
       line2: '',
       city: '',
-      state: '',
+      state: '' as IndianState,
       postalCode: '',
       country: 'IN',
     },
@@ -110,7 +112,7 @@ const BranchManagementPage: React.FC = () => {
         line1: '',
         line2: '',
         city: '',
-        state: '',
+        state: '' as IndianState,
         postalCode: '',
         country: 'IN',
       },
@@ -315,16 +317,26 @@ const BranchManagementPage: React.FC = () => {
                       }
                       placeholder="City *"
                     />
-                    <Input
+                    <Select
                       value={formData.address?.state || ''}
-                      onChange={(e) =>
+                      onValueChange={(value: IndianState) =>
                         setFormData({
                           ...formData,
-                          address: { ...formData.address!, state: e.target.value },
+                          address: { ...formData.address!, state: value },
                         })
                       }
-                      placeholder="State *"
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select State *" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INDIAN_STATES.map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Input
                     value={formData.address?.postalCode || ''}
@@ -543,7 +555,7 @@ const BranchManagementPage: React.FC = () => {
 
           {/* Same form fields as create dialog */}
           <div className="grid gap-4 py-4">
-            {/* Similar form structure as create, but with update button */}
+            {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">Branch Name *</Label>
@@ -559,6 +571,102 @@ const BranchManagementPage: React.FC = () => {
                   id="edit-slug"
                   value={formData.slug}
                   onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Branch description"
+              />
+            </div>
+
+            {/* Address */}
+            <div className="space-y-4">
+              <h4 className="font-medium">Address Information</h4>
+              <div className="grid grid-cols-1 gap-4">
+                <Input
+                  value={formData.address?.line1 || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      address: { ...formData.address!, line1: e.target.value },
+                    })
+                  }
+                  placeholder="Address Line 1 *"
+                />
+                <Input
+                  value={formData.address?.line2 || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      address: { ...formData.address!, line2: e.target.value },
+                    })
+                  }
+                  placeholder="Address Line 2"
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    value={formData.address?.city || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        address: { ...formData.address!, city: e.target.value },
+                      })
+                    }
+                    placeholder="City *"
+                  />
+                  <Select
+                    value={formData.address?.state || ''}
+                    onValueChange={(value: IndianState) =>
+                      setFormData({
+                        ...formData,
+                        address: { ...formData.address!, state: value },
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select State *" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDIAN_STATES.map((state) => (
+                        <SelectItem key={state} value={state}>
+                          {state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  value={formData.address?.postalCode || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      address: { ...formData.address!, postalCode: e.target.value },
+                    })
+                  }
+                  placeholder="Postal Code *"
+                />
+              </div>
+            </div>
+
+            {/* Contact Info */}
+            <div className="space-y-4">
+              <h4 className="font-medium">Contact Information</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  value={formData.contactPhone}
+                  onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                  placeholder="Phone Number"
+                />
+                <Input
+                  value={formData.contactEmail}
+                  onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                  placeholder="Email Address"
                 />
               </div>
             </div>

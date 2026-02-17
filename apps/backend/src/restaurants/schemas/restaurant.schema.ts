@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { IndianState, INDIAN_STATES } from '../../common/enums/indian-states.enum';
 
 export type RestaurantDocument = Restaurant & Document;
 
@@ -14,8 +15,8 @@ class RestaurantAddress {
   @Prop({ type: String, required: true, trim: true })
   city!: string;
 
-  @Prop({ type: String, required: true, trim: true })
-  state!: string;
+  @Prop({ type: String, required: true, trim: true, enum: INDIAN_STATES })
+  state!: IndianState;
 
   @Prop({ type: String, required: true, trim: true })
   postalCode!: string;
@@ -257,8 +258,8 @@ class GstConfiguration {
   @Prop({ type: Boolean, required: true })
   canClaimITC!: boolean;
 
-  @Prop({ type: String, required: true, trim: true })
-  businessState!: string;
+  @Prop({ type: String, required: true, trim: true, enum: INDIAN_STATES })
+  businessState!: IndianState;
 
   @Prop({
     type: String,
