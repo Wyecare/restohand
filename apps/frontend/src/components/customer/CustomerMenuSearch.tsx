@@ -5,6 +5,25 @@ import { useSearchPublicMenuBySlugQuery, type MenuSearchResultItem } from '@/sto
 import { skipToken } from '@reduxjs/toolkit/query/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Add styles for highlighted search results
+const searchHighlightStyles = `
+  .customer-menu-search mark {
+    background-color: #fef3c7;
+    color: #92400e;
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: 600;
+  }
+`;
+
+// Inject styles if not already present
+if (typeof document !== 'undefined' && !document.getElementById('customer-menu-search-styles')) {
+  const style = document.createElement('style');
+  style.id = 'customer-menu-search-styles';
+  style.textContent = searchHighlightStyles;
+  document.head.appendChild(style);
+}
+
 interface CustomerMenuSearchProps {
   slug: string;
   tableId?: string;
@@ -159,7 +178,7 @@ export function CustomerMenuSearch({
   const showResults = isOpen && (searchResults?.results.length || isLoading || error);
 
   return (
-    <div ref={searchRef} className="rh-search-bar-wrap" style={{ position: 'relative', marginBottom: 0 }}>
+    <div ref={searchRef} className="rh-search-bar-wrap customer-menu-search" style={{ position: 'relative', marginBottom: 0 }}>
       <Search size={16} className="rh-search-icon" />
       <input
         ref={inputRef}
@@ -290,7 +309,11 @@ export function CustomerMenuSearch({
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap'
                             }}>
-                              {result.name}
+                              {result.highlightedName ? (
+                                <span dangerouslySetInnerHTML={{ __html: result.highlightedName }} />
+                              ) : (
+                                result.name
+                              )}
                             </span>
                             <span style={{
                               fontSize: '11px',
@@ -314,7 +337,11 @@ export function CustomerMenuSearch({
                               whiteSpace: 'nowrap',
                               marginBottom: '4px'
                             }}>
-                              {result.description}
+                              {result.highlightedDescription ? (
+                                <span dangerouslySetInnerHTML={{ __html: result.highlightedDescription }} />
+                              ) : (
+                                result.description
+                              )}
                             </p>
                           )}
 

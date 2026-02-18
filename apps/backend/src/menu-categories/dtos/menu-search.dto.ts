@@ -78,6 +78,27 @@ export class MenuSearchResultItem {
 
   @ApiProperty()
   relevanceScore: number;
+
+  @ApiProperty({
+    required: false,
+    description: 'Highlighted name with search terms emphasized',
+    example: '<mark>Pizza</mark> Margherita'
+  })
+  highlightedName?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Highlighted description with search terms emphasized',
+    example: 'A classic <mark>pizza</mark> with fresh tomatoes'
+  })
+  highlightedDescription?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Array of matching tags with highlights',
+    example: ['<mark>vegetarian</mark>', 'italian']
+  })
+  highlightedTags?: string[];
 }
 
 export class MenuSearchResponseDto {

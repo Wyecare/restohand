@@ -48,8 +48,7 @@ import { Input } from '@/components/ui/input';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
 import { formatCurrency } from '@/lib/billing';
 import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
-// TODO: Re-enable when search functionality is fixed
-// import { CustomerMenuSearch } from '@/components/customer/CustomerMenuSearch';
+import { CustomerMenuSearch } from '@/components/customer/CustomerMenuSearch';
 import {
   clearExpiredSessionData,
   hasCustomerSessionData,
@@ -1170,9 +1169,8 @@ export default function CustomerMenuPageNew() {
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  // TODO: Re-enable search state when search functionality is fixed
-  // const [showSearch, setShowSearch] = useState(false);
-  // const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const [unavailableItemsDialog, setUnavailableItemsDialog] = useState<{
     open: boolean;
     unavailableItems: string[];
@@ -1560,31 +1558,30 @@ export default function CustomerMenuPageNew() {
     }
   };
 
-  // TODO: Re-enable search handlers when search functionality is fixed
-  // const handleSearchCategorySelect = (categoryId: string) => {
-  //   setActiveCategory(categoryId);
-  //   setShowSearch(false);
-  //   setHighlightedItemId(null);
-  // };
+  const handleSearchCategorySelect = (categoryId: string) => {
+    setActiveCategory(categoryId);
+    setShowSearch(false);
+    setHighlightedItemId(null);
+  };
 
-  // const handleSearchItemHighlight = (itemId: string, categoryId: string) => {
-  //   setActiveCategory(categoryId);
-  //   setHighlightedItemId(itemId);
-  //   setShowSearch(false);
+  const handleSearchItemHighlight = (itemId: string, categoryId: string) => {
+    setActiveCategory(categoryId);
+    setHighlightedItemId(itemId);
+    setShowSearch(false);
 
-  //   // Auto-scroll to the item after a brief delay
-  //   setTimeout(() => {
-  //     const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
-  //     if (itemElement) {
-  //       itemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  //     }
-  //   }, 100);
+    // Auto-scroll to the item after a brief delay
+    setTimeout(() => {
+      const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
+      if (itemElement) {
+        itemElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
 
-  //   // Auto-clear the highlight after 3 seconds
-  //   setTimeout(() => {
-  //     setHighlightedItemId(null);
-  //   }, 3000);
-  // };
+    // Auto-clear the highlight after 3 seconds
+    setTimeout(() => {
+      setHighlightedItemId(null);
+    }, 3000);
+  };
 
   if (isLoading) {
     return (
@@ -1636,18 +1633,12 @@ export default function CustomerMenuPageNew() {
           <div className="rh-menu-top-compact">
             <h1 className="rh-restaurant-name">{restaurant?.name || 'Menu'}</h1>
             <div className="rh-header-actions">
-              {/* TODO: Re-enable search functionality after fixing API issues and testing
-                  - Search component is implemented but has some bugs
-                  - Backend API endpoint is ready: /api/public/restaurants/:slug/menu/search
-                  - Frontend component: CustomerMenuSearch.tsx
-                  - Features: Real-time search, category navigation, item highlighting
-              */}
-              {/* <button
+              <button
                 className={`rh-icon-btn ${showSearch ? 'active' : ''}`}
                 onClick={() => setShowSearch(!showSearch)}
               >
                 {showSearch ? <X size={16} /> : <Search size={16} />}
-              </button> */}
+              </button>
             </div>
           </div>
 
@@ -1706,8 +1697,8 @@ export default function CustomerMenuPageNew() {
             )}
           </AnimatePresence>
 
-          {/* TODO: Advanced Search Bar - Currently disabled due to bugs */}
-          {/* <AnimatePresence>
+          {/* Enhanced Search Bar with highlighting */}
+          <AnimatePresence>
             {showSearch && slug && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
@@ -1725,7 +1716,7 @@ export default function CustomerMenuPageNew() {
                 />
               </motion.div>
             )}
-          </AnimatePresence> */}
+          </AnimatePresence>
 
           {/* Categories */}
           <div className="rh-categories-wrap">
@@ -1792,8 +1783,7 @@ export default function CustomerMenuPageNew() {
           <div className="rh-menu-grid">
             {displayItems.map((item, index) => {
               const quantity = getItemQuantity(item.id);
-              // TODO: Re-enable highlighting when search is fixed
-              // const isHighlighted = highlightedItemId === item.id;
+              const isHighlighted = highlightedItemId === item.id;
               return (
                 <motion.div
                   key={item.id}
@@ -1802,15 +1792,14 @@ export default function CustomerMenuPageNew() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.015 }}
                   className="rh-item-card"
-                  // TODO: Re-enable highlighting styles when search is fixed
-                  // style={{
-                  //   ...(isHighlighted && {
-                  //     border: '2px solid #fbbf24',
-                  //     background: '#fffbeb',
-                  //     boxShadow: '0 8px 25px rgba(251, 191, 36, 0.15)',
-                  //     transform: 'scale(1.02)'
-                  //   })
-                  // }}
+                  style={{
+                    ...(isHighlighted && {
+                      border: '2px solid #fbbf24',
+                      background: '#fffbeb',
+                      boxShadow: '0 8px 25px rgba(251, 191, 36, 0.15)',
+                      transform: 'scale(1.02)'
+                    })
+                  }}
                 >
                   {/* Image with Carousel */}
                   <div style={{ position: 'relative' }}>

@@ -142,6 +142,9 @@ export interface MenuSearchResultItem {
   isActive: boolean;
   tags?: string[];
   relevanceScore: number;
+  highlightedName?: string;
+  highlightedDescription?: string;
+  highlightedTags?: string[];
 }
 
 export interface MenuSearchResponse {

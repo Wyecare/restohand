@@ -1603,10 +1603,13 @@ export class PublicService {
     const { skip, limit, page } = this.parsePaginationOptions(query);
 
     const searchRegex = new RegExp(query.query, 'i');
+    // Match the working admin search implementation
     const baseFilter: any = { restaurantId, branchId: searchBranchId };
 
-    // Only show active and available items for public
-    baseFilter.isActive = true;
+    // Match admin behavior - don't force isActive=true, let it be optional
+    if (query.isActive !== undefined) {
+      baseFilter.isActive = query.isActive === 'true';
+    }
 
     // Search categories
     const categoriesFilter = {
@@ -1617,16 +1620,30 @@ export class PublicService {
       ]
     };
 
-    // Search menu items
+    // Search menu items - match admin implementation exactly
     const itemsFilter = {
       ...baseFilter,
-      isAvailable: true, // Only available items for customers
       $or: [
         { name: searchRegex },
         { description: searchRegex },
         { tags: searchRegex }
       ]
     };
+
+    if (query.isActive === undefined) {
+      // For items, also check isAvailable when isActive is not specified (matches admin behavior)
+      itemsFilter.isAvailable = true;
+    }
+
+    // Debug logging
+    console.log('Search debug info:', {
+      query: query.query,
+      restaurantId,
+      searchBranchId,
+      searchRegex: searchRegex.toString(),
+      itemsFilter,
+      categoriesFilter
+    });
 
     // Execute searches in parallel
     const [
@@ -1648,9 +1665,31 @@ export class PublicService {
       this.itemModel.countDocuments(itemsFilter)
     ]);
 
-    // Convert to search result items and calculate relevance scores
+    // Check total items in this restaurant/branch for debugging
+    const totalItemsInBranch = await this.itemModel.countDocuments({
+      restaurantId,
+      branchId: searchBranchId
+    });
+
+    console.log('Search results:', {
+      categoriesFound: matchingCategories.length,
+      itemsFound: matchingItems.length,
+      categoriesTotal,
+      itemsTotal,
+      totalItemsInBranch,
+      sampleItems: matchingItems.slice(0, 3).map(item => ({
+        id: item._id,
+        name: item.name,
+        branchId: item.branchId,
+        isActive: item.isActive,
+        isAvailable: item.isAvailable
+      }))
+    });
+
+    // Convert to search result items and calculate relevance scores with highlighting
     const categoryResults: MenuSearchResultItem[] = matchingCategories.map(category => {
       const relevanceScore = this.calculateRelevanceScore(query.query, category.name, category.description);
+      const highlights = this.generateHighlights(query.query, category.name, category.description);
       return {
         id: category._id.toString(),
         name: category.name,
@@ -1658,12 +1697,15 @@ export class PublicService {
         type: 'category' as const,
         imageUrl: category.imageUrl,
         isActive: category.isActive,
-        relevanceScore
+        relevanceScore,
+        highlightedName: highlights.name,
+        highlightedDescription: highlights.description
       };
     });
 
     const itemResults: MenuSearchResultItem[] = matchingItems.map(item => {
       const relevanceScore = this.calculateRelevanceScore(query.query, item.name, item.description, item.tags);
+      const highlights = this.generateHighlights(query.query, item.name, item.description, item.tags);
       return {
         id: item._id.toString(),
         name: item.name,
@@ -1676,7 +1718,10 @@ export class PublicService {
         isAvailable: item.isAvailable,
         isActive: item.isActive,
         tags: item.tags,
-        relevanceScore
+        relevanceScore,
+        highlightedName: highlights.name,
+        highlightedDescription: highlights.description,
+        highlightedTags: highlights.tags
       };
     });
 
@@ -1749,6 +1794,55 @@ export class PublicService {
     }
 
     return score;
+  }
+
+  private generateHighlights(
+    searchQuery: string,
+    name: string,
+    description?: string,
+    tags?: string[]
+  ): {
+    name?: string;
+    description?: string;
+    tags?: string[];
+  } {
+    const highlights: any = {};
+
+    if (!searchQuery) {
+      return highlights;
+    }
+
+    const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedQuery = escapeRegex(searchQuery);
+    const highlightRegex = new RegExp(`(${escapedQuery})`, 'gi');
+
+    // Highlight name
+    if (name && highlightRegex.test(name)) {
+      highlights.name = name.replace(highlightRegex, '<mark>$1</mark>');
+    }
+
+    // Highlight description
+    if (description && highlightRegex.test(description)) {
+      highlights.description = description.replace(highlightRegex, '<mark>$1</mark>');
+    }
+
+    // Highlight tags
+    if (tags && tags.length > 0) {
+      const highlightedTags = tags.map(tag => {
+        if (highlightRegex.test(tag)) {
+          return tag.replace(highlightRegex, '<mark>$1</mark>');
+        }
+        return tag;
+      }).filter(tag => tag.includes('<mark>') || tags.some(originalTag =>
+        originalTag.toLowerCase().includes(searchQuery.toLowerCase())
+      ));
+
+      if (highlightedTags.length > 0) {
+        highlights.tags = highlightedTags;
+      }
+    }
+
+    return highlights;
   }
 
 }
