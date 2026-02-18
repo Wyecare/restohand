@@ -1,11 +1,13 @@
 import jsPDF from 'jspdf';
 import type { DetailedBillCalculation } from '@/store/api/billingApi';
 
-// Thermal receipt styling constants - Increased width for better readability
-const THERMAL_WIDTH = 80; // 80mm thermal paper width (increased from 72mm)
-const MARGIN = 6; // 4mm margins (increased from 3mm)
-const CONTENT_WIDTH = THERMAL_WIDTH - MARGIN * 2;
-const LINE_HEIGHT = 4.5; // 4.5mm line height (slightly increased)
+// Modern receipt styling constants
+const RECEIPT_WIDTH = 80; // 80mm width
+const MARGIN = 8; // Clean margins
+const CONTENT_WIDTH = RECEIPT_WIDTH - MARGIN * 2;
+const LINE_HEIGHT = 5; // Better line spacing
+const SMALL_GAP = 2; // Small vertical gap
+const MEDIUM_GAP = 4; // Medium vertical gap
 
 export interface ThermalReceiptData {
   billData: DetailedBillCalculation;
@@ -25,415 +27,314 @@ export function generateThermalReceiptPDF(
       changeGiven,
     } = data;
 
-    // Create PDF with thermal paper dimensions
     const doc = new jsPDF({
       unit: 'mm',
-      format: [THERMAL_WIDTH, 200], // Start with estimated height, will adjust
+      format: [RECEIPT_WIDTH, 200], // Will adjust height later
     });
 
-    let y = MARGIN; // Current Y position
+    let y = MARGIN;
 
-    // Helper functions
-    const addLine = (
-      text: string,
-      fontSize = 7,
-      align: 'left' | 'center' | 'right' = 'left'
+    // Helper: Add centered text
+    const addCentered = (text: string, fontSize = 8, bold = false) => {
+      doc.setFontSize(fontSize);
+      if (bold) doc.setFont('helvetica', 'bold');
+      else doc.setFont('helvetica', 'normal');
+
+      // Use align option for centering
+      doc.text(text, RECEIPT_WIDTH / 2, y, { align: 'center' });
+      y += LINE_HEIGHT;
+    };
+
+    // Helper: Add left-aligned text
+    const addLeft = (text: string, fontSize = 8, bold = false) => {
+      doc.setFontSize(fontSize);
+      if (bold) doc.setFont('helvetica', 'bold');
+      else doc.setFont('helvetica', 'normal');
+
+      doc.text(text, MARGIN, y);
+      y += LINE_HEIGHT;
+    };
+
+    // Helper: Add two-column row (label left, value right)
+    const addRow = (
+      label: string,
+      value: string,
+      fontSize = 8,
+      boldValue = false
     ) => {
       doc.setFontSize(fontSize);
+      doc.setFont('helvetica', 'normal');
+      doc.text(label, MARGIN, y);
 
-      if (align === 'center') {
-        const textWidth = doc.getTextWidth(text);
-        const x = (THERMAL_WIDTH - textWidth) / 2;
-        doc.text(text, x, y);
-      } else if (align === 'right') {
-        const textWidth = doc.getTextWidth(text);
-        const x = THERMAL_WIDTH - MARGIN - textWidth;
-        doc.text(text, x, y);
-      } else {
-        doc.text(text, MARGIN, y);
+      if (boldValue) doc.setFont('helvetica', 'bold');
+      else doc.setFont('helvetica', 'normal');
+
+      // Right-align the value - use align option instead of manual calculation
+      doc.text(value, RECEIPT_WIDTH - MARGIN, y, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+
+      y += LINE_HEIGHT;
+    };
+
+    // Helper: Add separator line
+    const addSeparator = (style: 'solid' | 'dashed' = 'solid') => {
+      const lineY = y - LINE_HEIGHT / 2 + 1;
+
+      if (style === 'dashed') {
+        doc.setLineDash([1, 1]);
       }
 
-      y += LINE_HEIGHT;
+      doc.setLineWidth(0.2);
+      doc.line(MARGIN, lineY, RECEIPT_WIDTH - MARGIN, lineY);
+      doc.setLineDash([]);
+
+      y += SMALL_GAP;
     };
 
-    const addSeparator = () => {
-      const separatorY = y - LINE_HEIGHT / 2;
-      doc.line(MARGIN, separatorY, THERMAL_WIDTH - MARGIN, separatorY);
-      y += 1;
+    // Helper: Add gap
+    const addGap = (size: 'small' | 'medium' = 'small') => {
+      y += size === 'small' ? SMALL_GAP : MEDIUM_GAP;
     };
 
-    const addItemLine = (
-      name: string,
-      qty: number,
-      priceWithTax: number,
-      totalWithTax: number
-    ) => {
-      doc.setFontSize(7);
-
-      // Item name
-      doc.text(name, MARGIN, y);
-      y += LINE_HEIGHT;
-
-      // Quantity x Price (with tax) = Total line
-      const qtyText = `${qty} x ₹${priceWithTax.toFixed(2)}`;
-      const totalText = `₹${totalWithTax.toFixed(2)}`;
-
-      doc.text(qtyText, MARGIN + 2, y);
-      const totalWidth = doc.getTextWidth(totalText);
-      doc.text(totalText, THERMAL_WIDTH - MARGIN - totalWidth, y);
-      y += LINE_HEIGHT;
-    };
-
+    // Helper: Format currency
     const formatCurrency = (amount: number) => `₹${amount.toFixed(2)}`;
+
+    // Helper: Format date/time
     const formatDateTime = (dateString: string) => {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-IN', {
+      return date.toLocaleString('en-IN', {
         day: '2-digit',
-        month: '2-digit',
-        year: '2-digit',
+        month: 'short',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
       });
     };
 
-    // Start building the receipt
+    // ========== HEADER ==========
+    addCentered(billData.restaurant.name.toUpperCase(), 11, true);
 
-    // Restaurant Header
-    addLine(billData.restaurant.name.toUpperCase(), 10, 'center');
     if (billData.restaurant.address) {
-      const address = billData.restaurant.address;
-      addLine(`${address.line1}`, 7, 'center');
-      addLine(
-        `${address.city}, ${address.state} ${address.postalCode}`,
-        7,
-        'center'
-      );
+      const addr = billData.restaurant.address;
+      addCentered(`${addr.line1}`, 7);
+      addCentered(`${addr.city}, ${addr.state} ${addr.postalCode}`, 7);
     }
 
     if (billData.restaurant.phone) {
-      addLine(`Ph: ${billData.restaurant.phone}`, 7, 'center');
+      addCentered(`Ph: ${billData.restaurant.phone}`, 7);
     }
 
     if (billData.restaurant.gstin) {
-      addLine(`GSTIN: ${billData.restaurant.gstin}`, 6, 'center');
+      addCentered(`GSTIN: ${billData.restaurant.gstin}`, 7);
     }
 
-    addSeparator();
+    addGap('medium');
+    addSeparator('solid');
+    addGap('small');
 
-    // Session Details
-    addLine(`Table: ${billData.session.tableNumber}`, 8, 'center');
+    // ========== SESSION INFO ==========
+    addRow('Table:', billData.session.tableNumber, 8, true);
     if (billData.session.customerName) {
-      addLine(`Customer: ${billData.session.customerName}`, 7, 'center');
+      addRow('Customer:', billData.session.customerName, 8);
     }
-    addLine(`Date: ${formatDateTime(billData.calculatedAt)}`, 7, 'center');
-    addLine(
-      `Session: ${billData.session.sessionId.slice(-8).toUpperCase()}`,
-      6,
-      'center'
+    addRow('Date:', formatDateTime(billData.calculatedAt), 7);
+    addRow(
+      'Session:',
+      `#${billData.session.sessionId.slice(-8).toUpperCase()}`,
+      7
     );
 
-    addSeparator();
+    addGap('small');
+    addSeparator('solid');
+    addGap('small');
 
-    // Items Header
-    addLine('ITEMS', 8, 'center');
-    addSeparator();
+    // ========== ITEMS ==========
+    addCentered('ORDER ITEMS', 9, true);
+    addSeparator('dashed');
 
-    // Individual Items
-    billData.allItems.forEach((item) => {
-      // Calculate price per unit with tax included (what customer actually pays)
-      const pricePerUnitWithTax = item.totalWithTax / item.quantity;
+    billData.allItems.forEach((item, index) => {
+      const pricePerUnit = item.totalWithTax / item.quantity;
 
-      addItemLine(
-        item.name,
-        item.quantity,
-        pricePerUnitWithTax,
-        item.totalWithTax
-      );
+      // Item name
+      addLeft(item.name, 8, true);
 
-      // Show tax breakdown for each item if there's tax
+      // Quantity × Price = Total
+      const qtyLine = `${item.quantity} × ${formatCurrency(pricePerUnit)}`;
+      const totalValue = formatCurrency(item.totalWithTax);
+      addRow(qtyLine, totalValue, 7);
+
+      // Tax info (if applicable)
       if (item.totalTaxAmount > 0) {
-        doc.setFontSize(6);
-
-        // For mixed tax bills, we need to determine if this item uses GST or VAT
-        // Check if this is part of category calculations to determine tax type
         const hasGst =
           item.cgstAmount > 0 || item.sgstAmount > 0 || item.igstAmount > 0;
         const taxType = hasGst ? 'GST' : 'VAT';
-        const taxRate = hasGst ? item.gstRate : 25; // Assume 25% for VAT if not GST
+        const taxRate = hasGst ? item.gstRate : 25;
 
-        const taxText = `  ${taxType} (${taxRate}%) included: ₹${item.totalTaxAmount.toFixed(
-          2
-        )}`;
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        const taxText = `  (incl. ${taxType} ${taxRate}%: ${formatCurrency(
+          item.totalTaxAmount
+        )})`;
         doc.text(taxText, MARGIN + 2, y);
-        y += 3; // Smaller line height for tax details
-
-        // Show detailed breakdown only for GST items
-        if (
-          hasGst &&
-          (item.cgstAmount > 0 || item.sgstAmount > 0 || item.igstAmount > 0)
-        ) {
-          let detailText = '  ';
-          if (item.cgstAmount > 0)
-            detailText += `CGST: ₹${item.cgstAmount.toFixed(2)} `;
-          if (item.sgstAmount > 0)
-            detailText += `SGST: ₹${item.sgstAmount.toFixed(2)} `;
-          if (item.igstAmount > 0)
-            detailText += `IGST: ₹${item.igstAmount.toFixed(2)} `;
-
-          if (detailText.trim() !== '') {
-            doc.text(detailText.trim(), MARGIN + 2, y);
-            y += 3;
-          }
-        }
+        y += 3.5;
       }
 
-      y += 1; // Small gap between items
+      // Add spacing between items (except last)
+      if (index < billData.allItems.length - 1) {
+        addGap('small');
+      }
     });
 
-    addSeparator();
+    addGap('small');
+    addSeparator('solid');
+    addGap('small');
 
-    // Bill Totals
-    addLine('BILL SUMMARY', 8, 'center');
-    addSeparator();
+    // ========== SUMMARY ==========
+    addCentered('BILL SUMMARY', 9, true);
+    addSeparator('dashed');
 
     // Subtotal
-    doc.setFontSize(7);
-    doc.text('Subtotal:', MARGIN, y);
-    const subtotalText = formatCurrency(billData.subTotalAmount);
-    const subtotalWidth = doc.getTextWidth(subtotalText);
-    doc.text(subtotalText, THERMAL_WIDTH - MARGIN - subtotalWidth, y);
-    y += LINE_HEIGHT;
+    addRow('Subtotal', formatCurrency(billData.subTotalAmount), 8);
 
-    // Branch Charges - Dynamic Display
+    // Branch charges
     if (billData.branchCharges && billData.branchCharges.length > 0) {
       billData.branchCharges.forEach((charge) => {
-        let chargeName = charge.name;
+        let label = charge.name;
         if (charge.type === 'percentage') {
-          chargeName += ` (${charge.value}%)`;
+          label += ` (${charge.value}%)`;
         }
-
-        doc.text(chargeName + ':', MARGIN, y);
-        const chargeText = formatCurrency(charge.amount);
-        const chargeWidth = doc.getTextWidth(chargeText);
-        doc.text(chargeText, THERMAL_WIDTH - MARGIN - chargeWidth, y);
-        y += LINE_HEIGHT;
+        addRow(label, formatCurrency(charge.amount), 8);
       });
     }
 
-    // Dynamic Tax breakdown - handle both mixed and simple tax scenarios
-    if (billData.taxAmount > 0) {
-      // Check if we have mixed tax calculations (category-based)
-      if (
-        billData.categoryCalculations &&
-        billData.categoryCalculations.length > 0
-      ) {
-        // Show category-wise tax breakdown
-        billData.categoryCalculations.forEach((categoryCalc) => {
-          if (categoryCalc.totalTaxAmount === 0) return;
+    // Tax breakdown
+    if (
+      billData.categoryCalculations &&
+      billData.categoryCalculations.length > 0
+    ) {
+      // Category-wise taxes
+      billData.categoryCalculations.forEach((cat) => {
+        if (cat.totalTaxAmount === 0) return;
 
-          const categoryName = categoryCalc.category
-            .replace('_', ' ')
-            .replace(/\b\w/g, (l) => l.toUpperCase());
+        const catName = cat.category
+          .replace('_', ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+        const taxType = cat.taxType === 'vat' ? 'VAT' : 'GST';
+        const rate = cat.taxType === 'gst' ? cat.gstRate : cat.vatRate;
 
-          const taxTypeLabel = categoryCalc.taxType === 'vat' ? 'VAT' : 'GST';
-          const taxRate =
-            categoryCalc.taxType === 'gst'
-              ? categoryCalc.gstRate
-              : categoryCalc.vatRate;
+        const label = `${catName} ${taxType}${rate ? ` (${rate}%)` : ''}`;
+        addRow(label, formatCurrency(cat.totalTaxAmount), 7);
+      });
 
-          const displayText = `${categoryName} ${taxTypeLabel}${
-            taxRate ? ` (${taxRate}%)` : ''
-          }:`;
-          doc.text(displayText, MARGIN, y);
-          const amountText = formatCurrency(categoryCalc.totalTaxAmount);
-          const amountWidth = doc.getTextWidth(amountText);
-          doc.text(amountText, THERMAL_WIDTH - MARGIN - amountWidth, y);
-          y += LINE_HEIGHT;
-        });
+      // GST breakdown
+      if ((billData.totalGstAmount || 0) > 0) {
+        addGap('small');
+        addLeft('  GST Breakdown:', 7, true);
 
-        // Show GST breakdown if GST items exist
-        if (
-          (billData.totalGstAmount || 0) > 0 &&
-          (billData.cgstAmount > 0 ||
-            billData.sgstAmount > 0 ||
-            billData.igstAmount > 0)
-        ) {
-          y += 1; // Small gap
-          doc.text('GST Breakdown:', MARGIN, y);
-          y += LINE_HEIGHT;
-
-          if (billData.cgstAmount > 0) {
-            doc.text('  CGST:', MARGIN, y);
-            const cgstText = formatCurrency(billData.cgstAmount);
-            const cgstWidth = doc.getTextWidth(cgstText);
-            doc.text(cgstText, THERMAL_WIDTH - MARGIN - cgstWidth, y);
-            y += LINE_HEIGHT;
-          }
-
-          if (billData.sgstAmount > 0) {
-            doc.text('  SGST:', MARGIN, y);
-            const sgstText = formatCurrency(billData.sgstAmount);
-            const sgstWidth = doc.getTextWidth(sgstText);
-            doc.text(sgstText, THERMAL_WIDTH - MARGIN - sgstWidth, y);
-            y += LINE_HEIGHT;
-          }
-
-          if (billData.igstAmount > 0) {
-            doc.text('  IGST:', MARGIN, y);
-            const igstText = formatCurrency(billData.igstAmount);
-            const igstWidth = doc.getTextWidth(igstText);
-            doc.text(igstText, THERMAL_WIDTH - MARGIN - igstWidth, y);
-            y += LINE_HEIGHT;
-          }
-        }
-
-        // Show VAT breakdown if VAT items exist
-        if ((billData.totalVatAmount || 0) > 0) {
-          y += 1; // Small gap
-          doc.text('State VAT (Alcohol):', MARGIN, y);
-          const vatText = formatCurrency(billData.totalVatAmount || 0);
-          const vatWidth = doc.getTextWidth(vatText);
-          doc.text(vatText, THERMAL_WIDTH - MARGIN - vatWidth, y);
-          y += LINE_HEIGHT;
-        }
-      } else {
-        // Original simple GST breakdown for backward compatibility
         if (billData.cgstAmount > 0) {
-          doc.text('CGST:', MARGIN, y);
-          const cgstText = formatCurrency(billData.cgstAmount);
-          const cgstWidth = doc.getTextWidth(cgstText);
-          doc.text(cgstText, THERMAL_WIDTH - MARGIN - cgstWidth, y);
-          y += LINE_HEIGHT;
+          addRow('    CGST', formatCurrency(billData.cgstAmount), 6);
         }
-
         if (billData.sgstAmount > 0) {
-          doc.text('SGST:', MARGIN, y);
-          const sgstText = formatCurrency(billData.sgstAmount);
-          const sgstWidth = doc.getTextWidth(sgstText);
-          doc.text(sgstText, THERMAL_WIDTH - MARGIN - sgstWidth, y);
-          y += LINE_HEIGHT;
+          addRow('    SGST', formatCurrency(billData.sgstAmount), 6);
         }
-
         if (billData.igstAmount > 0) {
-          doc.text('IGST:', MARGIN, y);
-          const igstText = formatCurrency(billData.igstAmount);
-          const igstWidth = doc.getTextWidth(igstText);
-          doc.text(igstText, THERMAL_WIDTH - MARGIN - igstWidth, y);
-          y += LINE_HEIGHT;
+          addRow('    IGST', formatCurrency(billData.igstAmount), 6);
         }
       }
 
-      // Total tax - always show
-      y += 1; // Small gap before total
-      doc.text('Total Tax:', MARGIN, y);
-      const taxText = formatCurrency(billData.taxAmount);
-      const taxWidth = doc.getTextWidth(taxText);
-      doc.text(taxText, THERMAL_WIDTH - MARGIN - taxWidth, y);
-      y += LINE_HEIGHT;
+      // VAT breakdown
+      if ((billData.totalVatAmount || 0) > 0) {
+        addGap('small');
+        addRow(
+          '  State VAT (Alcohol)',
+          formatCurrency(billData.totalVatAmount),
+          7
+        );
+      }
+    } else {
+      // Simple tax breakdown
+      if (billData.cgstAmount > 0) {
+        addRow('CGST', formatCurrency(billData.cgstAmount), 8);
+      }
+      if (billData.sgstAmount > 0) {
+        addRow('SGST', formatCurrency(billData.sgstAmount), 8);
+      }
+      if (billData.igstAmount > 0) {
+        addRow('IGST', formatCurrency(billData.igstAmount), 8);
+      }
     }
 
-    // Discount if any
+    // Total tax
+    if (billData.taxAmount > 0) {
+      addRow('Total Tax', formatCurrency(billData.taxAmount), 8, true);
+    }
+
+    // Discount
     if (billData.discountAmount > 0) {
-      doc.text('Discount:', MARGIN, y);
-      const discountText = `- ${formatCurrency(billData.discountAmount)}`;
-      const discountWidth = doc.getTextWidth(discountText);
-      doc.text(discountText, THERMAL_WIDTH - MARGIN - discountWidth, y);
-      y += LINE_HEIGHT;
+      addRow('Discount', `- ${formatCurrency(billData.discountAmount)}`, 8);
     }
 
-    // Round off if any
+    // Round off
     if (billData.roundOffAmount !== 0) {
-      doc.text('Round Off:', MARGIN, y);
-      const roundOffText = `${
-        billData.roundOffAmount >= 0 ? '+' : ''
-      }${formatCurrency(billData.roundOffAmount)}`;
-      const roundOffWidth = doc.getTextWidth(roundOffText);
-      doc.text(roundOffText, THERMAL_WIDTH - MARGIN - roundOffWidth, y);
-      y += LINE_HEIGHT;
+      const sign = billData.roundOffAmount >= 0 ? '+' : '';
+      addRow(
+        'Round Off',
+        `${sign}${formatCurrency(billData.roundOffAmount)}`,
+        8
+      );
     }
 
-    addSeparator();
+    addGap('medium');
+    addSeparator('solid');
+    addGap('small');
 
-    // Grand Total
-    doc.setFontSize(9);
-    doc.text('TOTAL:', MARGIN, y);
+    // ========== GRAND TOTAL ==========
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL', MARGIN, y);
+
     const totalText = formatCurrency(billData.totalAmount);
-    const totalWidth = doc.getTextWidth(totalText);
-    doc.text(totalText, THERMAL_WIDTH - MARGIN - totalWidth, y);
-    y += LINE_HEIGHT + 1;
+    doc.text(totalText, RECEIPT_WIDTH - MARGIN, y, { align: 'right' });
+    y += LINE_HEIGHT + SMALL_GAP;
 
-    addSeparator();
+    addSeparator('solid');
+    addGap('small');
 
-    // Payment Details
-    addLine('PAYMENT DETAILS', 8, 'center');
-    addSeparator();
+    // ========== PAYMENT ==========
+    addCentered('PAYMENT DETAILS', 9, true);
+    addSeparator('dashed');
 
-    doc.setFontSize(7);
-    doc.text('Method:', MARGIN, y);
-    doc.text(
-      paymentMethod,
-      THERMAL_WIDTH - MARGIN - doc.getTextWidth(paymentMethod),
-      y
-    );
-    y += LINE_HEIGHT;
+    addRow('Method', paymentMethod, 8, true);
 
     if (paymentMethod.toLowerCase() === 'cash' && cashReceived) {
-      doc.text('Cash Received:', MARGIN, y);
-      const cashText = formatCurrency(cashReceived);
-      doc.text(
-        cashText,
-        THERMAL_WIDTH - MARGIN - doc.getTextWidth(cashText),
-        y
-      );
-      y += LINE_HEIGHT;
+      addRow('Cash Received', formatCurrency(cashReceived), 8);
 
       if (changeGiven && changeGiven > 0) {
-        doc.text('Change Given:', MARGIN, y);
-        const changeText = formatCurrency(changeGiven);
-        doc.text(
-          changeText,
-          THERMAL_WIDTH - MARGIN - doc.getTextWidth(changeText),
-          y
-        );
-        y += LINE_HEIGHT;
+        addRow('Change Given', formatCurrency(changeGiven), 8);
       }
     }
 
     if (billData.paidAmount > 0) {
-      doc.text('Paid Amount:', MARGIN, y);
-      const paidText = formatCurrency(billData.paidAmount);
-      doc.text(
-        paidText,
-        THERMAL_WIDTH - MARGIN - doc.getTextWidth(paidText),
-        y
-      );
-      y += LINE_HEIGHT;
+      addRow('Paid Amount', formatCurrency(billData.paidAmount), 8);
     }
 
     if (billData.pendingAmount > 0) {
-      doc.text('Pending:', MARGIN, y);
-      const pendingText = formatCurrency(billData.pendingAmount);
-      doc.text(
-        pendingText,
-        THERMAL_WIDTH - MARGIN - doc.getTextWidth(pendingText),
-        y
-      );
-      y += LINE_HEIGHT;
+      addRow('Pending', formatCurrency(billData.pendingAmount), 8);
     }
 
-    y += 3; // Extra space
+    addGap('medium');
+    addSeparator('solid');
+    addGap('medium');
 
-    addSeparator();
+    // ========== FOOTER ==========
+    addCentered('Thank you for dining with us!', 8, true);
+    addCentered('Please visit again', 7);
 
-    // Footer
-    addLine('Thank you for dining with us!', 7, 'center');
-    addLine('Please visit again', 6, 'center');
+    addGap('medium');
+    addCentered('** Computer Generated Receipt **', 6);
 
-    y += 2;
-    addLine('** This is a computer generated receipt **', 5, 'center');
-
-    // Adjust PDF height based on content
+    // Adjust final PDF height
     const finalHeight = y + MARGIN;
     const pdfBlob = doc.output('blob');
 
@@ -441,7 +342,7 @@ export function generateThermalReceiptPDF(
   });
 }
 
-// Utility function to download the thermal receipt
+// Utility function to download the receipt
 export async function downloadThermalReceipt(
   billData: DetailedBillCalculation,
   paymentMethod?: string,

@@ -27,9 +27,6 @@ import {
   updateItemQuantity,
   removeItem,
   clearCart,
-  setCalculating,
-  updateBackendCalculation,
-  initializeCart,
 } from '@/store/slices/cartSlice';
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -43,6 +40,9 @@ import {
   Receipt,
   RefreshCcw,
   ChevronRight,
+  Star,
+  Clock,
+  Flame,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import type { MenuItemPricing, PublicMenuCategory } from '@/store/api/types';
@@ -80,523 +80,722 @@ type AugmentedMenuItem = PublicMenuCategory['items'][number] & {
   _isQuick: boolean;
 };
 
-/* ── Styles ── */
+/* ── Premium Elegant Styles ── */
 const STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap');
 
-  .rh-menu-root {
-    --clr-bg:        #f8f9fa;
-    --clr-paper:     #ffffff;
-    --clr-border:    #e5e7eb;
-    --clr-text:      #111827;
-    --clr-muted:     #6b7280;
-    --clr-accent:    #111827;
-    --clr-primary:   #111827;
-    --clr-primary-fg:#fff;
-    font-family: 'DM Sans', system-ui, sans-serif;
-    background: var(--clr-bg);
+  .menu-elegant-root {
+    --clr-bg: #fafafa;
+    --clr-surface: #ffffff;
+    --clr-border: #e5e7eb;
+    --clr-text: #1a1a1a;
+    --clr-text-muted: #6b7280;
+    --clr-accent: #d97706;
+    --clr-primary: #0f172a;
+    --clr-success: #059669;
+    --clr-error: #dc2626;
+    
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
     min-height: 100vh;
-    padding-bottom: 100px;
+    color: var(--clr-text);
+    padding-bottom: 120px;
   }
 
-  /* ── COMPACT HEADER ── */
-  .rh-menu-header {
+  /* ── ELEGANT HEADER ── */
+  .menu-elegant-header {
     position: sticky;
     top: 0;
-    z-index: 30;
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--clr-border);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  }
-  .rh-menu-header-inner {
-    max-width: 640px;
-    margin: 0 auto;
-    padding: 10px 16px 8px;
+    z-index: 40;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
   }
 
-  /* Top Row - Restaurant Name + Actions */
-  .rh-menu-top-compact {
+  .menu-elegant-header-inner {
+    max-width: 768px;
+    margin: 0 auto;
+    padding: 16px 20px;
+  }
+
+  /* Restaurant Name with Serif Font */
+  /* Top Row - Title + Search Toggle */
+  .menu-header-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 12px;
+    margin-bottom: 12px;
   }
-  .rh-restaurant-name {
-    font-size: 16px;
+
+  .menu-restaurant-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 24px;
     font-weight: 700;
-    color: var(--clr-text);
-    letter-spacing: -0.3px;
+    color: var(--clr-primary);
+    letter-spacing: -0.5px;
     margin: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     flex: 1;
     min-width: 0;
+    text-align: left;
+    background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
-  .rh-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-  .rh-icon-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: var(--clr-paper);
-    border: 1px solid var(--clr-border);
+
+  .menu-search-toggle {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: white;
+    border: 2px solid var(--clr-border);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.15s;
-    color: var(--clr-text);
-  }
-  .rh-icon-btn:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-  }
-  .rh-icon-btn.active {
-    background: var(--clr-primary);
-    border-color: var(--clr-primary);
-    color: var(--clr-primary-fg);
-  }
-
-  /* Mini Session Banner */
-  .rh-mini-banner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 8px;
-    margin-bottom: 8px;
-  }
-  .rh-mini-banner-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #16a34a;
+    transition: all 0.2s;
+    color: var(--clr-text-muted);
     flex-shrink: 0;
   }
-  .rh-mini-banner-text {
-    font-size: 11px;
+
+  .menu-search-toggle:hover {
+    border-color: var(--clr-primary);
+    color: var(--clr-primary);
+    transform: scale(1.05);
+  }
+
+  .menu-search-toggle.active {
+    background: var(--clr-primary);
+    border-color: var(--clr-primary);
+    color: white;
+  }
+
+  /* Session Banner - Elegant Card */
+  .menu-session-banner {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #86efac;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
+  }
+
+  .menu-session-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    flex-shrink: 0;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.1); }
+  }
+
+  .menu-session-text {
+    flex: 1;
+    font-size: 13px;
     font-weight: 600;
     color: #166534;
-    flex: 1;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  .rh-mini-banner-btn {
+
+  .menu-session-btn {
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 600;
     color: #166534;
-    background: none;
-    border: none;
+    background: white;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    padding: 6px 12px;
     cursor: pointer;
-    padding: 0;
+    transition: all 0.2s;
     flex-shrink: 0;
   }
 
-  /* Search Bar */
-  .rh-search-bar-wrap {
-    position: relative;
-    margin-bottom: 8px;
-  }
-  .rh-search-input {
-    width: 100%;
-    height: 36px;
-    padding-left: 36px;
-    padding-right: 36px;
-    border: 1px solid var(--clr-border);
-    border-radius: 8px;
-    background: var(--clr-paper);
-    font-size: 14px;
-    font-family: inherit;
-    color: var(--clr-text);
-    outline: none;
-  }
-  .rh-search-input:focus {
-    border-color: #9ca3af;
-  }
-  .rh-search-input::placeholder {
-    color: #9ca3af;
-  }
-  .rh-search-icon {
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--clr-muted);
-  }
-  .rh-search-clear {
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 24px;
-    height: 24px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--clr-muted);
-    border-radius: 4px;
-    transition: background 0.15s;
-  }
-  .rh-search-clear:hover {
-    background: #f3f4f6;
+  .menu-session-btn:hover {
+    background: #dcfce7;
+    transform: translateX(2px);
   }
 
-  /* Categories - Compact Pills */
-  .rh-categories-wrap {
-    padding-bottom: 8px;
+  /* Search Bar - Elevated */
+  .menu-search-container {
+    margin-bottom: 16px;
   }
-  .rh-category-pill {
+
+  /* Category Pills - Premium */
+  .menu-categories {
+    margin-bottom: 20px;
+  }
+
+  .menu-category-pill {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    font-size: 12px;
+    gap: 6px;
+    padding: 10px 18px;
+    font-size: 14px;
     font-weight: 600;
-    border-radius: 20px;
+    border-radius: 24px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     white-space: nowrap;
-    border: 1px solid var(--clr-border);
-    background: var(--clr-paper);
-    color: var(--clr-text);
-  }
-  .rh-category-pill.active {
-    background: var(--clr-primary);
-    color: var(--clr-primary-fg);
-    border-color: var(--clr-primary);
-  }
-  .rh-category-pill:hover:not(.active) {
-    background: #f3f4f6;
+    border: 2px solid transparent;
+    background: white;
+    color: var(--clr-text-muted);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
 
-  /* Menu Grid */
-  .rh-menu-grid {
+  .menu-category-pill:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    color: var(--clr-primary);
+  }
+
+  .menu-category-pill.active {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    border-color: #0f172a;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.3);
+  }
+
+  /* Menu Grid - Responsive with Fixed Heights */
+  .menu-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    max-width: 640px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 768px;
     margin: 0 auto;
-    padding: 0 16px 16px;
+    padding: 0 20px;
   }
 
-  /* Menu Item Card */
-  .rh-item-card {
-    background: var(--clr-paper);
-    border: 1px solid var(--clr-border);
-    border-radius: 12px;
-    padding: 10px;
+  @media (max-width: 640px) {
+    .menu-grid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+
+  /* Item Card - Elegant & Fixed */
+  .menu-item-card {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
     display: flex;
     flex-direction: column;
-    transition: all 0.2s;
-  }
-  .rh-item-card:hover {
-    border-color: #9ca3af;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    transform: translateY(-2px);
+    height: 100%;
   }
 
-  /* Item Image */
-  .rh-item-image-wrap {
+  .menu-item-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .menu-item-card.highlighted {
+    border: 2px solid #fbbf24;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    box-shadow: 0 8px 32px rgba(251, 191, 36, 0.2);
+    animation: highlight-pulse 2s ease-in-out;
+  }
+
+  @keyframes highlight-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+  }
+
+  /* Image Container - Fixed Aspect Ratio */
+  .menu-item-image-wrap {
     position: relative;
     width: 100%;
-    aspect-ratio: 1;
-    border-radius: 10px;
+    padding-top: 75%; /* 4:3 aspect ratio */
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
     overflow: hidden;
-    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
-    margin-bottom: 10px;
   }
-  .rh-item-image-wrap:hover .carousel-arrow {
-    opacity: 1 !important;
-  }
-  .rh-item-image {
+
+  .menu-item-image {
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .rh-item-placeholder {
+
+  .menu-item-card:hover .menu-item-image {
+    transform: scale(1.05);
+  }
+
+  .menu-item-placeholder {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 40px;
-    opacity: 0.25;
-  }
-  .rh-item-popular-badge {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: #fbbf24;
-    border-radius: 50%;
-    padding: 5px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  }
-  .rh-item-tags {
-    position: absolute;
-    bottom: 8px;
-    left: 8px;
-    display: flex;
-    gap: 4px;
-  }
-  .rh-item-tag {
-    background: rgba(255,255,255,0.95);
-    backdrop-filter: blur(4px);
-    border-radius: 6px;
-    padding: 3px 6px;
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 48px;
+    opacity: 0.15;
   }
 
-  /* Item Details */
-  .rh-item-details {
+  /* Badge Overlays */
+  .menu-item-badge-popular {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    border-radius: 20px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+  }
+
+  .menu-item-tags {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .menu-item-tag {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Content Area */
+  .menu-item-content {
+    padding: 16px;
     flex: 1;
     display: flex;
     flex-direction: column;
   }
-  .rh-item-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--clr-text);
+
+  .menu-item-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--clr-primary);
     line-height: 1.3;
-    margin: 0 0 8px;
+    margin: 0 0 8px 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-  }
-  .rh-item-price {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--clr-text);
-    font-family: 'DM Mono', monospace;
-    margin-bottom: 10px;
-  }
-  .rh-item-price-old {
-    font-size: 13px;
-    text-decoration: line-through;
-    color: var(--clr-muted);
-    margin-right: 6px;
+    min-height: 42px;
   }
 
-  /* Add Button / Quantity Controls */
-  .rh-add-btn {
-    width: 100%;
-    height: 34px;
-    border-radius: 8px;
-    background: var(--clr-primary);
-    color: var(--clr-primary-fg);
-    border: none;
+  .menu-item-description {
     font-size: 13px;
+    color: var(--clr-text-muted);
+    line-height: 1.4;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 36px;
+  }
+
+  .menu-item-price-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .menu-item-price {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--clr-primary);
+    font-family: 'Inter', sans-serif;
+  }
+
+  .menu-item-price-old {
+    font-size: 15px;
+    text-decoration: line-through;
+    color: var(--clr-text-muted);
+  }
+
+  .menu-item-price-badge {
+    background: #dcfce7;
+    color: #166534;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+
+  /* Add Button - Premium */
+  .menu-add-btn {
+    width: 100%;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    border: none;
+    font-size: 15px;
     font-weight: 700;
     cursor: pointer;
-    font-family: inherit;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
-  .rh-add-btn:hover {
-    background: #1f2937;
-    transform: scale(1.02);
+
+  .menu-add-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.3);
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
   }
-  .rh-qty-controls {
+
+  .menu-add-btn:active {
+    transform: translateY(0);
+  }
+
+  /* Quantity Controls - Elegant */
+  .menu-qty-controls {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--clr-primary);
-    border-radius: 8px;
-    padding: 5px 8px;
-    height: 34px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 12px;
+    padding: 8px 12px;
+    height: 44px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.2);
   }
-  .rh-qty-btn {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    background: rgba(255,255,255,0.2);
+
+  .menu-qty-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.15);
     border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--clr-primary-fg);
-    transition: background 0.15s;
-  }
-  .rh-qty-btn:hover {
-    background: rgba(255,255,255,0.3);
-  }
-  .rh-qty-value {
-    min-width: 24px;
-    text-align: center;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--clr-primary-fg);
+    color: white;
+    transition: all 0.2s;
   }
 
-  /* Floating Cart */
-  .rh-floating-cart {
+  .menu-qty-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+  }
+
+  .menu-qty-value {
+    min-width: 32px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 16px;
+    color: white;
+  }
+
+  /* Floating Cart - Premium */
+  .menu-floating-cart {
     position: fixed;
-    bottom: 16px;
-    left: 16px;
-    right: 16px;
-    z-index: 40;
-  }
-  .rh-floating-cart-inner {
-    max-width: 640px;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    z-index: 50;
+    max-width: 768px;
     margin: 0 auto;
-    background: var(--clr-paper);
-    border: 2px solid var(--clr-primary);
-    border-radius: 14px;
-    padding: 14px 16px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
   }
-  .rh-cart-row {
+
+  .menu-floating-cart-inner {
+    background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+    border: 2px solid #0f172a;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(20px);
+  }
+
+  .menu-cart-content {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
   }
-  .rh-cart-info h4 {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 2px;
+
+  .menu-cart-info {
+    flex: 1;
+    min-width: 0;
   }
-  .rh-cart-info p {
-    font-size: 12px;
-    color: var(--clr-muted);
+
+  .menu-cart-info h4 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--clr-primary);
+    margin: 0 0 4px 0;
+  }
+
+  .menu-cart-info p {
+    font-size: 14px;
+    color: var(--clr-text-muted);
     margin: 0;
     font-weight: 500;
   }
-  .rh-cart-btn {
+
+  .menu-cart-btn {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    font-size: 14px;
+    gap: 10px;
+    padding: 14px 28px;
+    font-size: 16px;
     font-weight: 700;
-    background: var(--clr-primary);
-    color: var(--clr-primary-fg);
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
     border: none;
-    border-radius: 10px;
+    border-radius: 14px;
     cursor: pointer;
-    font-family: inherit;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
     flex-shrink: 0;
   }
-  .rh-cart-btn:hover {
-    background: #1f2937;
-    transform: scale(1.02);
+
+  .menu-cart-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 32px rgba(15, 23, 42, 0.4);
   }
-  .rh-cart-btn:disabled {
+
+  .menu-cart-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none;
   }
 
-  /* Empty State */
-  .rh-empty-state {
+  /* Empty State - Playful */
+  .menu-empty-state {
     text-align: center;
-    padding: 64px 32px;
-  }
-  .rh-empty-icon {
-    font-size: 64px;
-    margin-bottom: 16px;
-  }
-  .rh-empty-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 8px;
-  }
-  .rh-empty-desc {
-    font-size: 14px;
-    color: var(--clr-muted);
-    margin: 0 0 16px;
-  }
-  .rh-empty-btn {
-    padding: 10px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    background: var(--clr-paper);
-    color: var(--clr-text);
-    border: 1px solid var(--clr-border);
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .rh-empty-btn:hover {
-    background: #f3f4f6;
+    padding: 80px 32px;
+    max-width: 400px;
+    margin: 0 auto;
   }
 
-  /* Loading / Error Screens */
-  .rh-loading-screen, .rh-error-screen {
+  .menu-empty-icon {
+    font-size: 72px;
+    margin-bottom: 20px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .menu-empty-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--clr-primary);
+    margin: 0 0 8px 0;
+  }
+
+  .menu-empty-desc {
+    font-size: 15px;
+    color: var(--clr-text-muted);
+    line-height: 1.6;
+    margin: 0 0 20px 0;
+  }
+
+  .menu-empty-btn {
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    background: white;
+    color: var(--clr-primary);
+    border: 2px solid var(--clr-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .menu-empty-btn:hover {
+    border-color: var(--clr-primary);
+    background: var(--clr-primary);
+    color: white;
+  }
+
+  /* Loading Screen */
+  .menu-loading-screen {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-center;
+    min-height: 100vh;
+    padding: 32px;
+  }
+
+  .menu-loading-screen img {
+    width: 180px;
+    height: 180px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+
+  .menu-loading-text {
+    font-size: 16px;
+    color: var(--clr-text-muted);
+    font-weight: 600;
+  }
+
+  /* Error Screen */
+  .menu-error-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-center;
     min-height: 100vh;
     text-align: center;
     padding: 32px;
   }
-  .rh-loading-screen img {
-    width: 160px;
-    height: 160px;
-    border-radius: 16px;
-    margin-bottom: 16px;
+
+  .menu-error-icon {
+    font-size: 80px;
+    margin-bottom: 24px;
   }
-  .rh-loading-screen p {
-    font-size: 14px;
-    color: var(--clr-muted);
-    font-weight: 500;
-  }
-  .rh-error-icon {
-    font-size: 64px;
-    margin-bottom: 16px;
-  }
-  .rh-error-title {
-    font-size: 20px;
+
+  .menu-error-title {
+    font-size: 24px;
     font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 8px;
+    color: var(--clr-primary);
+    margin: 0 0 12px 0;
   }
-  .rh-error-desc {
-    font-size: 14px;
-    color: var(--clr-muted);
-    margin: 0 0 20px;
+
+  .menu-error-desc {
+    font-size: 16px;
+    color: var(--clr-text-muted);
+    margin: 0 0 24px 0;
+    max-width: 400px;
+    line-height: 1.6;
   }
-  .rh-error-btn {
+
+  .menu-error-btn {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    font-size: 14px;
+    gap: 10px;
+    padding: 14px 28px;
+    font-size: 15px;
     font-weight: 600;
-    background: var(--clr-paper);
-    color: var(--clr-text);
-    border: 1px solid var(--clr-border);
-    border-radius: 8px;
+    background: white;
+    color: var(--clr-primary);
+    border: 2px solid var(--clr-border);
+    border-radius: 12px;
     cursor: pointer;
-    font-family: inherit;
-    transition: all 0.15s;
+    transition: all 0.2s;
   }
-  .rh-error-btn:hover {
-    background: #f3f4f6;
+
+  .menu-error-btn:hover {
+    border-color: var(--clr-primary);
+    background: var(--clr-primary);
+    color: white;
+  }
+
+  /* Image Carousel Controls */
+  .menu-carousel-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white;
+    font-size: 20px;
+    opacity: 0;
+    transition: all 0.2s;
+    z-index: 10;
+  }
+
+  .menu-item-image-wrap:hover .menu-carousel-arrow {
+    opacity: 1;
+  }
+
+  .menu-carousel-arrow.left {
+    left: 12px;
+  }
+
+  .menu-carousel-arrow.right {
+    right: 12px;
+  }
+
+  .menu-carousel-arrow:hover {
+    background: rgba(0, 0, 0, 0.85);
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  .menu-carousel-dots {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+  }
+
+  .menu-carousel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.5);
+    transition: all 0.2s;
+  }
+
+  .menu-carousel-dot.active {
+    background: white;
+    width: 24px;
+    border-radius: 4px;
+  }
+
+  .menu-image-count {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(0, 0, 0, 0.75);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 12px;
+    z-index: 10;
   }
 `;
 
@@ -620,7 +819,6 @@ const getCachedSession = (tableId: string) => {
     if (!cached) return null;
 
     const session = JSON.parse(cached);
-    // Check if session is still valid (not expired)
     const expiresAt = new Date(session.expiresAt);
     if (expiresAt < new Date()) {
       localStorage.removeItem(`customerSession_${tableId}_${browserSessionId}`);
@@ -639,7 +837,6 @@ const getCachedSession = (tableId: string) => {
   }
 };
 
-// Check for any previous sessions at this table (not just current browser)
 const getPreviousTableSessions = (tableId: string) => {
   try {
     const sessions = [];
@@ -651,7 +848,6 @@ const getPreviousTableSessions = (tableId: string) => {
           const session = JSON.parse(localStorage.getItem(key) || '{}');
           const expiresAt = new Date(session.expiresAt);
 
-          // Only include non-expired sessions
           if (expiresAt > new Date()) {
             sessions.push({
               ...session,
@@ -659,11 +855,9 @@ const getPreviousTableSessions = (tableId: string) => {
               storageKey: key,
             });
           } else {
-            // Clean up expired session
             localStorage.removeItem(key);
           }
         } catch (parseError) {
-          // Clean up invalid session data
           localStorage.removeItem(key);
         }
       }
@@ -687,7 +881,7 @@ const cacheSession = (
       sessionId: session.sessionId,
       customerNumber: session.customerNumber,
       tableNumber: session.tableNumber,
-      expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours
+      expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
       cachedAt: new Date().toISOString(),
     };
     localStorage.setItem(
@@ -713,7 +907,7 @@ const AccessibleEmoji = ({
   </span>
 );
 
-// Session detection modal component
+// Session detection modal
 const SessionDetectionModal = ({
   isOpen,
   onClose,
@@ -822,7 +1016,7 @@ const determineCategoryIcon = (name: string): DisplayCategory['icon'] => {
   return { symbol: '🍴', label: `${name} category` };
 };
 
-// Image Carousel Component for Menu Items
+// Image Carousel Component
 function ItemImageCarousel({
   images,
   itemName,
@@ -830,148 +1024,72 @@ function ItemImageCarousel({
   images: string[];
   itemName: string;
 }) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  if (images.length === 0) {
+    return (
+      <div className="menu-item-image-wrap">
+        <div className="menu-item-placeholder">🍽️</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="rh-item-image-wrap">
-      {images.length > 0 ? (
+    <div className="menu-item-image-wrap">
+      <img
+        src={images[currentIndex]}
+        alt={itemName}
+        className="menu-item-image"
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          target.style.display = 'none';
+        }}
+      />
+
+      {images.length > 1 && (
         <>
-          <img
-            src={images[currentImageIndex]}
-            alt={itemName}
-            className="rh-item-image"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentIndex((prev) =>
+                prev === 0 ? images.length - 1 : prev - 1
+              );
             }}
-          />
+            className="menu-carousel-arrow left"
+          >
+            ‹
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentIndex((prev) =>
+                prev === images.length - 1 ? 0 : prev + 1
+              );
+            }}
+            className="menu-carousel-arrow right"
+          >
+            ›
+          </button>
 
-          {/* Navigation Arrows - only show if multiple images */}
-          {images.length > 1 && (
-            <>
+          <div className="menu-carousel-dots">
+            {images.map((_, index) => (
               <button
+                key={index}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setCurrentImageIndex((prev) =>
-                    prev === 0 ? images.length - 1 : prev - 1
-                  );
+                  setCurrentIndex(index);
                 }}
-                className="carousel-arrow"
-                style={{
-                  position: 'absolute',
-                  left: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'rgba(0,0,0,0.6)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '28px',
-                  height: '28px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: 'white',
-                  fontSize: '18px',
-                  lineHeight: '1',
-                  opacity: 0,
-                  transition: 'opacity 0.2s',
-                }}
-              >
-                ‹
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentImageIndex((prev) =>
-                    prev === images.length - 1 ? 0 : prev + 1
-                  );
-                }}
-                className="carousel-arrow"
-                style={{
-                  position: 'absolute',
-                  right: '8px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'rgba(0,0,0,0.6)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '28px',
-                  height: '28px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: 'white',
-                  fontSize: '18px',
-                  lineHeight: '1',
-                  opacity: 0,
-                  transition: 'opacity 0.2s',
-                }}
-              >
-                ›
-              </button>
-            </>
-          )}
+                className={`menu-carousel-dot ${
+                  index === currentIndex ? 'active' : ''
+                }`}
+              />
+            ))}
+          </div>
 
-          {/* Image Dots Navigation */}
-          {images.length > 1 && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '8px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                display: 'flex',
-                gap: '4px',
-              }}
-            >
-              {images.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentImageIndex(index);
-                  }}
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    background:
-                      index === currentImageIndex
-                        ? 'white'
-                        : 'rgba(255,255,255,0.5)',
-                    transition: 'background 0.2s',
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Image Count Badge */}
-          {images.length > 1 && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '8px',
-                left: '8px',
-                background: 'rgba(0,0,0,0.7)',
-                color: 'white',
-                fontSize: '11px',
-                fontWeight: '600',
-                padding: '4px 6px',
-                borderRadius: '12px',
-                fontFamily: 'DM Mono, monospace',
-              }}
-            >
-              {currentImageIndex + 1}/{images.length}
-            </div>
-          )}
+          <div className="menu-image-count">
+            {currentIndex + 1}/{images.length}
+          </div>
         </>
-      ) : (
-        <div className="rh-item-placeholder">🍽️</div>
       )}
     </div>
   );
@@ -984,11 +1102,10 @@ export default function CustomerMenuPageNew() {
   const { toast } = useToast();
 
   const { slug, tableId } = params;
-
   const tableFromUrl = searchParams.get('table');
   const tableIdFromUrl = searchParams.get('tableId') || tableId;
 
-  // Session management - clean and simple
+  // Session management
   const [createCustomerSession] = useCreateCustomerSessionMutation();
   const [updateSessionActivity] = useUpdateSessionActivityMutation();
   const [onOrderPlaced] = useOnOrderPlacedMutation();
@@ -999,14 +1116,12 @@ export default function CustomerMenuPageNew() {
     tableNumber: string;
   } | null>(null);
 
-  // Smart session detection state
   const [showSessionDetection, setShowSessionDetection] = useState(false);
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [pendingSessionCreation, setPendingSessionCreation] = useState(false);
 
   const isCreatingSessionRef = useRef(false);
 
-  // Handler for session detection modal actions
   const handleContinueSession = (session: any) => {
     console.log('🔄 Continuing previous session:', session.sessionId);
     setCurrentSession({
@@ -1056,61 +1171,34 @@ export default function CustomerMenuPageNew() {
     }
   };
 
-  // Session initialization - check cache first, then create if needed
+  // Session initialization
   useEffect(() => {
-    console.log('🔥 Session useEffect triggered:', {
-      slug,
-      tableIdFromUrl,
-      timestamp: new Date().toISOString(),
-    });
-
     const initializeSession = async () => {
-      console.log('🔥 initializeSession called:', { slug, tableIdFromUrl });
+      if (!slug || !tableIdFromUrl) return;
+      if (isCreatingSessionRef.current) return;
 
-      if (!slug || !tableIdFromUrl) {
-        console.log('🔥 Early return: missing slug or tableId');
-        return;
-      }
-
-      // Prevent duplicate calls
-      if (isCreatingSessionRef.current) {
-        console.log('🔥 Already creating session, skipping...');
-        return;
-      }
-
-      // Check if we have a cached session for this table (browser-specific)
       const cached = getCachedSession(tableIdFromUrl);
       if (cached) {
-        console.log('🔥 Using cached session:', cached.sessionId);
         setCurrentSession(cached);
         return;
       }
 
-      // Smart session detection - check for any previous sessions at this table
       const previousTableSessions = getPreviousTableSessions(tableIdFromUrl);
       if (previousTableSessions.length > 0) {
-        console.log(
-          `🔍 Found ${previousTableSessions.length} previous session(s) at this table`
-        );
         setPreviousSessions(previousTableSessions);
         setShowSessionDetection(true);
         setPendingSessionCreation(true);
         return;
       }
 
-      // Clean up expired session data
       clearExpiredSessionData();
 
-      // Create new session
-      console.log('🔥 About to create new session for table:', tableIdFromUrl);
       isCreatingSessionRef.current = true;
       try {
         const response = await createCustomerSession({
           restaurantSlug: slug,
           tableId: tableIdFromUrl,
         }).unwrap();
-
-        console.log('🔥 Session created successfully:', response);
 
         const sessionData = {
           sessionId: response.sessionId,
@@ -1120,12 +1208,7 @@ export default function CustomerMenuPageNew() {
 
         setCurrentSession(sessionData);
         cacheSession(tableIdFromUrl, sessionData);
-        console.log(
-          `🔥 Customer #${response.customerNumber} session created:`,
-          response.sessionId
-        );
       } catch (error) {
-        console.error('🔥 Failed to create session:', error);
         toast({
           title: 'Session Error',
           description: 'Failed to create customer session.',
@@ -1170,7 +1253,9 @@ export default function CustomerMenuPageNew() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(
+    null
+  );
   const [unavailableItemsDialog, setUnavailableItemsDialog] = useState<{
     open: boolean;
     unavailableItems: string[];
@@ -1332,7 +1417,7 @@ export default function CustomerMenuPageNew() {
         menuItemId: selectedMenuItem.id,
         name: selectedMenuItem.name,
         price: totalPrice,
-        categoryId: 'unknown', // Category context not available in modal
+        categoryId: 'unknown',
         categoryName: 'Unknown',
         specialPricing: selectedMenuItem.specialPricing,
         selectedModifiers: selections,
@@ -1377,7 +1462,6 @@ export default function CustomerMenuPageNew() {
   };
 
   const handleRemoveFromCart = (menuItemId: string) => {
-    // Find the first cart item with this menu item ID to get its cart ID
     const cartItem = cartItems.find((item) => item.menuItemId === menuItemId);
     if (cartItem) {
       if (cartItem.quantity === 1) {
@@ -1404,12 +1488,6 @@ export default function CustomerMenuPageNew() {
     }
     return item.pricing.amount;
   };
-
-  // Remove old cart state variables - using Redux selectors instead
-
-  // For now, we'll disable automatic cart bill calculation
-  // In a full implementation, you might want to calculate bill when items are added
-  // using the session-based billing API we created
 
   const handlePlaceOrder = async () => {
     if (!restaurant || cartItems.length === 0) return;
@@ -1444,7 +1522,6 @@ export default function CustomerMenuPageNew() {
           description: `${cartItemCount} items added to order #${activeOrderFromAPI.orderNumber}`,
         });
 
-        // Notify session about items being added to order
         if (currentSession?.sessionId) {
           try {
             await onOrderPlaced({
@@ -1459,7 +1536,6 @@ export default function CustomerMenuPageNew() {
           }
         }
       } else {
-        // Check if we have a session in state, if not the useEffect should have created one
         if (!currentSession) {
           toast({
             title: 'Session Error',
@@ -1468,11 +1544,6 @@ export default function CustomerMenuPageNew() {
           });
           return;
         }
-
-        console.log(
-          'Using existing session for order:',
-          currentSession.sessionId
-        );
 
         const result = await createOrder({
           slug: slug!,
@@ -1487,7 +1558,6 @@ export default function CustomerMenuPageNew() {
           description: `Order #${result.orderNumber} sent to kitchen`,
         });
 
-        // Notify session about the order placement
         if (currentSession?.sessionId) {
           try {
             await onOrderPlaced({
@@ -1503,11 +1573,6 @@ export default function CustomerMenuPageNew() {
         }
 
         dispatch(clearCart());
-
-        const params = new URLSearchParams();
-        if (tableIdFromUrl) params.set('tableId', tableIdFromUrl);
-        if (tableFromUrl) params.set('table', tableFromUrl);
-        const queryString = params.toString() ? `?${params.toString()}` : '';
         navigate(`/c/${slug}/session/${currentSession.sessionId}`);
       }
 
@@ -1532,7 +1597,6 @@ export default function CustomerMenuPageNew() {
           unavailableItems: unavailableItemIds,
         });
 
-        // Remove unavailable items from cart
         cartItems
           .filter((cartItem) =>
             unavailableItemIds.includes(cartItem.menuItemId)
@@ -1569,7 +1633,6 @@ export default function CustomerMenuPageNew() {
     setHighlightedItemId(itemId);
     setShowSearch(false);
 
-    // Auto-scroll to the item after a brief delay
     setTimeout(() => {
       const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
       if (itemElement) {
@@ -1577,7 +1640,6 @@ export default function CustomerMenuPageNew() {
       }
     }, 100);
 
-    // Auto-clear the highlight after 3 seconds
     setTimeout(() => {
       setHighlightedItemId(null);
     }, 3000);
@@ -1585,11 +1647,11 @@ export default function CustomerMenuPageNew() {
 
   if (isLoading) {
     return (
-      <div className="rh-menu-root">
+      <div className="menu-elegant-root">
         <style>{STYLE}</style>
-        <div className="rh-loading-screen">
+        <div className="menu-loading-screen">
           <img src="/gifs/food-pending.gif" alt="Loading menu" />
-          <p>Loading menu...</p>
+          <p className="menu-loading-text">Loading menu...</p>
         </div>
       </div>
     );
@@ -1597,17 +1659,17 @@ export default function CustomerMenuPageNew() {
 
   if (isError || !restaurant) {
     return (
-      <div className="rh-menu-root">
+      <div className="menu-elegant-root">
         <style>{STYLE}</style>
-        <div className="rh-error-screen">
-          <div className="rh-error-icon">😕</div>
-          <h2 className="rh-error-title">Menu Unavailable</h2>
-          <p className="rh-error-desc">
+        <div className="menu-error-screen">
+          <div className="menu-error-icon">😕</div>
+          <h2 className="menu-error-title">Menu Unavailable</h2>
+          <p className="menu-error-desc">
             Unable to load the menu. Please try refreshing or ask for
             assistance.
           </p>
           <button
-            className="rh-error-btn"
+            className="menu-error-btn"
             onClick={() => window.location.reload()}
           >
             <RefreshCcw size={16} />
@@ -1619,50 +1681,50 @@ export default function CustomerMenuPageNew() {
   }
 
   return (
-    <div className="rh-menu-root">
+    <div className="menu-elegant-root">
       <style>{STYLE}</style>
 
-      {/* COMPACT HEADER */}
+      {/* ELEGANT HEADER */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rh-menu-header"
+        className="menu-elegant-header"
       >
-        <div className="rh-menu-header-inner">
-          {/* Top Row */}
-          <div className="rh-menu-top-compact">
-            <h1 className="rh-restaurant-name">{restaurant?.name || 'Menu'}</h1>
-            <div className="rh-header-actions">
-              <button
-                className={`rh-icon-btn ${showSearch ? 'active' : ''}`}
-                onClick={() => setShowSearch(!showSearch)}
-              >
-                {showSearch ? <X size={16} /> : <Search size={16} />}
-              </button>
-            </div>
+        <div className="menu-elegant-header-inner">
+          {/* Top Row - Title + Search */}
+          <div className="menu-header-top">
+            <h1 className="menu-restaurant-title">
+              {restaurant?.name || 'Menu'}
+            </h1>
+            <button
+              className={`menu-search-toggle ${showSearch ? 'active' : ''}`}
+              onClick={() => setShowSearch(!showSearch)}
+            >
+              {showSearch ? <X size={20} /> : <Search size={20} />}
+            </button>
           </div>
 
-          {/* Mini Session Banner */}
+          {/* Session Banner */}
           <AnimatePresence>
             {hasTableSession && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="rh-mini-banner"
+                className="menu-session-banner"
               >
-                <div className="rh-mini-banner-dot"></div>
-                <span className="rh-mini-banner-text">
+                <div className="menu-session-dot"></div>
+                <span className="menu-session-text">
                   Table {currentSession?.tableNumber} • Customer #
                   {currentSession?.customerNumber}
                 </span>
                 <button
-                  className="rh-mini-banner-btn"
+                  className="menu-session-btn"
                   onClick={() =>
                     navigate(`/c/${slug}/session/${currentSession.sessionId}`)
                   }
                 >
-                  View <ChevronRight size={10} />
+                  View <ChevronRight size={14} />
                 </button>
               </motion.div>
             )}
@@ -1671,16 +1733,13 @@ export default function CustomerMenuPageNew() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="rh-mini-banner"
+                className="menu-session-banner"
               >
-                <div className="rh-mini-banner-dot"></div>
-                <span className="rh-mini-banner-text">
+                <div className="menu-session-dot"></div>
+                <span className="menu-session-text">
                   Order #{activeOrderFromAPI?.orderNumber} • In Progress
                 </span>
-                <button
-                  className="rh-mini-banner-btn"
-                  onClick={handleViewOrder}
-                >
+                <button className="menu-session-btn" onClick={handleViewOrder}>
                   View <ChevronRight size={10} />
                 </button>
               </motion.div>
@@ -1697,14 +1756,14 @@ export default function CustomerMenuPageNew() {
             )}
           </AnimatePresence>
 
-          {/* Enhanced Search Bar with highlighting */}
+          {/* Search */}
           <AnimatePresence>
             {showSearch && slug && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                style={{ marginBottom: '8px' }}
+                className="menu-search-container"
               >
                 <CustomerMenuSearch
                   slug={slug}
@@ -1712,41 +1771,28 @@ export default function CustomerMenuPageNew() {
                   table={tableFromUrl}
                   onCategorySelect={handleSearchCategorySelect}
                   onItemHighlight={handleSearchItemHighlight}
-                  placeholder="Search dishes and categories..."
+                  placeholder="Search dishes..."
                 />
               </motion.div>
             )}
           </AnimatePresence>
 
           {/* Categories */}
-          <div className="rh-categories-wrap">
+          <div className="menu-categories">
             <ScrollArea className="w-full">
-              <div style={{ display: 'flex', gap: 6, paddingBottom: 2 }}>
+              <div style={{ display: 'flex', gap: 10, paddingBottom: 4 }}>
                 {availableCategories.map((category) => (
                   <button
                     key={category.id}
-                    className={`rh-category-pill ${
+                    className={`menu-category-pill ${
                       activeCategory === category.id ? 'active' : ''
                     }`}
                     onClick={() => setActiveCategory(category.id)}
                   >
-                    {category.imageUrl ? (
-                      <img
-                        src={category.imageUrl}
-                        alt={category.name}
-                        style={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    ) : (
-                      <AccessibleEmoji
-                        symbol={category.icon.symbol}
-                        label={category.icon.label}
-                      />
-                    )}
+                    <AccessibleEmoji
+                      symbol={category.icon.symbol}
+                      label={category.icon.label}
+                    />
                     {category.name}
                   </button>
                 ))}
@@ -1757,101 +1803,128 @@ export default function CustomerMenuPageNew() {
         </div>
       </motion.div>
 
-      {/* Menu Items */}
+      {/* MENU GRID */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.05 }}
-        style={{ paddingTop: 16 }}
+        transition={{ delay: 0.1 }}
+        style={{ paddingTop: 24 }}
       >
         {displayItems.length === 0 ? (
-          <div className="rh-empty-state">
-            <div className="rh-empty-icon">🔍</div>
-            <h3 className="rh-empty-title">No items found</h3>
-            <p className="rh-empty-desc">Try adjusting your search</p>
+          <div className="menu-empty-state">
+            <div className="menu-empty-icon">🔍</div>
+            <h3 className="menu-empty-title">No items found</h3>
+            <p className="menu-empty-desc">
+              We couldn't find any dishes matching your search. Try browsing
+              other categories!
+            </p>
             <button
-              className="rh-empty-btn"
+              className="menu-empty-btn"
               onClick={() => {
                 setSearchQuery('');
                 setActiveCategory('all');
               }}
             >
-              Clear filters
+              Show All Items
             </button>
           </div>
         ) : (
-          <div className="rh-menu-grid">
+          <div className="menu-grid">
             {displayItems.map((item, index) => {
               const quantity = getItemQuantity(item.id);
               const isHighlighted = highlightedItemId === item.id;
+              const hasDiscount = item.specialPricing?.isActive;
+
               return (
                 <motion.div
                   key={item.id}
                   data-item-id={item.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.015 }}
-                  className="rh-item-card"
-                  style={{
-                    ...(isHighlighted && {
-                      border: '2px solid #fbbf24',
-                      background: '#fffbeb',
-                      boxShadow: '0 8px 25px rgba(251, 191, 36, 0.15)',
-                      transform: 'scale(1.02)'
-                    })
-                  }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03, duration: 0.4 }}
+                  className={`menu-item-card ${
+                    isHighlighted ? 'highlighted' : ''
+                  }`}
                 >
-                  {/* Image with Carousel */}
+                  {/* Image */}
                   <div style={{ position: 'relative' }}>
                     <ItemImageCarousel
                       images={item.imageUrls || []}
                       itemName={item.name}
                     />
+
                     {item._isPopular && (
-                      <div className="rh-item-popular-badge">
-                        <Sparkles size={12} color="white" fill="white" />
+                      <div className="menu-item-badge-popular">
+                        <Star size={12} fill="white" />
+                        Popular
                       </div>
                     )}
-                    {(item._isSpicy || item._isQuick) && (
-                      <div className="rh-item-tags">
-                        {item._isSpicy && (
-                          <span className="rh-item-tag">🌶️ Spicy</span>
-                        )}
-                        {item._isQuick && (
-                          <span className="rh-item-tag">⚡ Quick</span>
-                        )}
-                      </div>
-                    )}
+
+                    <div className="menu-item-tags">
+                      {item._isSpicy && (
+                        <span className="menu-item-tag">
+                          <Flame size={12} className="text-red-500" />
+                          Spicy
+                        </span>
+                      )}
+                      {item._isQuick && (
+                        <span className="menu-item-tag">
+                          <Clock size={12} className="text-blue-500" />
+                          Quick
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Details */}
-                  <div className="rh-item-details">
-                    <h3 className="rh-item-name">{item.name}</h3>
-                    <div className="rh-item-price">
-                      {item.specialPricing && item.specialPricing.isActive ? (
-                        <>
-                          <span className="rh-item-price-old">
-                            {formatCurrency(item.pricing.amount)}
-                          </span>
-                          {formatCurrency(item.specialPricing.specialPrice)}
-                        </>
-                      ) : (
-                        formatCurrency(item.pricing.amount)
+                  {/* Content */}
+                  <div className="menu-item-content">
+                    <h3 className="menu-item-name">{item.name}</h3>
+
+                    {item.description && (
+                      <p className="menu-item-description">
+                        {item.description}
+                      </p>
+                    )}
+
+                    <div className="menu-item-price-row">
+                      {hasDiscount && (
+                        <span className="menu-item-price-old">
+                          {formatCurrency(item.pricing.amount)}
+                        </span>
+                      )}
+                      <span className="menu-item-price">
+                        {formatCurrency(
+                          hasDiscount
+                            ? item.specialPricing.specialPrice
+                            : item.pricing.amount
+                        )}
+                      </span>
+                      {hasDiscount && (
+                        <span className="menu-item-price-badge">
+                          Save{' '}
+                          {Math.round(
+                            ((item.pricing.amount -
+                              item.specialPricing.specialPrice) /
+                              item.pricing.amount) *
+                              100
+                          )}
+                          %
+                        </span>
                       )}
                     </div>
 
-                    {/* Add / Qty Controls */}
+                    {/* Add Button / Quantity */}
                     {quantity > 0 ? (
-                      <div className="rh-qty-controls">
+                      <div className="menu-qty-controls">
                         <button
-                          className="rh-qty-btn"
+                          className="menu-qty-btn"
                           onClick={() => handleRemoveFromCart(item.id)}
                         >
-                          <Minus size={14} />
+                          <Minus size={16} />
                         </button>
-                        <span className="rh-qty-value">{quantity}</span>
+                        <span className="menu-qty-value">{quantity}</span>
                         <button
-                          className="rh-qty-btn"
+                          className="menu-qty-btn"
                           onClick={() =>
                             handleAddToCart(
                               item.id,
@@ -1864,12 +1937,12 @@ export default function CustomerMenuPageNew() {
                             )
                           }
                         >
-                          <Plus size={14} />
+                          <Plus size={16} />
                         </button>
                       </div>
                     ) : (
                       <button
-                        className="rh-add-btn"
+                        className="menu-add-btn"
                         onClick={() =>
                           handleAddToCart(
                             item.id,
@@ -1882,7 +1955,8 @@ export default function CustomerMenuPageNew() {
                           )
                         }
                       >
-                        Add
+                        <Plus size={18} />
+                        Add to Cart
                       </button>
                     )}
                   </div>
@@ -1893,18 +1967,18 @@ export default function CustomerMenuPageNew() {
         )}
       </motion.div>
 
-      {/* Floating Cart */}
+      {/* FLOATING CART */}
       <AnimatePresence>
         {cartItems.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="rh-floating-cart"
+            className="menu-floating-cart"
           >
-            <div className="rh-floating-cart-inner">
-              <div className="rh-cart-row">
-                <div className="rh-cart-info">
+            <div className="menu-floating-cart-inner">
+              <div className="menu-cart-content">
+                <div className="menu-cart-info">
                   <h4>{hasActiveOrder ? 'Add to Order' : 'Place Order'}</h4>
                   <p>
                     {cartItemCount} items •{' '}
@@ -1914,7 +1988,7 @@ export default function CustomerMenuPageNew() {
                   </p>
                 </div>
                 <button
-                  className="rh-cart-btn"
+                  className="menu-cart-btn"
                   onClick={handlePlaceOrder}
                   disabled={
                     isPlacingOrder ||
@@ -1924,11 +1998,11 @@ export default function CustomerMenuPageNew() {
                   }
                 >
                   {isPlacingOrder || isAddingItems ? (
-                    <LoadingSpinner className="h-4 w-4" />
+                    <LoadingSpinner className="h-5 w-5" />
                   ) : (
-                    <ShoppingBag size={16} />
+                    <ShoppingBag size={20} />
                   )}
-                  {hasActiveOrder ? 'Add' : 'Order'}
+                  {hasActiveOrder ? 'Add Items' : 'Order Now'}
                 </button>
               </div>
             </div>

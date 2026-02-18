@@ -5,8 +5,6 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { generateProfessionalInvoicePDF } from '@/components/ProfessionalInvoicePDF';
-
 // Helper function to convert numbers to words
 const convertToWords = (amount: number): string => {
   const ones = [
@@ -96,6 +94,7 @@ const convertToWords = (amount: number): string => {
 
   return result + ' Only';
 };
+
 import { useOrdersSocket } from '@/hooks/useOrdersSocket';
 import { useVerifyPaymentMutation } from '@/store/api/ordersApi';
 import { useCreateCashfreeSessionPaymentIntentMutation } from '@/store/api/cashfreeApi';
@@ -113,6 +112,7 @@ import {
   ShoppingCart,
   ChevronDown,
   ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 import { CallWaiterButton } from '@/components/customer/CallWaiterButton';
 import type { Order } from '@/store/api/types';
@@ -158,346 +158,444 @@ const getOrderStatusDisplay = (order: any) => {
   };
 };
 
-/* ── Compact Styles ── */
+/* ── Premium Elegant Session Styles ── */
 const STYLE = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap');
 
-  .rh-cart-root {
-    --clr-bg:        #f8f9fa;
-    --clr-paper:     #ffffff;
-    --clr-border:    #e5e7eb;
-    --clr-text:      #111827;
-    --clr-muted:     #6b7280;
-    --clr-success:   #16a34a;
-    --clr-success-bg:#f0fdf4;
-    --clr-warning:   #ea580c;
-    --clr-warning-bg:#fff7ed;
-    --clr-info:      #0284c7;
-    --clr-info-bg:   #f0f9ff;
-    font-family: 'DM Sans', system-ui, sans-serif;
-    background: var(--clr-bg);
+  .session-elegant-root {
+    --clr-bg: #fafafa;
+    --clr-surface: #ffffff;
+    --clr-border: #e5e7eb;
+    --clr-text: #1a1a1a;
+    --clr-text-muted: #6b7280;
+    --clr-primary: #0f172a;
+    --clr-success: #059669;
+    --clr-warning: #ea580c;
+    --clr-info: #0284c7;
+    
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
     min-height: 100vh;
-    padding-bottom: 32px;
-  }
-
-  .rh-cart-wrap {
-    max-width: 520px;
-    margin: 0 auto;
-    padding: 16px;
-  }
-
-  /* Compact Header */
-  .rh-cart-header {
-    text-align: center;
-    padding: 12px 0;
-    margin-bottom: 12px;
-  }
-  .rh-cart-header h1 {
-    font-size: 20px;
-    font-weight: 700;
     color: var(--clr-text);
-    margin: 0 0 4px;
-  }
-  .rh-cart-header p {
-    font-size: 12px;
-    color: var(--clr-muted);
-    margin: 0;
+    padding-bottom: 40px;
   }
 
-  /* Card */
-  .rh-cart-card {
-    background: var(--clr-paper);
-    border: 1px solid var(--clr-border);
-    border-radius: 12px;
-    padding: 16px;
+  .session-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  /* Status Banner - Large and Celebratory */
+  .session-status-banner {
+    background: white;
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 20px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 2px solid transparent;
+  }
+
+  .session-status-banner.success {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-color: #86efac;
+  }
+
+  .session-status-banner.warning {
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+    border-color: #fdba74;
+  }
+
+  .session-status-banner.info {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-color: #7dd3fc;
+  }
+
+  .session-status-icon {
+    font-size: 56px;
     margin-bottom: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    animation: bounce-subtle 2s ease-in-out infinite;
   }
 
-  /* Compact Status Banner */
-  .rh-status-banner {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px;
-    text-align: left;
+  @keyframes bounce-subtle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
   }
-  .rh-status-icon {
-    font-size: 32px;
-    flex-shrink: 0;
-  }
-  .rh-status-content {
-    flex: 1;
-    min-width: 0;
-  }
-  .rh-status-title {
-    font-size: 15px;
+
+  .session-status-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 28px;
     font-weight: 700;
-    margin: 0 0 2px;
+    margin: 0 0 6px 0;
+    color: var(--clr-primary);
   }
-  .rh-status-subtitle {
-    font-size: 12px;
-    color: var(--clr-muted);
-    margin: 0;
-  }
-  .rh-status-banner.success { background: var(--clr-success-bg); border-color: #bbf7d0; }
-  .rh-status-banner.success .rh-status-title { color: var(--clr-success); }
-  .rh-status-banner.warning { background: var(--clr-warning-bg); border-color: #fed7aa; }
-  .rh-status-banner.warning .rh-status-title { color: var(--clr-warning); }
-  .rh-status-banner.info { background: var(--clr-info-bg); border-color: #bae6fd; }
-  .rh-status-banner.info .rh-status-title { color: var(--clr-info); }
 
-  /* Summary */
-  .rh-summary-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    font-size: 13px;
-    color: var(--clr-muted);
-  }
-  .rh-summary-row span:last-child {
-    font-family: 'DM Mono', monospace;
+  .session-status-subtitle {
+    font-size: 15px;
+    color: var(--clr-text-muted);
+    margin: 0;
     font-weight: 500;
   }
 
-  /* Total Section - More Compact */
-  .rh-total-section {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-top: 2px solid var(--clr-border);
-    padding-top: 12px;
-    margin-top: 12px;
-  }
-  .rh-total-left {
-    text-align: left;
-  }
-  .rh-total-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--clr-muted);
-    margin-bottom: 2px;
-  }
-  .rh-total-amount {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--clr-text);
-    font-family: 'DM Mono', monospace;
-  }
-  .rh-total-badge {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-radius: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-  .rh-total-badge.pending {
-    background: #fff7ed;
-    color: #ea580c;
-    border: 1px solid #fed7aa;
-  }
-  .rh-total-badge.paid {
-    background: #f0fdf4;
-    color: #16a34a;
-    border: 1px solid #bbf7d0;
+  /* Bill Summary Card */
+  .session-bill-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.06);
   }
 
-  /* Action Buttons - Horizontal on Desktop */
-  .rh-btn-group {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    margin-bottom: 12px;
+  .session-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    font-size: 15px;
+    color: var(--clr-text-muted);
+    border-bottom: 1px solid #f3f4f6;
   }
-  @media (min-width: 520px) {
-    .rh-btn-group.multi {
-      grid-template-columns: 1fr 1fr;
-    }
+
+  .session-summary-row:last-of-type {
+    border-bottom: none;
   }
-  .rh-btn {
+
+  .session-summary-label {
+    font-weight: 500;
+  }
+
+  .session-summary-value {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    color: var(--clr-text);
+  }
+
+  /* Total Section - Prominent */
+  .session-total-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid var(--clr-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .session-total-left {
+    flex: 1;
+  }
+
+  .session-total-label {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--clr-text-muted);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .session-total-amount {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--clr-primary);
+    line-height: 1;
+  }
+
+  .session-payment-badge {
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .session-payment-badge.pending {
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+    color: #ea580c;
+    border: 2px solid #fdba74;
+  }
+
+  .session-payment-badge.paid {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    color: #059669;
+    border: 2px solid #86efac;
+  }
+
+  /* Action Buttons */
+  .session-btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .session-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 12px 16px;
-    font-size: 13px;
+    gap: 10px;
+    padding: 16px 24px;
+    font-size: 16px;
     font-weight: 700;
     border: none;
-    border-radius: 10px;
+    border-radius: 14px;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   }
-  .rh-btn:active {
-    transform: scale(0.98);
+
+  .session-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   }
-  .rh-btn.primary {
-    background: #16a34a;
+
+  .session-btn:active {
+    transform: translateY(0);
+  }
+
+  .session-btn.primary {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
     color: white;
   }
-  .rh-btn.primary:hover {
-    background: #15803d;
+
+  .session-btn.secondary {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
   }
-  .rh-btn.primary:disabled {
+
+  .session-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-  .rh-btn.secondary {
-    background: var(--clr-paper);
-    color: var(--clr-text);
-    border: 1px solid var(--clr-border);
-  }
-  .rh-btn.secondary:hover {
-    background: #f3f4f6;
-  }
-  .rh-btn.accent {
-    background: #111827;
-    color: white;
-  }
-  .rh-btn.accent:hover {
-    background: #1f2937;
+    transform: none;
   }
 
-  /* Section Title */
-  .rh-section-title {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  /* Compact Order Card */
-  .rh-order-card {
-    background: var(--clr-paper);
-    border: 1px solid var(--clr-border);
-    border-radius: 10px;
-    padding: 12px;
-    margin-bottom: 10px;
-  }
-  .rh-order-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .rh-order-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 1;
-    min-width: 0;
-  }
-  .rh-order-number {
+  /* Orders Section */
+  .session-section-title {
     font-size: 14px;
     font-weight: 700;
     color: var(--clr-text);
-    margin: 0;
+    margin: 0 0 16px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
-  .rh-order-status-text {
-    font-size: 11px;
-    margin: 0;
+
+  .session-order-card {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    transition: all 0.2s;
+  }
+
+  .session-order-card:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .session-order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  .session-order-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .session-order-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .session-order-icon-wrap.success {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  }
+
+  .session-order-icon-wrap.warning {
+    background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+  }
+
+  .session-order-icon-wrap.info {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  }
+
+  .session-order-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .session-order-number {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--clr-primary);
+    margin: 0 0 4px 0;
+  }
+
+  .session-order-status {
+    font-size: 13px;
     font-weight: 600;
+    margin: 0;
   }
-  .rh-order-right {
+
+  .session-order-right {
     text-align: right;
     flex-shrink: 0;
   }
-  .rh-order-amount {
-    font-size: 15px;
+
+  .session-order-amount {
+    font-size: 18px;
     font-weight: 700;
-    color: var(--clr-text);
-    font-family: 'DM Mono', monospace;
-    margin-bottom: 4px;
+    color: var(--clr-primary);
+    font-family: 'Inter', sans-serif;
+    margin-bottom: 6px;
   }
-  .rh-order-payment-badge {
-    font-size: 9px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 5px;
+
+  .session-order-payment {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
+    display: inline-block;
   }
-  .rh-order-payment-badge.pending {
+
+  .session-order-payment.pending {
     background: #fff7ed;
     color: #ea580c;
   }
-  .rh-order-payment-badge.paid {
+
+  .session-order-payment.paid {
     background: #f0fdf4;
-    color: #16a34a;
+    color: #059669;
   }
 
   /* Toggle Button */
-  .rh-toggle-btn {
+  .session-toggle-btn {
     width: 100%;
-    padding: 8px;
-    font-size: 12px;
+    padding: 10px;
+    font-size: 13px;
     font-weight: 600;
-    background: #f3f4f6;
+    background: #f9fafb;
     color: var(--clr-text);
     border: 1px solid var(--clr-border);
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     font-family: inherit;
-    transition: all 0.15s;
+    transition: all 0.2s;
   }
-  .rh-toggle-btn:hover {
-    background: #e5e7eb;
+
+  .session-toggle-btn:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
   }
 
   /* Items List */
-  .rh-items-list {
-    margin-top: 10px;
-    padding-top: 10px;
+  .session-items-list {
+    margin-top: 12px;
+    padding-top: 12px;
     border-top: 1px dashed var(--clr-border);
   }
-  .rh-item-row {
+
+  .session-item-row {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f9fafb;
+  }
+
+  .session-item-row:last-child {
+    border-bottom: none;
+  }
+
+  .session-item-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .session-item-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--clr-text);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .session-item-qty {
     font-size: 13px;
+    color: var(--clr-text-muted);
+    margin-bottom: 4px;
   }
-  .rh-item-name {
-    font-weight: 600;
-    color: var(--clr-text);
-  }
-  .rh-item-qty {
-    color: var(--clr-muted);
+
+  .session-item-modifiers {
     font-size: 12px;
-    margin-top: 2px;
+    color: var(--clr-text-muted);
+    line-height: 1.5;
   }
-  .rh-item-total {
-    font-family: 'DM Mono', monospace;
-    color: var(--clr-text);
+
+  .session-item-modifier-name {
     font-weight: 600;
+    color: var(--clr-text);
+  }
+
+  .session-item-notes {
+    font-size: 12px;
+    color: var(--clr-text-muted);
+    font-style: italic;
+    margin-top: 4px;
+  }
+
+  .session-item-total {
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--clr-text);
     flex-shrink: 0;
   }
 
-  /* Help Section */
-  .rh-help-section {
+  /* Footer */
+  .session-footer {
     text-align: center;
-    padding-top: 16px;
+    padding: 20px 0;
   }
-  .rh-help-section p {
-    font-size: 11px;
+
+  .session-footer-text {
+    font-size: 13px;
     color: #9ca3af;
-    margin: 4px 0;
+    margin: 0;
   }
-  .rh-help-section strong {
+
+  .session-footer-text strong {
     color: var(--clr-text);
     font-weight: 600;
   }
 
-  /* Loading/Error */
-  .rh-loading-screen, .rh-error-screen {
+  /* Loading/Error States */
+  .session-loading,
+  .session-error {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -506,30 +604,39 @@ const STYLE = `
     text-align: center;
     padding: 32px;
   }
-  .rh-loading-screen img {
-    width: 160px;
-    height: 160px;
-    border-radius: 16px;
-    margin-bottom: 16px;
+
+  .session-loading img {
+    width: 180px;
+    height: 180px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   }
-  .rh-loading-screen p {
-    font-size: 14px;
-    color: var(--clr-muted);
+
+  .session-loading-text {
+    font-size: 16px;
+    color: var(--clr-text-muted);
+    font-weight: 600;
   }
-  .rh-error-screen .rh-error-icon {
-    font-size: 64px;
-    margin-bottom: 16px;
+
+  .session-error-icon {
+    font-size: 80px;
+    margin-bottom: 24px;
   }
-  .rh-error-screen h2 {
-    font-size: 20px;
+
+  .session-error-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 28px;
     font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 8px;
+    color: var(--clr-primary);
+    margin: 0 0 12px 0;
   }
-  .rh-error-screen p {
-    font-size: 14px;
-    color: var(--clr-muted);
-    margin: 0 0 20px;
+
+  .session-error-desc {
+    font-size: 16px;
+    color: var(--clr-text-muted);
+    margin: 0 0 24px 0;
+    line-height: 1.6;
   }
 `;
 
@@ -588,6 +695,7 @@ export default function CustomerTableSessionPage() {
       console.error('Failed to initialize Cashfree:', error);
     });
   }, []);
+
   const hasUnpaidOrders = !session?.allOrdersPaid;
   const allOrdersPaid = session?.allOrdersPaid || false;
   const sessionClosed = session?.status === 'closed';
@@ -600,7 +708,7 @@ export default function CustomerTableSessionPage() {
     if (sessionClosed) {
       return {
         title: 'Order Completed',
-        subtitle: 'Thank you!',
+        subtitle: 'Thank you for dining with us!',
         className: 'success',
         icon: '🎉',
       };
@@ -609,7 +717,7 @@ export default function CustomerTableSessionPage() {
     if (allOrdersPaid) {
       return {
         title: 'All Paid',
-        subtitle: 'Cart fully settled',
+        subtitle: 'Your bill is fully settled',
         className: 'success',
         icon: '✅',
       };
@@ -625,7 +733,7 @@ export default function CustomerTableSessionPage() {
         title: `${readyOrders.length} Order${
           readyOrders.length > 1 ? 's' : ''
         } Ready`,
-        subtitle: 'Collect your food',
+        subtitle: 'Your food is ready to collect!',
         className: 'success',
         icon: '🍽️',
       };
@@ -636,7 +744,7 @@ export default function CustomerTableSessionPage() {
         title: 'Preparing Your Food',
         subtitle: `${cookingOrders.length} order${
           cookingOrders.length > 1 ? 's' : ''
-        } cooking`,
+        } being prepared`,
         className: 'warning',
         icon: '👨‍🍳',
       };
@@ -671,7 +779,6 @@ export default function CustomerTableSessionPage() {
         sessionTableId
       );
 
-      // Create session payment intent directly (backend handles bill calculation)
       const paymentData = await createSessionPaymentIntent({
         slug,
         tableId: sessionTableId,
@@ -725,11 +832,11 @@ export default function CustomerTableSessionPage() {
 
   if (sessionLoading) {
     return (
-      <div className="rh-cart-root">
+      <div className="session-elegant-root">
         <style>{STYLE}</style>
-        <div className="rh-loading-screen">
+        <div className="session-loading">
           <img src="/gifs/food-pending.gif" alt="Loading" />
-          <p>Loading your cart...</p>
+          <p className="session-loading-text">Loading your cart...</p>
         </div>
       </div>
     );
@@ -737,19 +844,21 @@ export default function CustomerTableSessionPage() {
 
   if (sessionError || !session) {
     return (
-      <div className="rh-cart-root">
+      <div className="session-elegant-root">
         <style>{STYLE}</style>
-        <div className="rh-error-screen">
-          <div className="rh-error-icon">🍽️</div>
-          <h2>No Active Cart</h2>
-          <p>You don't have any active orders at this table.</p>
+        <div className="session-error">
+          <div className="session-error-icon">🍽️</div>
+          <h2 className="session-error-title">No Active Cart</h2>
+          <p className="session-error-desc">
+            You don't have any active orders at this table.
+          </p>
           <button
-            className="rh-btn accent"
+            className="session-btn secondary"
             onClick={() =>
               navigate(`/c/${slug}?tableId=${session?.tableId || tableId}`)
             }
           >
-            <Plus size={16} />
+            <Plus size={18} />
             Start Ordering
           </button>
         </div>
@@ -758,85 +867,92 @@ export default function CustomerTableSessionPage() {
   }
 
   return (
-    <div className="rh-cart-root">
+    <div className="session-elegant-root">
       <style>{STYLE}</style>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="rh-cart-wrap"
+        className="session-container"
       >
-        {/* Status Banner - Horizontal Layout */}
+        {/* Status Banner */}
         {sessionStatus && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
           >
-            <div
-              className={`rh-cart-card rh-status-banner ${sessionStatus.className}`}
-            >
-              <div className="rh-status-icon">{sessionStatus.icon}</div>
-              <div className="rh-status-content">
-                <h2 className="rh-status-title">{sessionStatus.title}</h2>
-                <p className="rh-status-subtitle">{sessionStatus.subtitle}</p>
-              </div>
+            <div className={`session-status-banner ${sessionStatus.className}`}>
+              <div className="session-status-icon">{sessionStatus.icon}</div>
+              <h2 className="session-status-title">{sessionStatus.title}</h2>
+              <p className="session-status-subtitle">
+                {sessionStatus.subtitle}
+              </p>
             </div>
           </motion.div>
         )}
 
-        {/* Cart Summary */}
+        {/* Bill Summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.2 }}
         >
-          <div className="rh-cart-card">
-            <div style={{ marginBottom: 8 }}>
-              <div className="rh-summary-row">
-                <span>Subtotal</span>
-                <span>{formatCurrency(bill?.subTotalAmount || 0)}</span>
-              </div>
-
-              {/* Branch Charges - Dynamic Display */}
-              {bill?.branchCharges && bill.branchCharges.length > 0 && (
-                <>
-                  {bill.branchCharges.map((charge, index) => (
-                    <div key={index} className="rh-summary-row">
-                      <span>
-                        {charge.name}
-                        {charge.type === 'percentage' && (
-                          <span style={{ fontSize: '11px', opacity: 0.7 }}>
-                            {' '}({charge.value}%)
-                          </span>
-                        )}
-                      </span>
-                      <span>{formatCurrency(charge.amount || 0)}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {(bill?.taxAmount || 0) > 0 && (
-                <div className="rh-summary-row">
-                  <span>Tax</span>
-                  <span>{formatCurrency(bill?.taxAmount || 0)}</span>
-                </div>
-              )}
+          <div className="session-bill-card">
+            <div className="session-summary-row">
+              <span className="session-summary-label">Subtotal</span>
+              <span className="session-summary-value">
+                {formatCurrency(bill?.subTotalAmount || 0)}
+              </span>
             </div>
 
-            <div className="rh-total-section">
-              <div className="rh-total-left">
-                <p className="rh-total-label">Total</p>
-                <p className="rh-total-amount">
+            {bill?.branchCharges && bill.branchCharges.length > 0 && (
+              <>
+                {bill.branchCharges.map((charge, index) => (
+                  <div key={index} className="session-summary-row">
+                    <span className="session-summary-label">
+                      {charge.name}
+                      {charge.type === 'percentage' && (
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            opacity: 0.7,
+                            marginLeft: '4px',
+                          }}
+                        >
+                          ({charge.value}%)
+                        </span>
+                      )}
+                    </span>
+                    <span className="session-summary-value">
+                      {formatCurrency(charge.amount || 0)}
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {(bill?.taxAmount || 0) > 0 && (
+              <div className="session-summary-row">
+                <span className="session-summary-label">Tax</span>
+                <span className="session-summary-value">
+                  {formatCurrency(bill?.taxAmount || 0)}
+                </span>
+              </div>
+            )}
+
+            <div className="session-total-section">
+              <div className="session-total-left">
+                <p className="session-total-label">Total</p>
+                <p className="session-total-amount">
                   {formatCurrency(bill?.totalAmount || 0)}
                 </p>
               </div>
               <div>
                 {hasUnpaidOrders && (
-                  <span className="rh-total-badge pending">Pending</span>
+                  <span className="session-payment-badge pending">Pending</span>
                 )}
                 {allOrdersPaid && (
-                  <span className="rh-total-badge paid">Paid</span>
+                  <span className="session-payment-badge paid">Paid</span>
                 )}
               </div>
             </div>
@@ -847,27 +963,25 @@ export default function CustomerTableSessionPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
+          transition={{ delay: 0.3 }}
         >
-          {hasUnpaidOrders && !sessionClosed && (
-            <div className="rh-btn-group" style={{ marginBottom: 12 }}>
+          <div className="session-btn-group">
+            {hasUnpaidOrders && !sessionClosed && (
               <button
-                className="rh-btn primary"
+                className="session-btn primary"
                 onClick={handleSessionPayment}
                 disabled={isCreatingPayment}
               >
-                <CreditCard size={16} />
+                <CreditCard size={20} />
                 {isCreatingPayment
                   ? 'Processing...'
                   : `Pay ${formatCurrency(bill?.totalAmount || 0)}`}
               </button>
-            </div>
-          )}
+            )}
 
-          <div className={`rh-btn-group ${!sessionClosed ? 'multi' : ''}`}>
             {!sessionClosed && (
               <button
-                className="rh-btn accent"
+                className="session-btn secondary"
                 onClick={() =>
                   navigate(
                     `/c/${slug}?tableId=${
@@ -876,8 +990,8 @@ export default function CustomerTableSessionPage() {
                   )
                 }
               >
-                <Plus size={14} />
-                Order More
+                <Plus size={18} />
+                Order More Items
               </button>
             )}
           </div>
@@ -888,7 +1002,7 @@ export default function CustomerTableSessionPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.4 }}
           >
             <CallWaiterButton
               tableId={session?.tableId || tableId}
@@ -902,34 +1016,49 @@ export default function CustomerTableSessionPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          style={{ marginTop: 20 }}
+          transition={{ delay: 0.5 }}
+          style={{ marginTop: 24 }}
         >
-          <h3 className="rh-section-title">Your Orders</h3>
-          {orders.map((order) => {
+          <h3 className="session-section-title">Your Orders</h3>
+          {orders.map((order, index) => {
             const statusDisplay = getOrderStatusDisplay(order as any);
             const StatusIcon = statusDisplay.icon;
 
             return (
-              <div key={order.orderNumber} className="rh-order-card">
-                <div className="rh-order-header">
-                  <div className="rh-order-left">
-                    <StatusIcon size={18} className={statusDisplay.color} />
-                    <div>
-                      <h4 className="rh-order-number">#{order.orderNumber}</h4>
+              <motion.div
+                key={order.orderNumber}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 + index * 0.05 }}
+                className="session-order-card"
+              >
+                <div className="session-order-header">
+                  <div className="session-order-left">
+                    <div
+                      className={`session-order-icon-wrap ${statusDisplay.bgColor.replace(
+                        'bg-',
+                        ''
+                      )}`}
+                    >
+                      <StatusIcon size={20} className={statusDisplay.color} />
+                    </div>
+                    <div className="session-order-info">
+                      <h4 className="session-order-number">
+                        #{order.orderNumber}
+                      </h4>
                       <p
-                        className={`rh-order-status-text ${statusDisplay.color}`}
+                        className={`session-order-status ${statusDisplay.color}`}
                       >
                         {statusDisplay.text}
                       </p>
                     </div>
                   </div>
-                  <div className="rh-order-right">
-                    <p className="rh-order-amount">
+                  <div className="session-order-right">
+                    <p className="session-order-amount">
                       {formatCurrency(order.totalAmount)}
                     </p>
                     <span
-                      className={`rh-order-payment-badge ${
+                      className={`session-order-payment ${
                         order.paymentStatus === 'paid' ? 'paid' : 'pending'
                       }`}
                     >
@@ -939,7 +1068,7 @@ export default function CustomerTableSessionPage() {
                 </div>
 
                 <button
-                  className="rh-toggle-btn"
+                  className="session-toggle-btn"
                   onClick={() =>
                     setShowOrderDetails(
                       showOrderDetails === order.orderNumber
@@ -950,12 +1079,12 @@ export default function CustomerTableSessionPage() {
                 >
                   {showOrderDetails === order.orderNumber ? (
                     <>
-                      <ChevronUp size={14} />
+                      <ChevronUp size={16} />
                       Hide Items
                     </>
                   ) : (
                     <>
-                      <ChevronDown size={14} />
+                      <ChevronDown size={16} />
                       View {(order as any).items?.length || 0} Items
                     </>
                   )}
@@ -968,123 +1097,107 @@ export default function CustomerTableSessionPage() {
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="rh-items-list"
+                      className="session-items-list"
                     >
-                      {(order as any).items?.map((item: any, index: any) => (
-                        <div
-                          key={`${item.name}-${index}`}
-                          className="rh-item-row"
-                        >
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                marginBottom: 4,
-                              }}
-                            >
-                              <span className="rh-item-name">{item.name}</span>
-                              {item.activePriceTagId && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs px-1.5 py-0.5 bg-green-50 text-green-700 border-green-200"
-                                >
-                                  Special
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="rh-item-qty">
-                              ₹{item.pricing.unitAmount} × {item.quantity}
-                            </div>
-                            {item.selectedModifiers &&
-                              item.selectedModifiers.length > 0 && (
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    color: '#6b7280',
-                                    marginTop: 4,
-                                  }}
-                                >
-                                  {item.selectedModifiers.map(
-                                    (
-                                      modifier: ModifierSelection,
-                                      modIndex: number
-                                    ) => (
-                                      <div key={modIndex}>
-                                        <span style={{ fontWeight: 600 }}>
-                                          {modifier.modifierName}:
-                                        </span>{' '}
-                                        {modifier.selectedOptions.map(
-                                          (
-                                            option: OptionSelection,
-                                            optIndex: number
-                                          ) => (
-                                            <span key={optIndex}>
-                                              {option.optionName}
-                                              {option.priceAdjustment !== 0 && (
-                                                <span
-                                                  style={{
-                                                    color: '#16a34a',
-                                                    marginLeft: 4,
-                                                  }}
-                                                >
-                                                  (+₹
-                                                  {option.priceAdjustment.toFixed(
-                                                    2
-                                                  )}
-                                                  )
-                                                </span>
-                                              )}
-                                              {optIndex <
-                                                modifier.selectedOptions
-                                                  .length -
-                                                  1 && ', '}
-                                            </span>
-                                          )
-                                        )}
-                                      </div>
-                                    )
-                                  )}
+                      {(order as any).items?.map(
+                        (item: any, itemIndex: any) => (
+                          <div
+                            key={`${item.name}-${itemIndex}`}
+                            className="session-item-row"
+                          >
+                            <div className="session-item-left">
+                              <div className="session-item-name">
+                                {item.name}
+                                {item.activePriceTagId && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  >
+                                    <Sparkles size={10} className="mr-1" />
+                                    Special
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="session-item-qty">
+                                ₹{item.pricing.unitAmount} × {item.quantity}
+                              </div>
+                              {item.selectedModifiers &&
+                                item.selectedModifiers.length > 0 && (
+                                  <div className="session-item-modifiers">
+                                    {item.selectedModifiers.map(
+                                      (
+                                        modifier: ModifierSelection,
+                                        modIndex: number
+                                      ) => (
+                                        <div key={modIndex}>
+                                          <span className="session-item-modifier-name">
+                                            {modifier.modifierName}:
+                                          </span>{' '}
+                                          {modifier.selectedOptions.map(
+                                            (
+                                              option: OptionSelection,
+                                              optIndex: number
+                                            ) => (
+                                              <span key={optIndex}>
+                                                {option.optionName}
+                                                {option.priceAdjustment !==
+                                                  0 && (
+                                                  <span
+                                                    style={{
+                                                      color: '#059669',
+                                                      marginLeft: 4,
+                                                    }}
+                                                  >
+                                                    (+₹
+                                                    {option.priceAdjustment.toFixed(
+                                                      2
+                                                    )}
+                                                    )
+                                                  </span>
+                                                )}
+                                                {optIndex <
+                                                  modifier.selectedOptions
+                                                    .length -
+                                                    1 && ', '}
+                                              </span>
+                                            )
+                                          )}
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                )}
+                              {item.notes && (
+                                <div className="session-item-notes">
+                                  Note: {item.notes}
                                 </div>
                               )}
-                            {item.notes && (
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: '#6b7280',
-                                  marginTop: 4,
-                                  fontStyle: 'italic',
-                                }}
-                              >
-                                Note: {item.notes}
-                              </div>
-                            )}
+                            </div>
+                            <span className="session-item-total">
+                              ₹
+                              {(
+                                item.pricing.unitAmount * item.quantity
+                              ).toFixed(2)}
+                            </span>
                           </div>
-                          <span className="rh-item-total">
-                            ₹
-                            {(item.pricing.unitAmount * item.quantity).toFixed(
-                              2
-                            )}
-                          </span>
-                        </div>
-                      ))}
+                        )
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </div>
+              </motion.div>
             );
           })}
         </motion.div>
 
-        {/* Help Section */}
+        {/* Footer */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="rh-help-section"
+          transition={{ delay: 0.6 }}
+          className="session-footer"
         >
-          <p>
+          <p className="session-footer-text">
             Table <strong>{session?.tableNumber}</strong> • Updates
             automatically
           </p>
