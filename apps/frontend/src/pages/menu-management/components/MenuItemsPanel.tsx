@@ -316,7 +316,7 @@ function ItemCard({
       <div className="p-4 space-y-3">
         {/* Name and Price */}
         <div>
-          <h3 className="font-semibold text-lg line-clamp-1">{item.name}</h3>
+          <h3 className="font-semibold text-lg line-clamp-2">{item.name}</h3>
           <div className="flex items-baseline justify-between mt-1">
             <div className="flex flex-col">
               {item.hasSpecialPrice && item.specialPrice ? (
