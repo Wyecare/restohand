@@ -50,6 +50,7 @@ const modifierOptionSchema = z.object({
   priceAdjustment: z.number().min(0, 'Price adjustment must be positive'),
   currency: z.string().default('INR'),
   isAvailable: z.boolean().default(true),
+  inStock: z.boolean().default(true),
   displayOrder: z.number().min(0).default(0),
   imageUrl: z.string().optional(),
   allergens: z.array(z.string()).default([]),
@@ -62,6 +63,8 @@ const modifierFormSchema = z
     selectionType: z.enum(['single', 'multiple']),
     minSelections: z.number().min(0),
     maxSelections: z.number().min(1),
+    freeOptions: z.number().min(0).default(0),
+    unique: z.boolean().default(true),
     isRequired: z.boolean().default(false),
     options: z
       .array(modifierOptionSchema)
@@ -137,6 +140,8 @@ export function ModifierFormDialog({
       selectionType: 'single',
       minSelections: 0,
       maxSelections: 1,
+      freeOptions: 0,
+      unique: true,
       isRequired: false,
       options: [
         {
@@ -145,6 +150,7 @@ export function ModifierFormDialog({
           priceAdjustment: 0,
           currency: 'INR',
           isAvailable: true,
+          inStock: true,
           displayOrder: 0,
           allergens: [],
         },
@@ -169,6 +175,8 @@ export function ModifierFormDialog({
         selectionType: modifier.selectionType,
         minSelections: modifier.minSelections,
         maxSelections: modifier.maxSelections,
+        freeOptions: modifier.freeOptions || 0,
+        unique: modifier.unique ?? true,
         isRequired: modifier.isRequired,
         options: modifier.options.map((option, index) => ({
           name: option.name,
@@ -176,6 +184,7 @@ export function ModifierFormDialog({
           priceAdjustment: option.priceAdjustment,
           currency: option.currency,
           isAvailable: option.isAvailable,
+          inStock: option.inStock ?? true,
           displayOrder: index,
           imageUrl: option.imageUrl,
           allergens: option.allergens,
@@ -190,6 +199,8 @@ export function ModifierFormDialog({
         selectionType: 'single',
         minSelections: 0,
         maxSelections: 1,
+        freeOptions: 0,
+        unique: true,
         isRequired: false,
         options: [
           {
@@ -198,6 +209,7 @@ export function ModifierFormDialog({
             priceAdjustment: 0,
             currency: 'INR',
             isAvailable: true,
+            inStock: true,
             displayOrder: 0,
             allergens: [],
           },
@@ -270,6 +282,7 @@ export function ModifierFormDialog({
       priceAdjustment: 0,
       currency: 'INR',
       isAvailable: true,
+      inStock: true,
       displayOrder: fields.length,
       allergens: [],
     });
@@ -369,7 +382,7 @@ export function ModifierFormDialog({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div>
                 <Label
                   htmlFor="minSelections"
@@ -416,6 +429,30 @@ export function ModifierFormDialog({
                 )}
               </div>
 
+              <div>
+                <Label
+                  htmlFor="freeOptions"
+                  className="text-base font-semibold"
+                >
+                  Free Options
+                </Label>
+                <Input
+                  id="freeOptions"
+                  type="number"
+                  min="0"
+                  {...form.register('freeOptions', { valueAsNumber: true })}
+                  className="mt-2 h-12 text-base"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  First N selections are free
+                </p>
+                {form.formState.errors.freeOptions && (
+                  <p className="text-sm text-destructive mt-1">
+                    {form.formState.errors.freeOptions.message}
+                  </p>
+                )}
+              </div>
+
               <div className="flex items-center justify-between p-4 bg-background rounded-lg border mt-6">
                 <Label
                   htmlFor="isRequired"
@@ -431,6 +468,27 @@ export function ModifierFormDialog({
                   }
                 />
               </div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-background rounded-lg border">
+              <div>
+                <Label
+                  htmlFor="unique"
+                  className="text-base font-medium cursor-pointer"
+                >
+                  Unique Options
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  When disabled, customers can select the same option multiple times
+                </p>
+              </div>
+              <Switch
+                id="unique"
+                checked={form.watch('unique')}
+                onCheckedChange={(checked) =>
+                  form.setValue('unique', checked)
+                }
+              />
             </div>
 
             <div className="flex items-center justify-between p-4 bg-background rounded-lg border">
@@ -544,21 +602,40 @@ export function ModifierFormDialog({
                             />
                           </div>
 
-                          <div className="flex items-center justify-between p-3 bg-background rounded-lg border">
-                            <Label className="font-medium cursor-pointer">
-                              Available
-                            </Label>
-                            <Switch
-                              checked={form.watch(
-                                `options.${index}.isAvailable`
-                              )}
-                              onCheckedChange={(checked) =>
-                                form.setValue(
-                                  `options.${index}.isAvailable`,
-                                  checked
-                                )
-                              }
-                            />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                              <Label className="font-medium cursor-pointer">
+                                Available
+                              </Label>
+                              <Switch
+                                checked={form.watch(
+                                  `options.${index}.isAvailable`
+                                )}
+                                onCheckedChange={(checked) =>
+                                  form.setValue(
+                                    `options.${index}.isAvailable`,
+                                    checked
+                                  )
+                                }
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                              <Label className="font-medium cursor-pointer">
+                                In Stock
+                              </Label>
+                              <Switch
+                                checked={form.watch(
+                                  `options.${index}.inStock`
+                                )}
+                                onCheckedChange={(checked) =>
+                                  form.setValue(
+                                    `options.${index}.inStock`,
+                                    checked
+                                  )
+                                }
+                              />
+                            </div>
                           </div>
 
                           {/* Allergens */}

@@ -7,6 +7,7 @@ export enum SessionStatus {
   ACTIVE = 'active',
   CLOSED = 'closed',
   ABANDONED = 'abandoned',
+  OPENED = 'opened',
 }
 
 export enum SessionClosureReason {
@@ -25,13 +26,23 @@ export class CustomerSession {
   @Prop({ type: String, required: true, unique: true, index: true })
   sessionId!: string;
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'Restaurant', required: true, index: true })
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'Restaurant',
+    required: true,
+    index: true,
+  })
   restaurantId!: string;
 
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Branch', index: true })
   branchId?: string;
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'RestaurantTable', required: true, index: true })
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'RestaurantTable',
+    required: true,
+    index: true,
+  })
   tableId!: string;
 
   @Prop({ type: String, required: true })
@@ -40,7 +51,12 @@ export class CustomerSession {
   @Prop({ type: Number, required: true, index: true })
   customerNumber!: number;
 
-  @Prop({ type: String, enum: Object.values(SessionStatus), default: SessionStatus.ACTIVE, index: true })
+  @Prop({
+    type: String,
+    enum: Object.values(SessionStatus),
+    default: SessionStatus.ACTIVE,
+    index: true,
+  })
   status!: SessionStatus;
 
   // Session metadata
@@ -98,7 +114,8 @@ export class CustomerSession {
   allOrdersPaid!: boolean;
 }
 
-export const CustomerSessionSchema = SchemaFactory.createForClass(CustomerSession);
+export const CustomerSessionSchema =
+  SchemaFactory.createForClass(CustomerSession);
 
 // Indexes for efficient queries
 CustomerSessionSchema.index({ restaurantId: 1, tableId: 1, status: 1 });
@@ -106,7 +123,7 @@ CustomerSessionSchema.index(
   { tableId: 1, customerNumber: 1, status: 1 },
   {
     unique: true,
-    partialFilterExpression: { status: 'active' } // Only apply unique constraint to active sessions
+    partialFilterExpression: { status: 'active' }, // Only apply unique constraint to active sessions
   }
 );
 CustomerSessionSchema.index({ branchId: 1, status: 1 });

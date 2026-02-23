@@ -106,8 +106,8 @@ const cartSlice = createSlice({
     },
 
     // Add item to cart
-    addItem: (state, action: PayloadAction<Omit<CartItem, 'quantity' | 'itemTotal'>>) => {
-      const newItem = action.payload;
+    addItem: (state, action: PayloadAction<Omit<CartItem, 'quantity' | 'itemTotal'> & { calculatedPrice?: number }>) => {
+      const { calculatedPrice, ...newItem } = action.payload;
       const existingIndex = state.items.findIndex(item =>
         item.menuItemId === newItem.menuItemId &&
         item.activePriceTagId === newItem.activePriceTagId &&
@@ -115,16 +115,19 @@ const cartSlice = createSlice({
         JSON.stringify(item.customizations) === JSON.stringify(newItem.customizations)
       );
 
+      // Use calculated price if provided (from ModifierSelectionModal), otherwise fallback to calculation
+      const itemPrice = calculatedPrice || calculateItemPrice(newItem);
+
       if (existingIndex >= 0) {
         // Update existing item
         state.items[existingIndex].quantity += 1;
-        state.items[existingIndex].itemTotal = state.items[existingIndex].quantity * calculateItemPrice(state.items[existingIndex]);
+        state.items[existingIndex].itemTotal = state.items[existingIndex].quantity * itemPrice;
       } else {
         // Add new item
         const cartItem: CartItem = {
           ...newItem,
           quantity: 1,
-          itemTotal: calculateItemPrice(newItem),
+          itemTotal: itemPrice,
         };
         state.items.push(cartItem);
       }
@@ -254,10 +257,13 @@ const cartSlice = createSlice({
 });
 
 // Helper function to calculate item price including customizations and modifiers
+// Note: This function uses the price already calculated in the ModifierSelectionModal
+// which includes free options logic, so we don't need to recalculate it here
 function calculateItemPrice(item: Partial<CartItem>): number {
   let price = item.price || 0;
 
-  // Add modifier price adjustments
+  // Add modifier price adjustments - these should already include free options calculations
+  // from the ModifierSelectionModal where they were initially calculated
   if (item.selectedModifiers) {
     for (const modifier of item.selectedModifiers) {
       for (const option of modifier.selectedOptions) {

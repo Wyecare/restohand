@@ -13,33 +13,58 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ActivityIndicator,
   RefreshControl,
   Alert,
   Dimensions,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { clearAuthState, selectActiveRestaurantId } from '@/store/slices/authSlice';
+import {
+  clearAuthState,
+  selectActiveRestaurantId,
+} from '@/store/slices/authSlice';
 import { useFCMToken } from '@/hooks/useFCMToken';
 import {
   useListOrdersQuery,
   useUpdateOrderStatusMutation,
 } from '@/store/api/ordersApi';
 import { useOrdersSSE } from '@/hooks/useOrdersSSE';
-import type { Order } from '@/store/api/types';
+import type { Order, OrderItem } from '@/store/api/types';
 import { Image } from 'expo-image';
 import { Audio } from 'expo-av';
 import { router } from 'expo-router';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const BRAND_COLOR = '#4910bc';
-const BRAND_COLOR_LIGHT = '#6B2FDB';
-const BRAND_COLOR_LIGHTER = '#E9E0FF';
-const BRAND_COLOR_PALE = '#F5F1FF';
+// Responsive breakpoints
+const isTablet = SCREEN_WIDTH >= 768;
+const isDesktop = SCREEN_WIDTH >= 1024;
+
+// Modern Color System
+const colors = {
+  primary: '#1D4ED8',
+  primaryLight: '#3B82F6',
+  success: '#059669',
+  successLight: '#10B981',
+  warning: '#F59E0B',
+  warningLight: '#FCD34D',
+  danger: '#DC2626',
+  dangerLight: '#EF4444',
+  gray50: '#F9FAFB',
+  gray100: '#F3F4F6',
+  gray200: '#E5E7EB',
+  gray300: '#D1D5DB',
+  gray400: '#9CA3AF',
+  gray500: '#6B7280',
+  gray600: '#4B5563',
+  gray700: '#374151',
+  gray800: '#1F2937',
+  gray900: '#111827',
+  white: '#FFFFFF',
+};
 
 const cookingStatuses: Order['status'][] = [
   'pending',
@@ -47,21 +72,40 @@ const cookingStatuses: Order['status'][] = [
   'in_progress',
 ];
 
-export default function KitchenOrdersScreen() {
+interface ModifierOption {
+  optionId: string;
+  optionName: string;
+  quantity?: number;
+  priceAdjustment: number;
+}
+
+interface SelectedModifier {
+  modifierId: string;
+  modifierName: string;
+  selectedOptions: ModifierOption[];
+}
+
+export default function ModernKitchenScreen() {
   const dispatch = useAppDispatch();
   const { refreshToken } = useFCMToken();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<
+    'all' | 'new' | 'cooking' | 'ready'
+  >('all');
   const previousOrdersRef = useRef<Order[]>([]);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
 
   const { data, isLoading, refetch } = useListOrdersQuery(
-    restaurantId ? { restaurantId, limit: 20, page: 1 } : { restaurantId: '' },
-    { skip: !restaurantId, pollingInterval: 30000 }
+    restaurantId ? { restaurantId, limit: 50, page: 1 } : { restaurantId: '' },
+    { skip: !restaurantId, pollingInterval: 10000 } // Faster polling for kitchen
   );
 
   const [updateStatus, { isLoading: isUpdating }] =
     useUpdateOrderStatusMutation();
+
+  // Enhanced SSE for real-time updates
+  useOrdersSSE(restaurantId || '');
 
   // Load audio on component mount
   useEffect(() => {
@@ -79,7 +123,7 @@ export default function KitchenOrdersScreen() {
     };
 
     loadAudio();
-  }, []); // Only run on mount
+  }, []);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -98,100 +142,76 @@ export default function KitchenOrdersScreen() {
         console.log('Playing new order sound...');
         await sound.replayAsync();
         console.log('New order sound played successfully');
-      } else {
-        console.warn('Sound not loaded yet');
       }
     } catch (error) {
-      console.warn('Failed to play new order sound:', error);
+      console.warn('Failed to play sound:', error);
     }
   }, [sound]);
 
-  // Real-time updates via SSE with audio notifications
-  const handleSSEEvent = useCallback(
-    async (eventData?: any) => {
-      console.log('Kitchen SSE event received:', eventData);
+  // Enhanced order filtering and sorting
+  const { readyOrders, allOrders } = useMemo(() => {
+    const orders = data?.data || [];
 
-      // Check if this is specifically a new order event
-      const isNewOrderEvent =
-        eventData?.type &&
-        (eventData.type === 'order.created' ||
-          eventData.type === 'order-created' ||
-          eventData.type === 'new.order' ||
-          eventData.type === 'new-order');
+    const cooking = orders.filter((order: Order) =>
+      cookingStatuses.includes(order.status)
+    );
+    const ready = orders.filter((order: Order) => order.status === 'ready');
 
-      if (isNewOrderEvent) {
-        console.log('New order detected via SSE - playing sound');
-        playNewOrderSound();
-      } else {
-        console.log('Non-new-order SSE event - no sound:', eventData?.type);
-      }
-
-      // Always refetch orders to get latest data
-      await refetch();
-
-      // Update previous orders for next comparison
-      if (data?.data) {
-        previousOrdersRef.current = data.data;
-      }
-    },
-    [refetch, playNewOrderSound, data?.data]
-  );
-
-  useOrdersSSE({ onEvent: handleSSEEvent, enabled: !!restaurantId });
-
-  // Split orders into two columns:
-  // LEFT = cooking queue (pending/accepted/in_progress) - stays here until marked "ready"
-  // RIGHT = ready orders - move here when marked ready, can be marked as delivered/complete to remove
-  const { cookingOrders, readyOrders } = useMemo(() => {
-    if (!data?.data) return { cookingOrders: [], readyOrders: [] };
-
-    const cooking: Order[] = [];
-    const ready: Order[] = [];
-
-    data.data.forEach((order) => {
-      // LEFT COLUMN: All orders being worked on
-      if (cookingStatuses.includes(order.status)) {
-        cooking.push(order);
-      }
-      // RIGHT COLUMN: Only ready orders waiting to be picked up
-      else if (order.status === 'ready') {
-        ready.push(order);
-      }
-      // Orders with other statuses (delivered, completed, etc.) are filtered out
-    });
-
-    // Sort cooking orders by time (oldest first - most urgent)
-    cooking.sort((a, b) => {
-      const timeA = new Date(a.createdAt || 0).getTime();
-      const timeB = new Date(b.createdAt || 0).getTime();
-      return timeA - timeB;
-    });
-
-    // Sort ready orders by time (oldest first)
-    ready.sort((a, b) => {
-      const timeA = new Date(a.createdAt || 0).getTime();
-      const timeB = new Date(b.createdAt || 0).getTime();
-      return timeA - timeB;
-    });
-
-    return { cookingOrders: cooking, readyOrders: ready };
-  }, [data?.data]);
-
-  // Status counts for summary
-  const statusCounts = useMemo(() => {
-    const counts = {
-      pending: 0,
-      accepted: 0,
-      in_progress: 0,
-      ready: 0,
+    // Sort by urgency (time since created)
+    const sortByUrgency = (a: Order, b: Order) => {
+      const timeA = new Date(a.createdAt || '').getTime();
+      const timeB = new Date(b.createdAt || '').getTime();
+      return timeA - timeB; // Older orders first (more urgent)
     };
-    data?.data?.forEach((order) => {
-      if (counts.hasOwnProperty(order.status)) {
-        counts[order.status as keyof typeof counts]++;
+
+    cooking.sort(sortByUrgency);
+    ready.sort(sortByUrgency);
+
+    const all = [...cooking, ...ready];
+
+    return {
+      readyOrders: ready,
+      allOrders: all,
+    };
+  }, [data]);
+
+  // Filter orders based on selected filter
+  const filteredOrders = useMemo(() => {
+    switch (selectedFilter) {
+      case 'new':
+        return allOrders.filter((order) => order.status === 'pending');
+      case 'cooking':
+        return allOrders.filter((order) =>
+          ['accepted', 'in_progress'].includes(order.status)
+        );
+      case 'ready':
+        return readyOrders;
+      default:
+        return allOrders;
+    }
+  }, [allOrders, readyOrders, selectedFilter]);
+
+  // Check for new orders and play sound
+  useEffect(() => {
+    if (data?.data) {
+      const currentOrders = data.data;
+      const previousOrders = previousOrdersRef.current;
+
+      // Find new orders (orders that weren't in the previous fetch)
+      const newOrders = currentOrders.filter(
+        (current: Order) =>
+          !previousOrders.some((prev) => prev.id === current.id)
+      );
+
+      // Play sound for any new orders
+      if (newOrders.length > 0 && previousOrders.length > 0) {
+        console.log(`🔔 ${newOrders.length} new order(s) received!`);
+        playNewOrderSound();
       }
-    });
-    return counts;
-  }, [data?.data]);
+
+      previousOrdersRef.current = currentOrders;
+    }
+  }, [data?.data, playNewOrderSound]);
 
   const handleUpdate = async (
     orderId: string,
@@ -216,17 +236,16 @@ export default function KitchenOrdersScreen() {
     setRefreshing(true);
     await Promise.all([
       refetch(),
-      // Refresh FCM token in background
       refreshToken().catch((error) => {
         console.warn('FCM token refresh failed:', error);
-      })
+      }),
     ]);
     setRefreshing(false);
   };
 
   const handleLogout = () => {
     dispatch(clearAuthState());
-    router.replace("/(auth)/login");
+    router.replace('/(auth)/login');
   };
 
   const formatTime = (dateString: string) => {
@@ -237,10 +256,9 @@ export default function KitchenOrdersScreen() {
 
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    const hours = Math.floor(diffMins / 60);
+    const remainingMins = diffMins % 60;
+    return `${hours}h ${remainingMins}m ago`;
   };
 
   const getTimeMinutes = (dateString: string) => {
@@ -251,28 +269,96 @@ export default function KitchenOrdersScreen() {
 
   const getUrgencyLevel = (dateString: string) => {
     const mins = getTimeMinutes(dateString);
-    if (mins > 15) return 'critical';
+    if (mins > 20) return 'critical';
+    if (mins > 15) return 'urgent';
     if (mins > 10) return 'warning';
     if (mins > 5) return 'normal';
     return 'fresh';
   };
 
-  const getStatusLabel = (status: Order['status']) => {
+  const getStatusInfo = (status: Order['status']) => {
     switch (status) {
       case 'pending':
-        return 'New';
+        return {
+          label: 'New Order',
+          color: colors.primary,
+          icon: 'alert-circle',
+        };
       case 'accepted':
-        return 'Accepted';
+        return {
+          label: 'Accepted',
+          color: colors.warning,
+          icon: 'checkmark-circle',
+        };
       case 'in_progress':
-        return 'Cooking';
+        return { label: 'Cooking', color: colors.success, icon: 'flame' };
       case 'ready':
-        return 'Ready';
+        return {
+          label: 'Ready',
+          color: colors.successLight,
+          icon: 'checkmark-done-circle',
+        };
       default:
-        return status;
+        return { label: status, color: colors.gray500, icon: 'help-circle' };
     }
   };
 
-  const OrderCard = ({
+  const renderModifiers = (modifiers: SelectedModifier[]) => {
+    if (!modifiers || modifiers.length === 0) return null;
+
+    return (
+      <View style={styles.modifiersSection}>
+        <Text style={styles.modifiersTitle}>Customizations:</Text>
+        {modifiers.map((modifier, modIndex) => (
+          <View key={modIndex} style={styles.modifierGroup}>
+            <Text style={styles.modifierName}>{modifier.modifierName}:</Text>
+            {modifier.selectedOptions.map((option, optIndex) => (
+              <View key={optIndex} style={styles.modifierOption}>
+                <Text style={styles.modifierOptionText}>
+                  {option.quantity || 1}x {option.optionName}
+                  {option.priceAdjustment !== 0 && (
+                    <Text style={styles.modifierPrice}>
+                      {option.priceAdjustment > 0 ? '+' : ''}₹
+                      {option.priceAdjustment}
+                    </Text>
+                  )}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderOrderItem = (item: OrderItem) => (
+    <View style={styles.orderItem}>
+      <View style={styles.itemHeader}>
+        <View style={styles.quantityBadge}>
+          <Text style={styles.quantityText}>{item.quantity}x</Text>
+        </View>
+        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemPrice}>
+          ₹{((item.pricing?.unitAmount || 0) * item.quantity).toFixed(0)}
+        </Text>
+      </View>
+
+      {item.selectedModifiers && renderModifiers(item.selectedModifiers)}
+
+      {item.notes && (
+        <View style={styles.notesSection}>
+          <Ionicons
+            name="chatbubble-outline"
+            size={14}
+            color={colors.gray500}
+          />
+          <Text style={styles.notesText}>{item.notes}</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const ModernOrderCard = ({
     order,
     isReady = false,
   }: {
@@ -281,127 +367,101 @@ export default function KitchenOrdersScreen() {
   }) => {
     const urgencyLevel = getUrgencyLevel(order.createdAt || '');
     const timeMinutes = getTimeMinutes(order.createdAt || '');
+    const statusInfo = getStatusInfo(order.status);
 
     const urgencyStyles = {
-      critical: {
-        borderColor: '#DC2626',
-        timeBg: '#FEE2E2',
-        timeColor: '#DC2626',
-        showPulse: true,
-      },
-      warning: {
-        borderColor: '#F59E0B',
-        timeBg: '#FEF3C7',
-        timeColor: '#D97706',
-        showPulse: false,
-      },
-      normal: {
-        borderColor: '#E5E7EB',
-        timeBg: '#F3F4F6',
-        timeColor: '#6B7280',
-        showPulse: false,
-      },
-      fresh: {
-        borderColor: BRAND_COLOR_LIGHTER,
-        timeBg: BRAND_COLOR_PALE,
-        timeColor: BRAND_COLOR,
-        showPulse: false,
-      },
+      critical: { borderColor: colors.danger, backgroundColor: '#FEF2F2' },
+      urgent: { borderColor: colors.dangerLight, backgroundColor: '#FEF7F0' },
+      warning: { borderColor: colors.warning, backgroundColor: '#FFFBEB' },
+      normal: { borderColor: colors.gray200, backgroundColor: colors.white },
+      fresh: { borderColor: colors.success, backgroundColor: '#F0FDF4' },
     };
 
-    const style = isReady
-      ? {
-          borderColor: '#10B981',
-          timeBg: '#D1FAE5',
-          timeColor: '#059669',
-          showPulse: false,
-        }
-      : urgencyStyles[urgencyLevel];
-
     return (
-      <View style={[styles.orderCard, { borderColor: style.borderColor }]}>
-        {/* Urgency Pulse Indicator */}
-        {style.showPulse && (
-          <View style={styles.criticalPulse}>
-            <View style={[styles.pulseRing, { backgroundColor: '#DC2626' }]} />
-          </View>
-        )}
-
-        {/* Header: Order Number, Table, Status */}
+      <View
+        style={[
+          styles.modernOrderCard,
+          urgencyStyles[urgencyLevel],
+          {
+            borderLeftColor: urgencyStyles[urgencyLevel].borderColor,
+            borderLeftWidth: 4,
+          },
+        ]}
+      >
+        {/* Header */}
         <View style={styles.cardHeader}>
           <View style={styles.orderInfo}>
             <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
-
-            {order.tableNumber && (
-              <View style={styles.tableBadge}>
-                <Ionicons name="restaurant-outline" size={14} color="#374151" />
-                <Text style={styles.tableText}>T{order.tableNumber}</Text>
-              </View>
-            )}
           </View>
-
-          <View style={styles.statusTag}>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: isReady ? '#10B981' : BRAND_COLOR },
-              ]}
-            />
-            <Text style={styles.statusText}>
-              {getStatusLabel(order.status)}
+          <View
+            style={[
+              styles.timeBadge,
+              {
+                backgroundColor:
+                  urgencyLevel === 'critical'
+                    ? colors.danger
+                    : urgencyLevel === 'urgent'
+                    ? colors.dangerLight
+                    : urgencyLevel === 'warning'
+                    ? colors.warning
+                    : colors.gray400,
+              },
+            ]}
+          >
+            <Ionicons name="time-outline" size={14} color={colors.white} />
+            <Text style={[styles.timeText, { color: colors.white }]}>
+              {timeMinutes}m
             </Text>
           </View>
         </View>
 
-        {/* Time Badge */}
-        {order.createdAt && (
-          <View style={[styles.timeBadge, { backgroundColor: style.timeBg }]}>
-            <Ionicons name="time-outline" size={16} color={style.timeColor} />
-            <Text style={[styles.timeText, { color: style.timeColor }]}>
-              {formatTime(order.createdAt)}
-            </Text>
-          </View>
-        )}
-
-        {/* Customer Name */}
-        {order.customerName && (
-          <View style={styles.customerRow}>
-            <Ionicons name="person-outline" size={14} color="#6B7280" />
-            <Text style={styles.customerName}>{order.customerName}</Text>
-          </View>
-        )}
-
-        {/* Order Items */}
-        <View style={styles.itemsSection}>
-          {order.items.map((item, index) => (
-            <View key={index} style={styles.itemRow}>
-              <View style={styles.quantityBadge}>
-                <Text style={styles.quantityText}>{item.quantity}x</Text>
-              </View>
-              <Text style={styles.itemName} numberOfLines={2}>
-                {item.name}
-              </Text>
+        {/* Customer & Table Info */}
+        <View style={styles.customerInfo}>
+          {order.tableNumber && (
+            <View style={styles.infoItem}>
+              <Ionicons
+                name="restaurant-outline"
+                size={16}
+                color={colors.gray600}
+              />
+              <Text style={styles.infoText}>Table {order.tableNumber}</Text>
             </View>
+          )}
+          {order.customerName && (
+            <View style={styles.infoItem}>
+              <Ionicons
+                name="person-outline"
+                size={16}
+                color={colors.gray600}
+              />
+              <Text style={styles.infoText}>{order.customerName}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Order Items with Modifiers */}
+        <View style={styles.itemsContainer}>
+          {order.items.map((item, index) => (
+            <View key={index}>{renderOrderItem(item)}</View>
           ))}
         </View>
 
-        {/* Total Amount */}
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total</Text>
+        {/* Total */}
+        <View style={styles.totalSection}>
+          <Text style={styles.totalLabel}>Total Amount</Text>
           <Text style={styles.totalAmount}>
             ₹{order.totalAmount.toFixed(0)}
           </Text>
         </View>
 
         {/* Action Buttons */}
-        <View style={styles.actionsRow}>
-          {/* LEFT COLUMN ACTIONS - Cooking Queue */}
+        <View style={styles.actionsContainer}>
           {!isReady && (
             <>
               {order.status === 'pending' && (
-                <>
+                <View style={styles.actionsRow}>
                   <TouchableOpacity
-                    style={[styles.actionBtn, styles.acceptBtn]}
+                    style={[styles.modernBtn, styles.acceptBtn]}
                     onPress={() =>
                       handleUpdate(order.id, 'accepted', order.progress ?? 0)
                     }
@@ -410,216 +470,335 @@ export default function KitchenOrdersScreen() {
                     <Ionicons
                       name="checkmark-circle"
                       size={18}
-                      color="#FFFFFF"
+                      color={colors.white}
                     />
-                    <Text style={styles.actionBtnText}>Accept</Text>
+                    <Text style={styles.btnText}>Accept</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.actionBtn, styles.startBtn]}
+                    style={[styles.modernBtn, styles.startBtn]}
                     onPress={() => handleUpdate(order.id, 'in_progress', 40)}
                     disabled={isUpdating}
                   >
-                    <Ionicons name="flame" size={18} color="#FFFFFF" />
-                    <Text style={styles.actionBtnText}>Start</Text>
+                    <Ionicons name="flame" size={18} color={colors.white} />
+                    <Text style={styles.btnText}>Start Now</Text>
                   </TouchableOpacity>
-                </>
+                </View>
               )}
 
               {order.status === 'accepted' && (
                 <TouchableOpacity
-                  style={[styles.actionBtn, styles.startBtn, { flex: 1 }]}
+                  style={[styles.modernBtn, styles.startBtn, styles.fullWidth]}
                   onPress={() => handleUpdate(order.id, 'in_progress', 40)}
                   disabled={isUpdating}
                 >
-                  <Ionicons name="flame" size={18} color="#FFFFFF" />
-                  <Text style={styles.actionBtnText}>Start Cooking</Text>
+                  <Ionicons name="flame" size={18} color={colors.white} />
+                  <Text style={styles.btnText}>Start Cooking</Text>
                 </TouchableOpacity>
               )}
 
               {order.status === 'in_progress' && (
                 <TouchableOpacity
-                  style={[styles.actionBtn, styles.readyBtn, { flex: 1 }]}
+                  style={[styles.modernBtn, styles.readyBtn, styles.fullWidth]}
                   onPress={() => handleUpdate(order.id, 'ready', 100)}
                   disabled={isUpdating}
                 >
                   <Ionicons
                     name="checkmark-done-circle"
                     size={18}
-                    color="#FFFFFF"
+                    color={colors.white}
                   />
-                  <Text style={styles.actionBtnText}>Mark Ready</Text>
+                  <Text style={styles.btnText}>Mark as Ready</Text>
                 </TouchableOpacity>
               )}
             </>
           )}
 
-          {/* RIGHT COLUMN ACTIONS - Ready Orders */}
           {isReady && (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.completeBtn, { flex: 1 }]}
-              onPress={() => handleUpdate(order.id, 'delivered', 100)}
-              disabled={isUpdating}
+            <View
+              style={[
+                styles.modernBtn,
+                styles.readyIndicator,
+                styles.fullWidth,
+              ]}
             >
-              <Ionicons name="checkmark-done" size={18} color="#FFFFFF" />
-              <Text style={styles.actionBtnText}>Complete</Text>
-            </TouchableOpacity>
+              <Ionicons
+                name="checkmark-done-circle"
+                size={18}
+                color={colors.success}
+              />
+              <Text style={[styles.btnText, { color: colors.success }]}>
+                Order Ready for Service
+              </Text>
+            </View>
           )}
         </View>
       </View>
     );
   };
 
+  const FilterButton = ({
+    title,
+    count,
+    isActive,
+    onPress,
+  }: {
+    title: string;
+    count: number;
+    isActive: boolean;
+    onPress: () => void;
+  }) => (
+    <TouchableOpacity
+      style={[styles.filterBtn, isActive && styles.filterBtnActive]}
+      onPress={onPress}
+    >
+      <Text
+        style={[styles.filterBtnText, isActive && styles.filterBtnTextActive]}
+      >
+        {title}
+      </Text>
+      {count > 0 && (
+        <View
+          style={[styles.filterBadge, isActive && styles.filterBadgeActive]}
+        >
+          <Text
+            style={[
+              styles.filterBadgeText,
+              isActive && styles.filterBadgeTextActive,
+            ]}
+          >
+            {count}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={BRAND_COLOR} />
-        <Text style={styles.loadingText}>Loading orders...</Text>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading kitchen orders...</Text>
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Modern Header */}
+      <View style={styles.modernHeader}>
         <View style={styles.headerLeft}>
           <Image source={logo_white} style={styles.logo} />
           <View style={styles.headerInfo}>
+            <Text style={styles.appTitle}>Kitchen Display</Text>
             <Text style={styles.subtitle}>
-              {cookingOrders.length + readyOrders.length} active order
-              {cookingOrders.length + readyOrders.length !== 1 ? 's' : ''}
+              {filteredOrders.length} active order
+              {filteredOrders.length !== 1 ? 's' : ''}
             </Text>
           </View>
         </View>
 
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            onPress={playNewOrderSound}
-            style={[styles.headerBtn, styles.soundBtn]}
-          >
-            <Ionicons name="volume-high" size={22} color="#FFFFFF" />
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={playNewOrderSound} style={styles.soundBtn}>
+            <Ionicons name="volume-high" size={20} color={colors.gray600} />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onRefresh}
-            style={[styles.headerBtn, styles.refreshBtn]}
-            disabled={refreshing}
-          >
-            <Ionicons
-              name="refresh"
-              size={22}
-              color={BRAND_COLOR}
-              style={refreshing ? styles.rotating : undefined}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={[styles.headerBtn, styles.logoutBtn]}
-          >
-            <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={20} color={colors.gray600} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Status Summary Bar */}
-      <View style={styles.summaryBar}>
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: '#DC2626' }]} />
-          <Text style={styles.summaryLabel}>New</Text>
-          <Text style={styles.summaryCount}>{statusCounts.pending}</Text>
-        </View>
-
-        <View style={styles.summaryDivider} />
-
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: '#F59E0B' }]} />
-          <Text style={styles.summaryLabel}>Accepted</Text>
-          <Text style={styles.summaryCount}>{statusCounts.accepted}</Text>
-        </View>
-
-        <View style={styles.summaryDivider} />
-
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: BRAND_COLOR }]} />
-          <Text style={styles.summaryLabel}>Cooking</Text>
-          <Text style={styles.summaryCount}>{statusCounts.in_progress}</Text>
-        </View>
-
-        <View style={styles.summaryDivider} />
-
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryDot, { backgroundColor: '#10B981' }]} />
-          <Text style={styles.summaryLabel}>Ready</Text>
-          <Text style={styles.summaryCount}>{statusCounts.ready}</Text>
-        </View>
-      </View>
-
-      {/* Two Column Layout */}
-      <View style={styles.columnsContainer}>
-        {/* LEFT COLUMN: Cooking Queue */}
-        <View style={styles.column}>
-          <View style={styles.columnHeader}>
-            <Ionicons name="flame" size={22} color={BRAND_COLOR} />
-            <Text style={styles.columnTitle}>Cooking Queue</Text>
-            <View
-              style={[styles.columnBadge, { backgroundColor: BRAND_COLOR }]}
-            >
-              <Text style={styles.columnBadgeText}>{cookingOrders.length}</Text>
+      {/* Kanban Columns for Tablets/Desktops */}
+      {isTablet ? (
+        <View style={styles.kanbanContainer}>
+          {/* New Orders Column */}
+          <View style={styles.kanbanColumn}>
+            <View style={styles.columnHeader}>
+              <Text style={styles.columnTitle}>New Orders</Text>
+              <View style={styles.columnBadge}>
+                <Text style={styles.columnBadgeText}>
+                  {allOrders.filter((o) => o.status === 'pending').length}
+                </Text>
+              </View>
             </View>
+            <ScrollView
+              style={styles.columnScrollView}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+            >
+              {allOrders
+                .filter((o) => o.status === 'pending')
+                .map((order: Order) => (
+                  <View key={order.id} style={styles.kanbanCard}>
+                    <ModernOrderCard order={order} isReady={false} />
+                  </View>
+                ))}
+              {allOrders.filter((o) => o.status === 'pending').length === 0 && (
+                <View style={styles.emptyColumn}>
+                  <Ionicons
+                    name="time-outline"
+                    size={32}
+                    color={colors.gray300}
+                  />
+                  <Text style={styles.emptyColumnText}>No new orders</Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
 
+          {/* Cooking Orders Column */}
+          <View style={styles.kanbanColumn}>
+            <View style={styles.columnHeader}>
+              <Text style={styles.columnTitle}>Cooking</Text>
+              <View style={styles.columnBadge}>
+                <Text style={styles.columnBadgeText}>
+                  {
+                    allOrders.filter((o) =>
+                      ['accepted', 'in_progress'].includes(o.status)
+                    ).length
+                  }
+                </Text>
+              </View>
+            </View>
+            <ScrollView
+              style={styles.columnScrollView}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+            >
+              {allOrders
+                .filter((o) => ['accepted', 'in_progress'].includes(o.status))
+                .map((order: Order) => (
+                  <View key={order.id} style={styles.kanbanCard}>
+                    <ModernOrderCard order={order} isReady={false} />
+                  </View>
+                ))}
+              {allOrders.filter((o) =>
+                ['accepted', 'in_progress'].includes(o.status)
+              ).length === 0 && (
+                <View style={styles.emptyColumn}>
+                  <Ionicons
+                    name="flame-outline"
+                    size={32}
+                    color={colors.gray300}
+                  />
+                  <Text style={styles.emptyColumnText}>No orders cooking</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+
+          {/* Ready Orders Column */}
+          <View style={styles.kanbanColumn}>
+            <View style={styles.columnHeader}>
+              <Text style={styles.columnTitle}>Ready</Text>
+              <View style={styles.columnBadge}>
+                <Text style={styles.columnBadgeText}>{readyOrders.length}</Text>
+              </View>
+            </View>
+            <ScrollView
+              style={styles.columnScrollView}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+            >
+              {readyOrders.map((order: Order) => (
+                <View key={order.id} style={styles.kanbanCard}>
+                  <ModernOrderCard order={order} isReady={true} />
+                </View>
+              ))}
+              {readyOrders.length === 0 && (
+                <View style={styles.emptyColumn}>
+                  <Ionicons
+                    name="checkmark-done-outline"
+                    size={32}
+                    color={colors.gray300}
+                  />
+                  <Text style={styles.emptyColumnText}>No orders ready</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      ) : (
+        <>
+          {/* Filter Tabs for Mobile */}
+          <View style={styles.filtersContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersScroll}
+            >
+              <FilterButton
+                title="All Orders"
+                count={allOrders.length}
+                isActive={selectedFilter === 'all'}
+                onPress={() => setSelectedFilter('all')}
+              />
+              <FilterButton
+                title="New"
+                count={allOrders.filter((o) => o.status === 'pending').length}
+                isActive={selectedFilter === 'new'}
+                onPress={() => setSelectedFilter('new')}
+              />
+              <FilterButton
+                title="Cooking"
+                count={
+                  allOrders.filter((o) =>
+                    ['accepted', 'in_progress'].includes(o.status)
+                  ).length
+                }
+                isActive={selectedFilter === 'cooking'}
+                onPress={() => setSelectedFilter('cooking')}
+              />
+              <FilterButton
+                title="Ready"
+                count={readyOrders.length}
+                isActive={selectedFilter === 'ready'}
+                onPress={() => setSelectedFilter('ready')}
+              />
+            </ScrollView>
+          </View>
+
+          {/* Mobile Orders List */}
           <ScrollView
-            style={styles.columnScroll}
-            contentContainerStyle={styles.columnContent}
-            showsVerticalScrollIndicator={false}
+            style={styles.ordersContainer}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
-          >
-            {cookingOrders.length > 0 ? (
-              cookingOrders.map((order) => (
-                <OrderCard key={order.id} order={order} isReady={false} />
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={56}
-                  color="#D1D5DB"
-                />
-                <Text style={styles.emptyText}>No orders cooking</Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-
-        {/* RIGHT COLUMN: Ready to Serve */}
-        <View style={[styles.column, styles.readyColumn]}>
-          <View style={[styles.columnHeader, styles.readyColumnHeader]}>
-            <Ionicons name="checkmark-done-circle" size={22} color="#10B981" />
-            <Text style={styles.columnTitle}>Ready to Serve</Text>
-            <View style={[styles.columnBadge, { backgroundColor: '#10B981' }]}>
-              <Text style={styles.columnBadgeText}>{readyOrders.length}</Text>
-            </View>
-          </View>
-
-          <ScrollView
-            style={styles.columnScroll}
-            contentContainerStyle={styles.columnContent}
             showsVerticalScrollIndicator={false}
           >
-            {readyOrders.length > 0 ? (
-              readyOrders.map((order) => (
-                <OrderCard key={order.id} order={order} isReady={true} />
-              ))
-            ) : (
+            {filteredOrders.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="hourglass-outline" size={56} color="#D1D5DB" />
-                <Text style={styles.emptyText}>Nothing ready yet</Text>
+                <Ionicons
+                  name="restaurant-outline"
+                  size={64}
+                  color={colors.gray300}
+                />
+                <Text style={styles.emptyTitle}>No orders found</Text>
+                <Text style={styles.emptySubtitle}>
+                  {selectedFilter === 'all'
+                    ? 'All orders will appear here when received'
+                    : `No ${selectedFilter} orders at the moment`}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.ordersList}>
+                {filteredOrders.map((order: Order) => (
+                  <ModernOrderCard
+                    key={order.id}
+                    order={order}
+                    isReady={order.status === 'ready'}
+                  />
+                ))}
               </View>
             )}
           </ScrollView>
-        </View>
-      </View>
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -627,406 +806,436 @@ export default function KitchenOrdersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.gray50,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.gray50,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: colors.gray600,
     fontWeight: '500',
   },
-  rotating: {
-    // Add rotation animation if needed
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
+  modernHeader: {
+    backgroundColor: colors.white,
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.gray100,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: colors.gray900,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
     }),
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
   },
   logo: {
-    width: 140,
-    height: 45,
-    resizeMode: 'contain',
+    width: 40,
+    height: 40,
+    marginRight: 12,
   },
   headerInfo: {
     justifyContent: 'center',
   },
+  appTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.gray900,
+  },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: colors.gray500,
+    marginTop: 2,
   },
-  headerButtons: {
+  headerActions: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
-  headerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   soundBtn: {
-    backgroundColor: '#10B981',
-  },
-  refreshBtn: {
-    backgroundColor: BRAND_COLOR_PALE,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.gray100,
   },
   logoutBtn: {
-    backgroundColor: '#DC2626',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.gray100,
   },
-
-  // Summary Bar
-  summaryBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
+  filtersContainer: {
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: colors.gray100,
   },
-  summaryItem: {
+  filtersScroll: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  filterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.gray100,
+    gap: 8,
   },
-  summaryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  filterBtnActive: {
+    backgroundColor: colors.primary,
   },
-  summaryLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
+  filterBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.gray600,
   },
-  summaryCount: {
-    fontSize: 16,
-    color: '#111827',
-    fontWeight: '700',
+  filterBtnTextActive: {
+    color: colors.white,
   },
-  summaryDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: '#E5E7EB',
+  filterBadge: {
+    backgroundColor: colors.gray300,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
   },
-
-  // Two Column Layout
-  columnsContainer: {
+  filterBadgeActive: {
+    backgroundColor: colors.white,
+  },
+  filterBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.gray700,
+  },
+  filterBadgeTextActive: {
+    color: colors.primary,
+  },
+  ordersContainer: {
+    flex: 1,
+  },
+  ordersList: {
+    padding: 20,
+    gap: 16,
+  },
+  // Kanban Board Layout
+  kanbanContainer: {
     flex: 1,
     flexDirection: 'row',
-    gap: 16,
-    padding: 16,
+    backgroundColor: colors.gray50,
+    justifyContent: 'space-between',
   },
-  column: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
-  },
-  readyColumn: {
-    borderWidth: 2,
-    borderColor: '#D1FAE5',
+  kanbanColumn: {
+    width: '31%', // 3 columns with space for gaps
+    backgroundColor: colors.gray100,
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: '1.5%', // Creates gaps between columns
+    minHeight: '100%',
   },
   columnHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: BRAND_COLOR_PALE,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  readyColumnHeader: {
-    backgroundColor: '#D1FAE5',
+    borderBottomColor: colors.gray200,
   },
   columnTitle: {
-    flex: 1,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.gray800,
   },
   columnBadge: {
-    minWidth: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 24,
     alignItems: 'center',
-    paddingHorizontal: 10,
   },
   columnBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.white,
   },
-  columnScroll: {
+  columnScrollView: {
     flex: 1,
   },
-  columnContent: {
-    padding: 16,
-    gap: 16,
+  kanbanCard: {
+    marginBottom: 12,
   },
-
-  // Order Card
-  orderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 2,
-    padding: 16,
-    position: 'relative',
+  emptyColumn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyColumnText: {
+    fontSize: 14,
+    color: colors.gray400,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  modernOrderCard: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: isTablet ? 12 : 20,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    width: '100%',
+    minHeight: isTablet ? 220 : 'auto',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: colors.gray900,
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.08,
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        elevation: 1,
       },
     }),
   },
-  criticalPulse: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 12,
-    height: 12,
-    zIndex: 10,
-  },
-  pulseRing: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
   cardHeader: {
-    flexDirection: 'row',
+    flexDirection: isTablet ? 'column' : 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: isTablet ? 'flex-start' : 'center',
+    marginBottom: isTablet ? 10 : 16,
+    gap: isTablet ? 6 : 0,
   },
   orderInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: isTablet ? 8 : 12,
     flex: 1,
   },
   orderNumber: {
-    fontSize: 20,
+    fontSize: isTablet ? 16 : 18,
     fontWeight: '700',
-    color: '#111827',
-    letterSpacing: -0.3,
+    color: colors.gray900,
   },
-  tableBadge: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 6,
-  },
-  tableText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  statusTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    paddingHorizontal: isTablet ? 6 : 8,
+    paddingVertical: isTablet ? 2 : 4,
+    borderRadius: 16,
+    gap: isTablet ? 3 : 4,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: isTablet ? 10 : 12,
     fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: colors.white,
   },
   timeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 12,
-    alignSelf: 'flex-start',
+    paddingHorizontal: isTablet ? 6 : 8,
+    paddingVertical: isTablet ? 2 : 4,
+    borderRadius: 12,
+    gap: isTablet ? 3 : 4,
   },
   timeText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: isTablet ? 10 : 12,
+    fontWeight: '600',
   },
-  customerRow: {
+  customerInfo: {
+    flexDirection: 'row',
+    gap: isTablet ? 8 : 16,
+    marginBottom: isTablet ? 10 : 16,
+  },
+  infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingBottom: 12,
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    gap: isTablet ? 4 : 6,
+    flex: 1,
   },
-  customerName: {
-    fontSize: 13,
-    color: '#6B7280',
+  infoText: {
+    fontSize: isTablet ? 12 : 14,
+    color: colors.gray600,
     fontWeight: '500',
+    flex: 1,
   },
-
-  // Items Section
-  itemsSection: {
-    marginBottom: 12,
-    gap: 8,
+  itemsContainer: {
+    marginBottom: isTablet ? 10 : 16,
   },
-  itemRow: {
+  orderItem: {
+    marginBottom: isTablet ? 8 : 12,
+    paddingBottom: isTablet ? 8 : 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
+  },
+  itemHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
+    alignItems: 'center',
+    marginBottom: isTablet ? 6 : 8,
   },
   quantityBadge: {
-    minWidth: 36,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    backgroundColor: BRAND_COLOR_PALE,
-    borderRadius: 6,
-    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: isTablet ? 6 : 8,
+    paddingVertical: isTablet ? 2 : 4,
+    marginRight: isTablet ? 8 : 12,
   },
   quantityText: {
-    fontSize: 13,
+    fontSize: isTablet ? 10 : 12,
     fontWeight: '700',
-    color: BRAND_COLOR,
+    color: colors.white,
   },
   itemName: {
     flex: 1,
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
-    lineHeight: 20,
+    fontSize: isTablet ? 14 : 16,
+    fontWeight: '600',
+    color: colors.gray900,
   },
-
-  // Total Row
-  totalRow: {
+  itemPrice: {
+    fontSize: isTablet ? 12 : 14,
+    fontWeight: '600',
+    color: colors.gray700,
+  },
+  modifiersSection: {
+    backgroundColor: colors.gray50,
+    borderRadius: 8,
+    padding: isTablet ? 8 : 12,
+    marginTop: isTablet ? 6 : 8,
+  },
+  modifiersTitle: {
+    fontSize: isTablet ? 11 : 13,
+    fontWeight: '600',
+    color: colors.gray700,
+    marginBottom: isTablet ? 4 : 6,
+  },
+  modifierGroup: {
+    marginBottom: isTablet ? 6 : 8,
+  },
+  modifierName: {
+    fontSize: isTablet ? 11 : 13,
+    fontWeight: '600',
+    color: colors.primary,
+    marginBottom: isTablet ? 2 : 4,
+  },
+  modifierOption: {
+    marginLeft: 8,
+    marginBottom: 2,
+  },
+  modifierOptionText: {
+    fontSize: isTablet ? 11 : 13,
+    color: colors.gray600,
+  },
+  modifierPrice: {
+    color: colors.success,
+    fontWeight: '600',
+  },
+  notesSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: colors.warning + '15',
+    padding: 8,
+    borderRadius: 6,
+  },
+  notesText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.gray700,
+    fontStyle: 'italic',
+  },
+  totalSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
-    marginBottom: 12,
+    paddingTop: isTablet ? 12 : 16,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: colors.gray100,
+    marginBottom: isTablet ? 10 : 16,
   },
   totalLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
+    fontSize: isTablet ? 14 : 16,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: colors.gray700,
   },
   totalAmount: {
-    fontSize: 18,
+    fontSize: isTablet ? 16 : 18,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.gray900,
   },
-
-  // Action Buttons
+  actionsContainer: {
+    gap: isTablet ? 6 : 8,
+  },
   actionsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: isTablet ? 6 : 8,
   },
-  actionBtn: {
-    flex: 1,
+  modernBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: isTablet ? 12 : 16,
+    paddingVertical: isTablet ? 10 : 12,
+    borderRadius: 8,
     gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    minHeight: 48,
+    flex: 1,
+  },
+  fullWidth: {
+    width: '100%',
   },
   acceptBtn: {
-    backgroundColor: '#F59E0B',
+    backgroundColor: colors.primary,
   },
   startBtn: {
-    backgroundColor: BRAND_COLOR,
+    backgroundColor: colors.warning,
   },
   readyBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: colors.success,
   },
   completeBtn: {
-    backgroundColor: '#6B7280',
+    backgroundColor: colors.gray700,
   },
-  actionBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
+  readyIndicator: {
+    backgroundColor: colors.gray50,
+    borderWidth: 2,
+    borderColor: colors.success,
   },
-
-  // Empty State
+  btnText: {
+    fontSize: isTablet ? 12 : 14,
+    fontWeight: '600',
+    color: colors.white,
+  },
   emptyState: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    justifyContent: 'center',
+    paddingVertical: 80,
   },
-  emptyText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 12,
-    fontWeight: '500',
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.gray700,
+    marginTop: 16,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: colors.gray500,
+    marginTop: 8,
+    textAlign: 'center',
   },
 });

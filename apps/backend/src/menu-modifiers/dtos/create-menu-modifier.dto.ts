@@ -46,6 +46,11 @@ export class ModifierOptionDto {
   @IsBoolean()
   isAvailable?: boolean;
 
+  @ApiProperty({ example: true, default: true, description: 'Whether this option is in stock' })
+  @IsOptional()
+  @IsBoolean()
+  inStock?: boolean;
+
   @ApiProperty({ example: 1, required: false })
   @IsOptional()
   @IsInt()
@@ -107,6 +112,25 @@ export class CreateMenuModifierDto {
   @Min(1)
   @Max(20)
   maxSelections!: number;
+
+  @ApiProperty({
+    example: 1,
+    description: 'First N selections are free (no price added)',
+    default: 0
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  freeOptions?: number;
+
+  @ApiProperty({
+    example: true,
+    description: 'If false, same option can be selected multiple times with quantity',
+    default: true
+  })
+  @IsOptional()
+  @IsBoolean()
+  unique?: boolean;
 
   @ApiProperty({
     example: false,

@@ -32,10 +32,9 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
+  useWindowDimensions,
 } from 'react-native';
 import logo_white from '../../assets/images/logo_white.png';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const getTableStatus = (table: EnhancedRestaurantTable) => {
   if (table.currentStatus) {
@@ -91,6 +90,11 @@ export default function ServiceTablesScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
+  const { width, height } = useWindowDimensions();
+
+  // Determine if tablet based on width
+  const isTablet = width >= 768;
+  const isLandscape = width > height;
 
   StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
 
@@ -224,9 +228,7 @@ export default function ServiceTablesScreen() {
     await Promise.all([
       refetchEnhanced(),
       refetchService(),
-      // Refresh FCM token in background
       refreshToken().catch((error) => {
-        console.log(error);
         console.warn('FCM token refresh failed:', error);
       }),
     ]);
@@ -253,6 +255,23 @@ export default function ServiceTablesScreen() {
       refetchTables();
     }, [refetchTables])
   );
+
+  // Calculate columns based on device
+  const columns = useMemo(() => {
+    if (isTablet) {
+      return isLandscape ? 6 : 4;
+    }
+    return 2; // Phone always 2 columns
+  }, [isTablet, isLandscape]);
+
+  // Calculate card width
+  const cardWidth = useMemo(() => {
+    const padding = isTablet ? 24 : 16;
+    const gap = 12;
+    const totalGaps = (columns - 1) * gap;
+    const totalPadding = padding * 2;
+    return (width - totalPadding - totalGaps) / columns;
+  }, [width, columns, isTablet]);
 
   if (!restaurantId) {
     return (
@@ -300,6 +319,7 @@ export default function ServiceTablesScreen() {
         style={[
           styles.tableCard,
           {
+            width: cardWidth,
             backgroundColor: theme.background,
             borderColor: isDark ? '#374151' : '#F3F4F6',
           },
@@ -311,98 +331,64 @@ export default function ServiceTablesScreen() {
         onPress={() => handleTableClick(table)}
         activeOpacity={0.7}
       >
-        {/* Top Section */}
-        <View style={styles.tableCardTop}>
-          <View style={styles.tableHeader}>
+        {/* Compact Header */}
+        <View style={styles.tableCardHeader}>
+          <View style={styles.tableNumberRow}>
             <Text style={[styles.tableNumber, { color: theme.text }]}>
               {table.displayName || table.tableNumber}
             </Text>
             {isAssigned && (
-              <View
-                style={[styles.myTableBadge, { backgroundColor: theme.brand }]}
-              >
-                <Ionicons name="person" size={12} color="#FFFFFF" />
+              <View style={[styles.myBadge, { backgroundColor: theme.brand }]}>
+                <Ionicons name="person" size={10} color="#FFF" />
               </View>
             )}
           </View>
 
+          {/* Status dot - more compact */}
           <View
-            style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}
-          >
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: statusConfig.color },
-              ]}
-            />
-            <Text style={[styles.statusLabel, { color: statusConfig.color }]}>
-              {statusConfig.label}
-            </Text>
-          </View>
-
-          {table.capacity && (
-            <View style={styles.infoRow}>
-              <Ionicons name="people-outline" size={14} color={theme.icon} />
-              <Text style={[styles.infoText, { color: theme.icon }]}>
-                {table.capacity} seats
-              </Text>
-            </View>
-          )}
+            style={[styles.statusDot, { backgroundColor: statusConfig.color }]}
+          />
         </View>
 
-        {/* Bottom Section - Order Info */}
-        {hasOrder && (
-          <View
-            style={[
-              styles.tableCardBottom,
-              {
-                backgroundColor: isDark ? '#1F2937' : '#FAFAFA',
-                borderTopColor: isDark ? '#374151' : '#F3F4F6',
-              },
-            ]}
-          >
-            <View style={styles.orderInfo}>
-              <Text style={[styles.orderLabel, { color: theme.icon }]}>
-                Order Amount
-              </Text>
-              <Text style={[styles.orderAmount, { color: theme.text }]}>
-                ₹{activeOrder.totalAmount}
-              </Text>
-            </View>
+        {/* Order info or empty state */}
+        {hasOrder ? (
+          <View style={styles.orderSection}>
+            <Text style={[styles.orderAmount, { color: theme.text }]}>
+              ₹{activeOrder.totalAmount}
+            </Text>
 
             {(activeOrder.status === 'ready' ||
               activeOrder.paymentStatus === 'paid') && (
               <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: theme.brand }]}
+                style={[styles.actionBtn, { backgroundColor: theme.brand }]}
                 onPress={(e) => {
                   e.stopPropagation();
                   handleViewBill(table);
                 }}
               >
-                <Ionicons name="receipt-outline" size={14} color="#FFFFFF" />
-                <Text style={styles.actionButtonText}>
-                  {activeOrder.paymentStatus === 'paid'
-                    ? 'View Bill'
-                    : 'Payment'}
+                <Ionicons name="receipt" size={12} color="#FFF" />
+                <Text style={styles.actionText}>
+                  {activeOrder.paymentStatus === 'paid' ? 'Bill' : 'Pay'}
                 </Text>
               </TouchableOpacity>
             )}
           </View>
+        ) : (
+          <View style={styles.emptySection}>
+            <Text style={[styles.emptyText, { color: theme.icon }]}>
+              {statusConfig.label}
+            </Text>
+          </View>
         )}
 
-        {/* Server Badge for unassigned tables */}
+        {/* Server name for unassigned */}
         {!isAssigned && table.currentStatus?.assignedServerName && (
-          <View
-            style={[
-              styles.serverBadge,
-              {
-                backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-                borderTopColor: isDark ? '#374151' : '#F3F4F6',
-              },
-            ]}
-          >
-            <Ionicons name="person-outline" size={10} color={theme.icon} />
-            <Text style={[styles.serverText, { color: theme.icon }]}>
+          <View style={styles.serverRow}>
+            <Ionicons name="person" size={10} color={theme.icon} />
+            <Text
+              style={[styles.serverText, { color: theme.icon }]}
+              numberOfLines={1}
+            >
               {table.currentStatus.assignedServerName}
             </Text>
           </View>
@@ -417,50 +403,50 @@ export default function ServiceTablesScreen() {
     >
       <StatusBar backgroundColor={theme.brand} barStyle="light-content" />
 
-      {/* Header with Brand Color */}
+      {/* Compact Header */}
       <View style={[styles.header, { backgroundColor: theme.brand }]}>
-        <View style={styles.headerTop}>
-          <View style={{ flex: 1 }}>
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
             <Image source={logo_white} style={styles.logo} />
             {restaurant && (
-              <Text style={styles.restaurantName}>{restaurant.name}</Text>
+              <Text style={styles.restaurantName} numberOfLines={1}>
+                {restaurant.name}
+              </Text>
             )}
           </View>
-          <View style={styles.headerButtons}>
+
+          <View style={styles.headerRight}>
             <TouchableOpacity
               onPress={() => router.push('/(service)/history')}
-              style={styles.headerButton}
+              style={styles.headerBtn}
             >
-              <Ionicons name="time-outline" size={20} color="#FFFFFF" />
+              <Ionicons name="time-outline" size={20} color="#FFF" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
-              <Ionicons name="refresh" size={20} color="#FFFFFF" />
+            <TouchableOpacity onPress={onRefresh} style={styles.headerBtn}>
+              <Ionicons name="refresh" size={20} color="#FFF" />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleLogout}
-              style={styles.headerButton}
-            >
-              <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+            <TouchableOpacity onPress={handleLogout} style={styles.headerBtn}>
+              <Ionicons name="log-out-outline" size={20} color="#FFF" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Stats Cards */}
+        {/* Compact Stats Row */}
         {stats && (
-          <View style={styles.statsBar}>
-            <View style={styles.statItem}>
+          <View style={styles.statsRow}>
+            <View style={styles.statChip}>
               <Text style={styles.statValue}>{stats.totalTables}</Text>
               <Text style={styles.statLabel}>Total</Text>
             </View>
-            <View style={styles.statItem}>
+            <View style={styles.statChip}>
               <Text style={styles.statValue}>{stats.availableTables}</Text>
-              <Text style={styles.statLabel}>Available</Text>
+              <Text style={styles.statLabel}>Free</Text>
             </View>
-            <View style={styles.statItem}>
+            <View style={styles.statChip}>
               <Text style={styles.statValue}>{stats.occupiedTables}</Text>
-              <Text style={styles.statLabel}>Occupied</Text>
+              <Text style={styles.statLabel}>Busy</Text>
             </View>
-            <View style={styles.statItem}>
+            <View style={styles.statChip}>
               <Text style={styles.statValue}>{stats.readyTables}</Text>
               <Text style={styles.statLabel}>Ready</Text>
             </View>
@@ -496,13 +482,16 @@ export default function ServiceTablesScreen() {
       {/* Tables Grid */}
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: isTablet ? 24 : 16 },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* My Tables Section */}
+        {/* My Tables */}
         {assignedTables.length > 0 && (
           <View style={styles.section}>
             <View
@@ -518,21 +507,11 @@ export default function ServiceTablesScreen() {
               <View style={styles.sectionTitleRow}>
                 <Ionicons
                   name="person-circle-outline"
-                  size={20}
+                  size={18}
                   color={theme.brand}
                 />
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                  My Tables
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.sectionBadge,
-                  { backgroundColor: theme.brandPale },
-                ]}
-              >
-                <Text style={[styles.sectionBadgeText, { color: theme.brand }]}>
-                  {assignedTables.length}
+                  My Tables ({assignedTables.length})
                 </Text>
               </View>
             </View>
@@ -541,13 +520,11 @@ export default function ServiceTablesScreen() {
               ([zone, zoneTables]) => (
                 <View key={`assigned-${zone}`}>
                   {assignedTablesByZone.size > 1 && (
-                    <View style={styles.zoneHeader}>
-                      <Text style={[styles.zoneTitle, { color: theme.icon }]}>
-                        {zone}
-                      </Text>
-                    </View>
+                    <Text style={[styles.zoneTitle, { color: theme.icon }]}>
+                      {zone}
+                    </Text>
                   )}
-                  <View style={styles.tablesGrid}>
+                  <View style={[styles.tablesGrid, { gap: 12 }]}>
                     {zoneTables.map((table) => (
                       <TableCard
                         key={table.id}
@@ -562,31 +539,19 @@ export default function ServiceTablesScreen() {
           </View>
         )}
 
-        {/* Other Tables Section */}
+        {/* Other Tables */}
         {unassignedTables.length > 0 && (
           <View style={styles.section}>
             <View
               style={[
                 styles.sectionHeader,
-                {
-                  backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-                },
+                { backgroundColor: isDark ? '#1F2937' : '#F9FAFB' },
               ]}
             >
               <View style={styles.sectionTitleRow}>
-                <Ionicons name="grid-outline" size={20} color={theme.icon} />
+                <Ionicons name="grid-outline" size={18} color={theme.icon} />
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                  Other Tables
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.sectionBadge,
-                  { backgroundColor: isDark ? '#374151' : '#F3F4F6' },
-                ]}
-              >
-                <Text style={[styles.sectionBadgeText, { color: theme.icon }]}>
-                  {unassignedTables.length}
+                  Other Tables ({unassignedTables.length})
                 </Text>
               </View>
             </View>
@@ -595,13 +560,11 @@ export default function ServiceTablesScreen() {
               ([zone, zoneTables]) => (
                 <View key={`unassigned-${zone}`}>
                   {unassignedTablesByZone.size > 1 && (
-                    <View style={styles.zoneHeader}>
-                      <Text style={[styles.zoneTitle, { color: theme.icon }]}>
-                        {zone}
-                      </Text>
-                    </View>
+                    <Text style={[styles.zoneTitle, { color: theme.icon }]}>
+                      {zone}
+                    </Text>
                   )}
-                  <View style={styles.tablesGrid}>
+                  <View style={[styles.tablesGrid, { gap: 12 }]}>
                     {zoneTables.map((table) => (
                       <TableCard
                         key={table.id}
@@ -619,25 +582,14 @@ export default function ServiceTablesScreen() {
         {/* Empty State */}
         {filteredTables.length === 0 && (
           <View style={styles.emptyState}>
-            <View
-              style={[
-                styles.emptyIconContainer,
-                { backgroundColor: isDark ? '#1F2937' : '#F9FAFB' },
-              ]}
-            >
-              <Ionicons
-                name="restaurant-outline"
-                size={40}
-                color={theme.icon}
-              />
-            </View>
+            <Ionicons name="restaurant-outline" size={40} color={theme.icon} />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
               {searchTerm ? 'No tables found' : 'No tables available'}
             </Text>
-            <Text style={[styles.emptyText, { color: theme.icon }]}>
+            <Text style={[styles.emptySubtext, { color: theme.icon }]}>
               {searchTerm
                 ? 'Try adjusting your search'
-                : 'Contact your manager to set up tables'}
+                : 'Contact your manager'}
             </Text>
           </View>
         )}
@@ -665,81 +617,81 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Header
+  // Compact Header
   header: {
-    paddingTop: 30,
+    paddingTop: Platform.OS === 'android' ? 20 : 10,
+    paddingBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 8,
+        elevation: 4,
       },
     }),
   },
-  headerTop: {
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
     marginBottom: 12,
   },
+  headerLeft: {
+    flex: 1,
+  },
   logo: {
-    width: 120,
-    height: 32,
+    width: 100,
+    height: 28,
     resizeMode: 'contain',
-    left: -4,
   },
   restaurantName: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '500',
-    marginTop: 0,
+    marginTop: 2,
   },
-  headerButtons: {
+  headerRight: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Stats Bar
-  statsBar: {
+  // Compact Stats
+  statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 10,
+    gap: 8,
   },
-  statItem: {
+  statChip: {
     flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 8,
     alignItems: 'center',
-    gap: 4,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#FFF',
   },
   statLabel: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 9,
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
 
   // Search
@@ -747,21 +699,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 12,
     marginBottom: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '500',
   },
 
-  // Scroll View
+  // Scroll
   scrollView: {
     flex: 1,
   },
@@ -771,200 +722,142 @@ const styles = StyleSheet.create({
 
   // Section
   section: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
     marginBottom: 12,
-    borderRadius: 12,
   },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  sectionBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    minWidth: 28,
-    alignItems: 'center',
-  },
-  sectionBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  // Zone Header
-  zoneHeader: {
-    paddingHorizontal: 16,
-    marginBottom: 10,
   },
   zoneTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
+    marginBottom: 8,
   },
 
-  // Tables Grid
+  // Grid
   tablesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 12,
   },
 
-  // Table Card
+  // Compact Card
   tableCard: {
-    width: (SCREEN_WIDTH - 32 - 24) / 3,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    overflow: 'hidden',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
-  tableCardTop: {
-    padding: 12,
-    gap: 8,
-  },
-  tableHeader: {
+  tableCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  tableNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   tableNumber: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: -0.5,
   },
-  myTableBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  myBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  statusBadge: {
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+
+  // Order section
+  orderSection: {
+    gap: 6,
+  },
+  orderAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 6,
     borderRadius: 8,
-    alignSelf: 'flex-start',
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusLabel: {
+  actionText: {
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    color: '#FFF',
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+
+  // Empty section
+  emptySection: {
+    paddingVertical: 12,
   },
-  infoText: {
-    fontSize: 11,
+  emptyText: {
+    fontSize: 12,
     fontWeight: '600',
   },
 
-  // Table Card Bottom
-  tableCardBottom: {
-    borderTopWidth: 1,
-    padding: 12,
-    gap: 8,
-  },
-  orderInfo: {
-    gap: 3,
-  },
-  orderLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  orderAmount: {
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
-  },
-
-  // Server Badge
-  serverBadge: {
+  // Server
+  serverRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
   },
   serverText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '500',
+    flex: 1,
   },
 
   // Empty State
   emptyState: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 32,
-  },
-  emptyIconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
+    gap: 8,
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    marginBottom: 6,
-    textAlign: 'center',
   },
-  emptyText: {
-    fontSize: 14,
+  emptySubtext: {
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 20,
   },
 });

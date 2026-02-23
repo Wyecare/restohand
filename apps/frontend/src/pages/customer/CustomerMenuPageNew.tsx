@@ -15,6 +15,7 @@ import {
   useUpdateSessionActivityMutation,
   useGetActiveSessionByTableQuery,
   useOnOrderPlacedMutation,
+  useGetCustomerSessionQuery,
 } from '@/store/api/customerSessionsApi';
 import { useAddItemsToOrderMutation } from '@/store/api/ordersApi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -52,6 +53,7 @@ import { CustomerMenuSearch } from '@/components/customer/CustomerMenuSearch';
 import {
   clearExpiredSessionData,
   hasCustomerSessionData,
+  clearCustomerSessionData,
 } from '@/utils/sessionCleanup';
 import {
   Dialog,
@@ -1116,6 +1118,86 @@ export default function CustomerMenuPageNew() {
     tableNumber: string;
   } | null>(null);
 
+  // Session validation for cached sessions - check on mount regardless of currentSession
+  const cachedSession = tableIdFromUrl ? getCachedSession(tableIdFromUrl) : null;
+  const cachedSessionId = cachedSession?.sessionId;
+
+  // Query to validate cached session status
+  const {
+    data: validationSession,
+    error: validationError,
+    isLoading: validationLoading,
+  } = useGetCustomerSessionQuery(cachedSessionId || '', {
+    skip: !cachedSessionId,
+  });
+
+  // Handle session validation results
+  useEffect(() => {
+    if (!cachedSessionId || validationLoading) return;
+
+    // If validation fails or session doesn't exist, clear cached data
+    if (validationError || !validationSession) {
+      console.log('🧹 Session validation failed, clearing cached data');
+      clearCustomerSessionData({ sessionId: cachedSessionId, tableId: tableIdFromUrl });
+      setCurrentSession(null);
+      return;
+    }
+
+    // Check if session is closed and paid
+    if (validationSession.status === 'closed' && validationSession.allOrdersPaid) {
+      console.log('✅ Session is closed and paid, clearing localStorage data and creating new session');
+      clearCustomerSessionData({ sessionId: cachedSessionId, tableId: tableIdFromUrl });
+      setCurrentSession(null);
+
+      toast({
+        title: 'Previous session completed',
+        description: 'Your previous session has been completed. Starting fresh!',
+      });
+
+      // Automatically create a new session after clearing the completed one
+      if (slug && tableIdFromUrl) {
+        console.log('🔄 Auto-creating new session after clearing completed session');
+        createCustomerSession({
+          restaurantSlug: slug,
+          tableId: tableIdFromUrl,
+        }).unwrap()
+          .then((response) => {
+            const sessionData = {
+              sessionId: response.sessionId,
+              customerNumber: response.customerNumber,
+              tableNumber: response.tableNumber,
+            };
+
+            setCurrentSession(sessionData);
+            cacheSession(tableIdFromUrl, sessionData);
+            console.log(
+              `✨ New Customer #${response.customerNumber} session auto-created:`,
+              response.sessionId
+            );
+          })
+          .catch((error) => {
+            console.error('Failed to auto-create new session:', error);
+            toast({
+              title: 'Session Error',
+              description: 'Failed to create new session. Please refresh the page.',
+              variant: 'destructive',
+            });
+          });
+      }
+      return;
+    }
+
+    // Session is valid and still active, update current session
+    if (validationSession.sessionId && !currentSession) {
+      console.log('✅ Session validation successful, updating current session');
+      setCurrentSession({
+        sessionId: validationSession.sessionId,
+        customerNumber: validationSession.customerNumber,
+        tableNumber: validationSession.tableNumber || '',
+      });
+    }
+  }, [validationSession, validationError, validationLoading, cachedSessionId, currentSession, tableIdFromUrl, toast, slug, createCustomerSession]);
+
   const [showSessionDetection, setShowSessionDetection] = useState(false);
   const [previousSessions, setPreviousSessions] = useState<any[]>([]);
   const [pendingSessionCreation, setPendingSessionCreation] = useState(false);
@@ -1416,12 +1498,13 @@ export default function CustomerMenuPageNew() {
         id: `${selectedMenuItem.id}-${Date.now()}`,
         menuItemId: selectedMenuItem.id,
         name: selectedMenuItem.name,
-        price: totalPrice,
+        price: selectedMenuItem.price, // Use base item price
         categoryId: 'unknown',
         categoryName: 'Unknown',
         specialPricing: selectedMenuItem.specialPricing,
         selectedModifiers: selections,
         notes: notes,
+        calculatedPrice: totalPrice, // Pass the total calculated price from modal
       })
     );
 
@@ -1497,9 +1580,12 @@ export default function CustomerMenuPageNew() {
       name: item.name,
       quantity: item.quantity,
       pricing: {
-        unitAmount: item.price,
+        unitAmount: item.itemTotal / item.quantity, // Use calculated price per item
         currency: 'INR',
       },
+      activePriceTagId: item.activePriceTagId,
+      selectedModifiers: item.selectedModifiers,
+      notes: item.notes,
     }));
 
     try {

@@ -19,6 +19,9 @@ export class ModifierOptionResponseDto {
   @ApiProperty({ example: true })
   isAvailable!: boolean;
 
+  @ApiProperty({ example: true })
+  inStock!: boolean;
+
   @ApiProperty({ example: 1 })
   displayOrder!: number;
 
@@ -56,6 +59,12 @@ export class MenuModifierResponseDto {
 
   @ApiProperty({ example: 3 })
   maxSelections!: number;
+
+  @ApiProperty({ example: 1, description: 'First N selections are free' })
+  freeOptions!: number;
+
+  @ApiProperty({ example: true, description: 'If false, allows quantity selection per option' })
+  unique!: boolean;
 
   @ApiProperty({ example: false })
   isRequired!: boolean;

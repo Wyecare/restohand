@@ -147,7 +147,9 @@ export class MenuModifiersController {
   })
   async validateModifierSelections(
     @Param('modifierId') modifierId: string,
-    @Body() body: { selectedOptions: string[] }
+    @Body() body: {
+      selectedOptions: string[] | { optionId: string; quantity?: number }[]
+    }
   ) {
     return this.menuModifiersService.validateModifierSelections(
       modifierId,

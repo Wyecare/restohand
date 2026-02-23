@@ -289,6 +289,29 @@ function SessionCard({
                                 {formatCurrency(pricePerUnitWithTax)} ={' '}
                                 {formatCurrency(item.totalWithTax)}
                               </div>
+
+                              {/* Display modifier addons */}
+                              {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                                <div className="text-sm text-blue-600 mt-1 ml-4">
+                                  {item.selectedModifiers.map((modifier, modIndex) => (
+                                    <div key={modIndex} className="mb-1">
+                                      <span className="font-medium">{modifier.modifierName}:</span>
+                                      {modifier.selectedOptions.map((option, optIndex) => (
+                                        <span key={optIndex} className="ml-1">
+                                          {option.optionName}
+                                          {option.priceAdjustment > 0 && (
+                                            <span className="text-green-600 ml-1">
+                                              (+{formatCurrency(option.priceAdjustment)})
+                                            </span>
+                                          )}
+                                          {optIndex < modifier.selectedOptions.length - 1 && ', '}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
                               {item.totalTaxAmount > 0 && (
                                 <div className="text-xs text-gray-500 mt-1">
                                   {item.gstRate > 0 ? (

@@ -274,6 +274,16 @@ function ModifierCard({
               : 'Multiple Choice'}
           </Badge>
           {modifier.isRequired && <Badge variant="destructive">Required</Badge>}
+          {modifier.freeOptions > 0 && (
+            <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200">
+              {modifier.freeOptions} Free
+            </Badge>
+          )}
+          {!modifier.unique && (
+            <Badge variant="outline" className="border-blue-200 text-blue-700">
+              Quantity
+            </Badge>
+          )}
           {!modifier.isActive && (
             <Badge variant="outline" className="border-muted-foreground/50">
               Inactive
@@ -310,9 +320,26 @@ function ModifierCard({
             {modifier.options.slice(0, 4).map((option) => (
               <div
                 key={option.id}
-                className="flex items-center justify-between text-sm bg-muted/30 px-3 py-2 rounded"
+                className={`flex items-center justify-between text-sm px-3 py-2 rounded ${
+                  !option.isAvailable || !option.inStock
+                    ? 'bg-muted/50 opacity-60'
+                    : 'bg-muted/30'
+                }`}
               >
-                <span className="font-medium truncate">{option.name}</span>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className={`font-medium truncate ${
+                    !option.isAvailable || !option.inStock
+                      ? 'text-muted-foreground line-through'
+                      : ''
+                  }`}>
+                    {option.name}
+                  </span>
+                  {!option.inStock && (
+                    <span className="text-xs bg-red-100 text-red-700 px-1 py-0.5 rounded">
+                      Out of Stock
+                    </span>
+                  )}
+                </div>
                 <span className="text-muted-foreground shrink-0 ml-2">
                   {formatPrice(option.priceAdjustment, option.currency)}
                 </span>

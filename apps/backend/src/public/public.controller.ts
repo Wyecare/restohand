@@ -164,6 +164,17 @@ export class PublicController {
           taxAmount?: number;
           discountAmount?: number;
         };
+        activePriceTagId?: string;
+        selectedModifiers?: Array<{
+          modifierId: string;
+          modifierName: string;
+          selectedOptions: Array<{
+            optionId: string;
+            optionName: string;
+            priceAdjustment: number;
+            quantity?: number;
+          }>;
+        }>;
         notes?: string;
       }>;
     }

@@ -121,6 +121,8 @@ import type {
   OptionSelection,
 } from '@/store/slices/cartSlice';
 import { useGetSessionBillQuery } from '@/store/api/customerSessionsApi';
+import { useGetDetailedSessionBillQuery } from '@/store/api/billingApi';
+import { downloadThermalReceipt } from '@/components/DetailedThermalReceiptPDF';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -654,6 +656,7 @@ export default function CustomerTableSessionPage() {
   const [verifyPayment] = useVerifyPaymentMutation();
 
   const [showOrderDetails, setShowOrderDetails] = useState<string | null>(null);
+  const [isDownloadingBill, setIsDownloadingBill] = useState(false);
 
   const {
     data: sessionData,
@@ -663,11 +666,26 @@ export default function CustomerTableSessionPage() {
   } = useGetSessionBillQuery(sessionId || '', {
     skip: !sessionId,
   });
+
   console.log(sessionData, 'session data in session page');
 
   const session = sessionData?.session;
   const bill = sessionData?.bill;
   const orders = sessionData?.orders || [];
+
+  const hasUnpaidOrders = !session?.allOrdersPaid;
+  const allOrdersPaid = session?.allOrdersPaid || false;
+
+  // Get detailed bill data for PDF generation when session is paid
+  const {
+    data: detailedBill,
+    isLoading: detailedBillLoading,
+  } = useGetDetailedSessionBillQuery(
+    { sessionId: sessionId || '', includeUnpaid: true },
+    {
+      skip: !sessionId || !allOrdersPaid,
+    }
+  );
 
   const handleSocketEvent = useMemo(
     () => (incoming: Order) => {
@@ -695,9 +713,6 @@ export default function CustomerTableSessionPage() {
       console.error('Failed to initialize Cashfree:', error);
     });
   }, []);
-
-  const hasUnpaidOrders = !session?.allOrdersPaid;
-  const allOrdersPaid = session?.allOrdersPaid || false;
   const sessionClosed = session?.status === 'closed';
 
   const sessionStatus = useMemo(() => {
@@ -757,6 +772,45 @@ export default function CustomerTableSessionPage() {
       icon: '📝',
     };
   }, [session, orders, allOrdersPaid, sessionClosed]);
+
+  const handleDownloadBill = async () => {
+    if (!detailedBill) {
+      toast({
+        title: 'Error',
+        description: 'Bill data not available',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsDownloadingBill(true);
+    try {
+      await downloadThermalReceipt(detailedBill, 'Digital Payment');
+      toast({
+        title: 'Success',
+        description: 'Receipt downloaded successfully',
+      });
+    } catch (err) {
+      console.error('Error generating receipt:', err);
+      toast({
+        title: 'Error',
+        description: 'Failed to download receipt. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDownloadingBill(false);
+    }
+  };
+
+  const handleOrderAgain = () => {
+    // Navigate back to the table menu to start a new session
+    const tableIdToUse = session?.tableId || tableId;
+    if (slug && tableIdToUse) {
+      navigate(`/c/${slug}?tableId=${tableIdToUse}`);
+    } else if (slug) {
+      navigate(`/c/${slug}`);
+    }
+  };
 
   const handleSessionPayment = async () => {
     const sessionTableId = session?.tableId || tableId;
@@ -979,6 +1033,20 @@ export default function CustomerTableSessionPage() {
               </button>
             )}
 
+            {/* Download Bill Button - Only show when session is paid */}
+            {allOrdersPaid && (
+              <button
+                className="session-btn primary"
+                onClick={handleDownloadBill}
+                disabled={isDownloadingBill || detailedBillLoading}
+              >
+                <Download size={20} />
+                {isDownloadingBill
+                  ? 'Downloading...'
+                  : 'Download Receipt'}
+              </button>
+            )}
+
             {!sessionClosed && (
               <button
                 className="session-btn secondary"
@@ -992,6 +1060,17 @@ export default function CustomerTableSessionPage() {
               >
                 <Plus size={18} />
                 Order More Items
+              </button>
+            )}
+
+            {/* Order Again Button - Show when session is closed or fully paid */}
+            {(sessionClosed || allOrdersPaid) && (
+              <button
+                className="session-btn secondary"
+                onClick={handleOrderAgain}
+              >
+                <ShoppingCart size={18} />
+                Order Again
               </button>
             )}
           </div>

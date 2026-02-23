@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Plus, Minus, X } from 'lucide-react';
+import { Check, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/billing';
@@ -75,14 +75,31 @@ export function ModifierSelectionModal({
         );
 
         if (existingIndex >= 0) {
-          return {
-            ...prev,
-            [modifierId]: currentSelections.filter(
-              (_, index) => index !== existingIndex
-            ),
-          };
+          // If unique modifier, remove the selection
+          if (modifier.unique) {
+            return {
+              ...prev,
+              [modifierId]: currentSelections.filter(
+                (_, index) => index !== existingIndex
+              ),
+            };
+          } else {
+            // If non-unique, increment quantity but check max limit first
+            const currentTotalCount = currentSelections.reduce((sum, sel) => sum + (sel.quantity || 0), 0);
+            if (currentTotalCount >= modifier.maxSelections) {
+              return prev; // Don't allow increment if already at max
+            }
+            return {
+              ...prev,
+              [modifierId]: currentSelections.map((sel, index) =>
+                index === existingIndex ? { ...sel, quantity: (sel.quantity || 0) + 1 } : sel
+              ),
+            };
+          }
         } else {
-          if (currentSelections.length < modifier.maxSelections) {
+          // Check if we can add more selections based on total count
+          const totalSelections = currentSelections.reduce((sum, sel) => sum + (sel.quantity || 0), 0);
+          if (totalSelections < modifier.maxSelections) {
             return {
               ...prev,
               [modifierId]: [
@@ -107,6 +124,9 @@ export function ModifierSelectionModal({
     optionId: string,
     newQuantity: number
   ) => {
+    const modifier = modifiers.find(m => m.id === modifierId);
+    if (!modifier) return;
+
     if (newQuantity <= 0) {
       setSelections((prev) => ({
         ...prev,
@@ -114,13 +134,26 @@ export function ModifierSelectionModal({
           prev[modifierId]?.filter((sel) => sel.optionId !== optionId) || [],
       }));
     } else {
-      setSelections((prev) => ({
-        ...prev,
-        [modifierId]:
-          prev[modifierId]?.map((sel) =>
+      setSelections((prev) => {
+        const currentSelections = prev[modifierId] || [];
+        const currentTotalCount = currentSelections.reduce((sum, sel) => sum + (sel.quantity || 0), 0);
+        const currentOptionQuantity = currentSelections.find(sel => sel.optionId === optionId)?.quantity || 0;
+
+        // Calculate what the new total would be
+        const newTotalCount = currentTotalCount - currentOptionQuantity + newQuantity;
+
+        // Don't allow if it would exceed maxSelections
+        if (newTotalCount > modifier.maxSelections) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [modifierId]: currentSelections.map((sel) =>
             sel.optionId === optionId ? { ...sel, quantity: newQuantity } : sel
-          ) || [],
-      }));
+          ),
+        };
+      });
     }
   };
 
@@ -140,15 +173,16 @@ export function ModifierSelectionModal({
   const validateSelections = () => {
     for (const modifier of modifiers) {
       const selectedOptions = selections[modifier.id] || [];
+      const totalSelectionCount = selectedOptions.reduce((sum, sel) => sum + (sel.quantity || 0), 0);
 
       if (
         modifier.isRequired &&
-        selectedOptions.length < modifier.minSelections
+        totalSelectionCount < modifier.minSelections
       ) {
         return false;
       }
 
-      if (selectedOptions.length > modifier.maxSelections) {
+      if (totalSelectionCount > modifier.maxSelections) {
         return false;
       }
     }
@@ -158,13 +192,51 @@ export function ModifierSelectionModal({
   const calculateTotalPrice = () => {
     let total = basePrice;
 
-    Object.values(selections).forEach((modifierSelections) => {
-      modifierSelections.forEach((selection) => {
-        total += selection.priceAdjustment * selection.quantity;
+    // Calculate price adjustments with free options logic
+    Object.entries(selections).forEach(([modifierId, modifierSelections]) => {
+      const modifier = modifiers.find(m => m.id === modifierId);
+      if (!modifier) return;
+
+      // Sort selections by price (cheapest first) to maximize free options benefit
+      const sortedSelections = modifierSelections
+        .flatMap(selection =>
+          Array(selection.quantity || 0).fill(null).map(() => ({
+            priceAdjustment: selection.priceAdjustment
+          }))
+        )
+        .sort((a, b) => a.priceAdjustment - b.priceAdjustment);
+
+      let chargedSelections = 0;
+      sortedSelections.forEach(selection => {
+        chargedSelections++;
+        // Apply free options logic - first N selections are free
+        if (chargedSelections > (modifier.freeOptions || 0)) {
+          total += selection.priceAdjustment;
+        }
       });
     });
 
     return total;
+  };
+
+  const getOptionDisplayPrice = (option: ModifierOption, modifierId: string) => {
+    const modifier = modifiers.find(m => m.id === modifierId);
+    if (!modifier) return option.priceAdjustment;
+
+    const currentSelections = selections[modifierId] || [];
+    const totalSelectionCount = currentSelections.reduce((sum, sel) => sum + (sel.quantity || 0), 0);
+
+    // Check if this would be a free option
+    const freeOptions = modifier.freeOptions || 0;
+    if (totalSelectionCount < freeOptions) {
+      return 0; // This option would be free
+    }
+
+    return option.priceAdjustment;
+  };
+
+  const isOptionFree = (option: ModifierOption, modifierId: string) => {
+    return getOptionDisplayPrice(option, modifierId) === 0 && option.priceAdjustment > 0;
   };
 
   const handleConfirm = () => {
@@ -191,11 +263,6 @@ export function ModifierSelectionModal({
     setNotes('');
   };
 
-  const handleCancel = () => {
-    setSelections({});
-    setNotes('');
-    onOpenChange(false);
-  };
 
   const totalPrice = calculateTotalPrice();
   const isValid = validateSelections();
@@ -214,12 +281,6 @@ export function ModifierSelectionModal({
                 Select your preferences
               </DialogDescription>
             </div>
-            <button
-              onClick={handleCancel}
-              className="shrink-0 w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
         </DialogHeader>
 
@@ -250,11 +311,18 @@ export function ModifierSelectionModal({
                         Required
                       </Badge>
                     )}
-                    <span className="text-xs text-muted-foreground">
-                      {modifier.selectionType === 'single'
-                        ? 'Choose 1'
-                        : `Choose ${modifier.minSelections}-${modifier.maxSelections}`}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-xs text-muted-foreground">
+                        {modifier.selectionType === 'single'
+                          ? 'Choose 1'
+                          : `Choose ${modifier.minSelections}-${modifier.maxSelections}`}
+                      </span>
+                      {modifier.freeOptions > 0 && (
+                        <span className="text-xs text-green-600 font-medium">
+                          First {modifier.freeOptions} free
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -271,20 +339,25 @@ export function ModifierSelectionModal({
                         modifier.id,
                         option.id
                       );
+                      const displayPrice = getOptionDisplayPrice(option, modifier.id);
+                      const isFree = isOptionFree(option, modifier.id);
+                      const isOutOfStock = option.inStock === false;
 
                       return (
                         <div
                           key={option.id}
                           className={`
-                            flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all
+                            flex items-center gap-3 p-3 rounded-lg border-2 transition-all
                             ${
-                              isSelected
-                                ? 'bg-primary/5 border-primary shadow-sm'
-                                : 'bg-muted/20 border-border hover:bg-muted/40 hover:border-muted-foreground/30'
+                              isOutOfStock
+                                ? 'bg-muted/10 border-muted opacity-50 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-primary/5 border-primary shadow-sm cursor-pointer'
+                                : 'bg-muted/20 border-border hover:bg-muted/40 hover:border-muted-foreground/30 cursor-pointer'
                             }
                           `}
                           onClick={() =>
-                            handleOptionSelect(modifier.id, option, modifier)
+                            !isOutOfStock && handleOptionSelect(modifier.id, option, modifier)
                           }
                         >
                           {/* Checkbox/Radio */}
@@ -308,9 +381,29 @@ export function ModifierSelectionModal({
 
                           {/* Option Details */}
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm leading-tight">
-                              {option.name}
-                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={`font-medium text-sm leading-tight ${
+                                isOutOfStock ? 'line-through text-muted-foreground' : ''
+                              }`}>
+                                {option.name}
+                              </p>
+                              {isFree && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs bg-green-100 text-green-700 border-green-200 px-1.5 py-0.5"
+                                >
+                                  FREE
+                                </Badge>
+                              )}
+                              {isOutOfStock && (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-xs px-1.5 py-0.5"
+                                >
+                                  Out of Stock
+                                </Badge>
+                              )}
+                            </div>
                             {option.description && (
                               <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                                 {option.description}
@@ -320,22 +413,25 @@ export function ModifierSelectionModal({
 
                           {/* Price */}
                           <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold">
-                              {option.priceAdjustment === 0
+                            <p className={`text-sm font-semibold ${
+                              isOutOfStock ? 'text-muted-foreground' : ''
+                            }`}>
+                              {displayPrice === 0
                                 ? 'Free'
-                                : `+${formatCurrency(option.priceAdjustment)}`}
+                                : `+${formatCurrency(displayPrice)}`}
                             </p>
                           </div>
 
-                          {/* Quantity Controls for Multiple Selection */}
+                          {/* Quantity Controls for Multiple Selection and Non-unique */}
                           {isSelected &&
-                            modifier.selectionType === 'multiple' && (
+                            modifier.selectionType === 'multiple' &&
+                            !modifier.unique && (
                               <div
                                 className="flex items-center gap-2 shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <button
-                                  className="w-7 h-7 rounded-md border bg-background hover:bg-muted flex items-center justify-center"
+                                  className="w-7 h-7 rounded-md border bg-background hover:bg-muted flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() =>
                                     handleQuantityChange(
                                       modifier.id,
@@ -350,7 +446,12 @@ export function ModifierSelectionModal({
                                   {quantity}
                                 </span>
                                 <button
-                                  className="w-7 h-7 rounded-md border bg-background hover:bg-muted flex items-center justify-center"
+                                  className="w-7 h-7 rounded-md border bg-background hover:bg-muted flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                  disabled={(() => {
+                                    const currentSelections = selections[modifier.id] || [];
+                                    const totalSelectionCount = currentSelections.reduce((sum, sel) => sum + (sel.quantity || 0), 0);
+                                    return totalSelectionCount >= modifier.maxSelections;
+                                  })()}
                                   onClick={() =>
                                     handleQuantityChange(
                                       modifier.id,
@@ -420,7 +521,11 @@ export function ModifierSelectionModal({
           <div className="flex gap-3">
             <Button
               variant="outline"
-              onClick={handleCancel}
+              onClick={() => {
+                setSelections({});
+                setNotes('');
+                onOpenChange(false);
+              }}
               className="flex-1"
               size="lg"
             >

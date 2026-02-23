@@ -276,7 +276,9 @@ export class CustomerSessionsService {
     if (activeOrderCount === 0) {
       await this.deleteSession(sessionId);
       // Return a dummy response since the session was deleted
-      throw new NotFoundException('Session was deleted due to no active orders');
+      throw new NotFoundException(
+        'Session was deleted due to no active orders'
+      );
     }
 
     // Close the session
@@ -328,7 +330,7 @@ export class CustomerSessionsService {
     await this.logSessionAction({
       sessionId: sessionId,
       customerSessionId: session._id.toString(),
-      action: SessionAction.SESSION_DELETED || 'SESSION_DELETED' as any,
+      action: SessionAction.SESSION_DELETED || ('SESSION_DELETED' as any),
       description: 'Session deleted due to no active orders',
       actorType: 'staff',
       metadata: { reason: 'empty_session' },
@@ -406,7 +408,7 @@ export class CustomerSessionsService {
     await this.logSessionAction({
       sessionId,
       customerSessionId: session._id.toString(),
-      action: SessionAction.ORDER_CANCELLED || 'ORDER_CANCELLED' as any,
+      action: SessionAction.ORDER_CANCELLED || ('ORDER_CANCELLED' as any),
       orderId,
       description: 'Order cancelled in session',
       sessionTotalAmount: updatedSession?.totalAmount,
@@ -475,7 +477,8 @@ export class CustomerSessionsService {
     if (query.tableId) filter.tableId = query.tableId;
 
     // Only return sessions that have orders
-    filter.totalOrders = { $gt: 0 };
+
+    if (!query.returnEmpty) filter.totalOrders = { $gt: 0 };
 
     if (query.startDate && query.endDate) {
       filter.createdAt = {
@@ -487,6 +490,8 @@ export class CustomerSessionsService {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 20;
     const skip = (page - 1) * limit;
+
+    console.log(filter, 'andi');
 
     const [sessions, total] = await Promise.all([
       this.sessionModel
@@ -604,8 +609,10 @@ export class CustomerSessionsService {
       paidAmount: session.paidAmount,
       pendingAmount: session.pendingAmount,
       allOrdersPaid: session.allOrdersPaid,
-      createdAt: (session as any).createdAt?.toISOString() || new Date().toISOString(),
-      updatedAt: (session as any).updatedAt?.toISOString() || new Date().toISOString(),
+      createdAt:
+        (session as any).createdAt?.toISOString() || new Date().toISOString(),
+      updatedAt:
+        (session as any).updatedAt?.toISOString() || new Date().toISOString(),
     };
   }
 }

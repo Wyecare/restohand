@@ -157,6 +157,11 @@ export class FindSessionsQueryDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
+  returnEmpty?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   restaurantId?: string;
 

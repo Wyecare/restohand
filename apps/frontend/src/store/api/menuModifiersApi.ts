@@ -7,6 +7,7 @@ export interface ModifierOption {
   priceAdjustment: number;
   currency: string;
   isAvailable: boolean;
+  inStock: boolean;
   displayOrder: number;
   imageUrl?: string;
   calories?: number;
@@ -22,6 +23,8 @@ export interface MenuModifier {
   selectionType: 'single' | 'multiple';
   minSelections: number;
   maxSelections: number;
+  freeOptions: number;
+  unique: boolean;
   isRequired: boolean;
   options: ModifierOption[];
   isActive: boolean;
@@ -38,6 +41,7 @@ export interface CreateModifierOption {
   priceAdjustment: number;
   currency: string;
   isAvailable?: boolean;
+  inStock?: boolean;
   displayOrder?: number;
   imageUrl?: string;
   calories?: number;
@@ -50,6 +54,8 @@ export interface CreateMenuModifierRequest {
   selectionType: 'single' | 'multiple';
   minSelections: number;
   maxSelections: number;
+  freeOptions?: number;
+  unique?: boolean;
   isRequired?: boolean;
   options: CreateModifierOption[];
   isActive?: boolean;

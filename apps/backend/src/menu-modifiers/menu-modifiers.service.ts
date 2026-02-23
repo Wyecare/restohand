@@ -238,13 +238,36 @@ export class MenuModifiersService {
       })
       .sort({ displayOrder: 1 });
 
-    return modifiers.map(modifier => this.toDto(modifier));
+    // Apply excluded options per menu item
+    const modifiersWithFiltering = modifiers.map(modifier => {
+      const excludedOptions = menuItem.excludedModifierOptions?.[modifier._id.toString()] || [];
+
+      if (excludedOptions.length > 0) {
+        // Filter out excluded options
+        const filteredOptions = modifier.options.filter(
+          option => !excludedOptions.includes(option.id)
+        );
+
+        return {
+          ...modifier.toObject(),
+          options: filteredOptions
+        };
+      }
+
+      return modifier;
+    });
+
+    return modifiersWithFiltering.map(modifier => this.toDto(modifier));
   }
 
   async validateModifierSelections(
     modifierId: string,
-    selectedOptions: string[]
+    selectedOptions: { optionId: string; quantity?: number }[] | string[]
   ): Promise<{ isValid: boolean; error?: string; totalPriceAdjustment: number }> {
+    // Handle legacy string array format
+    const normalizedSelections = Array.isArray(selectedOptions) && typeof selectedOptions[0] === 'string'
+      ? (selectedOptions as string[]).map(optionId => ({ optionId, quantity: 1 }))
+      : selectedOptions as { optionId: string; quantity?: number }[];
     const modifier = await this.menuModifierModel.findById(modifierId);
 
     if (!modifier) {
@@ -255,8 +278,35 @@ export class MenuModifiersService {
       return { isValid: false, error: 'Modifier is not active', totalPriceAdjustment: 0 };
     }
 
+    // Validate quantities for unique/non-unique options
+    for (const selection of normalizedSelections) {
+      const quantity = selection.quantity || 1;
+
+      if (modifier.unique && quantity > 1) {
+        return {
+          isValid: false,
+          error: 'Cannot select same option multiple times for unique modifier',
+          totalPriceAdjustment: 0,
+        };
+      }
+
+      if (quantity < 1) {
+        return {
+          isValid: false,
+          error: 'Quantity must be at least 1',
+          totalPriceAdjustment: 0,
+        };
+      }
+    }
+
+    // Calculate total selection count (sum of quantities)
+    const totalSelectionCount = normalizedSelections.reduce(
+      (sum, selection) => sum + (selection.quantity || 1),
+      0
+    );
+
     // Check selection count constraints
-    if (selectedOptions.length < modifier.minSelections) {
+    if (totalSelectionCount < modifier.minSelections) {
       return {
         isValid: false,
         error: `At least ${modifier.minSelections} options must be selected`,
@@ -264,7 +314,7 @@ export class MenuModifiersService {
       };
     }
 
-    if (selectedOptions.length > modifier.maxSelections) {
+    if (totalSelectionCount > modifier.maxSelections) {
       return {
         isValid: false,
         error: `At most ${modifier.maxSelections} options can be selected`,
@@ -273,26 +323,46 @@ export class MenuModifiersService {
     }
 
     // Check if all selected options exist and are available
-    const validOptionIds = modifier.options
-      .filter(option => option.isAvailable)
-      .map(option => option.id);
+    const validOptions = modifier.options.filter(option => option.isAvailable && option.inStock);
+    const validOptionIds = validOptions.map(option => option.id);
 
-    const invalidOptions = selectedOptions.filter(
-      optionId => !validOptionIds.includes(optionId)
+    const invalidSelections = normalizedSelections.filter(
+      selection => !validOptionIds.includes(selection.optionId)
     );
 
-    if (invalidOptions.length > 0) {
+    if (invalidSelections.length > 0) {
+      const invalidIds = invalidSelections.map(s => s.optionId);
       return {
         isValid: false,
-        error: `Invalid or unavailable options: ${invalidOptions.join(', ')}`,
+        error: `Invalid, unavailable, or out of stock options: ${invalidIds.join(', ')}`,
         totalPriceAdjustment: 0,
       };
     }
 
-    // Calculate total price adjustment
-    const totalPriceAdjustment = modifier.options
-      .filter(option => selectedOptions.includes(option.id))
-      .reduce((sum, option) => sum + option.priceAdjustment, 0);
+    // Calculate total price adjustment with free options logic
+    let totalPriceAdjustment = 0;
+    let selectionsSoFar = 0;
+
+    // Sort selections by price (cheapest first) to maximize free options benefit
+    const sortedSelections = normalizedSelections
+      .map(selection => {
+        const option = modifier.options.find(opt => opt.id === selection.optionId)!;
+        return { ...selection, option };
+      })
+      .sort((a, b) => a.option.priceAdjustment - b.option.priceAdjustment);
+
+    for (const selection of sortedSelections) {
+      const quantity = selection.quantity || 1;
+
+      for (let i = 0; i < quantity; i++) {
+        selectionsSoFar++;
+
+        // Apply free options logic - first N selections are free
+        if (selectionsSoFar > modifier.freeOptions) {
+          totalPriceAdjustment += selection.option.priceAdjustment;
+        }
+      }
+    }
 
     return {
       isValid: true,
@@ -310,6 +380,8 @@ export class MenuModifiersService {
       selectionType: doc.selectionType,
       minSelections: doc.minSelections,
       maxSelections: doc.maxSelections,
+      freeOptions: doc.freeOptions,
+      unique: doc.unique,
       isRequired: doc.isRequired,
       options: doc.options.map(option => ({
         id: option.id,
@@ -318,6 +390,7 @@ export class MenuModifiersService {
         priceAdjustment: option.priceAdjustment,
         currency: option.currency,
         isAvailable: option.isAvailable,
+        inStock: option.inStock,
         displayOrder: option.displayOrder,
         imageUrl: option.imageUrl,
         calories: option.calories,

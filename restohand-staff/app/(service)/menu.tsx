@@ -2093,11 +2093,13 @@ const styles = StyleSheet.create({
   itemsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 8,
-    gap: 10,
+    gap: 5,
   },
   menuItemCard: {
-    width: '47%',
+    width: '32%',
     borderRadius: 12,
     padding: 8,
     borderWidth: 1,

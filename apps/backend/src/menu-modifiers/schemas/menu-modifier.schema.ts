@@ -23,6 +23,9 @@ class ModifierOption {
   @Prop({ type: Boolean, default: true })
   isAvailable!: boolean;
 
+  @Prop({ type: Boolean, default: true })
+  inStock!: boolean;
+
   @Prop({ type: Number, default: 0 })
   displayOrder!: number;
 
@@ -63,6 +66,12 @@ export class MenuModifier {
 
   @Prop({ type: Number, required: true, min: 1, default: 1 })
   maxSelections!: number; // Maximum options to select
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  freeOptions!: number; // First N selections are free (no price added)
+
+  @Prop({ type: Boolean, default: true })
+  unique!: boolean; // If false, same option can be selected multiple times with quantity
 
   @Prop({ type: Boolean, default: false })
   isRequired!: boolean; // If true, customer must make a selection

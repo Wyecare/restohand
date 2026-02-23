@@ -111,7 +111,27 @@ export interface CreateOrderWithPaymentPayload {
   tableNumber?: string;
   items: Array<{
     menuItemId: string;
+    name: string;
     quantity: number;
+    pricing: {
+      unitAmount: number;
+      currency: string;
+      discountAmount?: number;
+      taxAmount?: number;
+    };
+    activePriceTagId?: string;
+    selectedModifiers?: Array<{
+      modifierId: string;
+      modifierName: string;
+      selectedOptions: Array<{
+        optionId: string;
+        optionName: string;
+        priceAdjustment: number;
+        quantity?: number;
+      }>;
+    }>;
+    notes?: string;
+    // Legacy support
     customizations?: {
       addons?: Array<{ id: string; name: string; price: number }>;
       variants?: Array<{ id: string; name: string; price: number }>;

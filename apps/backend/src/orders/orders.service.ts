@@ -54,6 +54,7 @@ import {
 import { ReceiptDocumentService } from './receipt-document.service';
 import { PaymentNotificationService } from './payment-notification.service';
 import { MenuPriceTagsService } from '../menu-price-tags/menu-price-tags.service';
+import { MenuModifiersService } from '../menu-modifiers/menu-modifiers.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
 import {
@@ -94,6 +95,7 @@ export class OrdersService {
     private readonly receiptDocumentService: ReceiptDocumentService,
     private readonly paymentNotificationService: PaymentNotificationService,
     private readonly menuPriceTagsService: MenuPriceTagsService,
+    private readonly menuModifiersService: MenuModifiersService,
     private readonly customerSessionsService: CustomerSessionsService
   ) {}
 
@@ -175,7 +177,10 @@ export class OrdersService {
         unitAmount: item.pricing?.unitAmount || 0,
         currency: 'INR',
         discountAmount: item.pricing?.discountAmount || 0,
-      }
+      },
+      activePriceTagId: item.activePriceTagId,
+      selectedModifiers: item.selectedModifiers || [],
+      notes: item.notes,
     }));
 
     // Debug logging before order creation
@@ -2403,6 +2408,14 @@ export class OrdersService {
       return order;
     }
 
+    // Skip tax invoice generation if required fields are missing or invalid
+    if (!order.subTotalAmount || isNaN(order.subTotalAmount) || order.subTotalAmount <= 0) {
+      this.logger.warn(
+        `Skipping TaxInvoice generation for order ${order._id} due to invalid subtotalAmount: ${order.subTotalAmount}`
+      );
+      return order;
+    }
+
     // Skip tax invoice generation if there's a customer discount (negative roundOff)
     // This prevents TaxInvoice schema validation error with negative roundOffAmount
     if (order.roundOffAmount && order.roundOffAmount < 0) {
@@ -2415,13 +2428,22 @@ export class OrdersService {
     const restaurantId = order.restaurantId.toString();
     const orderId = order._id.toString();
 
+    const taxAmount = order.taxAmount || 0;
     const preRoundTotal = this.roundToTwo(
-      order.subTotalAmount + order.taxAmount
+      order.subTotalAmount + taxAmount
     );
 
     // Use finalAmount if available, otherwise use calculated total
     // For TaxInvoice generation, we need to handle rounding correctly
     const finalInvoiceAmount = order.finalAmount ?? preRoundTotal;
+
+    // Additional validation to prevent NaN values
+    if (isNaN(finalInvoiceAmount) || finalInvoiceAmount <= 0) {
+      this.logger.warn(
+        `Skipping TaxInvoice generation for order ${order._id} due to invalid finalInvoiceAmount: ${finalInvoiceAmount}`
+      );
+      return order;
+    }
     const calculatedRoundOff = order.finalAmount
       ? order.finalAmount - preRoundTotal
       : 0;
@@ -3258,11 +3280,50 @@ export class OrdersService {
       }
     }
 
-    // Add modifier adjustments
+    // Add modifier adjustments with free options logic
     let modifierTotal = 0;
+
     for (const modifier of selectedModifiers) {
-      for (const option of modifier.selectedOptions) {
-        modifierTotal += option.priceAdjustment * (option.quantity || 1);
+      // Get the modifier data to check for free options
+      try {
+        const modifierData = await this.menuModifiersService.findOne(
+          restaurantId,
+          modifier.modifierId
+        );
+
+        if (modifierData) {
+          // Use the menu modifiers service to calculate price with free options logic
+          const validationResult = await this.menuModifiersService.validateModifierSelections(
+            modifier.modifierId,
+            modifier.selectedOptions.map(opt => ({
+              optionId: opt.optionId,
+              quantity: opt.quantity || 1
+            }))
+          );
+
+          if (validationResult.isValid) {
+            modifierTotal += validationResult.totalPriceAdjustment;
+          } else {
+            // Fallback to basic calculation if validation fails
+            for (const option of modifier.selectedOptions) {
+              modifierTotal += option.priceAdjustment * (option.quantity || 1);
+            }
+          }
+        } else {
+          // Fallback to basic calculation if modifier not found
+          for (const option of modifier.selectedOptions) {
+            modifierTotal += option.priceAdjustment * (option.quantity || 1);
+          }
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to calculate modifier price with free options for modifier ${modifier.modifierId}, using basic calculation`,
+          error
+        );
+        // Fallback to basic calculation
+        for (const option of modifier.selectedOptions) {
+          modifierTotal += option.priceAdjustment * (option.quantity || 1);
+        }
       }
     }
 

@@ -92,6 +92,16 @@ export interface BillItemDetail {
   totalTaxAmount: number;
   totalWithTax: number;
   hsnCode?: string;
+  selectedModifiers?: Array<{
+    modifierId: string;
+    modifierName: string;
+    selectedOptions: Array<{
+      optionId: string;
+      optionName: string;
+      priceAdjustment: number;
+      quantity?: number;
+    }>;
+  }>;
 }
 
 export interface OrderBillBreakdown {
@@ -276,11 +286,30 @@ export class BillCalculatorService {
     const allOrderItems: CartItem[] = [];
     for (const order of orders) {
       for (const item of order.items) {
+        // Get category information from menu item for proper tax calculation
+        let foodCategory = 'cooked_food'; // default
+
+        if (item.menuItemId) {
+          try {
+            const menuItem = await this.menuItemModel.findById(item.menuItemId);
+            if (menuItem && menuItem.categoryId) {
+              const category = await this.menuCategoryModel.findById(menuItem.categoryId);
+              if (category && (category as any).foodCategory) {
+                foodCategory = (category as any).foodCategory;
+              }
+            }
+          } catch (error) {
+            // If we can't find category info, default to cooked_food
+            console.log('Could not fetch category info for item in bill calculation:', item.menuItemId);
+          }
+        }
+
         allOrderItems.push({
           id: item.menuItemId.toString(),
           name: item.name,
           quantity: item.quantity,
           price: item.pricing.unitAmount,
+          foodCategory: foodCategory as any, // Add foodCategory for mixed tax calculation
         });
       }
     }
@@ -696,21 +725,90 @@ export class BillCalculatorService {
         );
 
     // Create simplified item breakdown (no per-item GST breakdown in new system)
-    const allItems: BillItemDetail[] = allOrderItems.map((item) => ({
-      menuItemId: item.id,
-      name: item.name,
-      quantity: item.quantity,
-      unitPrice: item.price,
-      discountAmount: 0,
-      taxableAmount: item.price * item.quantity,
-      gstRate: gstConfig.defaultGstRate,
-      cgstAmount: 0, // GST calculated at bill level, not per item
-      sgstAmount: 0,
-      igstAmount: 0,
-      totalTaxAmount: 0,
-      totalWithTax: item.price * item.quantity,
-      hsnCode: undefined,
-    }));
+    // Create a mapping to preserve modifier data for allItems
+    const originalItemsFlattened = [];
+    for (const order of orders) {
+      for (const item of order.items) {
+        originalItemsFlattened.push(item);
+      }
+    }
+
+    const allItems: BillItemDetail[] = allOrderItems.map((item, index) => {
+      const itemTotal = item.price * item.quantity;
+      let cgstAmount = 0;
+      let sgstAmount = 0;
+      let igstAmount = 0;
+      let totalTaxAmount = 0;
+      let totalWithTax = itemTotal;
+      let gstRate = gstConfig.defaultGstRate;
+
+      // Calculate tax amounts based on category and bill calculation
+      if (hasMixedTaxCategories && (billCalculation as any).categoryCalculations) {
+        const categoryCalc = (billCalculation as any).categoryCalculations.find(
+          (cat: any) => cat.category === item.foodCategory
+        );
+
+        if (categoryCalc) {
+          const categorySubtotal = categoryCalc.subtotal;
+          if (categorySubtotal > 0) {
+            // Calculate proportional tax for this item within its category
+            const itemProportion = itemTotal / categorySubtotal;
+
+            if (categoryCalc.taxType === 'gst') {
+              gstRate = categoryCalc.gstRate || gstConfig.defaultGstRate;
+              const itemTotalTax = categoryCalc.totalTaxAmount * itemProportion;
+
+              if (billCalculation.taxType === 'intra-state') {
+                cgstAmount = this.roundToTwo(itemTotalTax / 2);
+                sgstAmount = this.roundToTwo(itemTotalTax / 2);
+              } else {
+                igstAmount = this.roundToTwo(itemTotalTax);
+              }
+
+              totalTaxAmount = this.roundToTwo(itemTotalTax);
+            } else if (categoryCalc.taxType === 'vat') {
+              // VAT items don't have GST breakdown
+              totalTaxAmount = this.roundToTwo(categoryCalc.totalTaxAmount * itemProportion);
+              gstRate = categoryCalc.vatRate || 25;
+            }
+
+            totalWithTax = this.roundToTwo(itemTotal + totalTaxAmount);
+          }
+        }
+      } else {
+        // Single tax calculation - distribute proportionally
+        if (billCalculation.subtotal > 0) {
+          const itemProportion = itemTotal / billCalculation.subtotal;
+          totalTaxAmount = this.roundToTwo((billCalculation.totalGstAmount || billCalculation.cgstAmount + billCalculation.sgstAmount + billCalculation.igstAmount) * itemProportion);
+
+          if (billCalculation.taxType === 'intra-state') {
+            cgstAmount = this.roundToTwo(billCalculation.cgstAmount * itemProportion);
+            sgstAmount = this.roundToTwo(billCalculation.sgstAmount * itemProportion);
+          } else {
+            igstAmount = this.roundToTwo(billCalculation.igstAmount * itemProportion);
+          }
+
+          totalWithTax = this.roundToTwo(itemTotal + totalTaxAmount);
+        }
+      }
+
+      return {
+        menuItemId: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        discountAmount: 0,
+        taxableAmount: itemTotal,
+        gstRate,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        totalTaxAmount,
+        totalWithTax,
+        hsnCode: undefined,
+        selectedModifiers: originalItemsFlattened[index]?.selectedModifiers || [],
+      };
+    });
 
     // Create detailed order breakdown first to get accurate payment tracking
     const orderBreakdown = await this.createOrderBreakdown(
@@ -1013,51 +1111,65 @@ export class BillCalculatorService {
     const combinedServiceCharge = combinedBillCalculation.serviceChargeAmount;
 
     for (const order of orders) {
-      // Extract items from this order
-      const orderItems: CartItem[] = order.items.map((item) => ({
-        id: item.menuItemId.toString(),
-        name: item.name,
-        quantity: item.quantity,
-        price: item.pricing.unitAmount,
-      }));
+      // Extract items from this order - include foodCategory for proper tax calculation
+      const orderItems: CartItem[] = [];
+      for (const item of order.items) {
+        // Get category information from menu item for this order's items
+        let foodCategory = 'cooked_food'; // default
 
-      // Calculate this order's subtotal
-      const orderSubtotal = orderItems.reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-      );
+        if (item.menuItemId) {
+          try {
+            const menuItem = await this.menuItemModel.findById(item.menuItemId);
+            if (menuItem && menuItem.categoryId) {
+              const category = await this.menuCategoryModel.findById(menuItem.categoryId);
+              if (category && (category as any).foodCategory) {
+                foodCategory = (category as any).foodCategory;
+              }
+            }
+          } catch (error) {
+            // If we can't find category info, default to cooked_food
+            console.log('Could not fetch category info for item in individual order:', item.menuItemId);
+          }
+        }
 
-      // Calculate proportional distribution based on this order's contribution
-      const orderProportion =
-        combinedSubtotal > 0 ? orderSubtotal / combinedSubtotal : 0;
+        orderItems.push({
+          id: item.menuItemId.toString(),
+          name: item.name,
+          quantity: item.quantity,
+          price: item.pricing.unitAmount,
+          foodCategory: foodCategory as any,
+        });
+      }
 
-      // Distribute service charge proportionally
-      const orderServiceChargeAmount = this.roundToTwo(
-        combinedServiceCharge * orderProportion
-      );
+      // Keep original items with modifier data for the final response
+      const originalOrderItems = order.items;
+
+      // Calculate this order's bill using the same logic as the combined calculation
+      const orderBillCalculation = hasMixedTaxCategories
+        ? await this.restaurantBillingService.calculateMixedBill(
+            orderItems,
+            gstConfig,
+            branchState || gstConfig.businessState,
+            orders[0]?.customerState,
+            branchCharges,
+            orderType
+          )
+        : this.restaurantBillingService.calculateBill(
+            orderItems,
+            gstConfig,
+            orders[0]?.customerState,
+            branchCharges,
+            orderType
+          );
+
+      const orderSubtotal = orderBillCalculation.subtotal;
+      const orderServiceChargeAmount = orderBillCalculation.serviceChargeAmount;
       const orderTaxableAmount = orderSubtotal + orderServiceChargeAmount;
-
-      // Distribute tax amounts proportionally - handle both GST and mixed tax
-      const orderCgstAmount = this.roundToTwo(
-        combinedBillCalculation.cgstAmount * orderProportion
-      );
-      const orderSgstAmount = this.roundToTwo(
-        combinedBillCalculation.sgstAmount * orderProportion
-      );
-      const orderIgstAmount = this.roundToTwo(
-        combinedBillCalculation.igstAmount * orderProportion
-      );
-
-      // For mixed tax calculations, use total tax amount instead of just GST
-      const totalTaxAmount = (combinedBillCalculation as any).totalTaxAmount || combinedBillCalculation.totalGstAmount;
-      const orderTotalTaxAmount = this.roundToTwo(
-        totalTaxAmount * orderProportion
-      );
-
-      // Distribute branch charges proportionally
-      const orderBranchChargeAmount = this.roundToTwo(
-        combinedBillCalculation.totalBranchCharges * orderProportion
-      );
+      const orderCgstAmount = orderBillCalculation.cgstAmount;
+      const orderSgstAmount = orderBillCalculation.sgstAmount;
+      const orderIgstAmount = orderBillCalculation.igstAmount;
+      const orderTotalTaxAmount = (orderBillCalculation as any).totalTaxAmount || orderBillCalculation.totalGstAmount;
+      const orderBranchChargeAmount = orderBillCalculation.totalBranchCharges;
 
       const orderGrandTotal =
         orderTaxableAmount + orderTotalTaxAmount + orderBranchChargeAmount;
@@ -1079,22 +1191,55 @@ export class BillCalculatorService {
         paymentStatus: order.paymentStatus,
         itemCount: orderItems.length,
         createdAt: (order as any).createdAt || new Date(),
-        items: orderItems.map((item) => {
+        items: orderItems.map((item, index) => {
           const itemSubtotal = item.price * item.quantity;
-          const itemProportion =
-            orderSubtotal > 0 ? itemSubtotal / orderSubtotal : 0;
-          const itemTaxAmount = this.roundToTwo(
-            orderTotalTaxAmount * itemProportion
-          );
-          const itemCgstAmount = this.roundToTwo(
-            orderCgstAmount * itemProportion
-          );
-          const itemSgstAmount = this.roundToTwo(
-            orderSgstAmount * itemProportion
-          );
-          const itemIgstAmount = this.roundToTwo(
-            orderIgstAmount * itemProportion
-          );
+          let itemTaxAmount = 0;
+          let itemCgstAmount = 0;
+          let itemSgstAmount = 0;
+          let itemIgstAmount = 0;
+          let gstRate = gstConfig.defaultGstRate;
+
+          // Calculate item-specific tax based on category and order calculation
+          if (hasMixedTaxCategories && (orderBillCalculation as any).categoryCalculations) {
+            const categoryCalc = (orderBillCalculation as any).categoryCalculations.find(
+              (cat: any) => cat.category === item.foodCategory
+            );
+
+            if (categoryCalc && categoryCalc.subtotal > 0) {
+              // Calculate proportional tax for this item within its category
+              const itemProportion = itemSubtotal / categoryCalc.subtotal;
+
+              if (categoryCalc.taxType === 'gst') {
+                gstRate = categoryCalc.gstRate || gstConfig.defaultGstRate;
+                const itemCategoryTax = categoryCalc.totalTaxAmount * itemProportion;
+
+                if (orderBillCalculation.taxType === 'intra-state') {
+                  itemCgstAmount = this.roundToTwo(itemCategoryTax / 2);
+                  itemSgstAmount = this.roundToTwo(itemCategoryTax / 2);
+                } else {
+                  itemIgstAmount = this.roundToTwo(itemCategoryTax);
+                }
+
+                itemTaxAmount = this.roundToTwo(itemCategoryTax);
+              } else if (categoryCalc.taxType === 'vat') {
+                // VAT items don't have GST breakdown
+                itemTaxAmount = this.roundToTwo(categoryCalc.totalTaxAmount * itemProportion);
+                gstRate = categoryCalc.vatRate || 25;
+              }
+            }
+          } else {
+            // Single tax calculation - distribute proportionally
+            if (orderSubtotal > 0) {
+              const itemProportion = itemSubtotal / orderSubtotal;
+              itemTaxAmount = this.roundToTwo(orderTotalTaxAmount * itemProportion);
+              itemCgstAmount = this.roundToTwo(orderCgstAmount * itemProportion);
+              itemSgstAmount = this.roundToTwo(orderSgstAmount * itemProportion);
+              itemIgstAmount = this.roundToTwo(orderIgstAmount * itemProportion);
+            }
+          }
+
+          // Get the corresponding original item with modifier data
+          const originalItem = originalOrderItems[index];
 
           return {
             menuItemId: item.id,
@@ -1103,13 +1248,14 @@ export class BillCalculatorService {
             unitPrice: item.price,
             discountAmount: 0,
             taxableAmount: this.roundToTwo(itemSubtotal),
-            gstRate: gstConfig.defaultGstRate,
+            gstRate,
             cgstAmount: itemCgstAmount,
             sgstAmount: itemSgstAmount,
             igstAmount: itemIgstAmount,
             totalTaxAmount: itemTaxAmount,
             totalWithTax: this.roundToTwo(itemSubtotal + itemTaxAmount),
             hsnCode: undefined,
+            selectedModifiers: originalItem?.selectedModifiers || [],
           };
         }),
       });

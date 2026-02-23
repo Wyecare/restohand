@@ -32,26 +32,18 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   }).format(amount);
 
-const formatTime = (dateString: string) => {
-  return new Date(dateString).toLocaleTimeString('en-IN', {
+const formatTime = (dateString: string) =>
+  new Date(dateString).toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
   });
-};
 
 const getTimeDuration = (startTime: string) => {
-  const start = new Date(startTime);
-  const now = new Date();
-  const diffMs = now.getTime() - start.getTime();
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-
-  if (diffMins < 60) {
-    return `${diffMins}m`;
-  } else {
-    const hours = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
-    return `${hours}h ${mins}m`;
-  }
+  const diffMins = Math.floor(
+    (Date.now() - new Date(startTime).getTime()) / 60000
+  );
+  if (diffMins < 60) return `${diffMins}m`;
+  return `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
 };
 
 export default function SessionManagementScreen() {
@@ -61,26 +53,23 @@ export default function SessionManagementScreen() {
 
   const { tableId } = useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
-
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  // Get restaurant details
   const { data: restaurant } = useGetRestaurantQuery(
     restaurantId ?? skipToken,
     { skip: !restaurantId }
   );
 
-  // Get table information
   const { data: enhancedTables } = useListEnhancedTablesQuery(
     restaurantId ? { restaurantId } : skipToken,
     { skip: !restaurantId }
   );
 
-  const selectedTable = useMemo(() => {
-    return enhancedTables?.find((table) => table.id === tableId) ?? null;
-  }, [enhancedTables, tableId]);
+  const selectedTable = useMemo(
+    () => enhancedTables?.find((t) => t.id === tableId) ?? null,
+    [enhancedTables, tableId]
+  );
 
-  // Get active sessions for this table
   const {
     data: sessionsData,
     isLoading: sessionsLoading,
@@ -91,15 +80,14 @@ export default function SessionManagementScreen() {
           restaurantId,
           tableId: tableId as string,
           status: 'active',
+          returnEmpty: true,
           limit: 10,
         }
       : skipToken,
     { skip: !restaurantId || !tableId }
   );
 
-  // Mutations
   const [createCustomerSession] = useCreateCustomerSessionMutation();
-
   const activeSessions = sessionsData?.sessions || [];
 
   const handleCreateNewSession = async () => {
@@ -107,29 +95,20 @@ export default function SessionManagementScreen() {
       Alert.alert('Error', 'Missing restaurant or table data');
       return;
     }
-
     setIsCreatingSession(true);
     try {
-      console.log('🔄 DEBUG: Creating session with payload:', {
-        restaurantSlug: restaurant.slug,
-        tableId: selectedTable.id,
-        activeSessions: activeSessions.length,
-        note: 'Backend will auto-calculate customerNumber'
-      });
-
       const sessionResponse = await createCustomerSession({
         restaurantSlug: restaurant.slug,
         tableId: selectedTable.id,
       }).unwrap();
 
-      // Navigate to menu with the new session
       router.push({
         pathname: '/(service)/menu',
         params: {
           sessionId: sessionResponse.sessionId,
           tableId: selectedTable.id,
           restaurant_slug: restaurant.slug,
-          isNewSession: 'true', // Always new since we're creating it directly
+          isNewSession: 'true',
         },
       });
     } catch (error: any) {
@@ -144,7 +123,6 @@ export default function SessionManagementScreen() {
 
   const handleResumeSession = (sessionId: string) => {
     if (!selectedTable || !restaurant) return;
-
     router.push({
       pathname: '/(service)/menu',
       params: {
@@ -154,11 +132,6 @@ export default function SessionManagementScreen() {
         isNewSession: 'false',
       },
     });
-  };
-
-
-  const handleRefresh = () => {
-    refetchSessions();
   };
 
   const tableNumber =
@@ -183,15 +156,18 @@ export default function SessionManagementScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? '#0f172a' : '#f8fafc' },
+      ]}
     >
-      {/* Header */}
+      {/* ── Header ── */}
       <View
         style={[
           styles.header,
           {
-            backgroundColor: theme.background,
-            borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+            borderBottomColor: isDark ? '#334155' : '#e2e8f0',
           },
         ]}
       >
@@ -199,177 +175,269 @@ export default function SessionManagementScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
+
         <View style={styles.headerContent}>
           <Text style={[styles.title, { color: theme.text }]}>
             {tableNumber}
           </Text>
-          <Text style={[styles.subtitle, { color: theme.icon }]}>
-            Manage Customer Sessions
+          <Text
+            style={[styles.subtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}
+          >
+            Session Management
           </Text>
         </View>
+
         <TouchableOpacity
           style={[
-            styles.iconButton,
-            { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+            styles.refreshButton,
+            { backgroundColor: isDark ? '#334155' : '#f1f5f9' },
           ]}
-          onPress={handleRefresh}
+          onPress={() => refetchSessions()}
         >
-          <Ionicons name="refresh" size={20} color={theme.text} />
+          <Ionicons
+            name="refresh-outline"
+            size={19}
+            color={isDark ? '#94a3b8' : '#64748b'}
+          />
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* New Session Button */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={[styles.newSessionButton, { backgroundColor: theme.brand }]}
-            onPress={handleCreateNewSession}
-            disabled={isCreatingSession}
-          >
-            <View style={styles.newSessionContent}>
-              <View style={styles.newSessionIconContainer}>
-                {isCreatingSession ? (
-                  <ActivityIndicator size={24} color="#ffffff" />
-                ) : (
-                  <Ionicons name="add-circle" size={24} color="#ffffff" />
-                )}
-              </View>
-              <View style={styles.newSessionInfo}>
-                <Text style={styles.newSessionTitle}>
-                  {isCreatingSession ? 'Creating Session...' : 'Start New Order'}
-                </Text>
-                <Text style={styles.newSessionSubtitle}>
-                  {isCreatingSession
-                    ? 'Please wait...'
-                    : 'Begin ordering for new customers'}
-                </Text>
-              </View>
-              <Ionicons name="arrow-forward" size={20} color="#ffffff" />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── New Session CTA ── */}
+        <TouchableOpacity
+          style={[
+            styles.newSessionCard,
+            {
+              backgroundColor: theme.brand,
+              opacity: isCreatingSession ? 0.85 : 1,
+            },
+          ]}
+          onPress={handleCreateNewSession}
+          disabled={isCreatingSession}
+          activeOpacity={0.88}
+        >
+          <View style={styles.newSessionLeft}>
+            <View style={styles.newSessionIconWrap}>
+              {isCreatingSession ? (
+                <ActivityIndicator size={22} color="#fff" />
+              ) : (
+                <Ionicons name="add" size={22} color="#fff" />
+              )}
             </View>
-          </TouchableOpacity>
-        </View>
+            <View>
+              <Text style={styles.newSessionTitle}>
+                {isCreatingSession ? 'Creating Session…' : 'Start New Order'}
+              </Text>
+              <Text style={styles.newSessionSub}>
+                {isCreatingSession
+                  ? 'Please wait'
+                  : 'Seat a new group at this table'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name="arrow-forward"
+            size={18}
+            color="rgba(255,255,255,0.8)"
+          />
+        </TouchableOpacity>
 
-        {/* Active Sessions */}
+        {/* ── Active Sessions ── */}
         {activeSessions.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              Active Sessions ({activeSessions.length})
-            </Text>
+          <View style={styles.sectionBlock}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                Active Sessions
+              </Text>
+              <View
+                style={[
+                  styles.countBadge,
+                  { backgroundColor: isDark ? '#1e3a5f' : '#dbeafe' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.countBadgeText,
+                    { color: isDark ? '#93c5fd' : '#1d4ed8' },
+                  ]}
+                >
+                  {activeSessions.length}
+                </Text>
+              </View>
+            </View>
+
             {activeSessions.map((session, index) => (
               <View
                 key={session.sessionId}
                 style={[
                   styles.sessionCard,
                   {
-                    backgroundColor: theme.background,
-                    borderColor: isDark ? '#374151' : '#e5e7eb',
+                    backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                    borderColor: isDark ? '#334155' : '#e2e8f0',
                   },
                 ]}
               >
-                <View style={styles.sessionHeader}>
-                  <View style={styles.sessionMainInfo}>
-                    <Text style={[styles.sessionTitle, { color: theme.text }]}>
-                      Customer Session #{index + 1}
+                {/* Card Top Row */}
+                <View style={styles.cardTopRow}>
+                  <View>
+                    <Text style={[styles.sessionName, { color: theme.text }]}>
+                      Group {index + 1}
                     </Text>
-                    <View style={styles.sessionMeta}>
-                      <View style={styles.sessionMetaItem}>
-                        <Ionicons name="time" size={12} color={theme.brand} />
-                        <Text style={[styles.sessionMetaText, { color: theme.brand }]}>
-                          Started {formatTime(session.startedAt)}
-                        </Text>
-                      </View>
-                      <View style={styles.sessionMetaItem}>
-                        <Ionicons name="hourglass" size={12} color={theme.icon} />
-                        <Text style={[styles.sessionMetaText, { color: theme.icon }]}>
-                          {getTimeDuration(session.startedAt)}
-                        </Text>
-                      </View>
+                    <View style={styles.timeRow}>
+                      <Ionicons
+                        name="time-outline"
+                        size={12}
+                        color={isDark ? '#94a3b8' : '#64748b'}
+                      />
+                      <Text
+                        style={[
+                          styles.timeText,
+                          { color: isDark ? '#94a3b8' : '#64748b' },
+                        ]}
+                      >
+                        Since {formatTime(session.startedAt)} ·{' '}
+                        {getTimeDuration(session.startedAt)}
+                      </Text>
                     </View>
                   </View>
+
                   <View
                     style={[
-                      styles.sessionStatus,
-                      { backgroundColor: isDark ? '#064E3B' : '#dcfce7' },
+                      styles.activePill,
+                      { backgroundColor: isDark ? '#052e16' : '#dcfce7' },
                     ]}
                   >
-                    <Text style={styles.sessionStatusText}>Active</Text>
+                    <View style={styles.activeDot} />
+                    <Text style={[styles.activePillText, { color: '#16a34a' }]}>
+                      Active
+                    </Text>
                   </View>
                 </View>
 
-                <View style={styles.sessionStats}>
-                  <View style={styles.sessionStat}>
-                    <Text style={[styles.sessionStatLabel, { color: theme.icon }]}>
-                      Orders
-                    </Text>
-                    <Text style={[styles.sessionStatValue, { color: theme.text }]}>
+                {/* Stats Row */}
+                <View
+                  style={[
+                    styles.statsRow,
+                    { borderColor: isDark ? '#334155' : '#f1f5f9' },
+                  ]}
+                >
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statValue, { color: theme.text }]}>
                       {session.totalOrders}
-                    </Text>
-                  </View>
-                  <View style={styles.sessionStat}>
-                    <Text style={[styles.sessionStatLabel, { color: theme.icon }]}>
-                      Amount
-                    </Text>
-                    <Text style={[styles.sessionStatValue, { color: theme.text }]}>
-                      {formatCurrency(session.totalAmount)}
-                    </Text>
-                  </View>
-                  <View style={styles.sessionStat}>
-                    <Text style={[styles.sessionStatLabel, { color: theme.icon }]}>
-                      Status
                     </Text>
                     <Text
                       style={[
-                        styles.sessionStatValue,
+                        styles.statLabel,
+                        { color: isDark ? '#94a3b8' : '#64748b' },
+                      ]}
+                    >
+                      Orders
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statDivider,
+                      { backgroundColor: isDark ? '#334155' : '#e2e8f0' },
+                    ]}
+                  />
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statValue, { color: theme.text }]}>
+                      {formatCurrency(session.totalAmount)}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.statLabel,
+                        { color: isDark ? '#94a3b8' : '#64748b' },
+                      ]}
+                    >
+                      Total
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statDivider,
+                      { backgroundColor: isDark ? '#334155' : '#e2e8f0' },
+                    ]}
+                  />
+                  <View style={styles.statItem}>
+                    <Text
+                      style={[
+                        styles.statValue,
                         {
-                          color: session.allOrdersPaid ? '#16a34a' : '#dc2626',
+                          color: session.allOrdersPaid ? '#16a34a' : '#f59e0b',
                         },
                       ]}
                     >
-                      {session.allOrdersPaid ? 'Paid' : 'Pending'}
+                      {session.allOrdersPaid ? 'Paid' : 'Unpaid'}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.statLabel,
+                        { color: isDark ? '#94a3b8' : '#64748b' },
+                      ]}
+                    >
+                      Payment
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.sessionActions}>
-                  <TouchableOpacity
-                    style={[
-                      styles.sessionActionButton,
-                      styles.continueButton,
-                      { backgroundColor: theme.brand },
-                    ]}
-                    onPress={() => handleResumeSession(session.sessionId)}
-                  >
-                    <Ionicons name="restaurant" size={16} color="#ffffff" />
-                    <Text style={styles.sessionActionText}>Continue Order</Text>
-                  </TouchableOpacity>
-                </View>
+                {/* Action */}
+                <TouchableOpacity
+                  style={[styles.continueBtn, { backgroundColor: theme.brand }]}
+                  onPress={() => handleResumeSession(session.sessionId)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="restaurant-outline" size={15} color="#fff" />
+                  <Text style={styles.continueBtnText}>Continue Order</Text>
+                </TouchableOpacity>
               </View>
             ))}
           </View>
         )}
 
-        {/* Empty State */}
+        {/* ── Empty State ── */}
         {activeSessions.length === 0 && !sessionsLoading && (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🍽️</Text>
+          <View
+            style={[
+              styles.emptyCard,
+              {
+                backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                borderColor: isDark ? '#334155' : '#e2e8f0',
+              },
+            ]}
+          >
+            <Text style={styles.emptyEmoji}>🍽️</Text>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
               No Active Sessions
             </Text>
-            <Text style={[styles.emptyText, { color: theme.icon }]}>
-              This table has no ongoing customer sessions.
-              {'\n'}Start a new order to begin serving customers.
+            <Text
+              style={[
+                styles.emptyDesc,
+                { color: isDark ? '#94a3b8' : '#64748b' },
+              ]}
+            >
+              This table is currently free. Start a new order above to begin
+              serving customers.
             </Text>
           </View>
         )}
 
-        {/* Help Text */}
-        <View style={styles.helpContainer}>
-          <Text style={[styles.helpText, { color: theme.icon }]}>
-            💡 Each session represents a separate group of customers
-          </Text>
-          <Text style={[styles.helpText, { color: theme.icon }]}>
+        {/* ── Hint ── */}
+        <View style={styles.hint}>
+          <Ionicons
+            name="information-circle-outline"
+            size={14}
+            color={isDark ? '#475569' : '#94a3b8'}
+          />
+          <Text
+            style={[styles.hintText, { color: isDark ? '#475569' : '#94a3b8' }]}
+          >
             Multiple sessions can run simultaneously at the same table
           </Text>
         </View>
@@ -379,187 +447,144 @@ export default function SessionManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 20,
-  },
+  container: { flex: 1 },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
-  backButton: {
-    marginRight: 12,
-    padding: 6,
+  backButton: { padding: 6, marginRight: 10 },
+  headerContent: { flex: 1 },
+  title: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
+  subtitle: { fontSize: 12, marginTop: 1 },
+  refreshButton: { padding: 9, borderRadius: 10 },
+
+  // Scroll
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16, gap: 16, paddingBottom: 40 },
+
+  // New Session CTA
+  newSessionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 18,
+    borderRadius: 16,
   },
-  headerContent: {
-    flex: 1,
+  newSessionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  newSessionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  subtitle: {
-    fontSize: 13,
+  newSessionTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  newSessionSub: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12,
     marginTop: 2,
   },
-  iconButton: {
-    padding: 8,
+
+  // Section
+  sectionBlock: { gap: 10 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '600' },
+  countBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
+  countBadgeText: { fontSize: 12, fontWeight: '700' },
+
+  // Session Card
+  sessionCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    gap: 14,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  sessionName: { fontSize: 15, fontWeight: '600', marginBottom: 5 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  timeText: { fontSize: 12 },
+  activePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16a34a',
+  },
+  activePillText: { fontSize: 11, fontWeight: '600' },
+
+  // Stats
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  statItem: { flex: 1, alignItems: 'center', gap: 3 },
+  statValue: { fontSize: 14, fontWeight: '700' },
+  statLabel: { fontSize: 11 },
+  statDivider: { width: 1, height: 32 },
+
+  // Continue Button
+  continueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 11,
     borderRadius: 10,
   },
-  content: {
-    flex: 1,
+  continueBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+
+  // Empty State
+  emptyCard: {
+    alignItems: 'center',
+    padding: 36,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 8,
   },
+  emptyEmoji: { fontSize: 44, marginBottom: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: '600' },
+  emptyDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+
+  // Hint
+  hint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  hintText: { fontSize: 12, textAlign: 'center' },
+
+  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
   },
-  loadingText: {
-    fontSize: 15,
-  },
-  section: {
-    margin: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  newSessionButton: {
-    padding: 16,
-    borderRadius: 12,
-  },
-  newSessionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  newSessionIconContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
-    padding: 8,
-  },
-  newSessionInfo: {
-    flex: 1,
-  },
-  newSessionTitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  newSessionSubtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  sessionCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 12,
-  },
-  sessionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  sessionMainInfo: {
-    flex: 1,
-  },
-  sessionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  sessionMeta: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  sessionMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  sessionMetaText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  sessionStatus: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  sessionStatusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#16a34a',
-  },
-  sessionStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 14,
-    paddingVertical: 8,
-  },
-  sessionStat: {
-    alignItems: 'center',
-  },
-  sessionStatLabel: {
-    fontSize: 11,
-    marginBottom: 2,
-  },
-  sessionStatValue: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sessionActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  sessionActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  continueButton: {},
-  sessionActionText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 40,
-    gap: 8,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  helpContainer: {
-    alignItems: 'center',
-    padding: 20,
-    gap: 4,
-  },
-  helpText: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
+  loadingText: { fontSize: 14 },
 });

@@ -1,13 +1,15 @@
 import jsPDF from 'jspdf';
 import type { DetailedBillCalculation } from '@/store/api/billingApi';
 
-// Modern receipt styling constants
-const RECEIPT_WIDTH = 80; // 80mm width
-const MARGIN = 8; // Clean margins
-const CONTENT_WIDTH = RECEIPT_WIDTH - MARGIN * 2;
-const LINE_HEIGHT = 5; // Better line spacing
-const SMALL_GAP = 2; // Small vertical gap
-const MEDIUM_GAP = 4; // Medium vertical gap
+// ── Layout constants ────────────────────────────────────────────────
+const W = 80; // paper width  (mm)
+const ML = 6; // left margin
+const MR = W - 6; // right edge
+const CW = MR - ML; // content width
+const LH = 4.8; // base line height
+const SG = 2; // small gap
+const MG = 4; // medium gap
+const LG = 7; // large gap
 
 export interface ThermalReceiptData {
   billData: DetailedBillCalculation;
@@ -27,82 +29,87 @@ export function generateThermalReceiptPDF(
       changeGiven,
     } = data;
 
-    const doc = new jsPDF({
-      unit: 'mm',
-      format: [RECEIPT_WIDTH, 200], // Will adjust height later
-    });
+    const doc = new jsPDF({ unit: 'mm', format: [W, 280] });
+    let y = 0;
 
-    let y = MARGIN;
+    // ── Primitive helpers ──────────────────────────────────────────
 
-    // Helper: Add centered text
-    const addCentered = (text: string, fontSize = 8, bold = false) => {
-      doc.setFontSize(fontSize);
-      if (bold) doc.setFont('helvetica', 'bold');
-      else doc.setFont('helvetica', 'normal');
-
-      // Use align option for centering
-      doc.text(text, RECEIPT_WIDTH / 2, y, { align: 'center' });
-      y += LINE_HEIGHT;
+    const font = (size: number, style: 'normal' | 'bold' = 'normal') => {
+      doc.setFontSize(size);
+      doc.setFont('helvetica', style);
     };
 
-    // Helper: Add left-aligned text
-    const addLeft = (text: string, fontSize = 8, bold = false) => {
-      doc.setFontSize(fontSize);
-      if (bold) doc.setFont('helvetica', 'bold');
-      else doc.setFont('helvetica', 'normal');
-
-      doc.text(text, MARGIN, y);
-      y += LINE_HEIGHT;
+    const textCenter = (
+      text: string,
+      size: number,
+      style: 'normal' | 'bold' = 'normal'
+    ) => {
+      font(size, style);
+      doc.text(text, W / 2, y, { align: 'center' });
+      y += LH;
     };
 
-    // Helper: Add two-column row (label left, value right)
-    const addRow = (
+    const textLeft = (
+      text: string,
+      size: number,
+      style: 'normal' | 'bold' = 'normal',
+      indent = 0
+    ) => {
+      font(size, style);
+      doc.text(text, ML + indent, y);
+      y += LH;
+    };
+
+    const textRight = (
+      text: string,
+      size: number,
+      style: 'normal' | 'bold' = 'normal'
+    ) => {
+      font(size, style);
+      doc.text(text, MR, y, { align: 'right' });
+    };
+
+    const row = (
       label: string,
       value: string,
-      fontSize = 8,
-      boldValue = false
+      size = 8,
+      labelBold: 'normal' | 'bold' = 'normal',
+      valueBold: 'normal' | 'bold' = 'normal'
     ) => {
-      doc.setFontSize(fontSize);
-      doc.setFont('helvetica', 'normal');
-      doc.text(label, MARGIN, y);
-
-      if (boldValue) doc.setFont('helvetica', 'bold');
-      else doc.setFont('helvetica', 'normal');
-
-      // Right-align the value - use align option instead of manual calculation
-      doc.text(value, RECEIPT_WIDTH - MARGIN, y, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
-
-      y += LINE_HEIGHT;
+      font(size, labelBold);
+      doc.text(label, ML, y);
+      font(size, valueBold);
+      doc.text(value, MR, y, { align: 'right' });
+      y += LH;
     };
 
-    // Helper: Add separator line
-    const addSeparator = (style: 'solid' | 'dashed' = 'solid') => {
-      const lineY = y - LINE_HEIGHT / 2 + 1;
+    const gap = (n = MG) => {
+      y += n;
+    };
 
-      if (style === 'dashed') {
-        doc.setLineDash([1, 1]);
-      }
-
-      doc.setLineWidth(0.2);
-      doc.line(MARGIN, lineY, RECEIPT_WIDTH - MARGIN, lineY);
+    // Solid line
+    const line = (lw = 0.25, dash = false) => {
+      doc.setLineWidth(lw);
+      if (dash) doc.setLineDash([1.2, 1.2]);
+      doc.line(ML, y, MR, y);
       doc.setLineDash([]);
-
-      y += SMALL_GAP;
+      y += SG;
     };
 
-    // Helper: Add gap
-    const addGap = (size: 'small' | 'medium' = 'small') => {
-      y += size === 'small' ? SMALL_GAP : MEDIUM_GAP;
+    // Thick double-rule (header / footer accent)
+    const thickLine = () => {
+      doc.setLineWidth(0.6);
+      doc.line(ML, y, MR, y);
+      y += 1;
+      doc.setLineWidth(0.2);
+      doc.line(ML, y, MR, y);
+      y += SG + 1;
     };
 
-    // Helper: Format currency
-    const formatCurrency = (amount: number) => `₹${amount.toFixed(2)}`;
+    const formatINR = (n: number) => `Rs. ${n.toFixed(2)}`;
 
-    // Helper: Format date/time
-    const formatDateTime = (dateString: string) => {
-      const date = new Date(dateString);
-      return date.toLocaleString('en-IN', {
+    const formatDate = (iso: string) =>
+      new Date(iso).toLocaleString('en-IN', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
@@ -110,261 +117,267 @@ export function generateThermalReceiptPDF(
         minute: '2-digit',
         hour12: true,
       });
-    };
 
-    // ========== HEADER ==========
-    addCentered(billData.restaurant.name.toUpperCase(), 11, true);
+    // ── START ──────────────────────────────────────────────────────
+    y = 10;
+
+    // ── RESTAURANT HEADER ─────────────────────────────────────────
+    textCenter(billData.restaurant.name.toUpperCase(), 13, 'bold');
+    gap(SG);
 
     if (billData.restaurant.address) {
-      const addr = billData.restaurant.address;
-      addCentered(`${addr.line1}`, 7);
-      addCentered(`${addr.city}, ${addr.state} ${addr.postalCode}`, 7);
+      const a = billData.restaurant.address;
+      textCenter(`${a.line1}`, 7);
+      textCenter(`${a.city}, ${a.state} - ${a.postalCode}`, 7);
     }
-
     if (billData.restaurant.phone) {
-      addCentered(`Ph: ${billData.restaurant.phone}`, 7);
+      gap(SG);
+      textCenter(`Tel: ${billData.restaurant.phone}`, 7);
     }
-
     if (billData.restaurant.gstin) {
-      addCentered(`GSTIN: ${billData.restaurant.gstin}`, 7);
+      textCenter(`GSTIN: ${billData.restaurant.gstin}`, 7);
     }
 
-    addGap('medium');
-    addSeparator('solid');
-    addGap('small');
+    gap(MG);
+    thickLine();
 
-    // ========== SESSION INFO ==========
-    addRow('Table:', billData.session.tableNumber, 8, true);
+    // ── TAX INVOICE label ─────────────────────────────────────────
+    textCenter('TAX INVOICE', 9, 'bold');
+    gap(SG);
+    line(0.2, true);
+
+    // ── SESSION / TABLE INFO ──────────────────────────────────────
+    row('Table No.', billData.session.tableNumber, 8, 'normal', 'bold');
     if (billData.session.customerName) {
-      addRow('Customer:', billData.session.customerName, 8);
+      row('Customer', billData.session.customerName, 8);
     }
-    addRow('Date:', formatDateTime(billData.calculatedAt), 7);
-    addRow(
-      'Session:',
+    row('Date & Time', formatDate(billData.calculatedAt), 7);
+    row(
+      'Bill No.',
       `#${billData.session.sessionId.slice(-8).toUpperCase()}`,
       7
     );
 
-    addGap('small');
-    addSeparator('solid');
-    addGap('small');
+    gap(MG);
+    thickLine();
 
-    // ========== ITEMS ==========
-    addCentered('ORDER ITEMS', 9, true);
-    addSeparator('dashed');
+    // ── ITEMS HEADER ──────────────────────────────────────────────
+    font(7, 'bold');
+    doc.text('ITEM', ML, y);
+    doc.text('QTY', ML + CW * 0.6, y, { align: 'center' });
+    doc.text('AMOUNT', MR, y, { align: 'right' });
+    y += LH;
+    line(0.2);
 
-    billData.allItems.forEach((item, index) => {
-      const pricePerUnit = item.totalWithTax / item.quantity;
+    // ── ITEMS LIST ────────────────────────────────────────────────
+    billData.allItems.forEach((item) => {
+      // Item name (bold, wrapping if needed)
+      font(8, 'bold');
+      const nameLines = doc.splitTextToSize(item.name, CW * 0.65);
+      doc.text(nameLines, ML, y);
+      const nameBlockH = nameLines.length * LH;
 
-      // Item name
-      addLeft(item.name, 8, true);
+      // Qty and Amount on first line
+      font(8, 'normal');
+      doc.text(String(item.quantity), ML + CW * 0.6, y, { align: 'center' });
+      font(8, 'bold');
+      doc.text(formatINR(item.totalWithTax), MR, y, { align: 'right' });
 
-      // Quantity × Price = Total
-      const qtyLine = `${item.quantity} × ${formatCurrency(pricePerUnit)}`;
-      const totalValue = formatCurrency(item.totalWithTax);
-      addRow(qtyLine, totalValue, 7);
+      y += nameBlockH;
 
-      // Tax info (if applicable)
+      // Modifiers
+      if (item.selectedModifiers?.length) {
+        item.selectedModifiers.forEach((mod) => {
+          const opts = mod.selectedOptions
+            .map((o) =>
+              o.priceAdjustment > 0
+                ? `${o.optionName} (+Rs.${o.priceAdjustment.toFixed(2)})`
+                : o.optionName
+            )
+            .join(', ');
+          font(6, 'normal');
+          doc.setTextColor(100);
+          const modLines = doc.splitTextToSize(
+            `+ ${mod.modifierName}: ${opts}`,
+            CW - 4
+          );
+          doc.text(modLines, ML + 3, y);
+          y += modLines.length * 3.5;
+          doc.setTextColor(0);
+        });
+      }
+
+      // Tax note
       if (item.totalTaxAmount > 0) {
         const hasGst =
           item.cgstAmount > 0 || item.sgstAmount > 0 || item.igstAmount > 0;
-        const taxType = hasGst ? 'GST' : 'VAT';
-        const taxRate = hasGst ? item.gstRate : 25;
-
-        doc.setFontSize(6);
-        doc.setFont('helvetica', 'normal');
-        const taxText = `  (incl. ${taxType} ${taxRate}%: ${formatCurrency(
-          item.totalTaxAmount
-        )})`;
-        doc.text(taxText, MARGIN + 2, y);
+        const rate2 = hasGst ? item.gstRate : 25;
+        const type = hasGst ? 'GST' : 'VAT';
+        font(6, 'normal');
+        doc.setTextColor(120);
+        doc.text(
+          `(incl. ${type} ${rate2}%: ${formatINR(item.totalTaxAmount)})`,
+          ML + 2,
+          y
+        );
+        doc.setTextColor(0);
         y += 3.5;
       }
 
-      // Add spacing between items (except last)
-      if (index < billData.allItems.length - 1) {
-        addGap('small');
-      }
+      gap(SG);
     });
 
-    addGap('small');
-    addSeparator('solid');
-    addGap('small');
+    line(0.2);
 
-    // ========== SUMMARY ==========
-    addCentered('BILL SUMMARY', 9, true);
-    addSeparator('dashed');
+    // ── BILL SUMMARY ──────────────────────────────────────────────
+    gap(SG);
+    textCenter('BILL SUMMARY', 8, 'bold');
+    gap(SG);
+    line(0.15, true);
 
-    // Subtotal
-    addRow('Subtotal', formatCurrency(billData.subTotalAmount), 8);
+    row('Subtotal', formatINR(billData.subTotalAmount), 8);
 
     // Branch charges
-    if (billData.branchCharges && billData.branchCharges.length > 0) {
-      billData.branchCharges.forEach((charge) => {
-        let label = charge.name;
-        if (charge.type === 'percentage') {
-          label += ` (${charge.value}%)`;
-        }
-        addRow(label, formatCurrency(charge.amount), 8);
-      });
-    }
+    billData.branchCharges?.forEach((charge) => {
+      const label =
+        charge.type === 'percentage'
+          ? `${charge.name} (${charge.value}%)`
+          : charge.name;
+      row(label, formatINR(charge.amount), 8);
+    });
 
     // Tax breakdown
-    if (
-      billData.categoryCalculations &&
-      billData.categoryCalculations.length > 0
-    ) {
-      // Category-wise taxes
+    if (billData.categoryCalculations?.length) {
       billData.categoryCalculations.forEach((cat) => {
-        if (cat.totalTaxAmount === 0) return;
-
-        const catName = cat.category
+        if (!cat.totalTaxAmount) return;
+        const name = cat.category
           .replace('_', ' ')
           .replace(/\b\w/g, (l) => l.toUpperCase());
         const taxType = cat.taxType === 'vat' ? 'VAT' : 'GST';
-        const rate = cat.taxType === 'gst' ? cat.gstRate : cat.vatRate;
-
-        const label = `${catName} ${taxType}${rate ? ` (${rate}%)` : ''}`;
-        addRow(label, formatCurrency(cat.totalTaxAmount), 7);
-      });
-
-      // GST breakdown
-      if ((billData.totalGstAmount || 0) > 0) {
-        addGap('small');
-        addLeft('  GST Breakdown:', 7, true);
-
-        if (billData.cgstAmount > 0) {
-          addRow('    CGST', formatCurrency(billData.cgstAmount), 6);
-        }
-        if (billData.sgstAmount > 0) {
-          addRow('    SGST', formatCurrency(billData.sgstAmount), 6);
-        }
-        if (billData.igstAmount > 0) {
-          addRow('    IGST', formatCurrency(billData.igstAmount), 6);
-        }
-      }
-
-      // VAT breakdown
-      if ((billData.totalVatAmount || 0) > 0) {
-        addGap('small');
-        addRow(
-          '  State VAT (Alcohol)',
-          formatCurrency(billData.totalVatAmount),
+        const rate3 = cat.taxType === 'gst' ? cat.gstRate : cat.vatRate;
+        row(
+          `${name} ${taxType}${rate3 ? ` (${rate3}%)` : ''}`,
+          formatINR(cat.totalTaxAmount),
           7
         );
+      });
+
+      if ((billData.totalGstAmount || 0) > 0) {
+        gap(SG);
+        textLeft('GST Breakdown', 7, 'bold');
+        if (billData.cgstAmount > 0)
+          row('  CGST', formatINR(billData.cgstAmount), 6);
+        if (billData.sgstAmount > 0)
+          row('  SGST', formatINR(billData.sgstAmount), 6);
+        if (billData.igstAmount > 0)
+          row('  IGST', formatINR(billData.igstAmount), 6);
+      }
+
+      if ((billData.totalVatAmount || 0) > 0) {
+        row('State VAT (Alcohol)', formatINR(billData.totalVatAmount), 7);
       }
     } else {
-      // Simple tax breakdown
-      if (billData.cgstAmount > 0) {
-        addRow('CGST', formatCurrency(billData.cgstAmount), 8);
-      }
-      if (billData.sgstAmount > 0) {
-        addRow('SGST', formatCurrency(billData.sgstAmount), 8);
-      }
-      if (billData.igstAmount > 0) {
-        addRow('IGST', formatCurrency(billData.igstAmount), 8);
-      }
+      if (billData.cgstAmount > 0)
+        row('CGST', formatINR(billData.cgstAmount), 8);
+      if (billData.sgstAmount > 0)
+        row('SGST', formatINR(billData.sgstAmount), 8);
+      if (billData.igstAmount > 0)
+        row('IGST', formatINR(billData.igstAmount), 8);
     }
 
-    // Total tax
     if (billData.taxAmount > 0) {
-      addRow('Total Tax', formatCurrency(billData.taxAmount), 8, true);
+      gap(SG);
+      row('Total Tax', formatINR(billData.taxAmount), 8, 'normal', 'bold');
     }
 
-    // Discount
     if (billData.discountAmount > 0) {
-      addRow('Discount', `- ${formatCurrency(billData.discountAmount)}`, 8);
+      row('Discount', `- ${formatINR(billData.discountAmount)}`, 8);
     }
 
-    // Round off
     if (billData.roundOffAmount !== 0) {
       const sign = billData.roundOffAmount >= 0 ? '+' : '';
-      addRow(
-        'Round Off',
-        `${sign}${formatCurrency(billData.roundOffAmount)}`,
-        8
-      );
+      row('Round Off', `${sign}${formatINR(billData.roundOffAmount)}`, 8);
     }
 
-    addGap('medium');
-    addSeparator('solid');
-    addGap('small');
+    // ── GRAND TOTAL box ───────────────────────────────────────────
+    gap(MG);
+    thickLine();
 
-    // ========== GRAND TOTAL ==========
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL', MARGIN, y);
+    // Shaded total row (simulate with just bold + larger size)
+    font(11, 'bold');
+    doc.text('GRAND TOTAL', ML, y);
+    doc.text(formatINR(billData.totalAmount), MR, y, { align: 'right' });
+    y += LH + SG;
 
-    const totalText = formatCurrency(billData.totalAmount);
-    doc.text(totalText, RECEIPT_WIDTH - MARGIN, y, { align: 'right' });
-    y += LINE_HEIGHT + SMALL_GAP;
+    thickLine();
 
-    addSeparator('solid');
-    addGap('small');
+    // ── PAYMENT DETAILS ───────────────────────────────────────────
+    gap(SG);
+    textCenter('PAYMENT DETAILS', 8, 'bold');
+    gap(SG);
+    line(0.15, true);
 
-    // ========== PAYMENT ==========
-    addCentered('PAYMENT DETAILS', 9, true);
-    addSeparator('dashed');
-
-    addRow('Method', paymentMethod, 8, true);
+    row('Payment Method', paymentMethod, 8, 'normal', 'bold');
 
     if (paymentMethod.toLowerCase() === 'cash' && cashReceived) {
-      addRow('Cash Received', formatCurrency(cashReceived), 8);
-
+      row('Cash Received', formatINR(cashReceived), 8);
       if (changeGiven && changeGiven > 0) {
-        addRow('Change Given', formatCurrency(changeGiven), 8);
+        row('Change Returned', formatINR(changeGiven), 8);
       }
     }
 
     if (billData.paidAmount > 0) {
-      addRow('Paid Amount', formatCurrency(billData.paidAmount), 8);
+      row('Paid Amount', formatINR(billData.paidAmount), 8, 'normal', 'bold');
     }
 
     if (billData.pendingAmount > 0) {
-      addRow('Pending', formatCurrency(billData.pendingAmount), 8);
+      font(8, 'bold');
+      doc.setTextColor(180, 0, 0);
+      row('Balance Due', formatINR(billData.pendingAmount), 8);
+      doc.setTextColor(0);
     }
 
-    addGap('medium');
-    addSeparator('solid');
-    addGap('medium');
+    gap(LG);
+    line();
 
-    // ========== FOOTER ==========
-    addCentered('Thank you for dining with us!', 8, true);
-    addCentered('Please visit again', 7);
+    // ── FOOTER ────────────────────────────────────────────────────
+    gap(SG);
+    textCenter('Thank you for dining with us!', 9, 'bold');
+    gap(SG);
+    textCenter('We hope to see you again soon.', 7);
+    gap(MG);
+    line(0.15, true);
+    gap(SG);
+    textCenter('** Computer Generated Receipt — No Signature Required **', 6);
 
-    addGap('medium');
-    addCentered('** Computer Generated Receipt **', 6);
+    gap(MG);
 
-    // Adjust final PDF height
-    const finalHeight = y + MARGIN;
-    const pdfBlob = doc.output('blob');
-
-    resolve(pdfBlob);
+    resolve(doc.output('blob'));
   });
 }
 
-// Utility function to download the receipt
+// ── Download helper ────────────────────────────────────────────────
 export async function downloadThermalReceipt(
   billData: DetailedBillCalculation,
   paymentMethod?: string,
   cashReceived?: number,
   changeGiven?: number
 ) {
-  const receiptData: ThermalReceiptData = {
+  const blob = await generateThermalReceiptPDF({
     billData,
     paymentMethod,
     cashReceived,
     changeGiven,
-  };
+  });
 
-  const pdfBlob = await generateThermalReceiptPDF(receiptData);
-  const url = URL.createObjectURL(pdfBlob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `receipt-${
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `receipt-table${
     billData.session.tableNumber
   }-${billData.session.sessionId.slice(-6)}.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }

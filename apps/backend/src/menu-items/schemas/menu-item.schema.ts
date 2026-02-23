@@ -149,6 +149,9 @@ export class MenuItem {
   @Prop({ type: [SchemaTypes.ObjectId], ref: 'MenuModifier', default: [] })
   applicableModifiers!: string[]; // Modifiers that can be applied to this item
 
+  @Prop({ type: Object, default: {} })
+  excludedModifierOptions!: Record<string, string[]>; // modifierId -> array of excluded option IDs
+
   // Special Pricing System
   @Prop({ type: Boolean, default: false })
   hasSpecialPrice!: boolean; // Whether special pricing is active

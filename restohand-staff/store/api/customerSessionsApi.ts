@@ -1,4 +1,4 @@
-import { baseApi } from "./baseApi";
+import { baseApi } from './baseApi';
 
 // Customer Session Types
 export interface CustomerSession {
@@ -10,7 +10,12 @@ export interface CustomerSession {
   status: 'active' | 'closed' | 'abandoned';
   startedAt: string;
   closedAt?: string;
-  closureReason?: 'payment_completed' | 'staff_closed' | 'auto_timeout' | 'manual_closure' | 'table_cleared';
+  closureReason?:
+    | 'payment_completed'
+    | 'staff_closed'
+    | 'auto_timeout'
+    | 'manual_closure'
+    | 'table_cleared';
   expiresAt: string;
   closedBy?: string;
   closureNotes?: string;
@@ -66,6 +71,7 @@ export interface FindSessionsParams {
   branchId?: string;
   tableId?: string;
   status?: CustomerSession['status'] | 'all';
+  returnEmpty?: boolean; // If true, include sessions with zero orders (for staff app)
   startDate?: string;
   endDate?: string;
   page?: number;
@@ -90,6 +96,7 @@ export const customerSessionsApi = baseApi.injectEndpoints({
           ...params,
           // Filter out 'all' status as backend expects undefined for all
           status: params.status === 'all' ? undefined : params.status,
+          returnEmpty: true,
           // Ensure page and limit are numbers
           page: params.page ? Number(params.page) : 1,
           limit: params.limit ? Number(params.limit) : 20,

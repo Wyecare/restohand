@@ -47,6 +47,7 @@ import { RazorpayService } from '../payments/razorpay.service';
 import { WebhooksController } from '../payments/webhooks.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { MenuPriceTagsModule } from '../menu-price-tags/menu-price-tags.module';
+import { MenuModifiersModule } from '../menu-modifiers/menu-modifiers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
 import { BillingModule } from '../billing/billing.module';
@@ -72,6 +73,7 @@ import { PublicModule } from '../public/public.module';
     CallWaiterModule,
     SubscriptionsModule,
     MenuPriceTagsModule,
+    MenuModifiersModule,
     NotificationsModule,
     CustomerSessionsModule,
     BillingModule,
