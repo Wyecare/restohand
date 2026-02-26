@@ -74,7 +74,8 @@
     "restaurant": "Restaurant",
     "gst": "GST & Tax",
     "charges": "Charges & Fees",
-    "sessions": "Sessions"
+    "sessions": "Sessions",
+    "cashier": "Cashier"
   },
   "time": {
     "today": "Today",

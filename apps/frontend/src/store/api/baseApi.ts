@@ -84,8 +84,12 @@ export const baseApi = createApi({
     'CashfreeSubscription',
     'CashfreeSubscriptionPlan',
     'CashfreePaymentHistory',
+    'MenuModifier',
     'Notification',
     'NotificationStats',
+    'Till',
+    'CustomerSession',
+    'Bill',
   ],
   endpoints: () => ({}),
 });

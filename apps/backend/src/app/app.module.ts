@@ -42,6 +42,7 @@ import { SubscriptionPlansModule } from '../subscription-plans/subscription-plan
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DemoModule } from '../demo/demo.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
+import { TillModule } from '../till/till.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -92,6 +93,7 @@ import { AppService } from './app.service';
     NotificationsModule,
     DemoModule,
     DashboardModule,
+    TillModule,
   ],
   controllers: [AppController],
   providers: [AppService],

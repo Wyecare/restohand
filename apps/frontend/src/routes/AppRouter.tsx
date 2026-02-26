@@ -28,6 +28,7 @@ import KycManagementPage from '@/pages/KycManagementPage';
 import { PdfMenuExtractionTab } from '@/pages/menu-management/tabs/PdfMenuExtractionTab';
 import OrdersPage from '@/pages/orders/OrdersList';
 import SessionsPage from '@/pages/orders/SessionsPage';
+import CashierPage from '@/pages/cashier/CashierPage';
 
 const AppRouter = () => {
   return (
@@ -77,6 +78,18 @@ const AppRouter = () => {
             </AuthGuard>
           }
         />
+        {/* Cashier route — accessible to cashier, manager, owner */}
+        <Route
+          path="/cashier"
+          element={
+            <AuthGuard allowedRoles={['manager', 'owner', 'cashier']}>
+              <Layout />
+            </AuthGuard>
+          }
+        >
+          <Route index element={<CashierPage />} />
+        </Route>
+
         {/* Protected routes */}
         <Route
           path="/"
@@ -90,6 +103,7 @@ const AppRouter = () => {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="orders/list" element={<OrdersPage />} />
           <Route path="orders/sessions" element={<SessionsPage />} />
+          <Route path="cashier" element={<CashierPage />} />
           {/* Menu routes with nested structure */}
           <Route path="menu/*" element={<MenuManagementPage />} />
           <Route path="extract-menu" element={<PdfMenuExtractionTab />} />

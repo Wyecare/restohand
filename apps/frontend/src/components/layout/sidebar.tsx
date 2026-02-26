@@ -42,6 +42,7 @@ import {
   Building2,
   Shield,
   ChevronRight,
+  Terminal,
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -75,6 +76,11 @@ const managerLinks: NavLink[] = [
       { titleKey: 'navigation.orders', href: '/orders/list' },
       { titleKey: 'navigation.sessions', href: '/orders/sessions' },
     ],
+  },
+  {
+    titleKey: 'navigation.cashier',
+    href: '/cashier',
+    icon: Terminal,
   },
 
   {
@@ -140,6 +146,10 @@ const serviceLinks: NavLink[] = [
   { titleKey: 'navigation.serviceBoard', href: '/service', icon: Coffee },
 ];
 
+const cashierLinks: NavLink[] = [
+  { titleKey: 'navigation.cashier', href: '/cashier', icon: Terminal },
+];
+
 export default function Sidebar() {
   const location = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -155,10 +165,10 @@ export default function Sidebar() {
   }, [location.pathname, isMobile, setOpenMobile]);
 
   const navLinks = useMemo(() => {
-    if (roles.includes('manager')) return managerLinks;
+    if (roles.includes('manager') || roles.includes('owner')) return managerLinks;
     if (roles.includes('chef')) return kitchenLinks;
-    if (roles.includes('waiter') || roles.includes('cashier'))
-      return serviceLinks;
+    if (roles.includes('cashier')) return cashierLinks;
+    if (roles.includes('waiter')) return serviceLinks;
     return [];
   }, [roles]);
 
