@@ -166,13 +166,21 @@ export class InventoryService {
     return item;
   }
 
+  async getInventoryItemById(itemId: string): Promise<InventoryItemDocument> {
+    const item = await this.inventoryItemModel.findById(itemId);
+    if (!item) {
+      throw new NotFoundException(`Inventory item ${itemId} not found`);
+    }
+    return item;
+  }
+
   async updateStock(itemId: string, dto: UpdateStockDto): Promise<InventoryItem> {
     const item = await this.inventoryItemModel.findById(itemId);
     if (!item) {
       throw new NotFoundException(`Inventory item ${itemId} not found`);
     }
 
-    const direction = ['purchase', 'adjustment'].includes(dto.type) && dto.quantity > 0 ? 'in' : 'out';
+    const direction = (['purchase', 'adjustment', 'transfer'].includes(dto.type) && dto.quantity > 0) ? 'in' : 'out';
     const actualQuantity = Math.abs(dto.quantity);
     const stockBefore = item.stockLevels.currentStock;
     let stockAfter: number;

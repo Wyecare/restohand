@@ -259,26 +259,58 @@ export class TransferOrdersService {
         );
       }
 
-      // Create stock movements
-      const [outMovement, inMovement] = await Promise.all([
-        // Remove from source branch
-        this.inventoryService.updateStock(processedItem.inventoryItemId, {
-          quantity: -processedItem.transferredQuantity, // Negative for outgoing
-          type: 'transfer',
-          reason: `Transfer to branch ${transfer.destinationBranchId}`,
-          reference: transfer.transferNumber,
-          createdBy: dto.processedBy,
-        }),
+      // Get full source item details
+      const sourceItem = await this.inventoryService.getInventoryItemById(processedItem.inventoryItemId);
 
-        // Add to destination branch
-        this.inventoryService.updateStock(processedItem.inventoryItemId, {
+      // 1. Deduct from source branch
+      const outMovement = await this.inventoryService.updateStock(processedItem.inventoryItemId, {
+        quantity: -processedItem.transferredQuantity,
+        type: 'transfer',
+        reason: `Transfer to branch ${transfer.destinationBranchId}`,
+        reference: transfer.transferNumber,
+        createdBy: dto.processedBy,
+      });
+
+      // 2. Add to destination branch — find existing item or create new one
+      const destItems = await this.inventoryService.getInventoryItems(
+        transfer.restaurantId.toString(),
+        { branchId: transfer.destinationBranchId.toString() },
+      );
+
+      const destItem = destItems.find(
+        item => item.name.toLowerCase() === sourceItem.name.toLowerCase(),
+      );
+
+      if (destItem) {
+        // Item already exists in destination branch — add the transferred quantity
+        await this.inventoryService.updateStock((destItem as any)._id.toString(), {
           quantity: processedItem.transferredQuantity,
           type: 'transfer',
           reason: `Transfer from branch ${transfer.sourceBranchId}`,
           reference: transfer.transferNumber,
           createdBy: dto.processedBy,
-        }),
-      ]);
+        });
+      } else {
+        // Item doesn't exist in destination branch — create it
+        await this.inventoryService.createInventoryItem({
+          restaurantId: transfer.restaurantId.toString(),
+          branchId: transfer.destinationBranchId.toString(),
+          name: sourceItem.name,
+          description: sourceItem.description,
+          category: sourceItem.category,
+          unit: sourceItem.unit,
+          sku: sourceItem.sku,
+          costPerUnit: sourceItem.pricing.costPerUnit,
+          minimumStock: sourceItem.stockLevels.minimumStock,
+          reorderPoint: sourceItem.stockLevels.reorderPoint,
+          reorderQuantity: sourceItem.stockLevels.reorderQuantity,
+          currentStock: processedItem.transferredQuantity,
+          supplier: sourceItem.pricing.supplier,
+          tags: sourceItem.tags,
+          storageLocation: sourceItem.storageLocation,
+          shelfLifeDays: sourceItem.shelfLifeDays,
+        });
+      }
 
       // Update transfer item status
       transferItem.transferredQuantity = processedItem.transferredQuantity;
