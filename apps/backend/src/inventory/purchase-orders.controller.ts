@@ -28,6 +28,8 @@ import {
   UpdatePurchaseOrderDto,
   PurchaseOrderQueryDto,
   ReceivePurchaseOrderDto,
+  RecordInvoiceDto,
+  RecordPaymentDto,
 } from './purchase-orders.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 
@@ -194,6 +196,61 @@ export class PurchaseOrdersController {
       'Content-Length': pdfBuffer.length,
     });
 
+    res.send(pdfBuffer);
+  }
+
+  @Put(':poId/invoice')
+  @ApiOperation({ summary: 'Record supplier invoice for a purchase order' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'poId' })
+  @ApiResponse({ status: 200, description: 'Invoice recorded successfully' })
+  @Roles(UserRole.Manager, UserRole.Chef)
+  async recordInvoice(
+    @Param('poId') poId: string,
+    @Body() dto: RecordInvoiceDto,
+  ) {
+    return this.purchaseOrdersService.recordInvoice(poId, dto);
+  }
+
+  @Put(':poId/payment')
+  @ApiOperation({ summary: 'Record payment for a purchase order' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'poId' })
+  @ApiResponse({ status: 200, description: 'Payment recorded successfully' })
+  @Roles(UserRole.Manager)
+  async recordPayment(
+    @Param('poId') poId: string,
+    @Body() dto: RecordPaymentDto,
+  ) {
+    return this.purchaseOrdersService.recordPayment(poId, dto);
+  }
+
+  @Put(':poId/close')
+  @ApiOperation({ summary: 'Close a purchase order manually' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'poId' })
+  @ApiResponse({ status: 200, description: 'Purchase order closed successfully' })
+  @Roles(UserRole.Manager)
+  async closePurchaseOrder(@Param('poId') poId: string) {
+    return this.purchaseOrdersService.closePurchaseOrder(poId);
+  }
+
+  @Get(':poId/invoice/pdf')
+  @ApiOperation({ summary: 'Download invoice receipt PDF' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'poId' })
+  @ApiResponse({ status: 200, description: 'Invoice receipt PDF generated' })
+  @Roles(UserRole.Manager, UserRole.Chef)
+  async generateInvoiceReceiptPdf(
+    @Param('poId') poId: string,
+    @Response() res: ExpressResponse,
+  ) {
+    const pdfBuffer = await this.purchaseOrdersService.generateInvoiceReceiptPdf(poId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="Invoice-Receipt-${poId}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
     res.send(pdfBuffer);
   }
 

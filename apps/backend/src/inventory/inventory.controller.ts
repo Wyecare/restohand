@@ -23,7 +23,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
-import { InventoryService, CreateInventoryItemDto, UpdateStockDto } from './inventory.service';
+import { InventoryService, CreateInventoryItemDto, UpdateStockDto, UpdateInventoryItemDto } from './inventory.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BranchPermissionsService } from '../users/branch-permissions.service';
 
@@ -77,6 +77,19 @@ export class InventoryController {
       search,
       branchId: user.branchId,
     });
+  }
+
+  @Put('items/:itemId')
+  @ApiOperation({ summary: 'Update inventory item details' })
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'itemId' })
+  @ApiResponse({ status: 200, description: 'Item updated successfully' })
+  @Roles(UserRole.Manager)
+  async updateItem(
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateInventoryItemDto,
+  ) {
+    return this.inventoryService.updateInventoryItem(itemId, dto);
   }
 
   @Put('items/:itemId/stock')

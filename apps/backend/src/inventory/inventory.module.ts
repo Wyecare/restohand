@@ -14,6 +14,7 @@ import { InventoryCountsController } from './inventory-counts.controller';
 import { InventoryService } from './inventory.service';
 import { SuppliersService } from './suppliers.service';
 import { PurchaseOrdersService } from './purchase-orders.service';
+import { PoEmailService } from './po-email.service';
 import { TransferOrdersService } from './transfer-orders.service';
 import { InventoryCountsService } from './inventory-counts.service';
 
@@ -50,11 +51,10 @@ import { InventoryCount, InventoryCountSchema } from './schemas/inventory-count.
     InventoryCountsController,
   ],
   providers: [
-    // Core inventory service
     InventoryService,
-    // New services
     SuppliersService,
     PurchaseOrdersService,
+    PoEmailService,
     TransferOrdersService,
     InventoryCountsService,
   ],
@@ -62,6 +62,7 @@ import { InventoryCount, InventoryCountSchema } from './schemas/inventory-count.
     InventoryService,
     SuppliersService,
     PurchaseOrdersService,
+    PoEmailService,
     TransferOrdersService,
     InventoryCountsService,
   ],

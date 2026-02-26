@@ -157,6 +157,25 @@ export const inventoryApi = baseApi.injectEndpoints({
       ],
     }),
 
+    updateInventoryItem: builder.mutation<InventoryItem, {
+      restaurantId: string; itemId: string;
+      name?: string; description?: string; category?: string; unit?: string;
+      costPerUnit?: number; minimumStock?: number; reorderPoint?: number;
+      reorderQuantity?: number; supplier?: string; storageLocation?: string;
+      shelfLifeDays?: number; tags?: string[];
+    }>({
+      query: ({ restaurantId, itemId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/inventory/items/${itemId}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, itemId }) => [
+        { type: 'InventoryItem', id: itemId },
+        { type: 'InventoryItem', id: `LIST-${restaurantId}` },
+        { type: 'InventoryAnalytics', id: restaurantId },
+      ],
+    }),
+
     updateStock: builder.mutation<InventoryItem, UpdateStockPayload>({
       query: ({ restaurantId, itemId, ...body }) => ({
         url: `/restaurants/${restaurantId}/inventory/items/${itemId}/stock`,
@@ -274,6 +293,7 @@ export const inventoryApi = baseApi.injectEndpoints({
 export const {
   useGetInventoryItemsQuery,
   useCreateInventoryItemMutation,
+  useUpdateInventoryItemMutation,
   useUpdateStockMutation,
   useGetInventoryAnalyticsQuery,
   useGetStockAlertsQuery,

@@ -30,6 +30,22 @@ export interface CreateInventoryItemDto {
   usedInMenuItems?: string[];
 }
 
+export interface UpdateInventoryItemDto {
+  name?: string;
+  description?: string;
+  category?: string;
+  unit?: string;
+  costPerUnit?: number;
+  minimumStock?: number;
+  reorderPoint?: number;
+  reorderQuantity?: number;
+  supplier?: string;
+  storageLocation?: string;
+  shelfLifeDays?: number;
+  tags?: string[];
+  isActive?: boolean;
+}
+
 export interface UpdateStockDto {
   quantity: number;
   type: 'purchase' | 'consumption' | 'waste' | 'adjustment' | 'transfer';
@@ -125,6 +141,29 @@ export class InventoryService {
 
     this.logger.log(`Created inventory item ${savedItem.name} for restaurant ${dto.restaurantId}`);
     return savedItem;
+  }
+
+  async updateInventoryItem(itemId: string, dto: UpdateInventoryItemDto): Promise<InventoryItem> {
+    const item = await this.inventoryItemModel.findById(itemId);
+    if (!item) throw new NotFoundException(`Inventory item ${itemId} not found`);
+
+    if (dto.name !== undefined) item.name = dto.name;
+    if (dto.description !== undefined) item.description = dto.description;
+    if (dto.category !== undefined) item.category = dto.category;
+    if (dto.unit !== undefined) item.unit = dto.unit;
+    if (dto.costPerUnit !== undefined) item.pricing.costPerUnit = dto.costPerUnit;
+    if (dto.minimumStock !== undefined) item.stockLevels.minimumStock = dto.minimumStock;
+    if (dto.reorderPoint !== undefined) item.stockLevels.reorderPoint = dto.reorderPoint;
+    if (dto.reorderQuantity !== undefined) item.stockLevels.reorderQuantity = dto.reorderQuantity;
+    if (dto.supplier !== undefined) item.pricing.supplier = dto.supplier;
+    if (dto.storageLocation !== undefined) item.storageLocation = dto.storageLocation;
+    if (dto.shelfLifeDays !== undefined) item.shelfLifeDays = dto.shelfLifeDays;
+    if (dto.tags !== undefined) item.tags = dto.tags;
+    if (dto.isActive !== undefined) item.isActive = dto.isActive;
+
+    await item.save();
+    this.logger.log(`Updated inventory item ${item.name}`);
+    return item;
   }
 
   async updateStock(itemId: string, dto: UpdateStockDto): Promise<InventoryItem> {

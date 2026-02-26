@@ -36,6 +36,17 @@ import {
 import {
   useGetPurchaseOrdersQuery,
   useCreatePurchaseOrderMutation,
+  useUpdatePurchaseOrderMutation,
+  useApprovePurchaseOrderMutation,
+  useSendPurchaseOrderMutation,
+  useAcknowledgePurchaseOrderMutation,
+  useReceivePurchaseOrderMutation,
+  useCancelPurchaseOrderMutation,
+  useGeneratePurchaseOrderPdfMutation,
+  useRecordInvoiceMutation,
+  useRecordPaymentMutation,
+  useClosePurchaseOrderMutation,
+  useGenerateInvoiceReceiptPdfMutation,
 } from '@/store/api/purchaseOrdersApi';
 import {
   useGetSuppliersQuery,
@@ -60,6 +71,14 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Send,
+  PackageCheck,
+  ReceiptText,
+  CreditCard,
+  ThumbsUp,
+  Ban,
+  Lock,
+  Download,
 } from 'lucide-react';
 import { useBranchContext } from '@/contexts/BranchContext';
 
@@ -88,6 +107,40 @@ export function PurchaseOrdersView() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
 
+  // Action modal states
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [showAckModal, setShowAckModal] = useState(false);
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  // Acknowledge form
+  const [ackMethod, setAckMethod] = useState('email');
+
+  // Cancel form
+  const [cancelReason, setCancelReason] = useState('');
+
+  // Receive form
+  const [receiveItems, setReceiveItems] = useState<Array<{
+    inventoryItemId: string; name: string; unit: string;
+    ordered: number; alreadyReceived: number; receivedQuantity: number; actualUnitCost: number;
+  }>>([]);
+  const [receiveNotes, setReceiveNotes] = useState('');
+
+  // Invoice form
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState('');
+  const [invoiceAmount, setInvoiceAmount] = useState('');
+  const [invoiceNotes, setInvoiceNotes] = useState('');
+
+  // Payment form
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash'|'bank_transfer'|'cheque'|'upi'|'credit'>('bank_transfer');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+
   // Reset page when filters change
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -106,7 +159,216 @@ export function PurchaseOrdersView() {
 
   const handleEditPO = (po: any) => {
     setSelectedPO(po);
+    setEditDeliveryDate(
+      po.delivery?.expectedDate
+        ? new Date(po.delivery.expectedDate).toISOString().split('T')[0]
+        : ''
+    );
+    setEditNotes(po.notes || '');
+    setEditItems(
+      (po.items || []).map((item: any) => ({
+        inventoryItemId: item.inventoryItemId?._id || item.inventoryItemId,
+        name: item.inventoryItemId?.name || 'Unknown Item',
+        unit: item.inventoryItemId?.unit || '',
+        quantity: item.quantity,
+        unitCost: item.unitCost,
+      }))
+    );
     setShowEditPO(true);
+  };
+
+  const handleSaveEditPO = async () => {
+    if (!selectedPO || !restaurantId) return;
+    try {
+      await updatePurchaseOrder({
+        restaurantId,
+        poId: selectedPO._id,
+        items: editItems.map((i) => ({
+          inventoryItemId: i.inventoryItemId,
+          quantity: i.quantity,
+          unitCost: i.unitCost,
+        })),
+        delivery: {
+          expectedDate: editDeliveryDate || undefined,
+        },
+        notes: editNotes,
+      }).unwrap();
+      toast({ title: 'Purchase order updated successfully' });
+      setShowEditPO(false);
+    } catch {
+      toast({ title: 'Failed to update purchase order', variant: 'destructive' });
+    }
+  };
+
+  const handleDownloadPdf = async (po: any) => {
+    if (!restaurantId) return;
+    try {
+      const blob = await generatePdf({ restaurantId, poId: po._id }).unwrap();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${po.poNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Failed to generate PDF', variant: 'destructive' });
+    }
+  };
+
+  const openAction = (po: any, modal: 'approve'|'send'|'ack'|'receive'|'cancel'|'invoice'|'payment') => {
+    setSelectedPO(po);
+    if (modal === 'receive') {
+      setReceiveItems((po.items || []).map((item: any) => ({
+        inventoryItemId: item.inventoryItemId?._id || item.inventoryItemId,
+        name: item.inventoryItemId?.name || 'Unknown',
+        unit: item.inventoryItemId?.unit || '',
+        ordered: item.quantity,
+        alreadyReceived: item.receivedQuantity || 0,
+        receivedQuantity: item.quantity - (item.receivedQuantity || 0),
+        actualUnitCost: item.unitCost,
+      })));
+      setReceiveNotes('');
+      setShowReceiveModal(true);
+    } else if (modal === 'cancel') {
+      setCancelReason('');
+      setShowCancelModal(true);
+    } else if (modal === 'invoice') {
+      setInvoiceNumber('');
+      setInvoiceDate(new Date().toISOString().split('T')[0]);
+      setInvoiceAmount(String(po.totalAmount));
+      setInvoiceNotes('');
+      setShowInvoiceModal(true);
+    } else if (modal === 'payment') {
+      setPaymentAmount(String((po.invoice?.invoiceAmount ?? po.totalAmount) - (po.payment?.paidAmount ?? 0)));
+      setPaymentMethod('bank_transfer');
+      setPaymentReference('');
+      setPaymentNotes('');
+      setShowPaymentModal(true);
+    } else if (modal === 'approve') { setShowApproveModal(true);
+    } else if (modal === 'send') { setShowSendModal(true);
+    } else if (modal === 'ack') { setAckMethod('email'); setShowAckModal(true); }
+  };
+
+  const handleApprove = async () => {
+    if (!restaurantId || !selectedPO) return;
+    try {
+      await approvePO({ restaurantId, poId: selectedPO._id }).unwrap();
+      toast({ title: `PO ${selectedPO.poNumber} approved — ready to send to supplier` });
+      setShowApproveModal(false);
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to approve', variant: 'destructive' });
+    }
+  };
+
+  const handleSend = async () => {
+    if (!restaurantId || !selectedPO) return;
+    try {
+      await sendPO({ restaurantId, poId: selectedPO._id }).unwrap();
+      toast({ title: `PO ${selectedPO.poNumber} emailed to supplier` });
+      setShowSendModal(false);
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to send', variant: 'destructive' });
+    }
+  };
+
+  const handleAcknowledge = async () => {
+    if (!restaurantId || !selectedPO) return;
+    try {
+      await acknowledgePO({ restaurantId, poId: selectedPO._id, acknowledgmentMethod: ackMethod }).unwrap();
+      toast({ title: `PO ${selectedPO.poNumber} marked as acknowledged` });
+      setShowAckModal(false);
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to acknowledge', variant: 'destructive' });
+    }
+  };
+
+  const handleReceive = async () => {
+    if (!restaurantId || !selectedPO) return;
+    try {
+      await receivePO({
+        restaurantId,
+        poId: selectedPO._id,
+        items: receiveItems.map(i => ({
+          inventoryItemId: i.inventoryItemId,
+          receivedQuantity: i.receivedQuantity,
+          actualUnitCost: i.actualUnitCost,
+        })),
+        notes: receiveNotes || undefined,
+      }).unwrap();
+      toast({ title: `Items received — inventory updated` });
+      setShowReceiveModal(false);
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to receive items', variant: 'destructive' });
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!restaurantId || !selectedPO) return;
+    try {
+      await cancelPO({ restaurantId, poId: selectedPO._id, reason: cancelReason }).unwrap();
+      toast({ title: `PO ${selectedPO.poNumber} cancelled` });
+      setShowCancelModal(false);
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to cancel', variant: 'destructive' });
+    }
+  };
+
+  const handleRecordInvoice = async () => {
+    if (!restaurantId || !selectedPO) return;
+    try {
+      await recordInvoice({
+        restaurantId, poId: selectedPO._id,
+        invoiceNumber, invoiceDate,
+        invoiceAmount: Number(invoiceAmount),
+        notes: invoiceNotes || undefined,
+      }).unwrap();
+      toast({ title: `Invoice ${invoiceNumber} recorded` });
+      setShowInvoiceModal(false);
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to record invoice', variant: 'destructive' });
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!restaurantId || !selectedPO) return;
+    try {
+      await recordPayment({
+        restaurantId, poId: selectedPO._id,
+        paidAmount: Number(paymentAmount),
+        method: paymentMethod,
+        reference: paymentReference || undefined,
+        notes: paymentNotes || undefined,
+      }).unwrap();
+      toast({ title: `Payment of ${formatCurrency(Number(paymentAmount))} recorded` });
+      setShowPaymentModal(false);
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to record payment', variant: 'destructive' });
+    }
+  };
+
+  const handleClose = async (po: any) => {
+    if (!restaurantId) return;
+    try {
+      await closePO({ restaurantId, poId: po._id }).unwrap();
+      toast({ title: `PO ${po.poNumber} closed` });
+    } catch (e: any) {
+      toast({ title: e?.data?.message || 'Failed to close', variant: 'destructive' });
+    }
+  };
+
+  const handleDownloadInvoicePdf = async (po: any) => {
+    if (!restaurantId) return;
+    try {
+      const blob = await downloadInvoicePdf({ restaurantId, poId: po._id }).unwrap();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice-Receipt-${po.poNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Failed to generate invoice PDF', variant: 'destructive' });
+    }
   };
 
   // PO Form State
@@ -159,6 +421,28 @@ export function PurchaseOrdersView() {
   );
 
   const [createPurchaseOrder, { isLoading: isCreating }] = useCreatePurchaseOrderMutation();
+  const [updatePurchaseOrder, { isLoading: isUpdating }] = useUpdatePurchaseOrderMutation();
+  const [approvePO, { isLoading: isApproving }] = useApprovePurchaseOrderMutation();
+  const [sendPO, { isLoading: isSending }] = useSendPurchaseOrderMutation();
+  const [acknowledgePO, { isLoading: isAcknowledging }] = useAcknowledgePurchaseOrderMutation();
+  const [receivePO, { isLoading: isReceiving }] = useReceivePurchaseOrderMutation();
+  const [cancelPO, { isLoading: isCancelling }] = useCancelPurchaseOrderMutation();
+  const [generatePdf, { isLoading: isGeneratingPdf }] = useGeneratePurchaseOrderPdfMutation();
+  const [recordInvoice, { isLoading: isRecordingInvoice }] = useRecordInvoiceMutation();
+  const [recordPayment, { isLoading: isRecordingPayment }] = useRecordPaymentMutation();
+  const [closePO, { isLoading: isClosing }] = useClosePurchaseOrderMutation();
+  const [downloadInvoicePdf, { isLoading: isDownloadingInvoice }] = useGenerateInvoiceReceiptPdfMutation();
+
+  // Edit form state (controlled)
+  const [editDeliveryDate, setEditDeliveryDate] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editItems, setEditItems] = useState<Array<{
+    inventoryItemId: string;
+    name: string;
+    unit: string;
+    quantity: number;
+    unitCost: number;
+  }>>([]);
 
   if (!session) {
     return <Navigate to="/login" replace />;
@@ -462,31 +746,112 @@ export function PurchaseOrdersView() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewPO(po)}
-                            title="View Purchase Order"
-                          >
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {/* Always available */}
+                          <Button variant="ghost" size="sm" onClick={() => handleViewPO(po)} title="View">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditPO(po)}
-                            disabled={po.status !== 'draft'}
-                            title={po.status === 'draft' ? "Edit Purchase Order" : "Only draft orders can be edited"}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Download PDF"
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => handleDownloadPdf(po)} disabled={isGeneratingPdf} title="Download PDF">
                             <FileText className="h-4 w-4" />
                           </Button>
+
+                          {/* draft: Edit + Approve + Cancel */}
+                          {po.status === 'draft' && (<>
+                            <Button variant="ghost" size="sm" onClick={() => handleEditPO(po)} title="Edit">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-800" onClick={() => openAction(po, 'approve')} title="Approve PO">
+                              <ThumbsUp className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => openAction(po, 'cancel')} title="Cancel PO">
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          </>)}
+
+                          {/* pending: Send to Supplier + Cancel */}
+                          {po.status === 'pending' && (<>
+                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800" onClick={() => openAction(po, 'send')} title="Send to Supplier">
+                              <Send className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => openAction(po, 'cancel')} title="Cancel PO">
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          </>)}
+
+                          {/* sent: Acknowledge + Receive + Cancel */}
+                          {po.status === 'sent' && (<>
+                            <Button variant="ghost" size="sm" className="text-purple-600 hover:text-purple-800" onClick={() => openAction(po, 'ack')} title="Mark Acknowledged">
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-800" onClick={() => openAction(po, 'receive')} title="Receive Items">
+                              <PackageCheck className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => openAction(po, 'cancel')} title="Cancel PO">
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          </>)}
+
+                          {/* acknowledged: Receive + Cancel */}
+                          {po.status === 'acknowledged' && (<>
+                            <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-800" onClick={() => openAction(po, 'receive')} title="Receive Items">
+                              <PackageCheck className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => openAction(po, 'cancel')} title="Cancel PO">
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          </>)}
+
+                          {/* partial: Receive More + Invoice/Payment + Invoice actions + Close */}
+                          {po.status === 'partial' && (<>
+                            <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-800" onClick={() => openAction(po, 'receive')} title="Receive More">
+                              <PackageCheck className="h-4 w-4" />
+                            </Button>
+                            {!po.invoice?.invoiceNumber ? (
+                              <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-800" onClick={() => openAction(po, 'invoice')} title="Record Invoice">
+                                <ReceiptText className="h-4 w-4" />
+                              </Button>
+                            ) : (<>
+                              {po.payment?.status !== 'paid' && (
+                                <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-800" onClick={() => openAction(po, 'payment')} title="Record Payment">
+                                  <CreditCard className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800" onClick={() => handleDownloadInvoicePdf(po)} disabled={isDownloadingInvoice} title="Download Invoice PDF">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </>)}
+                            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800" onClick={() => handleClose(po)} disabled={isClosing} title="Close PO">
+                              <Lock className="h-4 w-4" />
+                            </Button>
+                          </>)}
+
+                          {/* delivered: Record Invoice + Record Payment + Download + Close */}
+                          {po.status === 'delivered' && (<>
+                            {!po.invoice?.invoiceNumber ? (
+                              <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-800" onClick={() => openAction(po, 'invoice')} title="Record Invoice">
+                                <ReceiptText className="h-4 w-4" />
+                              </Button>
+                            ) : (<>
+                              {po.payment?.status !== 'paid' && (
+                                <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-800" onClick={() => openAction(po, 'payment')} title="Record Payment">
+                                  <CreditCard className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800" onClick={() => handleDownloadInvoicePdf(po)} disabled={isDownloadingInvoice} title="Download Invoice PDF">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </>)}
+                            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800" onClick={() => handleClose(po)} disabled={isClosing} title="Close PO">
+                              <Lock className="h-4 w-4" />
+                            </Button>
+                          </>)}
+
+                          {/* closed: Download Invoice PDF */}
+                          {po.status === 'closed' && po.invoice?.invoiceNumber && (
+                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800" onClick={() => handleDownloadInvoicePdf(po)} disabled={isDownloadingInvoice} title="Download Invoice PDF">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -886,6 +1251,99 @@ export function PurchaseOrdersView() {
                   </div>
                 )}
 
+                {/* Invoice Information */}
+                {selectedPO.invoice?.invoiceNumber && (
+                  <div className="border rounded-lg p-4 border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800">
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <ReceiptText className="h-5 w-5 text-amber-600" />
+                      Invoice Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Invoice Number</label>
+                        <div className="text-sm font-semibold">{selectedPO.invoice.invoiceNumber}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Invoice Date</label>
+                        <div className="text-sm">{selectedPO.invoice.invoiceDate ? formatDate(selectedPO.invoice.invoiceDate) : 'N/A'}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Invoice Amount</label>
+                        <div className="text-sm font-semibold">{formatCurrency(selectedPO.invoice.invoiceAmount || 0)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Received At</label>
+                        <div className="text-sm">{selectedPO.invoice.receivedAt ? formatDate(selectedPO.invoice.receivedAt) : 'N/A'}</div>
+                      </div>
+                      {selectedPO.invoice.notes && (
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium text-muted-foreground">Notes</label>
+                          <div className="text-sm">{selectedPO.invoice.notes}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Information */}
+                {(selectedPO.invoice?.invoiceNumber || selectedPO.payment?.paidAmount > 0) && selectedPO.payment && (
+                  <div className={`border rounded-lg p-4 ${
+                    selectedPO.payment.status === 'paid'
+                      ? 'border-green-200 bg-green-50 dark:bg-green-900/10 dark:border-green-800'
+                      : selectedPO.payment.status === 'partial'
+                      ? 'border-blue-200 bg-blue-50 dark:bg-blue-900/10 dark:border-blue-800'
+                      : 'border-gray-200 bg-gray-50 dark:bg-gray-900/20'
+                  }`}>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <CreditCard className="h-5 w-5 text-green-600" />
+                      Payment Status
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        selectedPO.payment.status === 'paid' ? 'bg-green-200 text-green-800' :
+                        selectedPO.payment.status === 'partial' ? 'bg-blue-200 text-blue-800' :
+                        'bg-gray-200 text-gray-800'
+                      }`}>
+                        {selectedPO.payment.status.charAt(0).toUpperCase() + selectedPO.payment.status.slice(1)}
+                      </span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Amount Paid</label>
+                        <div className="text-sm font-semibold">{formatCurrency(selectedPO.payment.paidAmount || 0)}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Outstanding</label>
+                        <div className="text-sm font-semibold text-red-600">
+                          {formatCurrency(Math.max(0, (selectedPO.invoice?.invoiceAmount ?? selectedPO.totalAmount) - (selectedPO.payment.paidAmount || 0)))}
+                        </div>
+                      </div>
+                      {selectedPO.payment.method && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Payment Method</label>
+                          <div className="text-sm capitalize">{selectedPO.payment.method.replace('_', ' ')}</div>
+                        </div>
+                      )}
+                      {selectedPO.payment.reference && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Reference</label>
+                          <div className="text-sm">{selectedPO.payment.reference}</div>
+                        </div>
+                      )}
+                      {selectedPO.payment.paidAt && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Paid At</label>
+                          <div className="text-sm">{formatDate(selectedPO.payment.paidAt)}</div>
+                        </div>
+                      )}
+                      {selectedPO.payment.notes && (
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium text-muted-foreground">Notes</label>
+                          <div className="text-sm">{selectedPO.payment.notes}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Order Summary */}
                 <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900/20">
                   <h3 className="text-lg font-semibold mb-3">Order Summary</h3>
@@ -915,6 +1373,21 @@ export function PurchaseOrdersView() {
                 </div>
               </div>
             </CardContent>
+
+            {/* Invoice actions footer inside View modal */}
+            {selectedPO.invoice?.invoiceNumber && (
+              <div className="px-6 pb-6 flex gap-3 border-t pt-4">
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => handleDownloadInvoicePdf(selectedPO)}
+                  disabled={isDownloadingInvoice}
+                >
+                  <Download className="h-4 w-4" />
+                  {isDownloadingInvoice ? 'Generating...' : 'Download Invoice PDF'}
+                </Button>
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -977,7 +1450,8 @@ export function PurchaseOrdersView() {
                   <Input
                     type="date"
                     className="mt-1"
-                    defaultValue={selectedPO.delivery?.expectedDate ? new Date(selectedPO.delivery.expectedDate).toISOString().split('T')[0] : ''}
+                    value={editDeliveryDate}
+                    onChange={(e) => setEditDeliveryDate(e.target.value)}
                   />
                 </div>
 
@@ -997,17 +1471,20 @@ export function PurchaseOrdersView() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {selectedPO.items.map((item: any, index: number) => (
+                        {editItems.map((item, index) => (
                           <TableRow key={index}>
-                            <TableCell className="font-medium">
-                              {item.inventoryItemId?.name || 'Unknown Item'}
-                            </TableCell>
-                            <TableCell>{item.inventoryItemId?.unit || 'N/A'}</TableCell>
+                            <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell>{item.unit || 'N/A'}</TableCell>
                             <TableCell>
                               <Input
                                 type="number"
                                 min="1"
-                                defaultValue={item.quantity}
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const updated = [...editItems];
+                                  updated[index] = { ...updated[index], quantity: Number(e.target.value) };
+                                  setEditItems(updated);
+                                }}
                                 className="w-20"
                               />
                             </TableCell>
@@ -1016,18 +1493,24 @@ export function PurchaseOrdersView() {
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                defaultValue={item.unitCost}
+                                value={item.unitCost}
+                                onChange={(e) => {
+                                  const updated = [...editItems];
+                                  updated[index] = { ...updated[index], unitCost: Number(e.target.value) };
+                                  setEditItems(updated);
+                                }}
                                 className="w-24"
                               />
                             </TableCell>
                             <TableCell className="text-right">
-                              {formatCurrency(item.totalCost)}
+                              {formatCurrency(item.quantity * item.unitCost)}
                             </TableCell>
                             <TableCell>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-red-500 hover:text-red-700"
+                                onClick={() => setEditItems(editItems.filter((_, i) => i !== index))}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1045,7 +1528,8 @@ export function PurchaseOrdersView() {
                   <textarea
                     placeholder="Additional notes or instructions..."
                     className="mt-1 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    defaultValue={selectedPO.notes || ''}
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
                   />
                 </div>
               </div>
@@ -1057,17 +1541,272 @@ export function PurchaseOrdersView() {
                   variant="outline"
                   onClick={() => setShowEditPO(false)}
                   className="flex-1"
+                  disabled={isUpdating}
                 >
                   Cancel
                 </Button>
-                <Button className="flex-1">
-                  Save Changes
+                <Button className="flex-1" onClick={handleSaveEditPO} disabled={isUpdating}>
+                  {isUpdating ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </div>
           </Card>
         </div>
       )}
+      {/* ── APPROVE MODAL ── */}
+      {showApproveModal && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Approve Purchase Order</CardTitle>
+              <CardDescription>{selectedPO.poNumber} · {selectedPO.supplierId?.name}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Approving will move this PO to <strong>Pending</strong> status. You can then send it to the supplier via email.
+              </p>
+              <div className="mt-4 bg-muted rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between"><span>Items</span><strong>{selectedPO.items?.length}</strong></div>
+                <div className="flex justify-between"><span>Total Value</span><strong>{formatCurrency(selectedPO.totalAmount)}</strong></div>
+              </div>
+            </CardContent>
+            <div className="flex gap-3 p-6 pt-0">
+              <Button variant="outline" className="flex-1" onClick={() => setShowApproveModal(false)} disabled={isApproving}>Cancel</Button>
+              <Button className="flex-1" onClick={handleApprove} disabled={isApproving}>
+                {isApproving ? 'Approving...' : 'Approve PO'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── SEND EMAIL MODAL ── */}
+      {showSendModal && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> Send to Supplier</CardTitle>
+              <CardDescription>{selectedPO.poNumber}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">This will email the PO PDF to the supplier and mark it as <strong>Sent</strong>.</p>
+              <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between"><span>Supplier</span><strong>{selectedPO.supplierId?.name}</strong></div>
+                <div className="flex justify-between"><span>Email</span><strong>{selectedPO.supplierId?.contact?.email || '—'}</strong></div>
+                <div className="flex justify-between"><span>Total</span><strong>{formatCurrency(selectedPO.totalAmount)}</strong></div>
+              </div>
+              {!selectedPO.supplierId?.contact?.email && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded p-3">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  Supplier has no email address. Add one in the Suppliers tab first.
+                </div>
+              )}
+            </CardContent>
+            <div className="flex gap-3 p-6 pt-0">
+              <Button variant="outline" className="flex-1" onClick={() => setShowSendModal(false)} disabled={isSending}>Cancel</Button>
+              <Button className="flex-1" onClick={handleSend} disabled={isSending || !selectedPO.supplierId?.contact?.email}>
+                {isSending ? 'Sending...' : 'Send Email'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── ACKNOWLEDGE MODAL ── */}
+      {showAckModal && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Mark as Acknowledged</CardTitle>
+              <CardDescription>{selectedPO.poNumber} — supplier confirmed receipt</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">How did the supplier confirm this order?</p>
+              <div className="space-y-2">
+                {['email', 'phone', 'whatsapp', 'in-person', 'portal'].map(m => (
+                  <label key={m} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${ackMethod === m ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                    <input type="radio" name="ackMethod" value={m} checked={ackMethod === m} onChange={() => setAckMethod(m)} className="accent-primary" />
+                    <span className="text-sm capitalize">{m}</span>
+                  </label>
+                ))}
+              </div>
+            </CardContent>
+            <div className="flex gap-3 p-6 pt-0">
+              <Button variant="outline" className="flex-1" onClick={() => setShowAckModal(false)} disabled={isAcknowledging}>Cancel</Button>
+              <Button className="flex-1" onClick={handleAcknowledge} disabled={isAcknowledging}>
+                {isAcknowledging ? 'Saving...' : 'Confirm'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── RECEIVE ITEMS MODAL ── */}
+      {showReceiveModal && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <CardHeader className="flex-shrink-0">
+              <CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5" /> Receive Items</CardTitle>
+              <CardDescription>{selectedPO.poNumber} — enter quantities actually received</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-y-auto flex-1 space-y-4">
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="text-center">Ordered</TableHead>
+                      <TableHead className="text-center">Already Rcvd</TableHead>
+                      <TableHead className="text-center w-28">Receiving Now</TableHead>
+                      <TableHead className="text-right w-32">Actual Cost</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {receiveItems.map((item, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{item.name}<span className="text-muted-foreground text-xs ml-1">{item.unit}</span></TableCell>
+                        <TableCell className="text-center">{item.ordered}</TableCell>
+                        <TableCell className="text-center text-muted-foreground">{item.alreadyReceived}</TableCell>
+                        <TableCell>
+                          <Input type="number" min="0" max={item.ordered - item.alreadyReceived} value={item.receivedQuantity}
+                            onChange={e => { const u=[...receiveItems]; u[i]={...u[i],receivedQuantity:Number(e.target.value)}; setReceiveItems(u); }}
+                            className="w-24 mx-auto" />
+                        </TableCell>
+                        <TableCell>
+                          <Input type="number" min="0" step="0.01" value={item.actualUnitCost}
+                            onChange={e => { const u=[...receiveItems]; u[i]={...u[i],actualUnitCost:Number(e.target.value)}; setReceiveItems(u); }}
+                            className="w-28 ml-auto" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Delivery Notes (optional)</label>
+                <textarea value={receiveNotes} onChange={e => setReceiveNotes(e.target.value)}
+                  placeholder="Any notes about the delivery..."
+                  className="mt-1 min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+              </div>
+            </CardContent>
+            <div className="flex gap-3 p-6 pt-4 border-t flex-shrink-0">
+              <Button variant="outline" className="flex-1" onClick={() => setShowReceiveModal(false)} disabled={isReceiving}>Cancel</Button>
+              <Button className="flex-1" onClick={handleReceive} disabled={isReceiving}>
+                {isReceiving ? 'Updating Inventory...' : 'Confirm Receipt'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── CANCEL MODAL ── */}
+      {showCancelModal && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600"><Ban className="h-5 w-5" /> Cancel Purchase Order</CardTitle>
+              <CardDescription>{selectedPO.poNumber}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">This action cannot be undone. Please provide a reason.</p>
+              <div>
+                <label className="text-sm font-medium">Cancellation Reason</label>
+                <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)}
+                  placeholder="e.g. Supplier unavailable, budget change..."
+                  className="mt-1 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+              </div>
+            </CardContent>
+            <div className="flex gap-3 p-6 pt-0">
+              <Button variant="outline" className="flex-1" onClick={() => setShowCancelModal(false)} disabled={isCancelling}>Keep PO</Button>
+              <Button variant="destructive" className="flex-1" onClick={handleCancel} disabled={isCancelling || !cancelReason.trim()}>
+                {isCancelling ? 'Cancelling...' : 'Cancel PO'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── RECORD INVOICE MODAL ── */}
+      {showInvoiceModal && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><ReceiptText className="h-5 w-5" /> Record Supplier Invoice</CardTitle>
+              <CardDescription>{selectedPO.poNumber}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Invoice Number <span className="text-muted-foreground font-normal">(supplier's ref — edit if different)</span></label>
+                <Input className="mt-1" placeholder="e.g. INV-2024-001" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Invoice Date *</label>
+                <Input type="date" className="mt-1" value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Invoice Amount (₹) *</label>
+                <Input type="number" min="0" step="0.01" className="mt-1" value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Notes (optional)</label>
+                <Input className="mt-1" placeholder="Any discrepancies or notes..." value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)} />
+              </div>
+            </CardContent>
+            <div className="flex gap-3 p-6 pt-0">
+              <Button variant="outline" className="flex-1" onClick={() => setShowInvoiceModal(false)} disabled={isRecordingInvoice}>Cancel</Button>
+              <Button className="flex-1" onClick={handleRecordInvoice} disabled={isRecordingInvoice || !invoiceDate || !invoiceAmount}>
+                {isRecordingInvoice ? 'Saving...' : 'Record Invoice'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── RECORD PAYMENT MODAL ── */}
+      {showPaymentModal && selectedPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" /> Record Payment</CardTitle>
+              <CardDescription>{selectedPO.poNumber} · Outstanding: {formatCurrency((selectedPO.invoice?.invoiceAmount ?? selectedPO.totalAmount) - (selectedPO.payment?.paidAmount ?? 0))}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Amount Paid (₹) *</label>
+                <Input type="number" min="0" step="0.01" className="mt-1" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Payment Method *</label>
+                <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer (NEFT/RTGS)</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="credit">Credit (Pay Later)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Reference / Transaction ID</label>
+                <Input className="mt-1" placeholder="e.g. UTR number, cheque number..." value={paymentReference} onChange={e => setPaymentReference(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Notes (optional)</label>
+                <Input className="mt-1" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} />
+              </div>
+            </CardContent>
+            <div className="flex gap-3 p-6 pt-0">
+              <Button variant="outline" className="flex-1" onClick={() => setShowPaymentModal(false)} disabled={isRecordingPayment}>Cancel</Button>
+              <Button className="flex-1" onClick={handleRecordPayment} disabled={isRecordingPayment || !paymentAmount}>
+                {isRecordingPayment ? 'Saving...' : 'Record Payment'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
     </div>
   );
 }

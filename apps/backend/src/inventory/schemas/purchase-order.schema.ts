@@ -85,6 +85,56 @@ class PurchaseOrderTracking {
 
 const PurchaseOrderTrackingSchema = SchemaFactory.createForClass(PurchaseOrderTracking);
 
+@Schema({ _id: false })
+class PurchaseOrderInvoice {
+  @Prop({ type: String, trim: true })
+  invoiceNumber?: string;
+
+  @Prop({ type: Date })
+  invoiceDate?: Date;
+
+  @Prop({ type: Number, min: 0 })
+  invoiceAmount?: number;
+
+  @Prop({ type: String, trim: true })
+  notes?: string;
+
+  @Prop({ type: Date })
+  receivedAt?: Date;
+}
+
+const PurchaseOrderInvoiceSchema = SchemaFactory.createForClass(PurchaseOrderInvoice);
+
+@Schema({ _id: false })
+class PurchaseOrderPayment {
+  @Prop({
+    type: String,
+    enum: ['unpaid', 'partial', 'paid'],
+    default: 'unpaid',
+  })
+  status!: 'unpaid' | 'partial' | 'paid';
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  paidAmount!: number;
+
+  @Prop({ type: Date })
+  paidAt?: Date;
+
+  @Prop({
+    type: String,
+    enum: ['cash', 'bank_transfer', 'cheque', 'upi', 'credit'],
+  })
+  method?: string;
+
+  @Prop({ type: String, trim: true })
+  reference?: string;
+
+  @Prop({ type: String, trim: true })
+  notes?: string;
+}
+
+const PurchaseOrderPaymentSchema = SchemaFactory.createForClass(PurchaseOrderPayment);
+
 @Schema({
   timestamps: true,
   collection: 'purchase_orders',
@@ -161,6 +211,12 @@ export class PurchaseOrder {
     default: 'normal'
   })
   priority!: 'low' | 'normal' | 'high' | 'urgent';
+
+  @Prop({ type: PurchaseOrderInvoiceSchema })
+  invoice?: PurchaseOrderInvoice;
+
+  @Prop({ type: PurchaseOrderPaymentSchema, default: () => ({ status: 'unpaid', paidAmount: 0 }) })
+  payment!: PurchaseOrderPayment;
 }
 
 export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);

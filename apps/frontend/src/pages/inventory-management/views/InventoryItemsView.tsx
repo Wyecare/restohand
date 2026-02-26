@@ -40,6 +40,7 @@ import {
   useGetStockAlertsQuery,
   useGetInventoryCategoriesQuery,
   useUpdateStockMutation,
+  useUpdateInventoryItemMutation,
   useMarkAlertAsReadMutation,
   useCreateInventoryItemMutation,
   useGetInventoryUnitsQuery,
@@ -47,6 +48,7 @@ import {
   useGetInventoryAnalyticsByBranchQuery,
   useGetStockAlertsByBranchQuery,
 } from '@/store/api/inventoryApi';
+import { useGetSuppliersQuery } from '@/store/api/suppliersApi';
 import {
   Package,
   AlertTriangle,
@@ -113,7 +115,17 @@ export function InventoryItemsView() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
 
+  const [showEditItem, setShowEditItem] = useState(false);
+  const [showViewItem, setShowViewItem] = useState(false);
+  const [selectedItemData, setSelectedItemData] = useState<any>(null);
+  const [editItemForm, setEditItemForm] = useState({
+    name: '', description: '', category: '', unit: '',
+    costPerUnit: '', minimumStock: '', reorderPoint: '',
+    reorderQuantity: '', supplier: '', storageLocation: '', tags: '',
+  });
+
   const [updateStock] = useUpdateStockMutation();
+  const [updateInventoryItem, { isLoading: isUpdatingItem }] = useUpdateInventoryItemMutation();
   const [markAlertAsRead] = useMarkAlertAsReadMutation();
   const [createInventoryItem, { isLoading: isCreatingItem }] = useCreateInventoryItemMutation();
 
@@ -152,6 +164,9 @@ export function InventoryItemsView() {
   );
   const { data: unitsData } = useGetInventoryUnitsQuery(
     restaurantId ?? skipToken
+  );
+  const { data: suppliersData } = useGetSuppliersQuery(
+    restaurantId ? { restaurantId, isActive: true } : skipToken
   );
 
   const filteredItems = useMemo(() => {
@@ -239,6 +254,49 @@ export function InventoryItemsView() {
       case 'Escape':
         setShowSuggestions(false);
         break;
+    }
+  };
+
+  const handleOpenEditItem = (item: any) => {
+    setSelectedItemData(item);
+    setEditItemForm({
+      name: item.name,
+      description: item.description || '',
+      category: item.category,
+      unit: item.unit,
+      costPerUnit: String(item.pricing.costPerUnit),
+      minimumStock: String(item.stockLevels.minimumStock),
+      reorderPoint: String(item.stockLevels.reorderPoint),
+      reorderQuantity: String(item.stockLevels.reorderQuantity),
+      supplier: item.pricing.supplier || '',
+      storageLocation: item.storageLocation || '',
+      tags: (item.tags || []).join(', '),
+    });
+    setShowEditItem(true);
+  };
+
+  const handleSaveEditItem = async () => {
+    if (!restaurantId || !selectedItemData) return;
+    try {
+      await updateInventoryItem({
+        restaurantId,
+        itemId: selectedItemData._id || selectedItemData.id,
+        name: editItemForm.name,
+        description: editItemForm.description || undefined,
+        category: editItemForm.category,
+        unit: editItemForm.unit,
+        costPerUnit: parseFloat(editItemForm.costPerUnit),
+        minimumStock: parseFloat(editItemForm.minimumStock),
+        reorderPoint: parseFloat(editItemForm.reorderPoint),
+        reorderQuantity: parseFloat(editItemForm.reorderQuantity),
+        supplier: editItemForm.supplier || undefined,
+        storageLocation: editItemForm.storageLocation || undefined,
+        tags: editItemForm.tags ? editItemForm.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+      }).unwrap();
+      toast({ title: `${editItemForm.name} updated successfully` });
+      setShowEditItem(false);
+    } catch {
+      toast({ title: 'Failed to update item', variant: 'destructive' });
     }
   };
 
@@ -592,14 +650,28 @@ export function InventoryItemsView() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            title="Update Stock"
                             onClick={() => {
                               setSelectedItem(item.id);
                               setShowStockUpdate(true);
                             }}
                           >
+                            <ShoppingCart className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Edit Item Details"
+                            onClick={() => handleOpenEditItem(item)}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="View Details"
+                            onClick={() => { setSelectedItemData(item); setShowViewItem(true); }}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                         </div>
@@ -906,13 +978,40 @@ export function InventoryItemsView() {
                     type="number"
                     value={newItemForm.reorderQuantity}
                     onChange={(e) =>
-                      setNewItemForm({
-                        ...newItemForm,
-                        reorderQuantity: e.target.value,
-                      })
+                      setNewItemForm({ ...newItemForm, reorderQuantity: e.target.value })
                     }
                     placeholder="0"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Default Supplier</label>
+                    <Select
+                      value={newItemForm.supplier}
+                      onValueChange={(v) => setNewItemForm({ ...newItemForm, supplier: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select supplier (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {suppliersData?.suppliers.map((s: any) => (
+                          <SelectItem key={s._id || s.id} value={s.name}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Storage Location</label>
+                    <Input
+                      value={newItemForm.tags}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, tags: e.target.value })}
+                      placeholder="e.g. cold storage, dry rack"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-4">
@@ -963,6 +1062,161 @@ export function InventoryItemsView() {
             </CardContent>
           </div>
         </Card>
+      )}
+      {/* Edit Item Modal */}
+      {showEditItem && selectedItemData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background border rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Edit Item</h2>
+                <p className="text-sm text-muted-foreground mt-1">{selectedItemData.name}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowEditItem(false)}>✕</Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Item Name *</label>
+                  <Input value={editItemForm.name} onChange={e => setEditItemForm({ ...editItemForm, name: e.target.value })} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Category *</label>
+                  <Select value={editItemForm.category} onValueChange={v => setEditItemForm({ ...editItemForm, category: v })}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {categoriesData?.predefinedCategories.map((c: string) => (
+                        <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Description</label>
+                <Input value={editItemForm.description} onChange={e => setEditItemForm({ ...editItemForm, description: e.target.value })} className="mt-1" placeholder="Optional description" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Unit *</label>
+                  <Select value={editItemForm.unit} onValueChange={v => setEditItemForm({ ...editItemForm, unit: v })}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {unitsData?.units.map((u: string) => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Cost Per Unit (₹) *</label>
+                  <Input type="number" step="0.01" value={editItemForm.costPerUnit} onChange={e => setEditItemForm({ ...editItemForm, costPerUnit: e.target.value })} className="mt-1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Minimum Stock</label>
+                  <Input type="number" value={editItemForm.minimumStock} onChange={e => setEditItemForm({ ...editItemForm, minimumStock: e.target.value })} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Reorder Point</label>
+                  <Input type="number" value={editItemForm.reorderPoint} onChange={e => setEditItemForm({ ...editItemForm, reorderPoint: e.target.value })} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Reorder Qty</label>
+                  <Input type="number" value={editItemForm.reorderQuantity} onChange={e => setEditItemForm({ ...editItemForm, reorderQuantity: e.target.value })} className="mt-1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Default Supplier</label>
+                  <Select value={editItemForm.supplier || 'none'} onValueChange={v => setEditItemForm({ ...editItemForm, supplier: v === 'none' ? '' : v })}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {suppliersData?.suppliers.map((s: any) => (
+                        <SelectItem key={s._id || s.id} value={s.name}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Storage Location</label>
+                  <Input value={editItemForm.storageLocation} onChange={e => setEditItemForm({ ...editItemForm, storageLocation: e.target.value })} className="mt-1" placeholder="e.g. cold storage, shelf 3" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Tags (comma separated)</label>
+                <Input value={editItemForm.tags} onChange={e => setEditItemForm({ ...editItemForm, tags: e.target.value })} className="mt-1" placeholder="e.g. perishable, frozen, organic" />
+              </div>
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowEditItem(false)} disabled={isUpdatingItem}>Cancel</Button>
+              <Button className="flex-1" onClick={handleSaveEditItem} disabled={isUpdatingItem || !editItemForm.name || !editItemForm.category || !editItemForm.unit || !editItemForm.costPerUnit}>
+                {isUpdatingItem ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Item Modal */}
+      {showViewItem && selectedItemData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background border rounded-lg shadow-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">{selectedItemData.name}</h2>
+                <p className="text-sm text-muted-foreground mt-1">{selectedItemData.category} · {selectedItemData.unit}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowViewItem(false)}>✕</Button>
+            </div>
+            <div className="p-6 space-y-4 text-sm">
+              {selectedItemData.description && <p className="text-muted-foreground">{selectedItemData.description}</p>}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground mb-1">Current Stock</div>
+                  <div className="text-2xl font-bold">{selectedItemData.stockLevels.currentStock} <span className="text-sm font-normal text-muted-foreground">{selectedItemData.unit}</span></div>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground mb-1">Cost Per Unit</div>
+                  <div className="text-2xl font-bold">{formatCurrency(selectedItemData.pricing.costPerUnit)}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="border rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">Min Stock</div>
+                  <div className="font-semibold mt-1">{selectedItemData.stockLevels.minimumStock}</div>
+                </div>
+                <div className="border rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">Reorder At</div>
+                  <div className="font-semibold mt-1">{selectedItemData.stockLevels.reorderPoint}</div>
+                </div>
+                <div className="border rounded-lg p-3">
+                  <div className="text-xs text-muted-foreground">Reorder Qty</div>
+                  <div className="font-semibold mt-1">{selectedItemData.stockLevels.reorderQuantity}</div>
+                </div>
+              </div>
+              {selectedItemData.pricing.supplier && (
+                <div className="flex justify-between border-b pb-2"><span className="text-muted-foreground">Supplier</span><span className="font-medium">{selectedItemData.pricing.supplier}</span></div>
+              )}
+              {selectedItemData.storageLocation && (
+                <div className="flex justify-between border-b pb-2"><span className="text-muted-foreground">Storage</span><span className="font-medium">{selectedItemData.storageLocation}</span></div>
+              )}
+              {selectedItemData.tags?.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {selectedItemData.tags.map((t: string) => <span key={t} className="text-xs bg-muted px-2 py-1 rounded">{t}</span>)}
+                </div>
+              )}
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowViewItem(false)}>Close</Button>
+              <Button className="flex-1" onClick={() => { setShowViewItem(false); handleOpenEditItem(selectedItemData); }}>
+                <Edit className="h-4 w-4 mr-2" /> Edit Item
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

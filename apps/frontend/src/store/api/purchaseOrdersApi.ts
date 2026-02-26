@@ -18,21 +18,16 @@ export interface PurchaseOrderItem {
 
 export interface PurchaseOrder {
   id: string;
+  _id: string;
   restaurantId: string;
   branchId: string;
-  branch?: {
-    id: string;
-    name: string;
-  };
+  branch?: { id: string; name: string; };
   supplierId: string;
   supplier?: {
     id: string;
     name: string;
     supplierCode: string;
-    contact: {
-      email?: string;
-      phone?: string;
-    };
+    contact: { email?: string; phone?: string; contactPerson?: string; };
   };
   poNumber: string;
   status: 'draft' | 'pending' | 'sent' | 'acknowledged' | 'partial' | 'delivered' | 'cancelled' | 'closed';
@@ -59,6 +54,21 @@ export interface PurchaseOrder {
     cancellationReason?: string;
     cancelledAt?: string;
     cancelledBy?: string;
+  };
+  invoice?: {
+    invoiceNumber?: string;
+    invoiceDate?: string;
+    invoiceAmount?: number;
+    notes?: string;
+    receivedAt?: string;
+  };
+  payment?: {
+    status: 'unpaid' | 'partial' | 'paid';
+    paidAmount: number;
+    paidAt?: string;
+    method?: string;
+    reference?: string;
+    notes?: string;
   };
   notes?: string;
   terms?: string;
@@ -143,6 +153,24 @@ export interface ReceivePurchaseOrderPayload {
   notes?: string;
 }
 
+export interface RecordInvoicePayload {
+  restaurantId: string;
+  poId: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  invoiceAmount: number;
+  notes?: string;
+}
+
+export interface RecordPaymentPayload {
+  restaurantId: string;
+  poId: string;
+  paidAmount: number;
+  method: 'cash' | 'bank_transfer' | 'cheque' | 'upi' | 'credit';
+  reference?: string;
+  notes?: string;
+}
+
 export interface PurchaseOrderAnalytics {
   totalPOs: number;
   totalValue: number;
@@ -165,7 +193,7 @@ export const purchaseOrdersApi = baseApi.injectEndpoints({
           ? [
               ...result.purchaseOrders.map((po) => ({
                 type: 'PurchaseOrder' as const,
-                id: po.id,
+                id: po._id || po.id,
               })),
               { type: 'PurchaseOrder' as const, id: `LIST-${restaurantId}` },
             ]
@@ -292,6 +320,54 @@ export const purchaseOrdersApi = baseApi.injectEndpoints({
       ],
     }),
 
+    // Record invoice
+    recordInvoice: builder.mutation<PurchaseOrder, RecordInvoicePayload>({
+      query: ({ restaurantId, poId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/purchase-orders/${poId}/invoice`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, poId }) => [
+        { type: 'PurchaseOrder', id: poId },
+        { type: 'PurchaseOrder', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
+    // Record payment
+    recordPayment: builder.mutation<PurchaseOrder, RecordPaymentPayload>({
+      query: ({ restaurantId, poId, ...body }) => ({
+        url: `/restaurants/${restaurantId}/purchase-orders/${poId}/payment`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, poId }) => [
+        { type: 'PurchaseOrder', id: poId },
+        { type: 'PurchaseOrder', id: `LIST-${restaurantId}` },
+        { type: 'PurchaseOrderAnalytics', id: restaurantId },
+      ],
+    }),
+
+    // Close purchase order
+    closePurchaseOrder: builder.mutation<PurchaseOrder, { restaurantId: string; poId: string }>({
+      query: ({ restaurantId, poId }) => ({
+        url: `/restaurants/${restaurantId}/purchase-orders/${poId}/close`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (_result, _error, { restaurantId, poId }) => [
+        { type: 'PurchaseOrder', id: poId },
+        { type: 'PurchaseOrder', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
+    // Download invoice receipt PDF
+    generateInvoiceReceiptPdf: builder.mutation<Blob, { restaurantId: string; poId: string }>({
+      query: ({ restaurantId, poId }) => ({
+        url: `/restaurants/${restaurantId}/purchase-orders/${poId}/invoice/pdf`,
+        method: 'GET',
+        responseHandler: (response) => response.blob(),
+      }),
+    }),
+
     // Get purchase order statuses
     getPurchaseOrderStatuses: builder.query<{ statuses: string[] }, string>({
       query: (restaurantId) => `/restaurants/${restaurantId}/purchase-orders/statuses/all`,
@@ -316,7 +392,11 @@ export const {
   useReceivePurchaseOrderMutation,
   useCancelPurchaseOrderMutation,
   useGeneratePurchaseOrderPdfMutation,
+  useRecordInvoiceMutation,
+  useRecordPaymentMutation,
+  useClosePurchaseOrderMutation,
   useGetPurchaseOrderAnalyticsQuery,
+  useGenerateInvoiceReceiptPdfMutation,
   useGetPurchaseOrderStatusesQuery,
   useGetPurchaseOrderPrioritiesQuery,
 } = purchaseOrdersApi;
