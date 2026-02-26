@@ -83,6 +83,7 @@ export class TransferOrdersService {
     // Calculate total value (estimated)
     const totalValue = await this.calculateTransferValue(
       dto.items,
+      dto.restaurantId,
       dto.sourceBranchId,
     );
 
@@ -605,13 +606,14 @@ export class TransferOrdersService {
 
   private async calculateTransferValue(
     items: Array<{ inventoryItemId: string; requestedQuantity: number }>,
+    restaurantId: string,
     sourceBranchId: string,
   ): Promise<number> {
     let totalValue = 0;
 
     for (const item of items) {
       const inventoryItems = await this.inventoryService.getInventoryItems(
-        '', // We'll need restaurant ID, but this is for estimation
+        restaurantId,
         { branchId: sourceBranchId },
       );
 

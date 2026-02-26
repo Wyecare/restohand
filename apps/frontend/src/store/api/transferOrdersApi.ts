@@ -138,9 +138,9 @@ export const transferOrdersApi = baseApi.injectEndpoints({
       providesTags: (result, _error, { restaurantId }) =>
         result?.transferOrders
           ? [
-              ...result.transferOrders.map((transfer) => ({
+              ...result.transferOrders.map((transfer: any) => ({
                 type: 'TransferOrder' as const,
-                id: transfer.id,
+                id: transfer._id || transfer.id,
               })),
               { type: 'TransferOrder' as const, id: `LIST-${restaurantId}` },
             ]
