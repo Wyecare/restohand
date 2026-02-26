@@ -86,7 +86,18 @@ const managerLinks: NavLink[] = [
       { titleKey: 'navigation.modifiers', href: '/menu/modifiers' },
     ],
   },
-  // { titleKey: 'navigation.inventory', href: '/inventory', icon: Package },
+  {
+    titleKey: 'navigation.inventory',
+    href: '/inventory',
+    icon: Package,
+    items: [
+      { titleKey: 'navigation.items', href: '/inventory/items' },
+      { titleKey: 'navigation.suppliers', href: '/inventory/suppliers' },
+      { titleKey: 'navigation.purchaseOrders', href: '/inventory/purchase-orders' },
+      { titleKey: 'navigation.transferOrders', href: '/inventory/transfer-orders' },
+      { titleKey: 'navigation.inventoryCounts', href: '/inventory/counts' },
+    ],
+  },
   { titleKey: 'navigation.branches', href: '/branches', icon: Building2 },
   // { titleKey: 'navigation.recipes', href: '/recipes', icon: BookOpen },
   {

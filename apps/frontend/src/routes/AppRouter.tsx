@@ -97,7 +97,8 @@ const AppRouter = () => {
           <Route path="tables/*" element={<TablesRouter />} />
           <Route path="command-center" element={<CommandCenterPage />} />
           <Route path="customer-qr" element={<CustomerQrPage />} />
-          <Route path="inventory" element={<InventoryPage />} />
+          {/* Inventory routes with nested structure */}
+          <Route path="inventory/*" element={<InventoryPage />} />
           <Route path="branches" element={<BranchManagementPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="subscription" element={<CashfreeSubscriptionPage />} />

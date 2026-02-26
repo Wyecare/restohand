@@ -32,7 +32,7 @@ export interface CreateInventoryItemDto {
 
 export interface UpdateStockDto {
   quantity: number;
-  type: 'purchase' | 'consumption' | 'waste' | 'adjustment';
+  type: 'purchase' | 'consumption' | 'waste' | 'adjustment' | 'transfer';
   unitCost?: number;
   reason?: string;
   supplier?: string;
@@ -41,6 +41,7 @@ export interface UpdateStockDto {
   invoiceNumber?: string;
   orderId?: string;
   createdBy: string;
+  reference?: string;
 }
 
 export interface InventoryAnalytics {
@@ -57,6 +58,9 @@ export interface InventoryAnalytics {
     consumed: number;
     value: number;
   }>;
+  totalConsumed?: number;
+  totalPurchased?: number;
+  totalPurchaseValue?: number;
 }
 
 @Injectable()

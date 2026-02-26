@@ -97,7 +97,7 @@ export interface UpdateStockPayload {
   restaurantId: string;
   itemId: string;
   quantity: number;
-  type: 'purchase' | 'consumption' | 'waste' | 'adjustment';
+  type: 'purchase' | 'consumption' | 'waste' | 'adjustment' | 'transfer';
   unitCost?: number;
   reason?: string;
   supplier?: string;
@@ -105,6 +105,7 @@ export interface UpdateStockPayload {
   expiryDate?: string;
   invoiceNumber?: string;
   orderId?: string;
+  reference?: string;
 }
 
 export interface InventoryFilters {

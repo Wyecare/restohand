@@ -55,7 +55,15 @@
     "help": "സഹായം",
     "logout": "ലോഗൗട്ട്",
     "home": "ഹോം",
+    "items": "ഇനങ്ങൾ",
+    "modifiers": "മോഡിഫയറുകൾ",
+    "priceTags": "പ്രൈസ് ടാഗുകൾ",
     "inventory": "ഇൻവെന്ററി",
+    "suppliers": "വിതരണക്കാർ",
+    "purchaseOrders": "പർച്ചേസ് ഓർഡറുകൾ",
+    "transferOrders": "ട്രാൻസ്ഫർ ഓർഡറുകൾ",
+    "inventoryCounts": "ഇൻവെന്ററി കൗണ്ടുകൾ",
+    "recipes": "പാചകക്രമങ്ങൾ",
     "branches": "ബ്രാഞ്ചുകൾ",
     "customerQR": "കസ്റ്റമർ ക്യൂആർ",
     "kitchenBoard": "കിച്ചൻ ബോർഡ്",
@@ -64,7 +72,8 @@
     "kyc": "കെ.വൈ.സി & പേമെന്റ്സ്",
     "restaurant": "റെസ്റ്റോറന്റ്",
     "gst": "ജി.എസ്.ടി & ടാക്സ്",
-    "charges": "ചാർജുകൾ & ഫീകൾ"
+    "charges": "ചാർജുകൾ & ഫീകൾ",
+    "sessions": "സെഷനുകൾ"
   },
   "time": {
     "today": "ഇന്ന്",

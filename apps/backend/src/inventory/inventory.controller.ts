@@ -26,14 +26,10 @@ import { UserRole } from '../common/enums/user-role.enum';
 import { InventoryService, CreateInventoryItemDto, UpdateStockDto } from './inventory.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { BranchPermissionsService } from '../users/branch-permissions.service';
-// Subscription enforcement imports
-import { FeatureAccessGuard } from '../subscription-plans/guards/feature-access.guard';
-import { RequireInventoryManagement } from '../subscription-plans/decorators/feature-access.decorator';
 
 @ApiTags('inventory')
 @Controller('restaurants/:restaurantId/inventory')
-@UseGuards(JwtAuthGuard, RolesGuard, FeatureAccessGuard) // Add feature access guard
-@RequireInventoryManagement() // Require inventory management feature
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class InventoryController {
   constructor(
     private readonly inventoryService: InventoryService,
