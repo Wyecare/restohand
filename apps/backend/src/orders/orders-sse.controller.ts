@@ -87,12 +87,13 @@ export class OrdersSSEController {
       timestamp: new Date().toISOString()
     })}\n\n`);
 
-    // Register this connection
+    // Register this connection (include branchId for branch-scoped filtering)
     const connectionId = this.ordersSSEService.addConnection(
       restaurantId,
       userRoles,
       response,
-      user._id.toString()
+      user._id.toString(),
+      user.branchId ?? undefined
     );
 
     this.logger.log(`SSE connection established: ${connectionId}`);

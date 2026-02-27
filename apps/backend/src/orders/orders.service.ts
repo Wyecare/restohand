@@ -320,8 +320,61 @@ export class OrdersService {
       hasCustomerSessionId: !!response.customerSessionId,
     });
 
-    this.ordersGateway.emitOrderCreated(response);
-    this.ordersSSEService.emitOrderCreated(response);
+    // Cashier gate: if enabled, hold order for cashier approval before kitchen sees it
+    if (restaurant.settings?.cashierGateEnabled) {
+      this.ordersGateway.emitOrderPending(response);
+      this.ordersSSEService.emitOrderPending(response);
+    } else {
+      // Auto-accept path: forward immediately to kitchen
+      this.ordersGateway.emitOrderCreated(response);
+      this.ordersSSEService.emitOrderCreated(response);
+    }
+    return response;
+  }
+
+  /** Cashier accepts a pending order → status becomes Accepted, kitchen is notified */
+  async acceptOrder(restaurantId: string, orderId: string): Promise<OrderResponseDto> {
+    const order = await this.orderModel.findOne({
+      _id: orderId,
+      restaurantId,
+      status: OrderStatus.Pending,
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Pending order ${orderId} not found`);
+    }
+
+    order.status = OrderStatus.Accepted;
+    await order.save();
+
+    const response = this.toDto(order);
+
+    this.ordersGateway.emitOrderAccepted(response);
+    this.ordersSSEService.emitOrderAccepted(response);
+
+    return response;
+  }
+
+  /** Cashier rejects a pending order → status becomes Cancelled */
+  async rejectOrder(restaurantId: string, orderId: string): Promise<OrderResponseDto> {
+    const order = await this.orderModel.findOne({
+      _id: orderId,
+      restaurantId,
+      status: OrderStatus.Pending,
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Pending order ${orderId} not found`);
+    }
+
+    order.status = OrderStatus.Cancelled;
+    await order.save();
+
+    const response = this.toDto(order);
+
+    this.ordersGateway.emitOrderUpdated(response);
+    this.ordersSSEService.emitOrderUpdated(response);
+
     return response;
   }
 
@@ -2665,6 +2718,7 @@ export class OrdersService {
     return {
       id: doc._id.toString(),
       restaurantId: doc.restaurantId.toString(),
+      branchId: doc.branchId?.toString(),
       sessionId: doc.sessionId?.toString(),
       customerSessionId: doc.customerSessionId, // Add missing customerSessionId field
       createdBy: doc.createdBy?.toString(),

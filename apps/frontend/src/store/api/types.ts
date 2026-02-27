@@ -33,6 +33,7 @@ export interface RestaurantSettings {
   locale: string;
   enableTax: boolean;
   selfOrderingEnabled: boolean;
+  cashierGateEnabled: boolean;
 }
 
 export interface GstConfiguration {
@@ -308,6 +309,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   restaurantId: string;
+  branchId?: string;
   sessionId?: string;
   createdBy?: string;
   orderNumber: string;

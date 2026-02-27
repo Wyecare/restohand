@@ -26,9 +26,11 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { useCloseTillMutation, useGetTillHistoryQuery, TillSession } from '@/store/api/tillApi';
+import { useGetRestaurantQuery, useUpdateRestaurantMutation } from '@/store/api/restaurantsApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { useBranchContext } from '@/contexts/BranchContext';
+import { Switch } from '@/components/ui/switch';
 
 interface TillViewProps {
   currentTill: TillSession | null;
@@ -59,6 +61,37 @@ export function TillView({ currentTill }: TillViewProps) {
   const [showCloseDialog, setShowCloseDialog] = React.useState(false);
   const [closingCash, setClosingCash] = React.useState('');
   const [closingNotes, setClosingNotes] = React.useState('');
+  const [updateRestaurant, { isLoading: isUpdatingSettings }] = useUpdateRestaurantMutation();
+
+  const { data: restaurant } = useGetRestaurantQuery(
+    restaurantId ?? '',
+    { skip: !restaurantId },
+  );
+
+  const cashierGateEnabled = restaurant?.settings?.cashierGateEnabled ?? false;
+
+  const handleToggleCashierGate = async (enabled: boolean) => {
+    if (!restaurantId || !restaurant) return;
+    try {
+      await updateRestaurant({
+        id: restaurantId,
+        body: {
+          settings: {
+            ...restaurant.settings,
+            cashierGateEnabled: enabled,
+          },
+        },
+      }).unwrap();
+      toast({
+        title: enabled ? 'Cashier gate enabled' : 'Cashier gate disabled',
+        description: enabled
+          ? 'Orders will wait for cashier approval before going to kitchen.'
+          : 'Orders will go directly to kitchen.',
+      });
+    } catch {
+      toast({ variant: 'destructive', title: 'Failed to update setting' });
+    }
+  };
 
   const { data: history } = useGetTillHistoryQuery(
     { restaurantId: restaurantId!, branchId: currentBranch?._id, page: 1, limit: 10 },
@@ -105,6 +138,28 @@ export function TillView({ currentTill }: TillViewProps) {
           </Badge>
         )}
       </div>
+
+      {/* Cashier Gate Toggle */}
+      <Card>
+        <CardContent className="py-4 flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="font-medium text-sm">Cashier Gate</p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              When enabled, new orders wait for cashier approval before being sent to the kitchen.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className="text-xs text-muted-foreground">
+              {cashierGateEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <Switch
+              checked={cashierGateEnabled}
+              onCheckedChange={handleToggleCashierGate}
+              disabled={isUpdatingSettings}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {currentTill ? (
         <>

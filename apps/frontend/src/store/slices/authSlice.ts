@@ -103,6 +103,7 @@ export const {
 export default authSlice.reducer;
 
 // Selectors
+export const selectIdToken = (state: { auth: AuthState }) => state.auth.idToken;
 export const selectAuthState = (state: { auth: AuthState }) => state.auth;
 export const selectIsAuthenticated = (state: { auth: AuthState }) =>
   state.auth.status === 'authenticated' && !!state.auth.idToken;

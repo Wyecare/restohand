@@ -7,6 +7,7 @@ import { OrderModification } from './schemas/order-modification.schema';
 interface SSEConnection {
   id: string;
   restaurantId: string;
+  branchId?: string;
   userRoles: string[];
   userId: string;
   response: Response;
@@ -22,13 +23,15 @@ export class OrdersSSEService {
     restaurantId: string,
     userRoles: string[],
     response: Response,
-    userId: string
+    userId: string,
+    branchId?: string
   ): string {
     const connectionId = uuidv4();
 
     this.connections.set(connectionId, {
       id: connectionId,
       restaurantId,
+      branchId,
       userRoles,
       userId,
       response,
@@ -47,14 +50,19 @@ export class OrdersSSEService {
     }
   }
 
-  // Get connections for a specific restaurant, optionally filtered by role
-  private getRestaurantConnections(restaurantId: string, targetRoles?: string[]): SSEConnection[] {
+  // Get connections for a restaurant, optionally filtered by role and branch
+  private getRestaurantConnections(
+    restaurantId: string,
+    targetRoles?: string[],
+    branchId?: string
+  ): SSEConnection[] {
     return Array.from(this.connections.values()).filter(conn => {
-      if (conn.restaurantId !== restaurantId) {
-        return false;
-      }
+      if (conn.restaurantId !== restaurantId) return false;
 
-      // If target roles specified, check if connection has any of those roles
+      // Branch-scoped filtering: if branchId provided, only match connections
+      // that have the same branchId (or no branchId — managers/owners without branch)
+      if (branchId && conn.branchId && conn.branchId !== branchId) return false;
+
       if (targetRoles && targetRoles.length > 0) {
         return targetRoles.some(role => conn.userRoles.includes(role));
       }
@@ -87,13 +95,36 @@ export class OrdersSSEService {
 
   // Public methods to emit order events (replacing WebSocket emissions)
 
+  /** Order arrived but needs cashier approval — notify cashiers/managers for this branch */
+  emitOrderPending(order: OrderResponseDto): void {
+    this.logger.debug(`Emitting order.pending for ${order.id} via SSE`);
+    const connections = this.getRestaurantConnections(
+      order.restaurantId,
+      ['cashier', 'manager'],
+      order.branchId
+    );
+    this.sendEventToConnections(connections, 'order.pending', order);
+  }
+
+  /** Cashier accepted order — notify kitchen for this branch */
+  emitOrderAccepted(order: OrderResponseDto): void {
+    this.logger.debug(`Emitting order.accepted for ${order.id} via SSE`);
+    const connections = this.getRestaurantConnections(
+      order.restaurantId,
+      ['chef', 'waiter', 'cashier', 'manager'],
+      order.branchId
+    );
+    this.sendEventToConnections(connections, 'order.accepted', order);
+  }
+
   emitOrderCreated(order: OrderResponseDto): void {
     this.logger.debug(`Emitting order.created for ${order.id} via SSE`);
 
-    // Send to all staff in the restaurant (kitchen, waiters, cashiers, managers)
+    // Auto-accept path: send directly to kitchen + cashier (branch-scoped)
     const staffConnections = this.getRestaurantConnections(
       order.restaurantId,
-      ['chef', 'waiter', 'cashier', 'manager']
+      ['chef', 'waiter', 'cashier', 'manager'],
+      order.branchId
     );
 
     this.sendEventToConnections(staffConnections, 'order.created', order);

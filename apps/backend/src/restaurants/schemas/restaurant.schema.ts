@@ -62,6 +62,9 @@ class RestaurantSettings {
 
   @Prop({ type: Boolean, default: false })
   selfOrderingEnabled!: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  cashierGateEnabled!: boolean;
 }
 
 const RestaurantSettingsSchema =

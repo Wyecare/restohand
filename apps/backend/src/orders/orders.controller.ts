@@ -650,6 +650,32 @@ export class OrdersController {
     };
   }
 
+  @Patch(':orderId/accept')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiOkResponse({ type: OrderResponseDto })
+  @Roles(UserRole.Manager, UserRole.Cashier)
+  async acceptOrder(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string
+  ) {
+    return this.ordersService.acceptOrder(restaurantId, orderId);
+  }
+
+  @Patch(':orderId/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiParam({ name: 'restaurantId' })
+  @ApiParam({ name: 'orderId' })
+  @ApiOkResponse({ type: OrderResponseDto })
+  @Roles(UserRole.Manager, UserRole.Cashier)
+  async rejectOrder(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string
+  ) {
+    return this.ordersService.rejectOrder(restaurantId, orderId);
+  }
+
   @Patch(':orderId/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiParam({ name: 'restaurantId' })

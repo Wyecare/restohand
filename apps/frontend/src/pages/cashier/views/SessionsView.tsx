@@ -13,23 +13,33 @@ import {
   CheckCircle2,
   Loader2,
   ShoppingBag,
+  Check,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 import { PaymentModal, PaymentMethod } from '../components/PaymentModal';
 import { useFindSessionsQuery, useCloseSessionMutation } from '@/store/api/customerSessionsApi';
 import { useGetDetailedSessionBillQuery } from '@/store/api/billingApi';
-import { useUpdateOrderPaymentMutation } from '@/store/api/ordersApi';
+import {
+  useUpdateOrderPaymentMutation,
+  useAcceptOrderMutation,
+  useRejectOrderMutation,
+} from '@/store/api/ordersApi';
 import { useRecordTillTransactionMutation } from '@/store/api/tillApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { useBranchContext } from '@/contexts/BranchContext';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { TillSession } from '@/store/api/tillApi';
+import type { Order } from '@/store/api/types';
 
 interface SessionsViewProps {
   currentTill: TillSession | null;
+  pendingOrders: Order[];
+  onPendingOrdersChange: React.Dispatch<React.SetStateAction<Order[]>>;
 }
 
-export function SessionsView({ currentTill }: SessionsViewProps) {
+export function SessionsView({ currentTill, pendingOrders, onPendingOrdersChange }: SessionsViewProps) {
   const { toast } = useToast();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
   const { currentBranch } = useBranchContext();
@@ -52,9 +62,47 @@ export function SessionsView({ currentTill }: SessionsViewProps) {
   const [updateOrderPayment] = useUpdateOrderPaymentMutation();
   const [closeSession] = useCloseSessionMutation();
   const [recordTransaction] = useRecordTillTransactionMutation();
+  const [acceptOrder] = useAcceptOrderMutation();
+  const [rejectOrder] = useRejectOrderMutation();
 
   const sessions = sessionsData?.sessions ?? [];
   const selectedSession = sessions.find((s) => s.sessionId === selectedSessionId);
+
+  const handleAcceptOrder = async (order: Order) => {
+    if (!restaurantId) return;
+    try {
+      await acceptOrder({ restaurantId, orderId: order.id }).unwrap();
+      onPendingOrdersChange((prev) => prev.filter((o) => o.id !== order.id));
+      toast({
+        title: 'Order accepted',
+        description: `Order #${order.orderNumber} sent to kitchen`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to accept order',
+        description: err?.data?.message ?? 'Something went wrong',
+      });
+    }
+  };
+
+  const handleRejectOrder = async (order: Order) => {
+    if (!restaurantId) return;
+    try {
+      await rejectOrder({ restaurantId, orderId: order.id }).unwrap();
+      onPendingOrdersChange((prev) => prev.filter((o) => o.id !== order.id));
+      toast({
+        title: 'Order rejected',
+        description: `Order #${order.orderNumber} cancelled`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to reject order',
+        description: err?.data?.message ?? 'Something went wrong',
+      });
+    }
+  };
 
   const handlePaySession = async (method: PaymentMethod) => {
     if (!selectedSession || !billData) return;
@@ -111,8 +159,73 @@ export function SessionsView({ currentTill }: SessionsViewProps) {
   return (
     <div className="flex h-full">
       {/* Sessions Grid */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="p-5 border-b flex items-center justify-between">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Incoming Orders Queue */}
+        {pendingOrders.length > 0 && (
+          <div className="border-b bg-amber-50 dark:bg-amber-950/20">
+            <div className="px-5 py-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+              <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                {pendingOrders.length} incoming order{pendingOrders.length !== 1 ? 's' : ''} — review before sending to kitchen
+              </span>
+            </div>
+            <div className="px-4 pb-3 flex flex-col gap-2 max-h-72 overflow-y-auto">
+              {pendingOrders.map((order) => (
+                <Card key={order.id} className="border-amber-200 dark:border-amber-800 shadow-sm">
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm">#{order.orderNumber}</span>
+                          {order.tableNumber && (
+                            <Badge variant="outline" className="text-xs py-0 h-5">
+                              Table {order.tableNumber}
+                            </Badge>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {fmtTime(order.createdAt)}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 space-y-0.5">
+                          {order.items.slice(0, 3).map((item, idx) => (
+                            <p key={idx} className="text-xs text-muted-foreground">
+                              {item.quantity}× {item.name}
+                            </p>
+                          ))}
+                          {order.items.length > 3 && (
+                            <p className="text-xs text-muted-foreground">
+                              +{order.items.length - 3} more
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold mt-1.5">{fmt(order.totalAmount)}</p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 px-3"
+                          onClick={() => handleRejectOrder(order)}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" /> Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 bg-green-600 hover:bg-green-700 text-white px-3"
+                          onClick={() => handleAcceptOrder(order)}
+                        >
+                          <Check className="h-3.5 w-3.5 mr-1" /> Accept
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="p-5 border-b flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold">Active Sessions</h2>
             <p className="text-sm text-muted-foreground mt-0.5">

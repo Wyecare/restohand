@@ -73,10 +73,9 @@ export default function LoginScreen() {
 
       if (user.roles.includes("chef")) {
         router.replace("/(kitchen)");
-      } else if (
-        user.roles.includes("waiter") ||
-        user.roles.includes("cashier")
-      ) {
+      } else if (user.roles.includes("cashier")) {
+        router.replace("/(cashier)");
+      } else if (user.roles.includes("waiter")) {
         router.replace("/(service)");
       } else {
         Alert.alert(

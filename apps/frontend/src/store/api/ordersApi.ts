@@ -19,6 +19,7 @@ export interface ListOrdersParams {
   page?: number;
   limit?: number;
   customerSessionId?: string; // Filter by customer session ID
+  branchId?: string; // Filter by branch
 }
 
 export interface CreateOrderPayload {
@@ -644,6 +645,27 @@ export const ordersApi = baseApi.injectEndpoints({
         { type: 'Order', id: 'LIST' },
       ],
     }),
+    acceptOrder: builder.mutation<Order, { restaurantId: string; orderId: string }>({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/accept`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Order', id: 'LIST' },
+        { type: 'Order', id: `LIST-${restaurantId}` },
+      ],
+    }),
+
+    rejectOrder: builder.mutation<Order, { restaurantId: string; orderId: string }>({
+      query: ({ restaurantId, orderId }) => ({
+        url: `/restaurants/${restaurantId}/orders/${orderId}/reject`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: (_result, _error, { restaurantId }) => [
+        { type: 'Order', id: 'LIST' },
+        { type: 'Order', id: `LIST-${restaurantId}` },
+      ],
+    }),
   }),
   overrideExisting: false,
 });
@@ -679,4 +701,7 @@ export const {
   useGenerateSessionReceiptQrMutation,
   // Admin Consolidated Bill Hooks
   useGetAdminConsolidatedBillQuery,
+  // Cashier gate
+  useAcceptOrderMutation,
+  useRejectOrderMutation,
 } = ordersApi;

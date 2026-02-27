@@ -34,6 +34,7 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
               <Stack.Screen name="(kitchen)" options={{ headerShown: false }} />
               <Stack.Screen name="(service)" options={{ headerShown: false }} />
+              <Stack.Screen name="(cashier)" options={{ headerShown: false }} />
               <Stack.Screen
                 name="modal"
                 options={{ presentation: "modal", title: "Modal" }}

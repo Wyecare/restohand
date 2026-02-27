@@ -7,8 +7,8 @@ export default function ServiceLayout() {
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const roles = useAppSelector(selectUserRoles);
 
-  // Redirect if not authenticated or not a waiter/cashier
-  if (!isAuthenticated || (!roles.includes('waiter') && !roles.includes('cashier'))) {
+  // Redirect cashier to their own section; redirect unauthenticated or non-waiters to login
+  if (!isAuthenticated || !roles.includes('waiter')) {
     return <Redirect href="/(auth)/login" />;
   }
 

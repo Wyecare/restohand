@@ -33,4 +33,13 @@ export class RestaurantSettingsDto {
   @IsOptional()
   @IsBoolean()
   selfOrderingEnabled?: boolean;
+
+  @ApiProperty({
+    example: false,
+    required: false,
+    description: 'Require cashier to approve orders before they go to kitchen'
+  })
+  @IsOptional()
+  @IsBoolean()
+  cashierGateEnabled?: boolean;
 }

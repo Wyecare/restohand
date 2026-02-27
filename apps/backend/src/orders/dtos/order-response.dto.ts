@@ -12,6 +12,9 @@ export class OrderResponseDto {
   restaurantId!: string;
 
   @ApiProperty({ required: false })
+  branchId?: string;
+
+  @ApiProperty({ required: false })
   sessionId?: string;
 
   @ApiProperty({ required: false })

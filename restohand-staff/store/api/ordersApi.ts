@@ -10,6 +10,7 @@ export interface ListOrdersParams {
   search?: string;
   page?: number;
   limit?: number;
+  branchId?: string;
 }
 
 export interface UpdateOrderStatusPayload {
