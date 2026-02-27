@@ -83,8 +83,7 @@ export class BranchPermissionsService {
 
     return {
       canInviteToAnyBranch: false,
-      canManageBranch: (branchId: string) =>
-        ownBranchId === branchId && user.roles?.includes(UserRole.Manager),
+      canManageBranch: (branchId: string) => ownBranchId === branchId,
       canAccessAllBranches: false,
       accessibleBranchIds: ownBranchId ? [ownBranchId] : [],
     };

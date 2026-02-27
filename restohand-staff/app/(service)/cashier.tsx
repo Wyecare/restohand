@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -38,7 +40,7 @@ import {
   useRejectOrderMutation,
   type TillSession,
 } from '@/store/api/tillApi';
-import { useListOrdersQuery } from '@/store/api/ordersApi';
+import { useListOrdersQuery, useCreateOrderMutation, useUpdateOrderPaymentMutation, useCalculateCartTotalMutation } from '@/store/api/ordersApi';
 import {
   useFindSessionsQuery,
   useCloseSessionMutation,
@@ -48,12 +50,33 @@ import {
   useGetDetailedSessionBillQuery,
   type DetailedBillCalculation,
 } from '@/store/api/billingApi';
-import { useUpdateOrderPaymentMutation } from '@/store/api/ordersApi';
 import { useCashierSocket } from '@/hooks/useCashierSocket';
+import {
+  useListMenuCategoriesByBranchQuery,
+  useListMenuItemsByBranchQuery,
+  useListMenuModifiersByBranchQuery,
+  type MenuCategory,
+  type MenuItem,
+  type MenuModifier,
+} from '@/store/api/menuApi';
+import { useListRestaurantTablesByBranchQuery } from '@/store/api/restaurantsApi';
 import type { Order } from '@/store/api/types';
 
-type ActiveTab = 'incoming' | 'sessions' | 'till';
+type ActiveTab = 'pos' | 'incoming' | 'sessions' | 'till';
 type PaymentMethod = 'cash' | 'card' | 'upi';
+
+interface CartItem {
+  menuItemId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  selectedModifiers: Array<{
+    modifierId: string;
+    modifierName: string;
+    selectedOptions: Array<{ optionId: string; optionName: string; priceAdjustment: number }>;
+  }>;
+  notes?: string;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Till Open Modal
@@ -276,7 +299,7 @@ export default function CashierScreen() {
   const idToken = useAppSelector((s) => s.auth.idToken);
   const branchId = session?.branchId ?? '';
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('incoming');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('pos');
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [showTillOpen, setShowTillOpen] = useState(false);
 
@@ -289,6 +312,18 @@ export default function CashierScreen() {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [closingCash, setClosingCash] = useState('');
   const [closingNotes, setClosingNotes] = useState('');
+
+  // POS state
+  const [posCart, setPosCart] = useState<CartItem[]>([]);
+  const [posSelectedCategoryId, setPosSelectedCategoryId] = useState<string | null>(null);
+  const [posOrderType, setPosOrderType] = useState<'table' | 'walkin'>('table');
+  const [posSelectedTableId, setPosSelectedTableId] = useState('');
+  const [posCartOpen, setPosCartOpen] = useState(false);
+  const [posPaymentOpen, setPosPaymentOpen] = useState(false);
+  const [posIsProcessing, setPosIsProcessing] = useState(false);
+  const [posBillTotals, setPosBillTotals] = useState<any>(null);
+  const [posCreatedOrderId, setPosCreatedOrderId] = useState<string | null>(null);
+  const [posCreatedOrderNumber, setPosCreatedOrderNumber] = useState<string | null>(null);
 
   // ── Queries ──────────────────────────────────────────────
   const { data: currentTill, isLoading: tillLoading, refetch: refetchTill } =
@@ -319,6 +354,33 @@ export default function CashierScreen() {
       : skipToken
   );
 
+  // ── POS Queries ───────────────────────────────────────────
+  const hasPosArgs = !!(restaurantId && branchId);
+  const { data: posCategoriesData } = useListMenuCategoriesByBranchQuery(
+    hasPosArgs ? { restaurantId: restaurantId!, branchId, limit: 100 } : skipToken
+  );
+  const { data: posItemsData } = useListMenuItemsByBranchQuery(
+    hasPosArgs ? { restaurantId: restaurantId!, branchId, isAvailable: true, limit: 200 } : skipToken
+  );
+  const { data: posModifiersData } = useListMenuModifiersByBranchQuery(
+    hasPosArgs ? { restaurantId: restaurantId!, branchId, isActive: true } : skipToken
+  );
+  const { data: posTablesData } = useListRestaurantTablesByBranchQuery(
+    hasPosArgs ? { restaurantId: restaurantId!, branchId } : skipToken
+  );
+
+  const posCategories = posCategoriesData?.data ?? [];
+  const posItems = posItemsData?.data ?? [];
+  const posModifiers = posModifiersData?.data ?? [];
+  const posTables = (posTablesData ?? []).filter((t) => t.isActive !== false);
+
+  const posFilteredItems = posSelectedCategoryId
+    ? posItems.filter((item) => item.categoryId === posSelectedCategoryId)
+    : posItems;
+
+  const posTotalQty = posCart.reduce((s, i) => s + i.quantity, 0);
+  const posSubtotal = posCart.reduce((s, i) => s + i.unitPrice * i.quantity + i.selectedModifiers.reduce((ms, m) => ms + m.selectedOptions.reduce((os, o) => os + o.priceAdjustment, 0), 0) * i.quantity, 0);
+
   // ── Mutations ─────────────────────────────────────────────
   const [acceptOrder] = useAcceptOrderMutation();
   const [rejectOrder] = useRejectOrderMutation();
@@ -326,6 +388,8 @@ export default function CashierScreen() {
   const [updateOrderPayment] = useUpdateOrderPaymentMutation();
   const [closeSession] = useCloseSessionMutation();
   const [recordTransaction] = useRecordTillTransactionMutation();
+  const [createOrder] = useCreateOrderMutation();
+  const [calculateCart] = useCalculateCartTotalMutation();
 
   // ── Socket ────────────────────────────────────────────────
   useCashierSocket({
@@ -464,6 +528,89 @@ export default function CashierScreen() {
     }
   };
 
+  // ── POS Handlers ──────────────────────────────────────────
+  const posAddItem = (item: MenuItem) => {
+    const applicable = posModifiers.filter(
+      (m) => m.isActive && (m.applicableMenuItems?.includes(item.id) || m.applicableCategories?.includes(item.categoryId ?? ''))
+    );
+    // For now, add directly without modifier modal (can be enhanced later)
+    setPosCart((prev) => {
+      const idx = prev.findIndex((c) => c.menuItemId === item.id && c.selectedModifiers.length === 0);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], quantity: updated[idx].quantity + 1 };
+        return updated;
+      }
+      return [...prev, { menuItemId: item.id, name: item.name, quantity: 1, unitPrice: item.pricing.amount, selectedModifiers: [] }];
+    });
+  };
+
+  const posUpdateQty = (idx: number, delta: number) => {
+    setPosCart((prev) => {
+      const updated = [...prev];
+      const newQty = updated[idx].quantity + delta;
+      if (newQty <= 0) updated.splice(idx, 1);
+      else updated[idx] = { ...updated[idx], quantity: newQty };
+      return updated;
+    });
+  };
+
+  const posCharge = async () => {
+    if (!restaurantId || posCart.length === 0) return;
+    setPosIsProcessing(true);
+    try {
+      const table = posOrderType === 'table' ? posTables.find((t) => t.id === posSelectedTableId) : null;
+      const order = await createOrder({
+        restaurantId,
+        tableId: table?.id,
+        tableNumber: table?.tableNumber,
+        items: posCart.map((c) => ({
+          menuItemId: c.menuItemId,
+          name: c.name,
+          quantity: c.quantity,
+          pricing: { unitAmount: c.unitPrice, currency: 'INR' },
+          notes: c.notes,
+        })),
+        paymentMethod: 'cash',
+      }).unwrap();
+      setPosCreatedOrderId(order.id);
+      setPosCreatedOrderNumber(order.orderNumber);
+      setPosCartOpen(false);
+      setPosPaymentOpen(true);
+    } catch (err: any) {
+      Alert.alert('Error', err?.data?.message ?? 'Failed to create order');
+    } finally {
+      setPosIsProcessing(false);
+    }
+  };
+
+  const posConfirmPayment = async (method: PaymentMethod) => {
+    if (!posCreatedOrderId || !restaurantId) return;
+    setPosIsProcessing(true);
+    try {
+      await updateOrderPayment({ restaurantId, orderId: posCreatedOrderId, paymentStatus: 'paid', provider: method }).unwrap();
+      if (currentTill) {
+        await recordTransaction({
+          restaurantId,
+          tillId: currentTill._id || currentTill.id,
+          paymentMethod: method,
+          amount: posBillTotals?.totalAmount ?? posSubtotal,
+        }).unwrap();
+      }
+      Alert.alert('✓ Payment complete', `Order #${posCreatedOrderNumber} paid via ${method.toUpperCase()}`);
+      setPosPaymentOpen(false);
+      setPosCart([]);
+      setPosBillTotals(null);
+      setPosCreatedOrderId(null);
+      setPosCreatedOrderNumber(null);
+      refetchTill();
+    } catch (err: any) {
+      Alert.alert('Payment failed', err?.data?.message ?? 'Something went wrong');
+    } finally {
+      setPosIsProcessing(false);
+    }
+  };
+
   // ── Helpers ───────────────────────────────────────────────
   const fmt = (n: number) => `₹${n.toFixed(2)}`;
   const fmtTime = (d: string) =>
@@ -492,6 +639,181 @@ export default function CashierScreen() {
   }
 
   // ── Render tabs ───────────────────────────────────────────
+
+  const renderPos = () => (
+    <View style={styles.tabContent}>
+      {/* Category tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.catScroll, { borderBottomColor: isDark ? '#374151' : '#E5E7EB' }]}
+        contentContainerStyle={styles.catScrollInner}
+      >
+        <TouchableOpacity
+          style={[styles.catChip, !posSelectedCategoryId && { backgroundColor: theme.brand }]}
+          onPress={() => setPosSelectedCategoryId(null)}
+        >
+          <Text style={[styles.catChipText, !posSelectedCategoryId && { color: '#FFF' }]}>All</Text>
+        </TouchableOpacity>
+        {posCategories.map((cat) => (
+          <TouchableOpacity
+            key={cat.id}
+            style={[styles.catChip, posSelectedCategoryId === cat.id && { backgroundColor: theme.brand }]}
+            onPress={() => setPosSelectedCategoryId(cat.id)}
+          >
+            <Text style={[styles.catChipText, posSelectedCategoryId === cat.id && { color: '#FFF' }]}>
+              {cat.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Items grid */}
+      <FlatList
+        data={posFilteredItems}
+        keyExtractor={(item) => item.id}
+        numColumns={isTablet ? 4 : 2}
+        contentContainerStyle={styles.posGrid}
+        renderItem={({ item }) => {
+          const imgUrl = item.imageUrls?.[0];
+          return (
+            <TouchableOpacity
+              style={[styles.posItemCard, { backgroundColor: theme.background, borderColor: isDark ? '#374151' : '#E5E7EB' }]}
+              onPress={() => posAddItem(item)}
+            >
+              {imgUrl ? (
+                <Image source={{ uri: imgUrl }} style={styles.posItemImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.posItemImagePlaceholder, { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' }]}>
+                  <Ionicons name="fast-food-outline" size={28} color={isDark ? '#4B5563' : '#9CA3AF'} />
+                </View>
+              )}
+              <View style={styles.posItemInfo}>
+                <Text style={[styles.posItemName, { color: theme.text }]} numberOfLines={2}>{item.name}</Text>
+                <Text style={[styles.posItemPrice, { color: theme.brand }]}>₹{item.pricing.amount.toFixed(2)}</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="fast-food-outline" size={48} color={theme.icon} style={{ opacity: 0.3 }} />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>No items</Text>
+          </View>
+        }
+      />
+
+      {/* Cart FAB */}
+      {posTotalQty > 0 && (
+        <TouchableOpacity
+          style={[styles.cartFab, { backgroundColor: theme.brand }]}
+          onPress={() => setPosCartOpen(true)}
+        >
+          <Ionicons name="cart" size={22} color="#FFF" />
+          <Text style={styles.cartFabText}>{posTotalQty} item{posTotalQty !== 1 ? 's' : ''} · {fmt(posSubtotal)}</Text>
+          <Ionicons name="chevron-up" size={18} color="#FFF" />
+        </TouchableOpacity>
+      )}
+
+      {/* Cart Modal */}
+      <Modal visible={posCartOpen} animationType="slide" transparent presentationStyle="pageSheet">
+        <View style={styles.payModalOverlay}>
+          <SafeAreaView style={[styles.payModalSheet, { backgroundColor: theme.background }]}>
+            <View style={styles.payModalHandle} />
+            <View style={styles.payModalHeader}>
+              <Text style={[styles.payModalTitle, { color: theme.text }]}>Cart ({posTotalQty})</Text>
+              <TouchableOpacity onPress={() => setPosCartOpen(false)}>
+                <Ionicons name="close" size={24} color={theme.icon} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Order type */}
+            <View style={styles.orderTypeRow}>
+              {(['table', 'walkin'] as const).map((t) => (
+                <TouchableOpacity
+                  key={t}
+                  style={[styles.orderTypeBtn, posOrderType === t && { backgroundColor: theme.brand }]}
+                  onPress={() => setPosOrderType(t)}
+                >
+                  <Text style={[styles.orderTypeBtnText, posOrderType === t && { color: '#FFF' }]}>
+                    {t === 'table' ? 'Table' : 'Walk-in'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Table picker */}
+            {posOrderType === 'table' && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tablePickerScroll} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row' }}>
+                {posTables.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[styles.tableChip, posSelectedTableId === t.id && { backgroundColor: theme.brand, borderColor: theme.brand }]}
+                    onPress={() => setPosSelectedTableId(t.id)}
+                  >
+                    <Text style={[styles.tableChipText, posSelectedTableId === t.id && { color: '#FFF' }]}>
+                      T{t.tableNumber}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Cart items */}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+              {posCart.map((item, idx) => (
+                <View key={idx} style={[styles.cartRow, { borderBottomColor: isDark ? '#374151' : '#F3F4F6' }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.cartItemName, { color: theme.text }]}>{item.name}</Text>
+                    <Text style={[styles.cartItemPrice, { color: theme.icon }]}>₹{item.unitPrice.toFixed(2)} each</Text>
+                  </View>
+                  <View style={styles.qtyRow}>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => posUpdateQty(idx, -1)}>
+                      <Ionicons name="remove" size={16} color={theme.text} />
+                    </TouchableOpacity>
+                    <Text style={[styles.qtyText, { color: theme.text }]}>{item.quantity}</Text>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => posUpdateQty(idx, 1)}>
+                      <Ionicons name="add" size={16} color={theme.text} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={[styles.cartItemTotal, { color: theme.text }]}>
+                    {fmt(item.unitPrice * item.quantity)}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={[styles.cartTotal, { borderTopColor: isDark ? '#374151' : '#E5E7EB' }]}>
+              <Text style={[styles.cartTotalLabel, { color: theme.icon }]}>Subtotal</Text>
+              <Text style={[styles.cartTotalValue, { color: theme.brand }]}>{fmt(posSubtotal)}</Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, { backgroundColor: theme.brand, margin: 16, opacity: posIsProcessing ? 0.7 : 1 }]}
+              onPress={posCharge}
+              disabled={posIsProcessing || posCart.length === 0}
+            >
+              {posIsProcessing
+                ? <ActivityIndicator color="#FFF" />
+                : <><Ionicons name="card-outline" size={18} color="#FFF" /><Text style={styles.primaryBtnText}>Charge {fmt(posSubtotal)}</Text></>
+              }
+            </TouchableOpacity>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* POS Payment Modal */}
+      <PaymentModal
+        visible={posPaymentOpen}
+        totalAmount={posSubtotal}
+        onClose={() => setPosPaymentOpen(false)}
+        onConfirm={posConfirmPayment}
+        isProcessing={posIsProcessing}
+        theme={theme}
+        isDark={isDark}
+      />
+    </View>
+  );
 
   const renderIncoming = () => (
     <ScrollView
@@ -852,6 +1174,7 @@ export default function CashierScreen() {
 
       {/* Content */}
       <View style={styles.content}>
+        {activeTab === 'pos' && renderPos()}
         {activeTab === 'incoming' && renderIncoming()}
         {activeTab === 'sessions' && renderSessions()}
         {activeTab === 'till' && renderTill()}
@@ -860,6 +1183,7 @@ export default function CashierScreen() {
       {/* Bottom Tab Bar */}
       <View style={[styles.tabBar, { backgroundColor: theme.background, borderTopColor: isDark ? '#374151' : '#E5E7EB' }]}>
         {([
+          { id: 'pos', label: 'POS', icon: 'storefront-outline', activeIcon: 'storefront' },
           { id: 'incoming', label: 'Incoming', icon: 'notifications-outline', activeIcon: 'notifications', badge: pendingCount },
           { id: 'sessions', label: 'Sessions', icon: 'people-outline', activeIcon: 'people' },
           { id: 'till', label: 'Till', icon: 'cash-outline', activeIcon: 'cash' },
@@ -1254,6 +1578,45 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 16, fontWeight: '600' },
+
+  // POS
+  catScroll: { flexGrow: 0, borderBottomWidth: 1 },
+  catScrollInner: { paddingHorizontal: 12, paddingVertical: 10, gap: 8, flexDirection: 'row' },
+  catChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F3F4F6' },
+  catChipText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  posGrid: { padding: 12, gap: 10 },
+  posItemCard: {
+    flex: 1, margin: 5, borderRadius: 12, borderWidth: 1, overflow: 'hidden',
+    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 }, android: { elevation: 1 } }),
+  },
+  posItemImage: { width: '100%', height: 100 },
+  posItemImagePlaceholder: { width: '100%', height: 100, alignItems: 'center', justifyContent: 'center' },
+  posItemInfo: { padding: 10 },
+  posItemName: { fontSize: 13, fontWeight: '600', marginBottom: 4, lineHeight: 18 },
+  posItemPrice: { fontSize: 15, fontWeight: '700' },
+  cartFab: {
+    position: 'absolute', bottom: 12, left: 16, right: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 14, borderRadius: 16,
+    ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 }, android: { elevation: 6 } }),
+  },
+  cartFabText: { flex: 1, color: '#FFF', fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  orderTypeRow: { flexDirection: 'row', margin: 16, gap: 8 },
+  orderTypeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center' },
+  orderTypeBtnText: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  tablePickerScroll: { flexGrow: 0, marginBottom: 8 },
+  tableChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: '#E5E7EB' },
+  tableChipText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  cartRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },
+  cartItemName: { fontSize: 14, fontWeight: '600' },
+  cartItemPrice: { fontSize: 12, marginTop: 2 },
+  cartItemTotal: { fontSize: 14, fontWeight: '700', marginLeft: 8, minWidth: 60, textAlign: 'right' },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12 },
+  qtyBtn: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
+  qtyText: { fontSize: 15, fontWeight: '700', minWidth: 20, textAlign: 'center' },
+  cartTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
+  cartTotalLabel: { fontSize: 14, fontWeight: '500' },
+  cartTotalValue: { fontSize: 20, fontWeight: '800' },
 
   // Header
   header: {

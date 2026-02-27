@@ -72,7 +72,7 @@ export class TillController {
   }
 
   @Get()
-  @Roles(UserRole.Manager, UserRole.Owner)
+  @Roles(UserRole.Manager, UserRole.Owner, UserRole.Cashier)
   @ApiOperation({ summary: 'Get till session history' })
   @ApiQuery({ name: 'branchId', required: false })
   @ApiQuery({ name: 'page', required: false })

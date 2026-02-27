@@ -302,7 +302,7 @@ export class MenuItemsController {
 
   // New branch-aware endpoints
   @Get('branch/:branchId')
-  @Roles(UserRole.Manager, UserRole.Waiter)
+  @Roles(UserRole.Manager, UserRole.Waiter, UserRole.Cashier)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'branchId' })
   @ApiQuery({ name: 'categoryId', required: false })

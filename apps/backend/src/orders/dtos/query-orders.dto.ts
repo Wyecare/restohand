@@ -52,4 +52,9 @@ export class QueryOrdersDto {
   @IsOptional()
   @IsString()
   customerSessionId?: string;
+
+  @ApiPropertyOptional({ description: 'Branch ID (ignored; branch is inferred from JWT)' })
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }

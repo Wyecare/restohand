@@ -4,6 +4,27 @@ import type { PublicMenuPayload, PublicRestaurant, PublicOrder } from "./types";
 // Re-export types from the main types file to maintain compatibility
 export type { PublicMenuPayload, PublicRestaurant, PublicOrder } from "./types";
 
+export interface MenuModifierOption {
+  id: string;
+  name: string;
+  priceAdjustment: number;
+  isDefault?: boolean;
+  isAvailable?: boolean;
+}
+
+export interface MenuModifier {
+  id: string;
+  restaurantId: string;
+  name: string;
+  isRequired?: boolean;
+  minSelections?: number;
+  maxSelections?: number;
+  isActive: boolean;
+  options: MenuModifierOption[];
+  applicableMenuItems?: string[];
+  applicableCategories?: string[];
+}
+
 export interface MenuCategory {
   id: string;
   restaurantId: string;
@@ -173,6 +194,45 @@ export const menuApi = baseApi.injectEndpoints({
               { type: 'MenuCategory' as const, id: 'LIST' },
             ],
     }),
+
+    listMenuCategoriesByBranch: builder.query<
+      { data: MenuCategory[]; meta?: any },
+      { restaurantId: string; branchId: string; limit?: number }
+    >({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/menu/categories/branch/${branchId}`,
+        params,
+      }),
+      providesTags: ['MenuCategory'],
+    }),
+
+    listMenuItemsByBranch: builder.query<
+      { data: MenuItem[]; meta?: any },
+      { restaurantId: string; branchId: string; isAvailable?: boolean; categoryId?: string; limit?: number }
+    >({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/menu/items/branch/${branchId}`,
+        params,
+      }),
+      providesTags: (result, _error, { restaurantId }) =>
+        result
+          ? [
+              ...result.data.map(({ id }) => ({ type: 'MenuItem' as const, id })),
+              { type: 'MenuItem' as const, id: `LIST-${restaurantId}` },
+            ]
+          : [{ type: 'MenuItem' as const, id: `LIST-${restaurantId}` }],
+    }),
+
+    listMenuModifiersByBranch: builder.query<
+      { data: MenuModifier[]; meta?: any },
+      { restaurantId: string; branchId: string; isActive?: boolean; limit?: number }
+    >({
+      query: ({ restaurantId, branchId, ...params }) => ({
+        url: `/restaurants/${restaurantId}/menu/modifiers/branch/${branchId}`,
+        params,
+      }),
+      providesTags: ['MenuCategory'],
+    }),
   }),
   overrideExisting: false,
 });
@@ -184,4 +244,7 @@ export const {
   useGetMenuCategoriesQuery,
   useGetMenuItemsQuery,
   useUpdateMenuItemMutation,
+  useListMenuCategoriesByBranchQuery,
+  useListMenuItemsByBranchQuery,
+  useListMenuModifiersByBranchQuery,
 } = menuApi;

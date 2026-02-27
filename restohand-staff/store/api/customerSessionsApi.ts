@@ -96,7 +96,6 @@ export const customerSessionsApi = baseApi.injectEndpoints({
           ...params,
           // Filter out 'all' status as backend expects undefined for all
           status: params.status === 'all' ? undefined : params.status,
-          returnEmpty: true,
           // Ensure page and limit are numbers
           page: params.page ? Number(params.page) : 1,
           limit: params.limit ? Number(params.limit) : 20,

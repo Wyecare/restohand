@@ -146,6 +146,7 @@ export class MenuCategoriesController {
 
   // Branch-aware endpoints
   @Get('branch/:branchId')
+  @Roles(UserRole.Manager, UserRole.Waiter, UserRole.Cashier, UserRole.Chef)
   @ApiParam({ name: 'restaurantId' })
   @ApiParam({ name: 'branchId' })
   @ApiOkResponse({ type: MenuCategoryListResponseDto })

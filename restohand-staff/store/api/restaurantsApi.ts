@@ -105,8 +105,24 @@ export const restaurantsApi = baseApi.injectEndpoints({
         url: `/public/restaurants/${slug}/table/${tableId}/consolidated-bill`,
         params: sessionId ? { sessionId } : {},
       }),
-      // Don't cache this as it changes frequently
       keepUnusedDataFor: 0,
+    }),
+
+    listRestaurantTablesByBranch: builder.query<
+      RestaurantTable[],
+      { restaurantId: string; branchId: string; includeInactive?: boolean }
+    >({
+      query: ({ restaurantId, branchId, includeInactive }) => ({
+        url: `/restaurants/${restaurantId}/tables/branch/${branchId}`,
+        params: includeInactive ? { includeInactive } : undefined,
+      }),
+      providesTags: (result, _error, { restaurantId, branchId }) =>
+        result
+          ? [
+              ...result.map((t) => ({ type: 'RestaurantTable' as const, id: t.id })),
+              { type: 'RestaurantTable' as const, id: `BRANCH-${restaurantId}-${branchId}` },
+            ]
+          : [{ type: 'RestaurantTable' as const, id: `BRANCH-${restaurantId}-${branchId}` }],
     }),
   }),
   overrideExisting: false,
@@ -118,4 +134,5 @@ export const {
   useListEnhancedTablesQuery,
   useListRestaurantTablesQuery,
   useGetCombinedTableInvoiceQuery,
+  useListRestaurantTablesByBranchQuery,
 } = restaurantsApi;

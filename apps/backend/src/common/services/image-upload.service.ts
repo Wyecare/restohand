@@ -66,28 +66,14 @@ export class ImageUploadService {
           reject(new InternalServerErrorException('Failed to upload image'));
         });
 
-        stream.on('finish', async () => {
-          try {
-            this.logger.log(`Upload completed successfully for ${filePath}`);
-
-            // Generate signed URL for access (valid for 7 days)
-            const [signedUrl] = await file.getSignedUrl({
-              action: 'read',
-              expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-            });
-
-            this.logger.log(`Generated signed URL for ${filePath}`);
-
-            resolve({
-              publicUrl: signedUrl,
-              fileName,
-              path: filePath,
-              size: fileBuffer.length,
-            });
-          } catch (error) {
-            this.logger.error('Error generating signed URL:', error);
-            reject(new InternalServerErrorException('Failed to generate access URL for image'));
-          }
+        stream.on('finish', () => {
+          this.logger.log(`Upload completed successfully for ${filePath}`);
+          resolve({
+            publicUrl: this.getPublicUrl(filePath),
+            fileName,
+            path: filePath,
+            size: fileBuffer.length,
+          });
         });
 
         stream.end(fileBuffer);
@@ -146,28 +132,14 @@ export class ImageUploadService {
           reject(new InternalServerErrorException('Failed to upload image'));
         });
 
-        stream.on('finish', async () => {
-          try {
-            this.logger.log(`Category upload completed successfully for ${filePath}`);
-
-            // Generate signed URL for access (valid for 7 days)
-            const [signedUrl] = await file.getSignedUrl({
-              action: 'read',
-              expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-            });
-
-            this.logger.log(`Generated signed URL for category: ${filePath}`);
-
-            resolve({
-              publicUrl: signedUrl,
-              fileName,
-              path: filePath,
-              size: fileBuffer.length,
-            });
-          } catch (error) {
-            this.logger.error('Error generating signed URL for category:', error);
-            reject(new InternalServerErrorException('Failed to generate access URL for image'));
-          }
+        stream.on('finish', () => {
+          this.logger.log(`Category upload completed successfully for ${filePath}`);
+          resolve({
+            publicUrl: this.getPublicUrl(filePath),
+            fileName,
+            path: filePath,
+            size: fileBuffer.length,
+          });
         });
 
         stream.end(fileBuffer);
@@ -215,6 +187,11 @@ export class ImageUploadService {
     } catch (error) {
       console.error('Error deleting menu category images:', error);
     }
+  }
+
+  private getPublicUrl(filePath: string): string {
+    const bucketName = this.bucket.name;
+    return `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
   }
 
   private async validateImageFile(fileBuffer: Buffer, declaredMimeType: string): Promise<void> {
