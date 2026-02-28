@@ -57,12 +57,6 @@ import { MenuPriceTagsService } from '../menu-price-tags/menu-price-tags.service
 import { MenuModifiersService } from '../menu-modifiers/menu-modifiers.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CustomerSessionsService } from '../customer-sessions/customer-sessions.service';
-import {
-  CustomerSession,
-  CustomerSessionDocument,
-  SessionStatus,
-  SessionClosureReason
-} from '../customer-sessions/schemas/customer-session.schema';
 
 @Injectable()
 export class OrdersService {
@@ -81,8 +75,6 @@ export class OrdersService {
     private readonly orderCounterModel: Model<OrderCounterDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
-    @InjectModel(CustomerSession.name)
-    private readonly customerSessionModel: Model<CustomerSessionDocument>,
     private readonly ordersGateway: OrdersGateway,
     private readonly ordersSSEService: OrdersSSEService,
     private readonly smartGstService: SmartGstService,
@@ -104,15 +96,6 @@ export class OrdersService {
     dto: CreateOrderDto,
     branchId?: string
   ): Promise<OrderResponseDto> {
-    // Debug logging
-    this.logger.log(`💾 DEBUG: Orders Service - create method called`, {
-      restaurantId,
-      customerSessionId: dto.customerSessionId,
-      sessionId: dto.sessionId,
-      hasCustomerSessionId: !!dto.customerSessionId,
-      branchId,
-    });
-
     const orderNumber = await this.generateOrderNumber(restaurantId);
     const paymentMethod = dto.paymentMethod ?? 'upi';
 
@@ -125,18 +108,15 @@ export class OrdersService {
     const customerState =
       dto.customerState?.trim() || restaurant.address?.state;
 
-    // Auto-assign customer session ID if missing but table has active session
+    // Find or create a customer session when the order is linked to a table
     let effectiveCustomerSessionId = dto.customerSessionId;
     if (!effectiveCustomerSessionId && dto.tableId) {
-      const activeSession = await this.customerSessionsService.findActiveSessionByTable(dto.tableId);
-      if (activeSession) {
-        effectiveCustomerSessionId = activeSession.sessionId;
-        this.logger.log('🔗 Auto-assigned customer session ID from active session:', {
-          tableId: dto.tableId,
-          sessionId: activeSession.sessionId,
-          orderNumber,
-        });
-      }
+      const session = await this.customerSessionsService.findOrCreateForTable({
+        restaurantId,
+        tableId: dto.tableId,
+        source: 'staff',
+      });
+      effectiveCustomerSessionId = session.sessionId;
     }
 
     // Validate menu item availability
@@ -183,18 +163,6 @@ export class OrdersService {
       notes: item.notes,
     }));
 
-    // Debug logging before order creation
-    this.logger.log(`💾 DEBUG: About to create order with data:`, {
-      restaurantId,
-      branchId,
-      orderNumber,
-      sessionId: dto.sessionId,
-      customerSessionId: effectiveCustomerSessionId,
-      hasCustomerSessionId: !!effectiveCustomerSessionId,
-      tableId: dto.tableId,
-      tableNumber: dto.tableNumber,
-    });
-
     const created = await this.orderModel.create({
       restaurantId,
       branchId,
@@ -219,19 +187,6 @@ export class OrdersService {
       totalAmount: subtotal, // Same as subtotal - no tax here
     });
 
-    console.log('Created Order successfully:', created);
-
-    // Debug logging after order creation
-    this.logger.log(`🎉 DEBUG: Order created in database`, {
-      orderId: created._id.toString(),
-      orderNumber: created.orderNumber,
-      customerSessionId: created.customerSessionId,
-      sessionId: created.sessionId,
-      hasCustomerSessionId: !!created.customerSessionId,
-      tableId: created.tableId,
-      tableNumber: created.tableNumber,
-    });
-
     const response = this.toDto(created);
 
     await this.recordEvent(
@@ -243,10 +198,6 @@ export class OrdersService {
         paymentMethod: response.paymentMethod,
       }
     );
-
-    console.log('Recording order created event completed');
-
-    console.log(created, 'created order');
 
     // DIRECT TABLE STATUS UPDATE: Update table status immediately upon order creation
     if (created.tableId) {
@@ -261,15 +212,11 @@ export class OrdersService {
             createdByName: 'Order System',
           }
         );
-        console.log(
-          `Table status updated for table ${created.tableId} after order creation`
-        );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Failed to update table status for table ${created.tableId}:`,
           error
         );
-        // Don't fail the order creation if table status update fails
       }
     }
 
@@ -292,33 +239,14 @@ export class OrdersService {
       response.paymentIntentUrl = `upi://pay?${params.toString()}`;
     }
 
-    // Create or update receipt document for this table order
-    // if (created.tableId) {
-    //   try {
-    //     await this.receiptDocumentService.createOrUpdateTableReceipt(
-    //       restaurantId,
-    //       created.tableId.toString(),
-    //       created._id.toString()
-    //     );
-    //     console.log(
-    //       `Receipt created/updated for table ${created.tableId} with order ${created._id}`
-    //     );
-    //   } catch (error) {
-    //     console.error(
-    //       `Failed to create receipt for order ${created._id}:`,
-    //       error
-    //     );
-    //     // Don't fail the order creation if receipt fails
-    //   }
-    // }
-
-    // Debug logging final response
-    this.logger.log(`📤 DEBUG: Returning response to client`, {
-      orderId: response.id,
-      orderNumber: response.orderNumber,
-      customerSessionId: response.customerSessionId,
-      hasCustomerSessionId: !!response.customerSessionId,
-    });
+    // Notify session of new order (fire-and-forget — don't block response)
+    if (effectiveCustomerSessionId) {
+      this.customerSessionsService
+        .onOrderPlaced(effectiveCustomerSessionId, created._id.toString())
+        .catch((err) =>
+          this.logger.error('Failed to notify session of order placement:', err)
+        );
+    }
 
     // Cashier gate: if enabled, hold order for cashier approval before kitchen sees it
     if (restaurant.settings?.cashierGateEnabled) {
@@ -390,6 +318,8 @@ export class OrdersService {
     cgstAmount: number;
     sgstAmount: number;
     igstAmount: number;
+    totalVatAmount: number;
+    discountAmount: number;
     roundOffAmount: number;
     totalAmount: number;
     items?: any[];
@@ -446,6 +376,8 @@ export class OrdersService {
       cgstAmount: billCalculation.cgstAmount,
       sgstAmount: billCalculation.sgstAmount,
       igstAmount: billCalculation.igstAmount,
+      totalVatAmount: billCalculation.totalVatAmount ?? 0,
+      discountAmount: billCalculation.discountAmount ?? 0,
       roundOffAmount: billCalculation.roundOffAmount,
       totalAmount: billCalculation.totalAmount,
       items: cartItems,
@@ -715,43 +647,21 @@ export class OrdersService {
             createdByName: 'Order System',
           }
         );
-        console.log(
-          `Table status updated for table ${updated.tableId} after order ${updated.status}`
-        );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Failed to update table status for order ${response.orderNumber}:`,
           error
         );
-        // Don't fail the order update if table status update fails
       }
     }
 
-    // Handle customer session events
-    if (updated.customerSessionId) {
-      try {
-        if (updated.status === OrderStatus.Cancelled) {
-          // Notify session service about order cancellation
-          const response = await fetch(
-            `http://localhost:3000/customer-sessions/${updated.customerSessionId}/events/order-cancelled`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderId: updated._id.toString() }),
-            }
-          );
-
-          if (!response.ok) {
-            console.error(`Failed to notify session of order cancellation: ${response.status}`);
-          }
-        }
-      } catch (error) {
-        console.error(
-          `Failed to notify session ${updated.customerSessionId} of order cancellation:`,
-          error
+    // Notify session of order cancellation
+    if (updated.customerSessionId && updated.status === OrderStatus.Cancelled) {
+      this.customerSessionsService
+        .onOrderCancelled(updated.customerSessionId, updated._id.toString())
+        .catch((err) =>
+          this.logger.error('Failed to notify session of order cancellation:', err)
         );
-        // Don't fail the order update if session update fails
-      }
     }
 
     this.ordersGateway.emitOrderUpdated(response);
@@ -766,16 +676,8 @@ export class OrdersService {
     updatedBy?: string,
     skipNotification: boolean = false
   ): Promise<OrderResponseDto> {
-    console.log('=== PAYMENT UPDATE SERVICE ===');
-    console.log('Restaurant ID:', restaurantId);
-    console.log('Order ID:', orderId);
-    console.log('Payment DTO:', JSON.stringify(dto, null, 2));
-    console.log('Updated By (user ID):', updatedBy);
-    console.log('Updated By type:', typeof updatedBy);
-    console.log('Updated By is truthy:', !!updatedBy);
-
     this.logger.log(
-      `Updating payment for order ${orderId} by user: ${updatedBy || 'unknown'}`
+      `Updating payment for order ${orderId} by user: ${updatedBy ?? 'unknown'}`
     );
 
     // Validate inputs
@@ -877,23 +779,15 @@ export class OrdersService {
         // Don't fail the payment update if notification fails
       }
 
-      // Check if session should be closed after this payment (for staff payments)
-      if (updated.customerSessionId && updated.tableId) {
-        try {
-          // Create a temporary sessionOrderId for consistency with webhook flow
-          const sessionOrderId = `manual_${updated.tableId.toString()}_${Date.now()}`;
-          await this.handleSessionCompletion(updated, sessionOrderId);
-
-          this.logger.log('✅ Session completion handled for staff payment:', {
-            orderId: updated._id.toString(),
-            orderNumber: updated.orderNumber,
-            customerSessionId: updated.customerSessionId,
-          });
-        } catch (sessionError) {
-          this.logger.error(
-            `Failed to handle session completion for staff payment ${updated.orderNumber}:`,
-            sessionError
-          );
+      // Notify session of payment (fire-and-forget)
+      if (updated.customerSessionId) {
+        this.customerSessionsService
+          .onOrderPaid(updated.customerSessionId, updated._id.toString())
+          .catch((err) =>
+            this.logger.error(
+              `Failed to notify session of payment for order ${updated.orderNumber}:`,
+              err
+          ));
           // Don't fail the payment update if session completion fails
         }
       }
@@ -904,11 +798,6 @@ export class OrdersService {
 
         // Auto-create or update receipt document for paid orders
         try {
-          console.log('=== AUTO-RECEIPT CREATION/UPDATE ===');
-          console.log('Processing paid order:', updated._id.toString());
-          console.log('Table ID:', updated.tableId);
-          console.log('Session ID:', updated.sessionId);
-
           // Check if this order already has a receipt
           const existingOrderReceipt =
             await this.receiptDocumentService.findByOrderId(
@@ -916,10 +805,6 @@ export class OrdersService {
             );
 
           if (existingOrderReceipt) {
-            console.log(
-              'Order already has receipt:',
-              existingOrderReceipt.receiptNumber
-            );
             return; // Skip if this order is already in a receipt
           }
 
@@ -927,23 +812,13 @@ export class OrdersService {
           let targetReceipt = null;
 
           if (updated.tableId) {
-            // Look for existing receipt from the same table that's still active
-            console.log('Searching for existing table receipt...');
-            targetReceipt =
-              await this.receiptDocumentService.findActiveTableReceipt(
-                restaurantId,
-                updated.tableId.toString()
-              );
-            console.log('Found existing table receipt:', !!targetReceipt);
+            targetReceipt = await this.receiptDocumentService.findActiveTableReceipt(
+              restaurantId,
+              updated.tableId.toString()
+            );
           }
 
           if (targetReceipt) {
-            // Add this order to existing receipt
-            console.log(
-              'Adding order to existing receipt:',
-              targetReceipt.receiptNumber
-            );
-
             await this.receiptDocumentService.addOrderToReceipt(
               targetReceipt._id.toString(),
               updated._id.toString(),
@@ -954,48 +829,27 @@ export class OrdersService {
               `Added order ${updated._id} to existing receipt ${targetReceipt.receiptNumber}`
             );
           } else {
-            // Create new receipt for this table/session
-            console.log('Creating new receipt with params:');
-            console.log('- Restaurant ID:', restaurantId);
-            console.log('- Order IDs:', [updated._id.toString()]);
-            console.log('- Payment Method:', updated.paymentMethod || 'cash');
-            console.log('- Payment Provider:', updated.paymentProvider);
-            console.log('- Transaction ID:', updated.paymentTransactionId);
-            console.log('- Updated By (User ID):', updatedBy);
-
             this.logger.log(
               `Auto-creating receipt document for paid order ${
                 updated._id
               } by user: ${updatedBy || 'unknown'}`
             );
 
-            const createdReceipt =
-              await this.receiptDocumentService.createReceiptDocument(
-                restaurantId,
-                [updated._id.toString()],
-                updated.paymentMethod || 'cash',
-                updated.paymentProvider,
-                updated.paymentTransactionId,
-                updatedBy
-              );
-
-            console.log(
-              'Receipt creation result:',
-              createdReceipt ? 'SUCCESS' : 'FAILED'
+            await this.receiptDocumentService.createReceiptDocument(
+              restaurantId,
+              [updated._id.toString()],
+              updated.paymentMethod || 'cash',
+              updated.paymentProvider,
+              updated.paymentTransactionId,
+              updatedBy
             );
+
             this.logger.log(
               `Receipt document created successfully for order ${updated._id}`
             );
           }
 
-          console.log('=== END RECEIPT CREATION/UPDATE LOG ===');
         } catch (error) {
-          console.log('=== RECEIPT CREATION ERROR ===');
-          console.log('Error details:', error);
-          console.log('Error message:', error.message);
-          console.log('Error stack:', error.stack);
-          console.log('=== END ERROR LOG ===');
-
           this.logger.error(
             `Failed to auto-create receipt document for order ${updated._id}:`,
             error
@@ -1024,7 +878,7 @@ export class OrdersService {
           updated = finalUpdate;
         }
       }
-    }
+    
 
     const response = this.toDto(updated);
     await this.recordEvent(orderId, restaurantId, 'order.payment.updated', {
@@ -1034,94 +888,6 @@ export class OrdersService {
       taxInvoiceNumber: response.taxInvoiceNumber,
       updatedBy: updatedBy || null,
     });
-
-    // CUSTOMER SESSION AUTO-CLOSE LOGIC - Skip if notification is disabled (e.g., during batch processing)
-    if (updated.tableId && dto.paymentStatus === PaymentStatus.Paid && !skipNotification) {
-      try {
-        console.log('=== AUTO-CLOSE SESSION CHECK ===');
-        console.log(
-          'Checking if all table orders are paid for tableId:',
-          updated.tableId.toString()
-        );
-
-        // Check if all orders for this table are now paid
-        const tableOrders = await this.orderModel
-          .find({
-            restaurantId: updated.restaurantId,
-            tableId: updated.tableId,
-            status: { $ne: OrderStatus.Cancelled }, // Exclude cancelled orders
-          })
-          .lean();
-
-        console.log('Found table orders:', tableOrders.length);
-
-        const unpaidOrders = tableOrders.filter(
-          (order) => order.paymentStatus !== PaymentStatus.Paid
-        );
-
-        console.log('Unpaid orders remaining:', unpaidOrders.length);
-
-        if (unpaidOrders.length === 0 && tableOrders.length > 0) {
-          // All orders are paid - archive customer session
-          console.log(
-            '🎯 All orders paid! Archiving customer session for table:',
-            updated.tableId.toString()
-          );
-
-          try {
-            // Find the customer session for this table/order
-            let sessionId = null;
-
-            // Check if any order has sessionId (from customer orders)
-            const sessionOrder = tableOrders.find(order => order.sessionId);
-            if (sessionOrder) {
-              sessionId = sessionOrder.sessionId;
-            }
-
-            if (sessionId) {
-              // Calculate total amount for all paid orders
-              const totalAmount = tableOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-              const orderIds = tableOrders.map(order => order._id.toString());
-
-              // Archive the session
-              await this.customerSessionsService.archiveSession(
-                sessionId,
-                orderIds,
-                totalAmount,
-                'paid'
-              );
-
-              console.log(`✅ Session ${sessionId} archived successfully with ${orderIds.length} orders`);
-              this.logger.log(
-                `Customer session ${sessionId} archived for table ${updated.tableId} - all orders paid (${orderIds.length} orders, total: ${totalAmount})`
-              );
-            } else {
-              console.log('No session ID found in orders - likely staff order, skipping session archival');
-            }
-
-          } catch (sessionError) {
-            console.log('Session archival failed:', sessionError);
-            this.logger.error(
-              `Failed to archive session for table ${updated.tableId}:`,
-              sessionError
-            );
-            // Don't throw - payment already succeeded
-          }
-        } else {
-          console.log('Session remains active - unpaid orders still exist');
-        }
-
-        console.log('=== END SESSION CHECK ===');
-      } catch (error) {
-        console.log('=== SESSION AUTO-CLOSE ERROR ===');
-        console.log('Error:', error);
-        this.logger.error(
-          `Failed to auto-close session for table ${updated.tableId}:`,
-          error
-        );
-        // Don't throw - this is a nice-to-have feature
-      }
-    }
 
     // DIRECT TABLE STATUS UPDATE: Update table status when payment is completed
     if (
@@ -1134,19 +900,13 @@ export class OrdersService {
           restaurantId,
           updated.tableId.toString(),
           'order-completed',
-          {
-            createdByName: 'Order System',
-          }
-        );
-        console.log(
-          `Table status updated for table ${updated.tableId} after payment completion`
+          { createdByName: 'Order System' }
         );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Failed to update table status for table ${updated.tableId}:`,
           error
         );
-        // Don't fail the payment update if table status update fails
       }
     }
 
@@ -1712,121 +1472,19 @@ export class OrdersService {
         `Cashfree session payment processed: ${processedCount} orders marked as paid`
       );
 
-      // Handle session completion after all orders are processed
+      // Notify session of payment after all orders are processed
       if (processedCount > 0 && orders.length > 0) {
         const firstOrder = orders[0];
-        await this.handleSessionCompletion(firstOrder, sessionOrderId);
+        if (firstOrder.customerSessionId) {
+          this.customerSessionsService
+            .onOrderPaid(firstOrder.customerSessionId, firstOrder._id.toString())
+            .catch((err) =>
+              this.logger.error('Failed to notify session of Cashfree payment:', err)
+            );
+        }
       }
     } catch (error) {
       this.logger.error('Failed to handle Cashfree session payment:', error);
-    }
-  }
-
-  private async handleSessionCompletion(order: any, sessionOrderId: string): Promise<void> {
-    const sessionCompletionId = `SESSION_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    this.logger.log('🏁 SESSION COMPLETION HANDLER STARTED:', {
-      sessionCompletionId,
-      tableId: order.tableId?.toString(),
-      restaurantId: order.restaurantId?.toString(),
-      sessionOrderId,
-      timestamp: new Date().toISOString()
-    });
-
-    try {
-      // Check if all orders for this customer session are paid
-      const tableOrders = await this.orderModel
-        .find({
-          restaurantId: order.restaurantId,
-          customerSessionId: order.customerSessionId,
-          status: { $nin: [OrderStatus.Cancelled] }  // Include completed orders, exclude only cancelled
-        })
-        .lean();
-
-      const unpaidOrders = tableOrders.filter(
-        (tableOrder) => tableOrder.paymentStatus !== PaymentStatus.Paid
-      );
-
-      this.logger.log('📊 SESSION COMPLETION CHECK:', {
-        sessionCompletionId,
-        tableId: order.tableId?.toString(),
-        totalOrders: tableOrders.length,
-        unpaidOrders: unpaidOrders.length,
-        sessionComplete: unpaidOrders.length === 0
-      });
-
-      if (unpaidOrders.length === 0 && tableOrders.length > 0) {
-        this.logger.log('🎯 All orders paid! Auto-closing customer session for table:', order.tableId?.toString());
-
-        // Mark session as closed
-        await this.orderModel.updateMany(
-          {
-            restaurantId: order.restaurantId,
-            tableId: order.tableId,
-          },
-          {
-            $set: { sessionClosed: true, sessionClosedAt: new Date() },
-          }
-        );
-
-        // Close the customer session to prevent reuse in new orders
-        if (order.customerSessionId) {
-          // Calculate payment totals from all orders in the session
-          const totalPaidAmount = tableOrders
-            .filter(tableOrder => tableOrder.paymentStatus === PaymentStatus.Paid)
-            .reduce((sum, tableOrder) => sum + tableOrder.totalAmount, 0);
-
-          const totalPendingAmount = tableOrders
-            .filter(tableOrder => tableOrder.paymentStatus !== PaymentStatus.Paid)
-            .reduce((sum, tableOrder) => sum + tableOrder.totalAmount, 0);
-
-          const allOrdersPaid = unpaidOrders.length === 0 && tableOrders.length > 0;
-
-          await this.customerSessionModel.findOneAndUpdate(
-            { sessionId: order.customerSessionId },
-            {
-              $set: {
-                status: SessionStatus.CLOSED,
-                closedAt: new Date(),
-                closureReason: SessionClosureReason.PAYMENT_COMPLETED,
-                closureDescription: 'Session automatically closed after payment completion',
-                paidAmount: totalPaidAmount,
-                pendingAmount: totalPendingAmount,
-                allOrdersPaid: allOrdersPaid,
-              },
-            }
-          );
-
-          this.logger.log('✅ Customer session closed after payment:', {
-            sessionCompletionId,
-            customerSessionId: order.customerSessionId,
-            closureReason: SessionClosureReason.PAYMENT_COMPLETED,
-            totalPaidAmount,
-            totalPendingAmount,
-            allOrdersPaid,
-          });
-        }
-
-        // Update table status
-        if (order.tableId) {
-          await this.tableStatusService.updateTableStatusFromOrder(
-            order.restaurantId.toString(),
-            order.tableId.toString(),
-            'order-completed',
-            {
-              createdByName: 'Order System',
-            }
-          );
-        }
-
-        this.logger.log(`Customer session auto-closed for table ${order.tableId} - all orders paid`);
-      }
-    } catch (error) {
-      this.logger.error('Failed to handle session completion:', {
-        sessionCompletionId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
     }
   }
 

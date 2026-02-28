@@ -51,7 +51,6 @@ import { MenuModifiersModule } from '../menu-modifiers/menu-modifiers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CustomerSessionsModule } from '../customer-sessions/customer-sessions.module';
 import { BillingModule } from '../billing/billing.module';
-import { CustomerSession, CustomerSessionSchema } from '../customer-sessions/schemas/customer-session.schema';
 import { PublicModule } from '../public/public.module';
 
 @Module({
@@ -88,7 +87,6 @@ import { PublicModule } from '../public/public.module';
       { name: OrderModification.name, schema: OrderModificationSchema },
       { name: ReceiptDocument.name, schema: ReceiptDocumentSchema },
       { name: User.name, schema: UserSchema },
-      { name: CustomerSession.name, schema: CustomerSessionSchema },
     ]),
   ],
   controllers: [

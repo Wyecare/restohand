@@ -6,8 +6,8 @@ import {
   IsNumber,
   IsBoolean,
   IsDateString,
-  IsUUID,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   SessionStatus,
   SessionClosureReason,
@@ -103,7 +103,6 @@ export class CustomerSessionResponseDto {
   @ApiPropertyOptional()
   lastActivityAt?: string;
 
-  // Session aggregation (basic fields only - detailed billing calculated dynamically)
   @ApiProperty()
   subTotalAmount!: number;
 
@@ -123,32 +122,6 @@ export class CustomerSessionResponseDto {
   updatedAt!: string;
 }
 
-// Note: This DTO is deprecated - billing calculations are now handled by the BillCalculatorService
-// and returned with full tax breakdown. This DTO is kept for backward compatibility but should
-// be replaced with BillCalculation interface from the billing module.
-export class SessionBillCalculationDto {
-  @ApiProperty()
-  sessionId!: string;
-
-  @ApiProperty()
-  subTotalAmount!: number;
-
-  @ApiProperty()
-  totalAmount!: number;
-
-  @ApiProperty()
-  paidAmount!: number;
-
-  @ApiProperty()
-  pendingAmount!: number;
-
-  @ApiProperty({ type: 'array', items: { type: 'string' } })
-  orderIds!: string[];
-
-  @ApiProperty()
-  calculatedAt!: string;
-}
-
 export class FindSessionsQueryDto {
   @ApiPropertyOptional({ enum: SessionStatus })
   @IsOptional()
@@ -157,6 +130,7 @@ export class FindSessionsQueryDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Type(() => Boolean)
   @IsBoolean()
   returnEmpty?: boolean;
 
@@ -187,11 +161,30 @@ export class FindSessionsQueryDto {
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
-  page?: number | string;
+  page?: number;
 
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
-  limit?: number | string;
+  limit?: number;
+}
+
+export class GhostSessionResponseDto {
+  @ApiProperty()
+  sessionId!: string;
+
+  @ApiProperty()
+  tableId!: string;
+
+  @ApiProperty()
+  tableNumber!: string;
+
+  @ApiProperty()
+  createdAt!: string;
+
+  @ApiPropertyOptional()
+  lastActivityAt?: string;
 }

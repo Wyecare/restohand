@@ -14,7 +14,6 @@ import {
   useCreateCustomerSessionMutation,
   useUpdateSessionActivityMutation,
   useGetActiveSessionByTableQuery,
-  useOnOrderPlacedMutation,
   useGetCustomerSessionQuery,
 } from '@/store/api/customerSessionsApi';
 import { useAddItemsToOrderMutation } from '@/store/api/ordersApi';
@@ -1110,7 +1109,6 @@ export default function CustomerMenuPageNew() {
   // Session management
   const [createCustomerSession] = useCreateCustomerSessionMutation();
   const [updateSessionActivity] = useUpdateSessionActivityMutation();
-  const [onOrderPlaced] = useOnOrderPlacedMutation();
 
   const [currentSession, setCurrentSession] = useState<{
     sessionId: string;
@@ -1608,19 +1606,6 @@ export default function CustomerMenuPageNew() {
           description: `${cartItemCount} items added to order #${activeOrderFromAPI.orderNumber}`,
         });
 
-        if (currentSession?.sessionId) {
-          try {
-            await onOrderPlaced({
-              sessionId: currentSession.sessionId,
-              orderId: activeOrderFromAPI.id,
-            });
-          } catch (error) {
-            console.error(
-              'Failed to notify session about order update:',
-              error
-            );
-          }
-        }
       } else {
         if (!currentSession) {
           toast({
@@ -1644,19 +1629,6 @@ export default function CustomerMenuPageNew() {
           description: `Order #${result.orderNumber} sent to kitchen`,
         });
 
-        if (currentSession?.sessionId) {
-          try {
-            await onOrderPlaced({
-              sessionId: currentSession.sessionId,
-              orderId: result.id,
-            });
-          } catch (error) {
-            console.error(
-              'Failed to notify session about order placement:',
-              error
-            );
-          }
-        }
 
         dispatch(clearCart());
         navigate(`/c/${slug}/session/${currentSession.sessionId}`);

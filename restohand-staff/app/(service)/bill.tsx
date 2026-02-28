@@ -217,14 +217,14 @@ Powered by RestoHand
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={shareBill} style={styles.actionButton}>
-            <Ionicons name="share" size={24} color="#2563eb" />
+            <Ionicons name="share" size={24} color="#4910bc" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={generatePDF}
             style={styles.actionButton}
             disabled={isGeneratingPDF}
           >
-            <Ionicons name="download" size={24} color="#2563eb" />
+            <Ionicons name="download" size={24} color="#4910bc" />
           </TouchableOpacity>
         </View>
       </View>
@@ -430,7 +430,7 @@ Powered by RestoHand
             onPress={generatePDF}
             disabled={isGeneratingPDF}
           >
-            <Ionicons name="download" size={20} color="#2563eb" />
+            <Ionicons name="download" size={20} color="#4910bc" />
             <Text style={styles.secondaryButtonText}>
               {isGeneratingPDF ? 'Generating...' : 'Download Bill'}
             </Text>
@@ -477,6 +477,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 8,
+    borderRadius: 8,
   },
   content: {
     flex: 1,
@@ -667,7 +668,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primaryButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#4910bc',
   },
   primaryButtonText: {
     color: '#ffffff',
@@ -677,10 +678,10 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: '#ffffff',
     borderWidth: 2,
-    borderColor: '#2563eb',
+    borderColor: '#4910bc',
   },
   secondaryButtonText: {
-    color: '#2563eb',
+    color: '#4910bc',
     fontSize: 16,
     fontWeight: '600',
   },

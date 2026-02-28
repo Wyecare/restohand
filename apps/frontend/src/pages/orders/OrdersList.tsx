@@ -48,9 +48,6 @@ import {
   useListOrdersByBranchQuery,
   useUpdateOrderStatusMutation,
 } from '@/store/api/ordersApi';
-import {
-  useOnOrderCancelledMutation,
-} from '@/store/api/customerSessionsApi';
 import { useAppSelector } from '@/store/hooks';
 import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { skipToken } from '@reduxjs/toolkit/query';
@@ -105,7 +102,6 @@ export default function OrdersPage() {
 
   const { data, isLoading, refetch } = useListOrdersByBranchQuery(queryArgs);
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
-  const [onOrderCancelled] = useOnOrderCancelledMutation();
 
   useOrdersSocket({ onEvent: refetch, enabled: !!restaurantId });
 
@@ -164,19 +160,6 @@ export default function OrdersPage() {
         status: 'cancelled',
         statusNote: 'Cancelled by staff',
       }).unwrap();
-
-      // Notify session service about the cancellation if this is a customer session order
-      if (order.customerSessionId) {
-        try {
-          await onOrderCancelled({
-            sessionId: order.customerSessionId,
-            orderId: order.id,
-          }).unwrap();
-        } catch (sessionError) {
-          // Session might have been deleted, but that's okay
-          console.log('Session event handling completed (session may have been deleted)');
-        }
-      }
 
       toast({ title: 'Order cancelled' });
     } catch (error) {

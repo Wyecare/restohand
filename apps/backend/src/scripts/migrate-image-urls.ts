@@ -31,29 +31,30 @@ if (!BUCKET) throw new Error('FIREBASE_STORAGE_BUCKET is required');
 const GCS_ROOT = 'https://storage.googleapis.com/';
 
 /**
- * Convert any GCS signed URL to a permanent public URL.
- * Detects signed URLs by the presence of ?GoogleAccessId= query param.
- * Returns null if the URL is already a permanent URL (skip it).
+ * Convert any GCS signed URL or previously-encoded URL to a clean permanent public URL.
+ * Returns null if the URL is already correct (no changes needed).
  */
 function toPublicUrl(url: string): string | null {
   if (!url || !url.startsWith(GCS_ROOT)) return null;
 
-  // Not a signed URL — already permanent, skip
-  if (!url.includes('?GoogleAccessId=') && !url.includes('&GoogleAccessId=')) return null;
+  const isSigned = url.includes('?GoogleAccessId=') || url.includes('&GoogleAccessId=');
+  const isEncoded = url.includes('%2F'); // from previous migration run with encodeURIComponent
 
-  // Strip everything from ? onwards
+  if (!isSigned && !isEncoded) return null; // already a clean permanent URL
+
+  // Strip query string if present
   const withoutQuery = url.split('?')[0];
 
-  // Extract bucket and path: storage.googleapis.com/BUCKET/path/to/file
-  const afterRoot = withoutQuery.slice(GCS_ROOT.length); // e.g. "restohand-p-firebase/restaurants/..."
+  // Extract bucket and raw path
+  const afterRoot = withoutQuery.slice(GCS_ROOT.length);
   const slashIdx = afterRoot.indexOf('/');
   if (slashIdx === -1) return null;
 
   const bucket = afterRoot.slice(0, slashIdx);
-  const rawPath = afterRoot.slice(slashIdx + 1); // e.g. "restaurants/id/menu-items/id/file.jpg"
+  // Decode any %2F encoding so we get plain forward-slash path
+  const objectPath = decodeURIComponent(afterRoot.slice(slashIdx + 1));
 
-  // Build permanent URL: bucket stays in the path, object path gets encoded
-  return `${GCS_ROOT}${bucket}/${encodeURIComponent(rawPath)}`;
+  return `${GCS_ROOT}${bucket}/${objectPath}`;
 }
 
 async function migrate() {

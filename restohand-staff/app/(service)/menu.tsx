@@ -1,4 +1,3 @@
-import { Colors } from '@/constants/theme';
 import {
   useGetPublicMenuWithAvailabilityQuery,
   useUpdateMenuItemMutation,
@@ -7,12 +6,10 @@ import {
   useCreateOrderMutation,
   useUpdateOrderStatusMutation,
   useCalculateCartTotalMutation,
-  useGetOrCreateSessionMutation,
 } from '@/store/api/ordersApi';
 import {
   useGetSessionQuery,
   useGetSessionWithBillQuery,
-  useOnOrderPlacedMutation,
 } from '@/store/api/customerSessionsApi';
 import {
   useGetRestaurantQuery,
@@ -36,7 +33,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 
@@ -70,10 +66,6 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 export default function ServiceMenuScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
-
   const { tableId, restaurant_slug, sessionId, isNewSession } =
     useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
@@ -126,8 +118,6 @@ export default function ServiceMenuScreen() {
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateMenuItem] = useUpdateMenuItemMutation();
   const [calculateCartTotal] = useCalculateCartTotalMutation();
-  const [getOrCreateSession] = useGetOrCreateSessionMutation();
-  const [onOrderPlaced] = useOnOrderPlacedMutation();
 
   // Component state
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -476,14 +466,6 @@ export default function ServiceMenuScreen() {
 
     setIsPlacingOrder(true);
     try {
-      // Use the existing sessionId from params - no need to create new session
-      console.log('🔄 DEBUG: Using existing session...', {
-        sessionId: sessionId,
-        restaurantId: restaurant.id,
-        tableId: selectedTable?.id,
-        tableName: selectedTable?.tableNumber,
-      });
-
       const payload = {
         restaurantId: restaurant.id,
         customerSessionId: sessionId as string,
@@ -502,37 +484,7 @@ export default function ServiceMenuScreen() {
         })),
       };
 
-      console.log('📦 DEBUG: Order payload with session:', {
-        customerSessionId: payload.customerSessionId,
-        tableId: payload.tableId,
-        itemCount: payload.items.length,
-      });
-
       const order = await createOrder(payload).unwrap();
-
-      console.log('✅ DEBUG: Order created:', {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        customerSessionId: order.customerSessionId,
-        hasCustomerSessionId: !!order.customerSessionId,
-      });
-
-      // Notify session about order placement to update session totals
-      if (sessionId && order.id) {
-        try {
-          await onOrderPlaced({
-            sessionId: sessionId as string,
-            orderId: order.id,
-          });
-          console.log('✅ DEBUG: Session notified about order placement');
-        } catch (error) {
-          console.error(
-            '❌ DEBUG: Failed to notify session about order:',
-            error
-          );
-          // Don't throw - order was created successfully, session notification is secondary
-        }
-      }
 
       setCart({});
       setCalculatedCart(null);
@@ -765,14 +717,14 @@ export default function ServiceMenuScreen() {
   if (isLoading) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
+        style={styles.container}
       >
         <View
           style={[
             styles.header,
             {
-              backgroundColor: theme.background,
-              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+              backgroundColor: '#FFFFFF',
+              borderBottomColor: '#e5e7eb',
             },
           ]}
         >
@@ -780,16 +732,16 @@ export default function ServiceMenuScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
+            <Ionicons name="arrow-back" size={24} color='#0F172A' />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={[styles.title, { color: theme.text }]}>
+            <Text style={[styles.title, { color: '#0F172A' }]}>
               Loading Menu...
             </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.brand} />
+          <ActivityIndicator size="large" color='#4910bc' />
         </View>
       </SafeAreaView>
     );
@@ -798,14 +750,14 @@ export default function ServiceMenuScreen() {
   if (isError || !restaurant) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
+        style={styles.container}
       >
         <View
           style={[
             styles.header,
             {
-              backgroundColor: theme.background,
-              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+              backgroundColor: '#FFFFFF',
+              borderBottomColor: '#e5e7eb',
             },
           ]}
         >
@@ -813,16 +765,16 @@ export default function ServiceMenuScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
+            <Ionicons name="arrow-back" size={24} color='#0F172A' />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={[styles.title, { color: theme.text }]}>
+            <Text style={[styles.title, { color: '#0F172A' }]}>
               Menu Not Available
             </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.emptyText, { color: theme.icon }]}>
+          <Text style={[styles.emptyText, { color: '#64748B' }]}>
             Unable to load the menu. Please try again.
           </Text>
         </View>
@@ -871,26 +823,20 @@ export default function ServiceMenuScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={styles.container}
     >
       {/* Header */}
       <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: theme.background,
-            borderBottomColor: isDark ? '#374151' : '#e5e7eb',
-          },
-        ]}
+        style={styles.header}
       >
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
+          <Ionicons name="arrow-back" size={24} color='#0F172A' />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.title, { color: theme.text }]}>
+          <Text style={[styles.title, { color: '#0F172A' }]}>
             {tableNumber}
           </Text>
           <View style={styles.tableInfo}>
@@ -899,7 +845,7 @@ export default function ServiceMenuScreen() {
                 name={sessionDisplayInfo.isNewSession ? 'add-circle' : 'time'}
                 size={12}
                 color={
-                  sessionDisplayInfo.isNewSession ? theme.brand : theme.icon
+                  sessionDisplayInfo.isNewSession ? '#4910bc' : '#64748B'
                 }
               />
               <Text
@@ -907,8 +853,8 @@ export default function ServiceMenuScreen() {
                   styles.sessionText,
                   {
                     color: sessionDisplayInfo.isNewSession
-                      ? theme.brand
-                      : theme.icon,
+                      ? '#4910bc'
+                      : '#64748B',
                     fontWeight: sessionDisplayInfo.isNewSession ? '600' : '500',
                   },
                 ]}
@@ -916,7 +862,7 @@ export default function ServiceMenuScreen() {
                 {sessionDisplayInfo.sessionInfo}
               </Text>
               {sessionDisplayInfo.orderCount > 0 && (
-                <Text style={[styles.orderCountText, { color: theme.icon }]}>
+                <Text style={[styles.orderCountText, { color: '#64748B' }]}>
                   • {sessionDisplayInfo.orderCount} orders
                 </Text>
               )}
@@ -924,16 +870,16 @@ export default function ServiceMenuScreen() {
             <View style={styles.tableMetaRow}>
               {selectedTable?.capacity && (
                 <View style={styles.tableCapacityInfo}>
-                  <Ionicons name="people" size={12} color={theme.icon} />
+                  <Ionicons name="people" size={12} color='#64748B' />
                   <Text
-                    style={[styles.tableCapacityText, { color: theme.icon }]}
+                    style={[styles.tableCapacityText, { color: '#64748B' }]}
                   >
                     {selectedTable.capacity} seats
                   </Text>
                 </View>
               )}
               {selectedTable?.zone && (
-                <Text style={[styles.tableZoneText, { color: theme.icon }]}>
+                <Text style={[styles.tableZoneText, { color: '#64748B' }]}>
                   • {selectedTable.zone}
                 </Text>
               )}
@@ -942,25 +888,21 @@ export default function ServiceMenuScreen() {
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[
-              styles.iconButton,
-              { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
-            ]}
+            style={
+              styles.iconButton}
             onPress={handleRefresh}
           >
-            <Ionicons name="refresh" size={20} color={theme.text} />
+            <Ionicons name="refresh" size={20} color='#0F172A' />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[
-              styles.iconButton,
-              { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
-            ]}
+            style={
+              styles.iconButton}
             onPress={() => setShowSearch(!showSearch)}
           >
             <Ionicons
               name={showSearch ? 'close' : 'search'}
               size={20}
-              color={theme.text}
+              color='#0F172A'
             />
           </TouchableOpacity>
         </View>
@@ -972,8 +914,8 @@ export default function ServiceMenuScreen() {
           style={[
             styles.existingOrderAlert,
             {
-              backgroundColor: isDark ? '#1E3A8A' : '#dbeafe',
-              borderColor: theme.brand,
+              backgroundColor: '#dbeafe',
+              borderColor: '#4910bc',
             },
           ]}
         >
@@ -982,7 +924,7 @@ export default function ServiceMenuScreen() {
               <Text
                 style={[
                   styles.existingOrderTitle,
-                  { color: isDark ? '#93C5FD' : '#1e40af' },
+                  { color: '#1e40af' },
                 ]}
               >
                 {activeExistingOrders.length === 1
@@ -1001,21 +943,21 @@ export default function ServiceMenuScreen() {
                   style={[
                     styles.orderRow,
                     {
-                      backgroundColor: isDark ? '#1F2937' : '#f8fafc',
-                      borderLeftColor: theme.brand,
+                      backgroundColor: '#f8fafc',
+                      borderLeftColor: '#4910bc',
                     },
                   ]}
                 >
                   <View style={styles.orderInfo}>
-                    <Text style={[styles.orderNumber, { color: theme.text }]}>
+                    <Text style={[styles.orderNumber, { color: '#0F172A' }]}>
                       #{order.orderNumber}
                     </Text>
                     <View style={styles.existingOrderMeta}>
-                      <Ionicons name="time" size={10} color={theme.brand} />
+                      <Ionicons name="time" size={10} color='#4910bc' />
                       <Text
                         style={[
                           styles.existingOrderStatus,
-                          { color: theme.brand },
+                          { color: '#4910bc' },
                         ]}
                       >
                         {order.status.replace('_', ' ')}
@@ -1044,7 +986,7 @@ export default function ServiceMenuScreen() {
                         <TouchableOpacity
                           style={[
                             styles.individualStatusButton,
-                            { backgroundColor: theme.brand },
+                            { backgroundColor: '#4910bc' },
                           ]}
                           onPress={() => handleUpdateStatusAction(order)}
                         >
@@ -1059,7 +1001,7 @@ export default function ServiceMenuScreen() {
 
             {activeExistingOrders.some((order) => order.status === 'ready') && (
               <TouchableOpacity
-                style={[styles.paymentButton, { backgroundColor: theme.brand }]}
+                style={[styles.paymentButton, { backgroundColor: '#4910bc' }]}
                 onPress={handlePaymentAction}
               >
                 <Ionicons name="card" size={16} color="#ffffff" />
@@ -1078,28 +1020,26 @@ export default function ServiceMenuScreen() {
           style={[
             styles.searchContainer,
             {
-              backgroundColor: theme.background,
-              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+              backgroundColor: '#FFFFFF',
+              borderBottomColor: '#e5e7eb',
             },
           ]}
         >
           <View
-            style={[
-              styles.searchInputContainer,
-              { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
-            ]}
+            style={
+              styles.searchInputContainer}
           >
-            <Ionicons name="search" size={16} color={theme.icon} />
+            <Ionicons name="search" size={16} color='#64748B' />
             <TextInput
-              style={[styles.searchInput, { color: theme.text }]}
+              style={[styles.searchInput, { color: '#0F172A' }]}
               placeholder="Search menu..."
-              placeholderTextColor={theme.icon}
+              placeholderTextColor={'#64748B'}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close" size={16} color={theme.icon} />
+                <Ionicons name="close" size={16} color='#64748B' />
               </TouchableOpacity>
             )}
           </View>
@@ -1111,8 +1051,8 @@ export default function ServiceMenuScreen() {
         style={[
           styles.categoryContainer,
           {
-            backgroundColor: theme.background,
-            borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+            backgroundColor: '#FFFFFF',
+            borderBottomColor: '#e5e7eb',
           },
         ]}
       >
@@ -1128,17 +1068,9 @@ export default function ServiceMenuScreen() {
                 styles.categoryPill,
                 {
                   backgroundColor:
-                    activeCategory === category.id
-                      ? theme.brand
-                      : isDark
-                      ? '#374151'
-                      : '#f3f4f6',
+                    activeCategory === category.id ? '#4910bc' : '#f3f4f6',
                   borderColor:
-                    activeCategory === category.id
-                      ? theme.brand
-                      : isDark
-                      ? '#4B5563'
-                      : '#e5e7eb',
+                    activeCategory === category.id ? '#4910bc' : '#e5e7eb',
                 },
               ]}
               onPress={() => setActiveCategory(category.id)}
@@ -1149,7 +1081,7 @@ export default function ServiceMenuScreen() {
                   styles.categoryText,
                   {
                     color:
-                      activeCategory === category.id ? '#ffffff' : theme.text,
+                      activeCategory === category.id ? '#ffffff' : '#0F172A',
                   },
                 ]}
               >
@@ -1165,23 +1097,21 @@ export default function ServiceMenuScreen() {
         {displayItems.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+            <Text style={[styles.emptyTitle, { color: '#0F172A' }]}>
               No items found
             </Text>
-            <Text style={[styles.emptyText, { color: theme.icon }]}>
+            <Text style={[styles.emptyText, { color: '#64748B' }]}>
               Try adjusting your search
             </Text>
             <TouchableOpacity
-              style={[
-                styles.clearFiltersButton,
-                { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
-              ]}
+              style={
+                styles.clearFiltersButton}
               onPress={() => {
                 setSearchQuery('');
                 setActiveCategory('all');
               }}
             >
-              <Text style={[styles.clearFiltersText, { color: theme.text }]}>
+              <Text style={[styles.clearFiltersText, { color: '#0F172A' }]}>
                 Clear filters
               </Text>
             </TouchableOpacity>
@@ -1196,8 +1126,8 @@ export default function ServiceMenuScreen() {
                   style={[
                     styles.menuItemCard,
                     {
-                      backgroundColor: theme.background,
-                      borderColor: isDark ? '#374151' : '#e5e7eb',
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#e5e7eb',
                     },
                     !item._isAvailable && styles.unavailableItemCard,
                   ]}
@@ -1214,10 +1144,8 @@ export default function ServiceMenuScreen() {
                       />
                     ) : (
                       <View
-                        style={[
-                          styles.placeholderImage,
-                          { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
-                        ]}
+                        style={
+                          styles.placeholderImage}
                       >
                         <Text style={styles.placeholderIcon}>🍽️</Text>
                       </View>
@@ -1269,7 +1197,7 @@ export default function ServiceMenuScreen() {
 
                   <View style={styles.itemDetails}>
                     <Text
-                      style={[styles.itemName, { color: theme.text }]}
+                      style={[styles.itemName, { color: '#0F172A' }]}
                       numberOfLines={2}
                     >
                       {item.name}
@@ -1279,12 +1207,12 @@ export default function ServiceMenuScreen() {
                       {item.activePriceTag ? (
                         <>
                           <Text
-                            style={[styles.itemPriceOld, { color: theme.icon }]}
+                            style={[styles.itemPriceOld, { color: '#64748B' }]}
                           >
                             {formatCurrency(item.pricing.amount)}
                           </Text>
                           <Text
-                            style={[styles.itemPrice, { color: theme.text }]}
+                            style={[styles.itemPrice, { color: '#0F172A' }]}
                           >
                             {formatCurrency(getEffectivePrice(item))}
                           </Text>
@@ -1293,7 +1221,7 @@ export default function ServiceMenuScreen() {
                           </View>
                         </>
                       ) : (
-                        <Text style={[styles.itemPrice, { color: theme.text }]}>
+                        <Text style={[styles.itemPrice, { color: '#0F172A' }]}>
                           {formatCurrency(item.pricing.amount)}
                         </Text>
                       )}
@@ -1302,9 +1230,9 @@ export default function ServiceMenuScreen() {
                     {/* Modifier indicator */}
                     {item.modifiers && item.modifiers.length > 0 && (
                       <View style={styles.modifierIndicator}>
-                        <Ionicons name="options" size={10} color={theme.icon} />
+                        <Ionicons name="options" size={10} color='#64748B' />
                         <Text
-                          style={[styles.modifierText, { color: theme.icon }]}
+                          style={[styles.modifierText, { color: '#64748B' }]}
                         >
                           Customizable
                         </Text>
@@ -1315,13 +1243,13 @@ export default function ServiceMenuScreen() {
                       <View
                         style={[
                           styles.disabledButton,
-                          { backgroundColor: isDark ? '#374151' : '#e5e5e5' },
+                          { backgroundColor: '#e5e5e5' },
                         ]}
                       >
                         <Text
                           style={[
                             styles.disabledButtonText,
-                            { color: theme.icon },
+                            { color: '#64748B' },
                           ]}
                         >
                           Unavailable
@@ -1331,7 +1259,7 @@ export default function ServiceMenuScreen() {
                       <View
                         style={[
                           styles.quantityControls,
-                          { backgroundColor: theme.brand },
+                          { backgroundColor: '#4910bc' },
                         ]}
                       >
                         <TouchableOpacity
@@ -1362,7 +1290,7 @@ export default function ServiceMenuScreen() {
                       <TouchableOpacity
                         style={[
                           styles.addButton,
-                          { backgroundColor: theme.brand },
+                          { backgroundColor: '#4910bc' },
                         ]}
                         onPress={() =>
                           handleAdd(
@@ -1389,7 +1317,7 @@ export default function ServiceMenuScreen() {
       {totalItems > 0 && (
         <View style={styles.floatingCart}>
           <TouchableOpacity
-            style={[styles.cartButton, { backgroundColor: theme.brand }]}
+            style={[styles.cartButton, { backgroundColor: '#4910bc' }]}
             onPress={handlePlaceOrder}
             disabled={isPlacingOrder || isCalculating}
           >
@@ -1430,35 +1358,33 @@ export default function ServiceMenuScreen() {
         onRequestClose={() => setShowStatusModal(false)}
       >
         <SafeAreaView
-          style={[styles.modalContainer, { backgroundColor: theme.background }]}
+          style={[styles.modalContainer, { backgroundColor: '#FFFFFF' }]}
         >
           <View
             style={[
               styles.modalHeader,
               {
-                backgroundColor: theme.background,
-                borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+                backgroundColor: '#FFFFFF',
+                borderBottomColor: '#e5e7eb',
               },
             ]}
           >
-            <Text style={[styles.modalTitle, { color: theme.text }]}>
+            <Text style={[styles.modalTitle, { color: '#0F172A' }]}>
               Update Status - #{selectedOrderForStatus?.orderNumber}
             </Text>
             <TouchableOpacity
-              style={[
-                styles.modalCloseButton,
-                { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
-              ]}
+              style={
+                styles.modalCloseButton}
               onPress={() => setShowStatusModal(false)}
             >
-              <Ionicons name="close" size={24} color={theme.icon} />
+              <Ionicons name="close" size={24} color='#64748B' />
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
-            <Text style={[styles.currentStatusText, { color: theme.icon }]}>
+            <Text style={[styles.currentStatusText, { color: '#64748B' }]}>
               Current Status:{' '}
-              <Text style={[styles.currentStatusValue, { color: theme.text }]}>
+              <Text style={[styles.currentStatusValue, { color: '#0F172A' }]}>
                 {selectedOrderForStatus?.status?.replace('_', ' ')}
               </Text>
             </Text>
@@ -1472,7 +1398,7 @@ export default function ServiceMenuScreen() {
                       style={[
                         styles.statusOptionButton,
                         {
-                          backgroundColor: theme.background,
+                          backgroundColor: '#FFFFFF',
                           borderColor: option.color,
                         },
                       ]}
@@ -1497,7 +1423,7 @@ export default function ServiceMenuScreen() {
                         <Text
                           style={[
                             styles.statusOptionLabel,
-                            { color: theme.text },
+                            { color: '#0F172A' },
                           ]}
                         >
                           {option.label}
@@ -1505,7 +1431,7 @@ export default function ServiceMenuScreen() {
                         <Text
                           style={[
                             styles.statusOptionDescription,
-                            { color: theme.icon },
+                            { color: '#64748B' },
                           ]}
                         >
                           {option.description}
@@ -1526,13 +1452,13 @@ export default function ServiceMenuScreen() {
                 style={[
                   styles.updatingContainer,
                   {
-                    backgroundColor: isDark ? '#1E3A8A' : '#f0f9ff',
-                    borderColor: isDark ? '#3B82F6' : '#bfdbfe',
+                    backgroundColor: '#f0f9ff',
+                    borderColor: '#bfdbfe',
                   },
                 ]}
               >
-                <ActivityIndicator size="small" color={theme.brand} />
-                <Text style={[styles.updatingText, { color: theme.brand }]}>
+                <ActivityIndicator size="small" color='#4910bc' />
+                <Text style={[styles.updatingText, { color: '#4910bc' }]}>
                   Updating status...
                 </Text>
               </View>
@@ -1555,12 +1481,12 @@ export default function ServiceMenuScreen() {
           <View
             style={[
               styles.popoverContent,
-              { backgroundColor: theme.background },
+              { backgroundColor: '#FFFFFF' },
             ]}
           >
             {selectedItemForPopover && (
               <>
-                <Text style={[styles.popoverTitle, { color: theme.text }]}>
+                <Text style={[styles.popoverTitle, { color: '#0F172A' }]}>
                   {selectedItemForPopover.name}
                 </Text>
                 <View style={styles.popoverActions}>
@@ -1620,7 +1546,7 @@ export default function ServiceMenuScreen() {
                   }}
                 >
                   <Text
-                    style={[styles.popoverCloseText, { color: theme.icon }]}
+                    style={[styles.popoverCloseText, { color: '#64748B' }]}
                   >
                     Close
                   </Text>
@@ -1642,15 +1568,15 @@ export default function ServiceMenuScreen() {
           <View
             style={[
               styles.confirmDialog,
-              { backgroundColor: theme.background },
+              { backgroundColor: '#FFFFFF' },
             ]}
           >
             {confirmDialogData && (
               <>
-                <Text style={[styles.confirmTitle, { color: theme.text }]}>
+                <Text style={[styles.confirmTitle, { color: '#0F172A' }]}>
                   Confirm Action
                 </Text>
-                <Text style={[styles.confirmMessage, { color: theme.icon }]}>
+                <Text style={[styles.confirmMessage, { color: '#64748B' }]}>
                   Are you sure you want to mark "{confirmDialogData.itemName}"
                   as{' '}
                   {confirmDialogData.currentAvailability
@@ -1664,8 +1590,8 @@ export default function ServiceMenuScreen() {
                       styles.confirmButton,
                       styles.cancelButtonStyle,
                       {
-                        backgroundColor: isDark ? '#374151' : '#f3f4f6',
-                        borderColor: isDark ? '#4B5563' : '#d1d5db',
+                        backgroundColor: '#f3f4f6',
+                        borderColor: '#d1d5db',
                       },
                     ]}
                     onPress={() => {
@@ -1674,7 +1600,7 @@ export default function ServiceMenuScreen() {
                     }}
                   >
                     <Text
-                      style={[styles.cancelButtonText, { color: theme.text }]}
+                      style={[styles.cancelButtonText, { color: '#0F172A' }]}
                     >
                       Cancel
                     </Text>
@@ -1683,7 +1609,7 @@ export default function ServiceMenuScreen() {
                     style={[
                       styles.confirmButton,
                       styles.confirmButtonPrimary,
-                      { backgroundColor: theme.brand },
+                      { backgroundColor: '#4910bc' },
                     ]}
                     onPress={handleConfirmToggle}
                   >
@@ -1707,13 +1633,13 @@ export default function ServiceMenuScreen() {
           <View
             style={[
               styles.confirmDialog,
-              { backgroundColor: theme.background },
+              { backgroundColor: '#FFFFFF' },
             ]}
           >
-            <Text style={[styles.confirmTitle, { color: theme.text }]}>
+            <Text style={[styles.confirmTitle, { color: '#0F172A' }]}>
               Cancel Order
             </Text>
-            <Text style={[styles.confirmMessage, { color: theme.icon }]}>
+            <Text style={[styles.confirmMessage, { color: '#64748B' }]}>
               Are you sure you want to cancel Order #
               {selectedOrderForCancel?.orderNumber}?
             </Text>
@@ -1723,8 +1649,8 @@ export default function ServiceMenuScreen() {
                   styles.confirmButton,
                   styles.cancelButtonStyle,
                   {
-                    backgroundColor: isDark ? '#374151' : '#f3f4f6',
-                    borderColor: isDark ? '#4B5563' : '#d1d5db',
+                    backgroundColor: '#f3f4f6',
+                    borderColor: '#d1d5db',
                   },
                 ]}
                 onPress={() => {
@@ -1732,7 +1658,7 @@ export default function ServiceMenuScreen() {
                   setSelectedOrderForCancel(null);
                 }}
               >
-                <Text style={[styles.cancelButtonText, { color: theme.text }]}>
+                <Text style={[styles.cancelButtonText, { color: '#0F172A' }]}>
                   No
                 </Text>
               </TouchableOpacity>
@@ -1760,15 +1686,15 @@ export default function ServiceMenuScreen() {
           <View
             style={[
               styles.confirmDialog,
-              { backgroundColor: theme.background },
+              { backgroundColor: '#FFFFFF' },
             ]}
           >
             {successModalData && (
               <>
-                <Text style={[styles.confirmTitle, { color: theme.text }]}>
+                <Text style={[styles.confirmTitle, { color: '#0F172A' }]}>
                   {successModalData.title}
                 </Text>
-                <Text style={[styles.confirmMessage, { color: theme.icon }]}>
+                <Text style={[styles.confirmMessage, { color: '#64748B' }]}>
                   {successModalData.message}
                 </Text>
                 <View style={styles.confirmButtons}>
@@ -1779,8 +1705,8 @@ export default function ServiceMenuScreen() {
                           styles.confirmButton,
                           styles.cancelButtonStyle,
                           {
-                            backgroundColor: isDark ? '#374151' : '#f3f4f6',
-                            borderColor: isDark ? '#4B5563' : '#d1d5db',
+                            backgroundColor: '#f3f4f6',
+                            borderColor: '#d1d5db',
                           },
                         ]}
                         onPress={() => {
@@ -1792,7 +1718,7 @@ export default function ServiceMenuScreen() {
                         <Text
                           style={[
                             styles.cancelButtonText,
-                            { color: theme.text },
+                            { color: '#0F172A' },
                           ]}
                         >
                           Back to Tables
@@ -1801,7 +1727,7 @@ export default function ServiceMenuScreen() {
                       <TouchableOpacity
                         style={[
                           styles.confirmButton,
-                          { backgroundColor: theme.brand },
+                          { backgroundColor: '#4910bc' },
                         ]}
                         onPress={() => {
                           setShowSuccessModal(false);
@@ -1824,7 +1750,7 @@ export default function ServiceMenuScreen() {
                     <TouchableOpacity
                       style={[
                         styles.confirmButton,
-                        { backgroundColor: theme.brand, flex: 1 },
+                        { backgroundColor: '#4910bc', flex: 1 },
                       ]}
                       onPress={() => {
                         setShowSuccessModal(false);
@@ -1863,13 +1789,15 @@ export default function ServiceMenuScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 20,
+    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
     borderBottomWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     marginRight: 12,
@@ -1881,6 +1809,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
+    color: '#0F172A',
   },
   tableInfo: {
     flexDirection: 'column',
@@ -1922,6 +1851,7 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 8,
     borderRadius: 10,
+    backgroundColor: '#F1F5F9',
   },
   existingOrderAlert: {
     borderWidth: 1.5,

@@ -1,5 +1,4 @@
 import { PaymentRoundingDialog } from '@/components/PaymentRoundingDialog';
-import { Colors } from '@/constants/theme';
 import {
   useGenerateReceiptQrQuery,
   useGenerateSessionReceiptQrMutation,
@@ -35,7 +34,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native';
 
 const formatCurrency = (amount: number, showDecimals: boolean = true) =>
@@ -47,10 +45,6 @@ const formatCurrency = (amount: number, showDecimals: boolean = true) =>
   }).format(amount);
 
 export default function ServicePaymentScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
-
   const { orderId, tableId, orderData, allOrdersData, totalBillAmount, sessionId } =
     useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
@@ -256,7 +250,6 @@ export default function ServicePaymentScreen() {
   // Use session-based QR generation if order has a session
   const [generateSessionReceiptQr, { data: sessionReceiptQr, isLoading: isGeneratingSessionQr }] = useGenerateSessionReceiptQrMutation();
 
-
   // Fallback to individual order QR if no session (only when triggered)
   const { data: orderReceiptQr, isLoading: isGeneratingOrderQr } = useGenerateReceiptQrQuery(
     {
@@ -410,7 +403,7 @@ export default function ServicePaymentScreen() {
             ? 'All Payments Complete'
             : 'Payment Complete',
         color: '#16a34a',
-        bgColor: isDark ? '#064E3B' : '#f0fdf4',
+        bgColor: '#f0fdf4',
       };
     }
 
@@ -418,21 +411,21 @@ export default function ServicePaymentScreen() {
       icon: 'time',
       text: ordersToProcess.length > 1 ? 'Payments Pending' : 'Payment Pending',
       color: '#fff',
-      bgColor: isDark ? '#A6631E' : '#fff7ed',
+      bgColor: '#fff7ed',
     };
   };
 
   if (orderLoading && !orderFromParams) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
+        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
       >
         <View
           style={[
             styles.header,
             {
-              backgroundColor: theme.background,
-              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+              backgroundColor: '#FFFFFF',
+              borderBottomColor: '#e5e7eb',
             },
           ]}
         >
@@ -440,16 +433,16 @@ export default function ServicePaymentScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
+            <Ionicons name="arrow-back" size={24} color='#0F172A' />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={[styles.title, { color: theme.text }]}>
+            <Text style={[styles.title, { color: '#0F172A' }]}>
               Loading...
             </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.brand} />
+          <ActivityIndicator size="large" color='#4910bc' />
         </View>
       </SafeAreaView>
     );
@@ -458,14 +451,14 @@ export default function ServicePaymentScreen() {
   if (!order || !restaurant) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
+        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
       >
         <View
           style={[
             styles.header,
             {
-              backgroundColor: theme.background,
-              borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+              backgroundColor: '#FFFFFF',
+              borderBottomColor: '#e5e7eb',
             },
           ]}
         >
@@ -473,16 +466,16 @@ export default function ServicePaymentScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
+            <Ionicons name="arrow-back" size={24} color='#0F172A' />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={[styles.title, { color: theme.text }]}>
+            <Text style={[styles.title, { color: '#0F172A' }]}>
               Order Not Found
             </Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.errorText, { color: theme.text }]}>
+          <Text style={[styles.errorText, { color: '#0F172A' }]}>
             Unable to load order details
           </Text>
         </View>
@@ -496,15 +489,15 @@ export default function ServicePaymentScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[styles.container, { backgroundColor: '#FFFFFF' }]}
     >
       {/* Header */}
       <View
         style={[
           styles.header,
           {
-            backgroundColor: theme.background,
-            borderBottomColor: isDark ? '#374151' : '#e5e7eb',
+            backgroundColor: '#FFFFFF',
+            borderBottomColor: '#e5e7eb',
           },
         ]}
       >
@@ -512,11 +505,11 @@ export default function ServicePaymentScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
+          <Ionicons name="arrow-back" size={24} color='#0F172A' />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.title, { color: theme.text }]}>Payment</Text>
-          <Text style={[styles.subtitle, { color: theme.icon }]}>
+          <Text style={[styles.title, { color: '#0F172A' }]}>Payment</Text>
+          <Text style={[styles.subtitle, { color: '#64748B' }]}>
             {sessionBilling
               ? `Customer Session • ${sessionBilling.orders.length} orders`
               : `Order #${order.orderNumber}`}
@@ -525,11 +518,11 @@ export default function ServicePaymentScreen() {
         <TouchableOpacity
           style={[
             styles.iconButton,
-            { backgroundColor: isDark ? '#374151' : '#f3f4f6' },
+            { backgroundColor: '#f3f4f6' },
           ]}
           onPress={handleRefresh}
         >
-          <Ionicons name="refresh" size={20} color={theme.text} />
+          <Ionicons name="refresh" size={20} color='#0F172A' />
         </TouchableOpacity>
       </View>
 
@@ -541,7 +534,7 @@ export default function ServicePaymentScreen() {
               styles.statusCard,
               {
                 backgroundColor: statusInfo.bgColor,
-                borderColor: isDark ? statusInfo.color : 'rgba(0, 0, 0, 0.05)',
+                borderColor: 'rgba(0, 0, 0, 0.05)',
               },
             ]}
           >
@@ -555,7 +548,7 @@ export default function ServicePaymentScreen() {
                 <Text style={[styles.statusText, { color: statusInfo.color }]}>
                   {statusInfo.text}
                 </Text>
-                <Text style={[styles.statusSubtext, { color: theme.icon }]}>
+                <Text style={[styles.statusSubtext, { color: '#64748B' }]}>
                   Table {tableNumber} • {formatCurrency(finalTotalAmount)}
                 </Text>
               </View>
@@ -576,15 +569,15 @@ export default function ServicePaymentScreen() {
         {/* Receipt QR Code */}
         {allOrdersPaid && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            <Text style={[styles.sectionTitle, { color: '#0F172A' }]}>
               Customer Receipt
             </Text>
             <TouchableOpacity
               style={[
                 styles.receiptButton,
                 {
-                  backgroundColor: theme.background,
-                  borderColor: isDark ? '#374151' : '#e5e7eb',
+                  backgroundColor: '#FFFFFF',
+                  borderColor: '#e5e7eb',
                 },
               ]}
               onPress={() => {
@@ -598,10 +591,10 @@ export default function ServicePaymentScreen() {
               }}
               disabled={isGeneratingQr}
             >
-              <Ionicons name="qr-code" size={24} color={theme.brand} />
+              <Ionicons name="qr-code" size={24} color='#4910bc' />
               <View style={styles.receiptButtonContent}>
                 <Text
-                  style={[styles.receiptButtonTitle, { color: theme.text }]}
+                  style={[styles.receiptButtonTitle, { color: '#0F172A' }]}
                 >
                   {isGeneratingQr
                     ? 'Generating QR Code...'
@@ -611,7 +604,7 @@ export default function ServicePaymentScreen() {
                   }
                 </Text>
                 <Text
-                  style={[styles.receiptButtonSubtitle, { color: theme.icon }]}
+                  style={[styles.receiptButtonSubtitle, { color: '#64748B' }]}
                 >
                   {isGeneratingQr
                     ? 'Please wait...'
@@ -621,7 +614,7 @@ export default function ServicePaymentScreen() {
                   }
                 </Text>
               </View>
-              <Ionicons name="arrow-forward" size={20} color={theme.icon} />
+              <Ionicons name="arrow-forward" size={20} color='#64748B' />
             </TouchableOpacity>
           </View>
         )}
@@ -630,7 +623,7 @@ export default function ServicePaymentScreen() {
         {!allOrdersPaid && (
           <>
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              <Text style={[styles.sectionTitle, { color: '#0F172A' }]}>
                 Choose Payment Method
               </Text>
               <View style={styles.paymentMethods}>
@@ -640,14 +633,10 @@ export default function ServicePaymentScreen() {
                     {
                       backgroundColor:
                         paymentMethod === 'card'
-                          ? theme.brand
-                          : theme.background,
+                          ? '#4910bc'
+                          : '#FFFFFF',
                       borderColor:
-                        paymentMethod === 'card'
-                          ? theme.brand
-                          : isDark
-                          ? '#374151'
-                          : '#e5e7eb',
+                        paymentMethod === 'card' ? '#4910bc' : '#e5e7eb',
                     },
                   ]}
                   onPress={() => setPaymentMethod('card')}
@@ -655,14 +644,14 @@ export default function ServicePaymentScreen() {
                   <Ionicons
                     name="card"
                     size={24}
-                    color={paymentMethod === 'card' ? '#ffffff' : theme.brand}
+                    color={paymentMethod === 'card' ? '#ffffff' : '#4910bc'}
                   />
                   <Text
                     style={[
                       styles.methodText,
                       {
                         color:
-                          paymentMethod === 'card' ? '#ffffff' : theme.text,
+                          paymentMethod === 'card' ? '#ffffff' : '#0F172A',
                       },
                     ]}
                   >
@@ -674,13 +663,9 @@ export default function ServicePaymentScreen() {
                     styles.methodButton,
                     {
                       backgroundColor:
-                        paymentMethod === 'cash' ? '#059669' : theme.background,
+                        paymentMethod === 'cash' ? '#059669' : '#FFFFFF',
                       borderColor:
-                        paymentMethod === 'cash'
-                          ? '#059669'
-                          : isDark
-                          ? '#374151'
-                          : '#e5e7eb',
+                        paymentMethod === 'cash' ? '#059669' : '#e5e7eb',
                     },
                   ]}
                   onPress={() => setPaymentMethod('cash')}
@@ -695,7 +680,7 @@ export default function ServicePaymentScreen() {
                       styles.methodText,
                       {
                         color:
-                          paymentMethod === 'cash' ? '#ffffff' : theme.text,
+                          paymentMethod === 'cash' ? '#ffffff' : '#0F172A',
                       },
                     ]}
                   >
@@ -708,15 +693,15 @@ export default function ServicePaymentScreen() {
             {/* Card Payment Section */}
             {paymentMethod === 'card' && (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Text style={[styles.sectionTitle, { color: '#0F172A' }]}>
                   Card Payment
                 </Text>
                 <View
                   style={[
                     styles.cardCard,
                     {
-                      backgroundColor: theme.background,
-                      borderColor: isDark ? '#374151' : '#e5e7eb',
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#e5e7eb',
                       borderWidth: 1,
                       borderRadius: 12,
                     },
@@ -725,27 +710,27 @@ export default function ServicePaymentScreen() {
                   <View
                     style={[
                       styles.cardAmountContainer,
-                      { backgroundColor: isDark ? '#1F2937' : '#f9fafb' },
+                      { backgroundColor: '#f9fafb' },
                     ]}
                   >
                     <Text style={styles.cardIcon}>💳</Text>
-                    <Text style={[styles.cardAmount, { color: theme.text }]}>
+                    <Text style={[styles.cardAmount, { color: '#0F172A' }]}>
                       {formatCurrency(finalTotalAmount)}
                     </Text>
-                    <Text style={[styles.cardLabel, { color: theme.icon }]}>
+                    <Text style={[styles.cardLabel, { color: '#64748B' }]}>
                       Process card payment
                     </Text>
                   </View>
                   <View style={styles.instructionsContainer}>
                     <Text
-                      style={[styles.instructionsText, { color: theme.icon }]}
+                      style={[styles.instructionsText, { color: '#64748B' }]}
                     >
                       Payment is collected outside the system
                     </Text>
                     <Text
                       style={[
                         styles.instructionsSubtext,
-                        { color: theme.icon },
+                        { color: '#64748B' },
                       ]}
                     >
                       Simply mark as paid after collecting payment
@@ -758,15 +743,15 @@ export default function ServicePaymentScreen() {
             {/* Cash Payment Section */}
             {paymentMethod === 'cash' && (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Text style={[styles.sectionTitle, { color: '#0F172A' }]}>
                   Cash Payment
                 </Text>
                 <View
                   style={[
                     styles.cashCard,
                     {
-                      backgroundColor: theme.background,
-                      borderColor: isDark ? '#374151' : '#e5e7eb',
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#e5e7eb',
                       borderWidth: 1,
                       borderRadius: 12,
                     },
@@ -775,27 +760,27 @@ export default function ServicePaymentScreen() {
                   <View
                     style={[
                       styles.cashAmountContainer,
-                      { backgroundColor: isDark ? '#1F2937' : '#f9fafb' },
+                      { backgroundColor: '#f9fafb' },
                     ]}
                   >
                     <Text style={styles.cashIcon}>💵</Text>
-                    <Text style={[styles.cashAmount, { color: theme.text }]}>
+                    <Text style={[styles.cashAmount, { color: '#0F172A' }]}>
                       {formatCurrency(finalTotalAmount)}
                     </Text>
-                    <Text style={[styles.cashLabel, { color: theme.icon }]}>
+                    <Text style={[styles.cashLabel, { color: '#64748B' }]}>
                       Collect cash from customer
                     </Text>
                   </View>
                   <View style={styles.instructionsContainer}>
                     <Text
-                      style={[styles.instructionsText, { color: theme.icon }]}
+                      style={[styles.instructionsText, { color: '#64748B' }]}
                     >
                       Click "Mark as Paid" to choose the exact amount to collect
                     </Text>
                     <Text
                       style={[
                         styles.instructionsSubtext,
-                        { color: theme.icon },
+                        { color: '#64748B' },
                       ]}
                     >
                       You'll be able to round up/down for cash convenience
@@ -829,25 +814,25 @@ export default function ServicePaymentScreen() {
         {detailedSessionBill && (
           <View style={styles.section}>
             {/* Restaurant Info Section */}
-            <View style={[styles.restaurantInfoSection, { backgroundColor: isDark ? '#1F2937' : '#f9fafb' }]}>
-              <Text style={[styles.sectionHeader, { color: theme.text }]}>
+            <View style={[styles.restaurantInfoSection, { backgroundColor: '#f9fafb' }]}>
+              <Text style={[styles.sectionHeader, { color: '#0F172A' }]}>
                 Restaurant Details
               </Text>
-              <Text style={[styles.restaurantName, { color: theme.text }]}>
+              <Text style={[styles.restaurantName, { color: '#0F172A' }]}>
                 {detailedSessionBill.restaurant.name}
               </Text>
               {detailedSessionBill.restaurant.address && (
-                <Text style={[styles.restaurantAddress, { color: theme.icon }]}>
+                <Text style={[styles.restaurantAddress, { color: '#64748B' }]}>
                   {detailedSessionBill.restaurant.address.line1}, {detailedSessionBill.restaurant.address.city}
                 </Text>
               )}
               {detailedSessionBill.restaurant.phone && (
-                <Text style={[styles.restaurantContact, { color: theme.icon }]}>
+                <Text style={[styles.restaurantContact, { color: '#64748B' }]}>
                   Phone: {detailedSessionBill.restaurant.phone}
                 </Text>
               )}
               {detailedSessionBill.restaurant.gstin && (
-                <Text style={[styles.restaurantContact, { color: theme.icon }]}>
+                <Text style={[styles.restaurantContact, { color: '#64748B' }]}>
                   GSTIN: {detailedSessionBill.restaurant.gstin}
                 </Text>
               )}
@@ -855,7 +840,7 @@ export default function ServicePaymentScreen() {
 
             {/* All Items Section */}
             <View style={styles.allItemsSection}>
-              <Text style={[styles.sectionHeader, { color: theme.text }]}>
+              <Text style={[styles.sectionHeader, { color: '#0F172A' }]}>
                 All Items ({detailedSessionBill.allItems.length})
               </Text>
               <View style={styles.itemsList}>
@@ -863,19 +848,19 @@ export default function ServicePaymentScreen() {
                   const pricePerUnitWithTax = item.totalWithTax / item.quantity;
                   return (
                     <View key={index} style={[styles.itemCard, {
-                      backgroundColor: theme.background,
-                      borderColor: isDark ? '#374151' : '#e5e7eb'
+                      backgroundColor: '#FFFFFF',
+                      borderColor: '#e5e7eb'
                     }]}>
                       <View style={styles.itemCardContent}>
                         <View style={styles.itemMainInfo}>
-                          <Text style={[styles.itemCardName, { color: theme.text }]}>
+                          <Text style={[styles.itemCardName, { color: '#0F172A' }]}>
                             {item.name}
                           </Text>
-                          <Text style={[styles.itemCalculation, { color: theme.icon }]}>
+                          <Text style={[styles.itemCalculation, { color: '#64748B' }]}>
                             {item.quantity} × {formatCurrency(pricePerUnitWithTax)} = {formatCurrency(item.totalWithTax)}
                           </Text>
                           {item.totalTaxAmount > 0 && (
-                            <Text style={[styles.gstInfo, { color: theme.icon }]}>
+                            <Text style={[styles.gstInfo, { color: '#64748B' }]}>
                               {item.gstRate > 0 ? (
                                 `GST @ ${item.gstRate}% • Tax: ${formatCurrency(item.totalTaxAmount)}`
                               ) : (
@@ -884,13 +869,13 @@ export default function ServicePaymentScreen() {
                             </Text>
                           )}
                           {item.hsnCode && (
-                            <Text style={[styles.hsnCode, { color: theme.icon }]}>
+                            <Text style={[styles.hsnCode, { color: '#64748B' }]}>
                               HSN: {item.hsnCode}
                             </Text>
                           )}
                         </View>
                         <View style={styles.itemPriceInfo}>
-                          <Text style={[styles.itemCardTotal, { color: theme.text }]}>
+                          <Text style={[styles.itemCardTotal, { color: '#0F172A' }]}>
                             {formatCurrency(item.totalWithTax)}
                           </Text>
                         </View>
@@ -903,24 +888,24 @@ export default function ServicePaymentScreen() {
 
             {/* Orders Breakdown Section */}
             <View style={styles.ordersBreakdownSection}>
-              <Text style={[styles.sectionHeader, { color: theme.text }]}>
+              <Text style={[styles.sectionHeader, { color: '#0F172A' }]}>
                 Orders ({detailedSessionBill.orderBreakdown.length})
               </Text>
               {detailedSessionBill.orderBreakdown.map((order) => (
-                <View key={order.orderId} style={[styles.orderBreakdownCard, { backgroundColor: isDark ? '#1F2937' : '#f9fafb' }]}>
+                <View key={order.orderId} style={[styles.orderBreakdownCard, { backgroundColor: '#f9fafb' }]}>
                   <View style={styles.orderBreakdownHeader}>
                     <View style={styles.orderMainInfo}>
-                      <Text style={[styles.orderBreakdownNumber, { color: theme.text }]}>
+                      <Text style={[styles.orderBreakdownNumber, { color: '#0F172A' }]}>
                         #{order.orderNumber}
                       </Text>
-                      <Text style={[styles.orderBreakdownDetails, { color: theme.icon }]}>
+                      <Text style={[styles.orderBreakdownDetails, { color: '#64748B' }]}>
                         Payment: {order.paymentStatus} • {order.itemCount} items
                       </Text>
-                      <Text style={[styles.orderBreakdownDate, { color: theme.icon }]}>
+                      <Text style={[styles.orderBreakdownDate, { color: '#64748B' }]}>
                         {new Date(order.createdAt).toLocaleDateString('en-IN')} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                       </Text>
                     </View>
-                    <Text style={[styles.orderBreakdownAmount, { color: theme.text }]}>
+                    <Text style={[styles.orderBreakdownAmount, { color: '#0F172A' }]}>
                       {formatCurrency(order.totalAmount)}
                     </Text>
                   </View>
@@ -929,22 +914,22 @@ export default function ServicePaymentScreen() {
             </View>
 
             {/* Detailed Bill Summary - Matching OrdersPage style */}
-            <View style={[styles.sessionTotalSection, { backgroundColor: isDark ? '#1e3a8a' : '#eff6ff' }]}>
+            <View style={[styles.sessionTotalSection, { backgroundColor: '#eff6ff' }]}>
               <View style={styles.sessionTotalHeader}>
-                <Text style={[styles.sessionTotalLabel, { color: theme.text }]}>
+                <Text style={[styles.sessionTotalLabel, { color: '#0F172A' }]}>
                   Session Total
                 </Text>
-                <Text style={[styles.sessionTotalAmount, { color: theme.text }]}>
+                <Text style={[styles.sessionTotalAmount, { color: '#0F172A' }]}>
                   {formatCurrency(detailedSessionBill.totalAmount)}
                 </Text>
               </View>
 
               <View style={styles.sessionTotalBreakdown}>
                 <View style={styles.breakdownRow}>
-                  <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                  <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                     Subtotal
                   </Text>
-                  <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                  <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                     {formatCurrency(detailedSessionBill.subTotalAmount)}
                   </Text>
                 </View>
@@ -960,10 +945,10 @@ export default function ServicePaymentScreen() {
 
                       return (
                         <View key={index} style={styles.breakdownRow}>
-                          <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                          <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                             {chargeName}
                           </Text>
-                          <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                          <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                             {formatCurrency(charge.amount)}
                           </Text>
                         </View>
@@ -998,10 +983,10 @@ export default function ServicePaymentScreen() {
 
                           return (
                             <View key={index} style={styles.breakdownRow}>
-                              <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                              <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                                 {displayText}
                               </Text>
-                              <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                              <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                                 {formatCurrency(categoryCalc.totalTaxAmount)}
                               </Text>
                             </View>
@@ -1013,20 +998,20 @@ export default function ServicePaymentScreen() {
                          (detailedSessionBill.cgstAmount > 0 || detailedSessionBill.sgstAmount > 0 || detailedSessionBill.igstAmount > 0) && (
                           <>
                             <View style={styles.breakdownRow}>
-                              <Text style={[styles.breakdownLabel, { color: theme.text, fontWeight: '600' }]}>
+                              <Text style={[styles.breakdownLabel, { color: '#0F172A', fontWeight: '600' }]}>
                                 GST Breakdown
                               </Text>
-                              <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                              <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                                 {/* Empty for header */}
                               </Text>
                             </View>
 
                             {detailedSessionBill.cgstAmount > 0 && (
                               <View style={styles.breakdownRow}>
-                                <Text style={[styles.breakdownLabel, { color: theme.icon, paddingLeft: 16 }]}>
+                                <Text style={[styles.breakdownLabel, { color: '#64748B', paddingLeft: 16 }]}>
                                   CGST
                                 </Text>
-                                <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                                   {formatCurrency(detailedSessionBill.cgstAmount)}
                                 </Text>
                               </View>
@@ -1034,10 +1019,10 @@ export default function ServicePaymentScreen() {
 
                             {detailedSessionBill.sgstAmount > 0 && (
                               <View style={styles.breakdownRow}>
-                                <Text style={[styles.breakdownLabel, { color: theme.icon, paddingLeft: 16 }]}>
+                                <Text style={[styles.breakdownLabel, { color: '#64748B', paddingLeft: 16 }]}>
                                   SGST
                                 </Text>
-                                <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                                   {formatCurrency(detailedSessionBill.sgstAmount)}
                                 </Text>
                               </View>
@@ -1045,10 +1030,10 @@ export default function ServicePaymentScreen() {
 
                             {detailedSessionBill.igstAmount > 0 && (
                               <View style={styles.breakdownRow}>
-                                <Text style={[styles.breakdownLabel, { color: theme.icon, paddingLeft: 16 }]}>
+                                <Text style={[styles.breakdownLabel, { color: '#64748B', paddingLeft: 16 }]}>
                                   IGST
                                 </Text>
-                                <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                                <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                                   {formatCurrency(detailedSessionBill.igstAmount)}
                                 </Text>
                               </View>
@@ -1062,10 +1047,10 @@ export default function ServicePaymentScreen() {
                         {/* Original simple GST breakdown for backward compatibility */}
                         {detailedSessionBill.cgstAmount > 0 && (
                           <View style={styles.breakdownRow}>
-                            <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                            <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                               CGST
                             </Text>
-                            <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                            <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                               {formatCurrency(detailedSessionBill.cgstAmount)}
                             </Text>
                           </View>
@@ -1073,10 +1058,10 @@ export default function ServicePaymentScreen() {
 
                         {detailedSessionBill.sgstAmount > 0 && (
                           <View style={styles.breakdownRow}>
-                            <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                            <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                               SGST
                             </Text>
-                            <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                            <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                               {formatCurrency(detailedSessionBill.sgstAmount)}
                             </Text>
                           </View>
@@ -1084,10 +1069,10 @@ export default function ServicePaymentScreen() {
 
                         {detailedSessionBill.igstAmount > 0 && (
                           <View style={styles.breakdownRow}>
-                            <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                            <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                               IGST
                             </Text>
-                            <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                            <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                               {formatCurrency(detailedSessionBill.igstAmount)}
                             </Text>
                           </View>
@@ -1097,10 +1082,10 @@ export default function ServicePaymentScreen() {
 
                     {/* Total tax - always show */}
                     <View style={styles.breakdownRow}>
-                      <Text style={[styles.breakdownLabel, { color: theme.text, fontWeight: '600' }]}>
+                      <Text style={[styles.breakdownLabel, { color: '#0F172A', fontWeight: '600' }]}>
                         Total Tax
                       </Text>
-                      <Text style={[styles.breakdownAmount, { color: theme.text, fontWeight: '600' }]}>
+                      <Text style={[styles.breakdownAmount, { color: '#0F172A', fontWeight: '600' }]}>
                         {formatCurrency(detailedSessionBill.taxAmount)}
                       </Text>
                     </View>
@@ -1109,10 +1094,10 @@ export default function ServicePaymentScreen() {
 
                 {detailedSessionBill.discountAmount > 0 && (
                   <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                    <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                       Discount
                     </Text>
-                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                    <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                       -{formatCurrency(detailedSessionBill.discountAmount)}
                     </Text>
                   </View>
@@ -1120,10 +1105,10 @@ export default function ServicePaymentScreen() {
 
                 {detailedSessionBill.roundOffAmount !== 0 && (
                   <View style={styles.breakdownRow}>
-                    <Text style={[styles.breakdownLabel, { color: theme.icon }]}>
+                    <Text style={[styles.breakdownLabel, { color: '#64748B' }]}>
                       Round Off
                     </Text>
-                    <Text style={[styles.breakdownAmount, { color: theme.text }]}>
+                    <Text style={[styles.breakdownAmount, { color: '#0F172A' }]}>
                       {detailedSessionBill.roundOffAmount >= 0 ? '+' : ''}{formatCurrency(detailedSessionBill.roundOffAmount)}
                     </Text>
                   </View>
@@ -1143,8 +1128,8 @@ export default function ServicePaymentScreen() {
 
               {/* Tax Type */}
               {detailedSessionBill.taxType && (
-                <View style={[styles.taxTypeSection, { borderTopColor: isDark ? '#3b82f6' : '#bfdbfe' }]}>
-                  <Text style={[styles.taxTypeText, { color: theme.icon }]}>
+                <View style={[styles.taxTypeSection, { borderTopColor: '#bfdbfe' }]}>
+                  <Text style={[styles.taxTypeText, { color: '#64748B' }]}>
                     Tax Type: {detailedSessionBill.taxType === 'intra-state' ? 'Intra-State (CGST+SGST)' : 'Inter-State (IGST)'}
                   </Text>
                 </View>
@@ -1155,14 +1140,14 @@ export default function ServicePaymentScreen() {
 
         {/* Help Text */}
         <View style={styles.helpContainer}>
-          <Text style={[styles.helpText, { color: theme.icon }]}>
+          <Text style={[styles.helpText, { color: '#64748B' }]}>
             {ordersToProcess.length > 1
               ? `Show orders ${combinedBillDetails?.orderNumbers.join(
                   ', '
                 )} to kitchen staff if needed`
               : `Show order #${order.orderNumber} to kitchen staff if needed`}
           </Text>
-          <Text style={[styles.helpText, { color: theme.icon }]}>
+          <Text style={[styles.helpText, { color: '#64748B' }]}>
             This screen will update automatically after payment
           </Text>
         </View>
@@ -1189,23 +1174,23 @@ export default function ServicePaymentScreen() {
           <View
             style={[
               styles.qrModalContent,
-              { backgroundColor: theme.background },
+              { backgroundColor: '#FFFFFF' },
             ]}
           >
             <View
               style={[
                 styles.qrModalHeader,
-                { borderBottomColor: isDark ? '#374151' : '#e5e7eb' },
+                { borderBottomColor: '#e5e7eb' },
               ]}
             >
-              <Text style={[styles.qrModalTitle, { color: theme.text }]}>
+              <Text style={[styles.qrModalTitle, { color: '#0F172A' }]}>
                 Receipt QR Code
               </Text>
               <TouchableOpacity
                 style={styles.qrCloseButton}
                 onPress={() => setShowReceiptQr(false)}
               >
-                <Ionicons name="close" size={24} color={theme.icon} />
+                <Ionicons name="close" size={24} color='#64748B' />
               </TouchableOpacity>
             </View>
 
@@ -1216,11 +1201,11 @@ export default function ServicePaymentScreen() {
                   style={styles.qrCodeImage}
                   resizeMode="contain"
                 />
-                <Text style={[styles.qrInstructions, { color: theme.text }]}>
+                <Text style={[styles.qrInstructions, { color: '#0F172A' }]}>
                   Ask your customer to scan this QR code to download their
                   receipt
                 </Text>
-                <Text style={[styles.qrOrderInfo, { color: theme.brand }]}>
+                <Text style={[styles.qrOrderInfo, { color: '#4910bc' }]}>
                   {ordersToProcess.length > 1
                     ? `Orders #${
                         receiptQr.orderNumbers?.join(', #') ||
@@ -1228,15 +1213,15 @@ export default function ServicePaymentScreen() {
                       }`
                     : `Order #${receiptQr.orderNumber}`}
                 </Text>
-                <Text style={[styles.qrExpiryInfo, { color: theme.icon }]}>
+                <Text style={[styles.qrExpiryInfo, { color: '#64748B' }]}>
                   Valid until{' '}
                   {new Date(receiptQr.expiresAt).toLocaleDateString('en-IN')}
                 </Text>
               </View>
             ) : (
               <View style={styles.qrLoadingContainer}>
-                <ActivityIndicator size="large" color={theme.brand} />
-                <Text style={[styles.qrLoadingText, { color: theme.icon }]}>
+                <ActivityIndicator size="large" color='#4910bc' />
+                <Text style={[styles.qrLoadingText, { color: '#64748B' }]}>
                   Generating QR code...
                 </Text>
               </View>

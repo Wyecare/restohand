@@ -32,6 +32,7 @@ export interface MenuCategory {
   description?: string;
   displayOrder: number;
   isActive: boolean;
+  imageUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

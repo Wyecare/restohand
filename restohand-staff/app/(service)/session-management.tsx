@@ -1,8 +1,4 @@
-import { Colors } from '@/constants/theme';
-import {
-  useFindSessionsQuery,
-  useCreateCustomerSessionMutation,
-} from '@/store/api/customerSessionsApi';
+import { useFindSessionsQuery } from '@/store/api/customerSessionsApi';
 import {
   useGetRestaurantQuery,
   useListEnhancedTablesQuery,
@@ -12,18 +8,29 @@ import { selectActiveRestaurantId } from '@/store/slices/authSlice';
 import { Ionicons } from '@expo/vector-icons';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native';
+
+const BRAND = '#4910bc';
+const PAGE_BG = '#F8FAFC';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#E2E8F0';
+const TEXT_PRIMARY = '#0F172A';
+const TEXT_SECONDARY = '#64748B';
+const TEXT_TERTIARY = '#94A3B8';
+const SUCCESS = '#10B981';
+const SUCCESS_BG = '#DCFCE7';
+const WARNING = '#F59E0B';
+const WARNING_BG = '#FEF3C7';
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -47,13 +54,8 @@ const getTimeDuration = (startTime: string) => {
 };
 
 export default function SessionManagementScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
-
   const { tableId } = useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const { data: restaurant } = useGetRestaurantQuery(
     restaurantId ?? skipToken,
@@ -87,38 +89,18 @@ export default function SessionManagementScreen() {
     { skip: !restaurantId || !tableId }
   );
 
-  const [createCustomerSession] = useCreateCustomerSessionMutation();
   const activeSessions = sessionsData?.sessions || [];
 
-  const handleCreateNewSession = async () => {
-    if (!restaurant || !selectedTable) {
-      Alert.alert('Error', 'Missing restaurant or table data');
-      return;
-    }
-    setIsCreatingSession(true);
-    try {
-      const sessionResponse = await createCustomerSession({
-        restaurantSlug: restaurant.slug,
+  // Navigate directly to menu — session is created atomically on first order
+  const handleStartNewOrder = () => {
+    if (!selectedTable) return;
+    router.push({
+      pathname: '/(service)/menu',
+      params: {
         tableId: selectedTable.id,
-      }).unwrap();
-
-      router.push({
-        pathname: '/(service)/menu',
-        params: {
-          sessionId: sessionResponse.sessionId,
-          tableId: selectedTable.id,
-          restaurant_slug: restaurant.slug,
-          isNewSession: 'true',
-        },
-      });
-    } catch (error: any) {
-      Alert.alert(
-        'Session Creation Failed',
-        error?.message || 'Failed to create session'
-      );
-    } finally {
-      setIsCreatingSession(false);
-    }
+        restaurant_slug: restaurant?.slug,
+      },
+    });
   };
 
   const handleResumeSession = (sessionId: string) => {
@@ -129,7 +111,6 @@ export default function SessionManagementScreen() {
         sessionId,
         tableId: selectedTable.id,
         restaurant_slug: restaurant.slug,
-        isNewSession: 'false',
       },
     });
   };
@@ -141,66 +122,38 @@ export default function SessionManagementScreen() {
 
   if (sessionsLoading && !selectedTable) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
+      <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.brand} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>
-            Loading table sessions...
-          </Text>
+          <ActivityIndicator size="large" color={BRAND} />
+          <Text style={styles.loadingText}>Loading sessions…</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView
-      style={[
-        styles.container,
-        { backgroundColor: isDark ? '#0f172a' : '#f8fafc' },
-      ]}
-    >
-      {/* ── Header ── */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-            borderBottomColor: isDark ? '#334155' : '#e2e8f0',
-          },
-        ]}
-      >
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="arrow-back" size={22} color={theme.text} />
+          <Ionicons name="arrow-back" size={22} color={TEXT_PRIMARY} />
         </TouchableOpacity>
 
         <View style={styles.headerContent}>
-          <Text style={[styles.title, { color: theme.text }]}>
-            {tableNumber}
-          </Text>
-          <Text
-            style={[styles.subtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}
-          >
-            Session Management
-          </Text>
+          <Text style={styles.headerTitle}>{tableNumber}</Text>
+          <Text style={styles.headerSubtitle}>Table Sessions</Text>
         </View>
 
         <TouchableOpacity
-          style={[
-            styles.refreshButton,
-            { backgroundColor: isDark ? '#334155' : '#f1f5f9' },
-          ]}
+          style={styles.refreshButton}
           onPress={() => refetchSessions()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons
-            name="refresh-outline"
-            size={19}
-            color={isDark ? '#94a3b8' : '#64748b'}
-          />
+          <Ionicons name="refresh-outline" size={19} color={TEXT_SECONDARY} />
         </TouchableOpacity>
       </View>
 
@@ -209,35 +162,20 @@ export default function SessionManagementScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── New Session CTA ── */}
+        {/* ── Start New Order CTA ── */}
         <TouchableOpacity
-          style={[
-            styles.newSessionCard,
-            {
-              backgroundColor: theme.brand,
-              opacity: isCreatingSession ? 0.85 : 1,
-            },
-          ]}
-          onPress={handleCreateNewSession}
-          disabled={isCreatingSession}
+          style={styles.newOrderCard}
+          onPress={handleStartNewOrder}
           activeOpacity={0.88}
         >
-          <View style={styles.newSessionLeft}>
-            <View style={styles.newSessionIconWrap}>
-              {isCreatingSession ? (
-                <ActivityIndicator size={22} color="#fff" />
-              ) : (
-                <Ionicons name="add" size={22} color="#fff" />
-              )}
+          <View style={styles.newOrderLeft}>
+            <View style={styles.newOrderIconWrap}>
+              <Ionicons name="add" size={24} color="#fff" />
             </View>
             <View>
-              <Text style={styles.newSessionTitle}>
-                {isCreatingSession ? 'Creating Session…' : 'Start New Order'}
-              </Text>
-              <Text style={styles.newSessionSub}>
-                {isCreatingSession
-                  ? 'Please wait'
-                  : 'Seat a new group at this table'}
+              <Text style={styles.newOrderTitle}>Start New Order</Text>
+              <Text style={styles.newOrderSub}>
+                Seat a new group at this table
               </Text>
             </View>
           </View>
@@ -250,146 +188,71 @@ export default function SessionManagementScreen() {
 
         {/* ── Active Sessions ── */}
         {activeSessions.length > 0 && (
-          <View style={styles.sectionBlock}>
+          <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Active Sessions
-              </Text>
-              <View
-                style={[
-                  styles.countBadge,
-                  { backgroundColor: isDark ? '#1e3a5f' : '#dbeafe' },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.countBadgeText,
-                    { color: isDark ? '#93c5fd' : '#1d4ed8' },
-                  ]}
-                >
-                  {activeSessions.length}
-                </Text>
+              <Text style={styles.sectionTitle}>Active Sessions</Text>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{activeSessions.length}</Text>
               </View>
             </View>
 
             {activeSessions.map((session, index) => (
-              <View
-                key={session.sessionId}
-                style={[
-                  styles.sessionCard,
-                  {
-                    backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                    borderColor: isDark ? '#334155' : '#e2e8f0',
-                  },
-                ]}
-              >
-                {/* Card Top Row */}
+              <View key={session.sessionId} style={styles.sessionCard}>
+                {/* Top Row */}
                 <View style={styles.cardTopRow}>
                   <View>
-                    <Text style={[styles.sessionName, { color: theme.text }]}>
-                      Group {index + 1}
-                    </Text>
+                    <Text style={styles.sessionLabel}>Group {index + 1}</Text>
                     <View style={styles.timeRow}>
                       <Ionicons
                         name="time-outline"
                         size={12}
-                        color={isDark ? '#94a3b8' : '#64748b'}
+                        color={TEXT_SECONDARY}
                       />
-                      <Text
-                        style={[
-                          styles.timeText,
-                          { color: isDark ? '#94a3b8' : '#64748b' },
-                        ]}
-                      >
+                      <Text style={styles.timeText}>
                         Since {formatTime(session.startedAt)} ·{' '}
                         {getTimeDuration(session.startedAt)}
                       </Text>
                     </View>
                   </View>
 
-                  <View
-                    style={[
-                      styles.activePill,
-                      { backgroundColor: isDark ? '#052e16' : '#dcfce7' },
-                    ]}
-                  >
+                  <View style={styles.activePill}>
                     <View style={styles.activeDot} />
-                    <Text style={[styles.activePillText, { color: '#16a34a' }]}>
-                      Active
-                    </Text>
+                    <Text style={styles.activePillText}>Active</Text>
                   </View>
                 </View>
 
                 {/* Stats Row */}
-                <View
-                  style={[
-                    styles.statsRow,
-                    { borderColor: isDark ? '#334155' : '#f1f5f9' },
-                  ]}
-                >
+                <View style={styles.statsRow}>
                   <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: theme.text }]}>
-                      {session.totalOrders}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statLabel,
-                        { color: isDark ? '#94a3b8' : '#64748b' },
-                      ]}
-                    >
-                      Orders
-                    </Text>
+                    <Text style={styles.statValue}>{session.totalOrders}</Text>
+                    <Text style={styles.statLabel}>Orders</Text>
                   </View>
-                  <View
-                    style={[
-                      styles.statDivider,
-                      { backgroundColor: isDark ? '#334155' : '#e2e8f0' },
-                    ]}
-                  />
+                  <View style={styles.statDivider} />
                   <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: theme.text }]}>
+                    <Text style={styles.statValue}>
                       {formatCurrency(session.totalAmount)}
                     </Text>
-                    <Text
-                      style={[
-                        styles.statLabel,
-                        { color: isDark ? '#94a3b8' : '#64748b' },
-                      ]}
-                    >
-                      Total
-                    </Text>
+                    <Text style={styles.statLabel}>Total</Text>
                   </View>
-                  <View
-                    style={[
-                      styles.statDivider,
-                      { backgroundColor: isDark ? '#334155' : '#e2e8f0' },
-                    ]}
-                  />
+                  <View style={styles.statDivider} />
                   <View style={styles.statItem}>
                     <Text
                       style={[
                         styles.statValue,
                         {
-                          color: session.allOrdersPaid ? '#16a34a' : '#f59e0b',
+                          color: session.allOrdersPaid ? SUCCESS : WARNING,
                         },
                       ]}
                     >
                       {session.allOrdersPaid ? 'Paid' : 'Unpaid'}
                     </Text>
-                    <Text
-                      style={[
-                        styles.statLabel,
-                        { color: isDark ? '#94a3b8' : '#64748b' },
-                      ]}
-                    >
-                      Payment
-                    </Text>
+                    <Text style={styles.statLabel}>Payment</Text>
                   </View>
                 </View>
 
-                {/* Action */}
+                {/* Continue Button */}
                 <TouchableOpacity
-                  style={[styles.continueBtn, { backgroundColor: theme.brand }]}
+                  style={styles.continueBtn}
                   onPress={() => handleResumeSession(session.sessionId)}
                   activeOpacity={0.85}
                 >
@@ -403,27 +266,12 @@ export default function SessionManagementScreen() {
 
         {/* ── Empty State ── */}
         {activeSessions.length === 0 && !sessionsLoading && (
-          <View
-            style={[
-              styles.emptyCard,
-              {
-                backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                borderColor: isDark ? '#334155' : '#e2e8f0',
-              },
-            ]}
-          >
+          <View style={styles.emptyCard}>
             <Text style={styles.emptyEmoji}>🍽️</Text>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              No Active Sessions
-            </Text>
-            <Text
-              style={[
-                styles.emptyDesc,
-                { color: isDark ? '#94a3b8' : '#64748b' },
-              ]}
-            >
-              This table is currently free. Start a new order above to begin
-              serving customers.
+            <Text style={styles.emptyTitle}>No Active Sessions</Text>
+            <Text style={styles.emptyDesc}>
+              This table is currently free. Tap "Start New Order" above to
+              begin serving customers.
             </Text>
           </View>
         )}
@@ -433,12 +281,10 @@ export default function SessionManagementScreen() {
           <Ionicons
             name="information-circle-outline"
             size={14}
-            color={isDark ? '#475569' : '#94a3b8'}
+            color={TEXT_TERTIARY}
           />
-          <Text
-            style={[styles.hintText, { color: isDark ? '#475569' : '#94a3b8' }]}
-          >
-            Multiple sessions can run simultaneously at the same table
+          <Text style={styles.hintText}>
+            Sessions are created automatically when you place the first order
           </Text>
         </View>
       </ScrollView>
@@ -447,7 +293,20 @@ export default function SessionManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+    backgroundColor: PAGE_BG,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: TEXT_SECONDARY,
+  },
 
   // Header
   header: {
@@ -455,69 +314,157 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: CARD_BG,
     borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: { elevation: 2 },
+    }),
   },
-  backButton: { padding: 6, marginRight: 10 },
+  backButton: {
+    padding: 6,
+    marginRight: 10,
+  },
   headerContent: { flex: 1 },
-  title: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
-  subtitle: { fontSize: 12, marginTop: 1 },
-  refreshButton: { padding: 9, borderRadius: 10 },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    marginTop: 1,
+  },
+  refreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // Scroll
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, gap: 16, paddingBottom: 40 },
+  scrollContent: {
+    padding: 16,
+    gap: 16,
+    paddingBottom: 40,
+  },
 
-  // New Session CTA
-  newSessionCard: {
+  // New Order CTA
+  newOrderCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 18,
     borderRadius: 16,
+    backgroundColor: BRAND,
+    ...Platform.select({
+      ios: {
+        shadowColor: BRAND,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: { elevation: 4 },
+    }),
   },
-  newSessionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  newSessionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  newOrderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  newOrderIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 13,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  newSessionTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  newSessionSub: {
+  newOrderTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  newOrderSub: {
     color: 'rgba(255,255,255,0.75)',
     fontSize: 12,
     marginTop: 2,
   },
 
   // Section
-  sectionBlock: { gap: 10 },
+  section: { gap: 10 },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 2,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '600' },
-  countBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  countBadgeText: { fontSize: 12, fontWeight: '700' },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: TEXT_PRIMARY,
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+    backgroundColor: '#DBEAFE',
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1D4ED8',
+  },
 
   // Session Card
   sessionCard: {
+    backgroundColor: CARD_BG,
     borderRadius: 14,
     borderWidth: 1,
+    borderColor: BORDER,
     padding: 16,
     gap: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+      },
+      android: { elevation: 2 },
+    }),
   },
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  sessionName: { fontSize: 15, fontWeight: '600', marginBottom: 5 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  timeText: { fontSize: 12 },
+  sessionLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: TEXT_PRIMARY,
+    marginBottom: 5,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeText: {
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+  },
   activePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -525,27 +472,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
+    backgroundColor: SUCCESS_BG,
   },
   activeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#16a34a',
+    backgroundColor: SUCCESS,
   },
-  activePillText: { fontSize: 11, fontWeight: '600' },
+  activePillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#16A34A',
+  },
 
   // Stats
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
+    borderColor: '#F1F5F9',
     borderRadius: 10,
     paddingVertical: 12,
+    backgroundColor: '#FAFAFA',
   },
-  statItem: { flex: 1, alignItems: 'center', gap: 3 },
-  statValue: { fontSize: 14, fontWeight: '700' },
-  statLabel: { fontSize: 11 },
-  statDivider: { width: 1, height: 32 },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: TEXT_SECONDARY,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: BORDER,
+  },
 
   // Continue Button
   continueBtn: {
@@ -553,22 +522,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 11,
+    paddingVertical: 12,
     borderRadius: 10,
+    backgroundColor: BRAND,
   },
-  continueBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  continueBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 
   // Empty State
   emptyCard: {
+    backgroundColor: CARD_BG,
     alignItems: 'center',
     padding: 36,
     borderRadius: 16,
     borderWidth: 1,
+    borderColor: BORDER,
     gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+      },
+      android: { elevation: 1 },
+    }),
   },
   emptyEmoji: { fontSize: 44, marginBottom: 4 },
-  emptyTitle: { fontSize: 16, fontWeight: '600' },
-  emptyDesc: { fontSize: 13, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: TEXT_PRIMARY,
+  },
+  emptyDesc: {
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 
   // Hint
   hint: {
@@ -576,15 +570,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
+    paddingHorizontal: 8,
   },
-  hintText: { fontSize: 12, textAlign: 'center' },
-
-  // Loading
-  loadingContainer: {
+  hintText: {
+    fontSize: 12,
+    color: TEXT_TERTIARY,
+    textAlign: 'center',
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
   },
-  loadingText: { fontSize: 14 },
 });

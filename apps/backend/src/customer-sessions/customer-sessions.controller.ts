@@ -27,8 +27,8 @@ import { SessionClosureReason } from './schemas/customer-session.schema';
 import {
   CreateCustomerSessionDto,
   CustomerSessionResponseDto,
-  UpdateSessionStatusDto,
   FindSessionsQueryDto,
+  GhostSessionResponseDto,
 } from './dtos/customer-session.dto';
 
 @ApiTags('customer-sessions')
@@ -38,10 +38,10 @@ export class CustomerSessionsController {
     private readonly customerSessionsService: CustomerSessionsService
   ) {}
 
-  // PUBLIC ENDPOINTS (No Auth Required - Customer facing)
+  // ─── Public endpoints (customer-facing, no auth) ──────────────────────────
 
   @Post('create')
-  @ApiOperation({ summary: 'Create a new customer session' })
+  @ApiOperation({ summary: 'Create or resume a customer session (QR flow)' })
   @ApiResponse({ status: 201, type: CustomerSessionResponseDto })
   async createSession(
     @Body() createSessionDto: CreateCustomerSessionDto,
@@ -56,14 +56,12 @@ export class CustomerSessionsController {
 
   @Get(':sessionId')
   @ApiOperation({ summary: 'Get session by ID' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID' })
   @ApiResponse({ status: 200, type: CustomerSessionResponseDto })
   async getSession(
     @Param('sessionId') sessionId: string
   ): Promise<CustomerSessionResponseDto> {
-    const session = await this.customerSessionsService.findBySessionId(
-      sessionId
-    );
+    const session = await this.customerSessionsService.findBySessionId(sessionId);
     if (!session) {
       throw new Error('Session not found');
     }
@@ -71,9 +69,8 @@ export class CustomerSessionsController {
   }
 
   @Post(':sessionId/activity')
-  @ApiOperation({ summary: 'Update session activity (keep alive)' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
-  @ApiResponse({ status: 200 })
+  @ApiOperation({ summary: 'Update session activity (keep-alive)' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID' })
   async updateActivity(
     @Param('sessionId') sessionId: string
   ): Promise<{ success: boolean }> {
@@ -82,9 +79,8 @@ export class CustomerSessionsController {
   }
 
   @Get(':sessionId/bill')
-  @ApiOperation({ summary: 'Get session with complete bill calculation' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
-  @ApiResponse({ status: 200 })
+  @ApiOperation({ summary: 'Get session with full bill calculation' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID' })
   async getSessionBill(@Param('sessionId') sessionId: string) {
     return this.customerSessionsService.getSessionWithBill(sessionId);
   }
@@ -97,7 +93,7 @@ export class CustomerSessionsController {
     return this.customerSessionsService.findActiveSessionByTable(tableId);
   }
 
-  // STAFF ENDPOINTS (Authentication Required)
+  // ─── Staff endpoints (auth required) ─────────────────────────────────────
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -111,20 +107,19 @@ export class CustomerSessionsController {
   @ApiQuery({ name: 'endDate', required: false })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  @ApiResponse({ status: 200 })
-  async findSessions(@Query() query: any) {
+  async findSessions(@Query() query: FindSessionsQueryDto) {
     return this.customerSessionsService.findSessions({
       ...query,
-      page: query.page ? parseInt(query.page, 10) : undefined,
-      limit: query.limit ? parseInt(query.limit, 10) : undefined,
+      page: query.page ? parseInt(query.page as string, 10) : undefined,
+      limit: query.limit ? parseInt(query.limit as string, 10) : undefined,
     });
   }
 
   @Patch(':sessionId/close')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager, UserRole.Waiter, UserRole.Cashier)
-  @ApiOperation({ summary: 'Close a session manually (staff only)' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiOperation({ summary: 'Close a session manually' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID' })
   @ApiResponse({ status: 200, type: CustomerSessionResponseDto })
   async closeSession(
     @Param('sessionId') sessionId: string,
@@ -134,7 +129,7 @@ export class CustomerSessionsController {
     const user = req.user as any;
     return this.customerSessionsService.closeSession(
       sessionId,
-      body.reason || SessionClosureReason.STAFF_CLOSED,
+      body.reason ?? SessionClosureReason.STAFF_CLOSED,
       user.uid,
       body.notes
     );
@@ -143,9 +138,8 @@ export class CustomerSessionsController {
   @Delete(':sessionId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager, UserRole.Waiter, UserRole.Cashier)
-  @ApiOperation({ summary: 'Delete an empty session (staff only)' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
-  @ApiResponse({ status: 200 })
+  @ApiOperation({ summary: 'Delete an empty session' })
+  @ApiParam({ name: 'sessionId', description: 'Session UUID' })
   async deleteSession(
     @Param('sessionId') sessionId: string
   ): Promise<{ success: boolean }> {
@@ -153,64 +147,56 @@ export class CustomerSessionsController {
     return { success: true };
   }
 
-  // ADMIN ENDPOINTS (Manager only)
+  // ─── Ghost session endpoints ──────────────────────────────────────────────
+
+  @Get('ghost/list')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager, UserRole.Cashier)
+  @ApiOperation({ summary: 'List ghost sessions (active with no orders)' })
+  @ApiQuery({ name: 'restaurantId', required: true })
+  @ApiQuery({ name: 'branchId', required: false })
+  @ApiResponse({ status: 200, type: [GhostSessionResponseDto] })
+  async listGhostSessions(
+    @Query('restaurantId') restaurantId: string,
+    @Query('branchId') branchId?: string
+  ): Promise<GhostSessionResponseDto[]> {
+    return this.customerSessionsService.listGhostSessions(restaurantId, branchId);
+  }
+
+  @Delete('ghost/cleanup')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Manager)
+  @ApiOperation({ summary: 'Delete all ghost sessions for a restaurant/branch' })
+  @ApiQuery({ name: 'restaurantId', required: true })
+  @ApiQuery({ name: 'branchId', required: false })
+  async cleanupGhostSessions(
+    @Query('restaurantId') restaurantId: string,
+    @Query('branchId') branchId?: string
+  ): Promise<{ deletedCount: number }> {
+    const deletedCount = await this.customerSessionsService.cleanupGhostSessions(
+      restaurantId,
+      branchId
+    );
+    return { deletedCount };
+  }
+
+  // ─── Maintenance endpoints (manager only) ────────────────────────────────
 
   @Post('maintenance/close-expired')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager)
-  @ApiOperation({ summary: 'Close expired sessions (admin maintenance)' })
-  @ApiResponse({ status: 200 })
+  @ApiOperation({ summary: 'Close expired sessions' })
   async closeExpiredSessions(): Promise<{ closedCount: number }> {
-    const closedCount =
-      await this.customerSessionsService.closeExpiredSessions();
+    const closedCount = await this.customerSessionsService.closeExpiredSessions();
     return { closedCount };
   }
 
   @Post('maintenance/mark-abandoned')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.Manager)
-  @ApiOperation({
-    summary: 'Mark inactive sessions as abandoned (admin maintenance)',
-  })
-  @ApiResponse({ status: 200 })
+  @ApiOperation({ summary: 'Mark inactive sessions as abandoned' })
   async markAbandonedSessions(): Promise<{ markedCount: number }> {
-    const markedCount =
-      await this.customerSessionsService.markAbandonedSessions();
+    const markedCount = await this.customerSessionsService.markAbandonedSessions();
     return { markedCount };
-  }
-
-  // SESSION EVENT HANDLERS (Internal use - called by order service)
-
-  @Post(':sessionId/events/order-placed')
-  @ApiOperation({ summary: 'Handle order placed event in session' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
-  async onOrderPlaced(
-    @Param('sessionId') sessionId: string,
-    @Body() body: { orderId: string }
-  ): Promise<{ success: boolean }> {
-    await this.customerSessionsService.onOrderPlaced(sessionId, body.orderId);
-    return { success: true };
-  }
-
-  @Post(':sessionId/events/order-paid')
-  @ApiOperation({ summary: 'Handle order paid event in session' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
-  async onOrderPaid(
-    @Param('sessionId') sessionId: string,
-    @Body() body: { orderId: string }
-  ): Promise<{ success: boolean }> {
-    await this.customerSessionsService.onOrderPaid(sessionId, body.orderId);
-    return { success: true };
-  }
-
-  @Post(':sessionId/events/order-cancelled')
-  @ApiOperation({ summary: 'Handle order cancelled event in session' })
-  @ApiParam({ name: 'sessionId', description: 'Session ID' })
-  async onOrderCancelled(
-    @Param('sessionId') sessionId: string,
-    @Body() body: { orderId: string }
-  ): Promise<{ success: boolean }> {
-    await this.customerSessionsService.onOrderCancelled(sessionId, body.orderId);
-    return { success: true };
   }
 }

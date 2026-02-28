@@ -19,6 +19,14 @@ const PAYMENT_METHODS = ['upi', 'cash', 'pending'] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export class CreateOrderDto {
+  @ApiPropertyOptional({
+    example: '64f1a2b3c4d5e6f7a8b9c0d1',
+    description: 'Branch ID — used by staff POS for walk-in orders where no table is selected',
+  })
+  @IsOptional()
+  @IsMongoId()
+  branchId?: string;
+
   @ApiProperty({
     example: '66f0e5ec2ed1f1a1c4f9c7e3',
     required: false,

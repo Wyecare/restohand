@@ -138,9 +138,9 @@ export class OrdersController {
       hasCustomerSessionId: !!orderDto.customerSessionId,
     });
 
-    // Extract branchId if user is authenticated, otherwise get it from table
+    // Extract branchId: authenticated user > explicit dto.branchId > table lookup
     const user = req?.user as AuthenticatedUser | undefined;
-    let branchId = user?.branchId;
+    let branchId = user?.branchId ?? orderDto.branchId;
 
     // CRITICAL FIX: Get branchId from table using tableId (preferred) or tableNumber (fallback)
     if (!branchId) {
@@ -875,6 +875,8 @@ export class OrdersController {
       cgstAmount: calculation.cgstAmount,
       sgstAmount: calculation.sgstAmount,
       igstAmount: calculation.igstAmount,
+      totalVatAmount: calculation.totalVatAmount ?? 0,
+      discountAmount: calculation.discountAmount ?? 0,
       roundOffAmount: calculation.roundOffAmount,
       totalAmount: calculation.totalAmount,
       itemDetails:
@@ -1319,79 +1321,6 @@ export class OrdersController {
       receiptUrl,
       qrCodeDataUrl,
       // No token or expiration needed anymore
-    };
-  }
-
-  @Post('get-or-create-session')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.Manager, UserRole.Chef, UserRole.Waiter, UserRole.Cashier)
-  @ApiParam({ name: 'restaurantId' })
-  @ApiOkResponse({
-    description: 'Get or create session for table',
-  })
-  async getOrCreateSession(
-    @Param('restaurantId') restaurantId: string,
-    @Body() { tableId, tableNumber }: { tableId?: string; tableNumber?: string }
-  ) {
-    if (!tableId && !tableNumber) {
-      throw new BadRequestException(
-        'Either tableId or tableNumber must be provided'
-      );
-    }
-
-    // Find the table first
-    let table = null;
-
-    if (tableId) {
-      table = await this.tableModel
-        .findOne({
-          _id: tableId,
-          isActive: true,
-        })
-        .lean();
-    } else if (tableNumber) {
-      table = await this.tableModel
-        .findOne({
-          restaurantId,
-          tableNumber: tableNumber.trim(),
-          isActive: true,
-        })
-        .lean();
-    }
-
-    if (!table) {
-      throw new BadRequestException('Table not found');
-    }
-
-    // Check for existing active session for this table
-    const existingSession =
-      await this.customerSessionsService.findActiveSessionByTable(
-        table._id.toString()
-      );
-
-    if (existingSession) {
-      return {
-        sessionId: existingSession.sessionId,
-        isNewSession: false,
-        tableId: table._id.toString(),
-        tableNumber: table.tableNumber,
-      };
-    }
-
-    // Create new session using restaurant ID
-    const session =
-      await this.customerSessionsService.createSessionByRestaurantId(
-        restaurantId,
-        table._id.toString(),
-        'Staff App', // userAgent
-        'internal' // ipAddress
-      );
-
-    return {
-      sessionId: session.sessionId,
-      isNewSession: true,
-      tableId: table._id.toString(),
-      tableNumber: table.tableNumber,
     };
   }
 

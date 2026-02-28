@@ -197,6 +197,8 @@ export interface CalculateCartTotalResponse {
   cgstAmount: number;
   sgstAmount: number;
   igstAmount: number;
+  totalVatAmount?: number;
+  discountAmount?: number;
   roundOffAmount: number;
   totalAmount: number;
   itemDetails: Array<{

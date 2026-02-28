@@ -144,24 +144,6 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       ],
     }),
 
-    // Notify session about order placement (updates session totals)
-    onOrderPlaced: builder.mutation<
-      { success: boolean },
-      { sessionId: string; orderId: string }
-    >({
-      query: ({ sessionId, orderId }) => ({
-        url: `/customer-sessions/${sessionId}/events/order-placed`,
-        method: 'POST',
-        body: { orderId },
-      }),
-      invalidatesTags: (result, error, { sessionId }) => [
-        { type: 'CustomerSession', id: sessionId },
-        { type: 'CustomerSession', id: 'LIST' },
-        { type: 'Bill', id: sessionId },
-        { type: 'Bill', id: 'LIST' },
-      ],
-    }),
-
     // Close a session (staff action)
     closeSession: builder.mutation<
       CustomerSession,
@@ -191,6 +173,5 @@ export const {
   useGetSessionQuery,
   useGetSessionWithBillQuery,
   useCreateCustomerSessionMutation,
-  useOnOrderPlacedMutation,
   useCloseSessionMutation,
 } = customerSessionsApi;

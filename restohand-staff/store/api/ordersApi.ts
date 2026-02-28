@@ -64,23 +64,9 @@ export interface OrderHistoryResponse {
   };
 }
 
-export interface GetOrCreateSessionPayload {
-  restaurantId: string;
-  tableId?: string;
-  tableNumber?: string;
-  customerNumber?: number;
-}
-
-export interface GetOrCreateSessionResponse {
-  sessionId: string;
-  isNewSession: boolean;
-  tableId: string;
-  tableNumber: string;
-  customerNumber?: number;
-}
-
 export interface CreateOrderPayload {
   restaurantId: string;
+  branchId?: string;
   customerSessionId?: string;
   tableId?: string;
   tableNumber?: string;
@@ -265,18 +251,6 @@ export const ordersApi = baseApi.injectEndpoints({
       ],
     }),
 
-    // Get or create session for table (for staff app)
-    getOrCreateSession: builder.mutation<
-      GetOrCreateSessionResponse,
-      GetOrCreateSessionPayload
-    >({
-      query: ({ restaurantId, ...body }) => ({
-        url: `/restaurants/${restaurantId}/orders/get-or-create-session`,
-        method: "POST",
-        body,
-      }),
-      // No cache invalidation needed for session creation
-    }),
   }),
   overrideExisting: false,
 });
@@ -292,5 +266,4 @@ export const {
   useGenerateSessionReceiptQrMutation,
   useCalculateCartTotalMutation,
   useGetOrderHistoryQuery,
-  useGetOrCreateSessionMutation,
 } = ordersApi;

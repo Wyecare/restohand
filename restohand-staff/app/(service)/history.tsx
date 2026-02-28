@@ -14,7 +14,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
   Dimensions,
   Animated,
 } from 'react-native';
@@ -33,7 +32,6 @@ import {
   type DetailedBillCalculation,
 } from '@/store/api/billingApi';
 import { useGenerateSessionReceiptQrMutation } from '@/store/api/ordersApi';
-import { Colors } from '@/constants/theme';
 
 // Modern color palette
 const AppColors = {
@@ -56,27 +54,7 @@ const AppColors = {
     error: '#EF4444',
     errorLight: '#FEE2E2',
     gray: '#64748B',
-  },
-  dark: {
-    background: '#0F172A',
-    surface: '#1E293B',
-    surfaceHover: '#334155',
-    border: '#334155',
-    borderLight: '#1E293B',
-    text: '#F8FAFC',
-    textSecondary: '#CBD5E1',
-    textTertiary: '#64748B',
-    primary: '#60A5FA',
-    primaryLight: '#1E3A8A',
-    primaryDark: '#93C5FD',
-    success: '#34D399',
-    successLight: '#064E3B',
-    warning: '#FBBF24',
-    warningLight: '#78350F',
-    error: '#F87171',
-    errorLight: '#7F1D1D',
-    gray: '#94A3B8',
-  },
+  }
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -90,9 +68,7 @@ interface FilterState {
 }
 
 export default function SessionHistoryScreen() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const theme = isDark ? AppColors.dark : AppColors.light;
+  const theme = AppColors.light;
   const restaurantId = useAppSelector(selectActiveRestaurantId);
 
   const [page, setPage] = useState(1);
@@ -312,18 +288,18 @@ export default function SessionHistoryScreen() {
             icon: 'alert-circle' as const,
             label: 'Abandoned',
             color: theme.gray,
-            bgColor: isDark ? '#334155' : '#F1F5F9',
+            bgColor: '#F1F5F9',
           };
         default:
           return {
             icon: 'help-circle' as const,
             label: 'Unknown',
             color: theme.gray,
-            bgColor: isDark ? '#334155' : '#F1F5F9',
+            bgColor: '#F1F5F9',
           };
       }
     },
-    [theme, isDark]
+    [theme]
   );
 
   const renderSessionItem = useCallback(
@@ -354,7 +330,7 @@ export default function SessionHistoryScreen() {
               <View style={styles.sessionIdentifiers}>
                 <View style={styles.sessionIdContainer}>
                   <Ionicons name="receipt" size={16} color={theme.primary} />
-                  <Text style={[styles.sessionId, { color: theme.text }]}>
+                  <Text style={[styles.sessionId, { color: '#0F172A' }]}>
                     #{item.sessionId.slice(-6).toUpperCase()}
                   </Text>
                 </View>
@@ -362,12 +338,12 @@ export default function SessionHistoryScreen() {
                   <Ionicons
                     name="restaurant"
                     size={12}
-                    color={theme.textSecondary}
+                    color={'#64748B'}
                   />
                   <Text
                     style={[
                       styles.tableBadgeText,
-                      { color: theme.textSecondary },
+                      { color: '#64748B' },
                     ]}
                   >
                     {item.tableNumber}
@@ -395,10 +371,10 @@ export default function SessionHistoryScreen() {
             </View>
 
             <View style={styles.sessionMiddleRow}>
-              <Text style={[styles.sessionAmount, { color: theme.text }]}>
+              <Text style={[styles.sessionAmount, { color: '#0F172A' }]}>
                 {formatCurrency(item.totalAmount)}
               </Text>
-              <Text style={[styles.orderCount, { color: theme.textTertiary }]}>
+              <Text style={[styles.orderCount, { color: '#94A3B8' }]}>
                 {item.totalOrders} {item.totalOrders === 1 ? 'order' : 'orders'}
               </Text>
             </View>
@@ -408,9 +384,9 @@ export default function SessionHistoryScreen() {
                 <Ionicons
                   name="time-outline"
                   size={14}
-                  color={theme.textTertiary}
+                  color={'#94A3B8'}
                 />
-                <Text style={[styles.timeText, { color: theme.textTertiary }]}>
+                <Text style={[styles.timeText, { color: '#94A3B8' }]}>
                   {formatDateShort(item.startedAt)} •{' '}
                   {formatTime(item.startedAt)}
                 </Text>
@@ -418,14 +394,14 @@ export default function SessionHistoryScreen() {
 
               <View style={styles.expandIndicator}>
                 <Text
-                  style={[styles.expandText, { color: theme.textTertiary }]}
+                  style={[styles.expandText, { color: '#94A3B8' }]}
                 >
                   {isExpanded ? 'Less' : 'Details'}
                 </Text>
                 <Ionicons
                   name={isExpanded ? 'chevron-up' : 'chevron-down'}
                   size={16}
-                  color={theme.textTertiary}
+                  color={'#94A3B8'}
                 />
               </View>
             </View>
@@ -449,12 +425,12 @@ export default function SessionHistoryScreen() {
                   <Ionicons
                     name="card-outline"
                     size={16}
-                    color={theme.textSecondary}
+                    color={'#64748B'}
                   />
                   <Text
                     style={[
                       styles.detailLabelText,
-                      { color: theme.textSecondary },
+                      { color: '#64748B' },
                     ]}
                   >
                     Payment Status
@@ -482,19 +458,19 @@ export default function SessionHistoryScreen() {
                     <Ionicons
                       name="hourglass-outline"
                       size={16}
-                      color={theme.textSecondary}
+                      color={'#64748B'}
                     />
                     <Text
                       style={[
                         styles.detailLabelText,
-                        { color: theme.textSecondary },
+                        { color: '#64748B' },
                       ]}
                     >
                       Session Duration
                     </Text>
                   </View>
                   <Text
-                    style={[styles.detailValue, { color: theme.textSecondary }]}
+                    style={[styles.detailValue, { color: '#64748B' }]}
                   >
                     {formatDateShort(item.startedAt)} -{' '}
                     {formatDateShort(item.closedAt)}
@@ -505,7 +481,6 @@ export default function SessionHistoryScreen() {
               {/* Orders List */}
               <SessionOrders
                 sessionId={item.sessionId}
-                isDark={isDark}
                 theme={theme}
               />
 
@@ -550,7 +525,6 @@ export default function SessionHistoryScreen() {
       );
     },
     [
-      isDark,
       theme,
       formatCurrency,
       formatDateShort,
@@ -567,11 +541,9 @@ export default function SessionHistoryScreen() {
   // Component for rendering session details with comprehensive item breakdown
   const SessionOrders = ({
     sessionId,
-    isDark,
     theme,
   }: {
     sessionId: string;
-    isDark: boolean;
     theme: any;
   }) => {
     // Only use the detailed session bill query - no legacy API calls
@@ -583,7 +555,7 @@ export default function SessionHistoryScreen() {
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+          <Text style={[styles.loadingText, { color: '#64748B' }]}>
             Loading session details...
           </Text>
         </View>
@@ -599,8 +571,8 @@ export default function SessionHistoryScreen() {
         {/* All Items Section - Item-level breakdown */}
         <View style={styles.allItemsSection}>
           <View style={styles.ordersSectionHeader}>
-            <Ionicons name="receipt" size={16} color={theme.textSecondary} />
-            <Text style={[styles.ordersSectionTitle, { color: theme.textSecondary }]}>
+            <Ionicons name="receipt" size={16} color={'#64748B'} />
+            <Text style={[styles.ordersSectionTitle, { color: '#64748B' }]}>
               All Items ({detailedBill.allItems.length})
             </Text>
           </View>
@@ -610,30 +582,30 @@ export default function SessionHistoryScreen() {
               const pricePerUnitWithTax = item.totalWithTax / item.quantity;
               return (
                 <View key={index} style={[styles.itemCard, {
-                  backgroundColor: theme.background,
-                  borderColor: isDark ? '#374151' : '#e5e7eb'
+                  backgroundColor: '#FFFFFF',
+                  borderColor: '#e5e7eb'
                 }]}>
                   <View style={styles.itemCardContent}>
                     <View style={styles.itemMainInfo}>
-                      <Text style={[styles.itemCardName, { color: theme.text }]}>
+                      <Text style={[styles.itemCardName, { color: '#0F172A' }]}>
                         {item.name}
                       </Text>
-                      <Text style={[styles.itemCalculation, { color: theme.textSecondary }]}>
+                      <Text style={[styles.itemCalculation, { color: '#64748B' }]}>
                         {item.quantity} × {formatCurrency(pricePerUnitWithTax)} = {formatCurrency(item.totalWithTax)}
                       </Text>
                       {item.gstRate > 0 && (
-                        <Text style={[styles.gstInfo, { color: theme.textTertiary }]}>
+                        <Text style={[styles.gstInfo, { color: '#94A3B8' }]}>
                           GST @ {item.gstRate}% • Tax: {formatCurrency(item.totalTaxAmount)}
                         </Text>
                       )}
                       {item.hsnCode && (
-                        <Text style={[styles.hsnCode, { color: theme.textTertiary }]}>
+                        <Text style={[styles.hsnCode, { color: '#94A3B8' }]}>
                           HSN: {item.hsnCode}
                         </Text>
                       )}
                     </View>
                     <View style={styles.itemPriceInfo}>
-                      <Text style={[styles.itemCardTotal, { color: theme.text }]}>
+                      <Text style={[styles.itemCardTotal, { color: '#0F172A' }]}>
                         {formatCurrency(item.totalWithTax)}
                       </Text>
                     </View>
@@ -647,27 +619,27 @@ export default function SessionHistoryScreen() {
         {/* Orders Breakdown Section */}
         <View style={styles.ordersBreakdownSection}>
           <View style={styles.ordersSectionHeader}>
-            <Ionicons name="list" size={16} color={theme.textSecondary} />
-            <Text style={[styles.ordersSectionTitle, { color: theme.textSecondary }]}>
+            <Ionicons name="list" size={16} color={'#64748B'} />
+            <Text style={[styles.ordersSectionTitle, { color: '#64748B' }]}>
               Orders ({detailedBill.orderBreakdown.length})
             </Text>
           </View>
 
           {detailedBill.orderBreakdown.map((order) => (
-            <View key={order.orderId} style={[styles.orderBreakdownCard, { backgroundColor: theme.background }]}>
+            <View key={order.orderId} style={[styles.orderBreakdownCard, { backgroundColor: '#FFFFFF' }]}>
               <View style={styles.orderBreakdownHeader}>
                 <View style={styles.orderMainInfo}>
-                  <Text style={[styles.orderBreakdownNumber, { color: theme.text }]}>
+                  <Text style={[styles.orderBreakdownNumber, { color: '#0F172A' }]}>
                     #{order.orderNumber}
                   </Text>
-                  <Text style={[styles.orderBreakdownDetails, { color: theme.textSecondary }]}>
+                  <Text style={[styles.orderBreakdownDetails, { color: '#64748B' }]}>
                     Payment: {order.paymentStatus} • {order.itemCount} items
                   </Text>
-                  <Text style={[styles.orderBreakdownDate, { color: theme.textTertiary }]}>
+                  <Text style={[styles.orderBreakdownDate, { color: '#94A3B8' }]}>
                     {new Date(order.createdAt).toLocaleDateString('en-IN')} {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 </View>
-                <Text style={[styles.orderBreakdownAmount, { color: theme.text }]}>
+                <Text style={[styles.orderBreakdownAmount, { color: '#0F172A' }]}>
                   {formatCurrency(order.totalAmount)}
                 </Text>
               </View>
@@ -676,32 +648,32 @@ export default function SessionHistoryScreen() {
         </View>
 
         {/* Detailed Bill Summary */}
-        <View style={[styles.sessionTotalSection, { backgroundColor: isDark ? '#1e3a8a' : '#eff6ff' }]}>
+        <View style={[styles.sessionTotalSection, { backgroundColor: '#eff6ff' }]}>
           <View style={styles.sessionTotalHeader}>
-            <Text style={[styles.sessionTotalLabel, { color: theme.text }]}>
+            <Text style={[styles.sessionTotalLabel, { color: '#0F172A' }]}>
               Session Total
             </Text>
-            <Text style={[styles.sessionTotalAmount, { color: theme.text }]}>
+            <Text style={[styles.sessionTotalAmount, { color: '#0F172A' }]}>
               {formatCurrency(detailedBill.totalAmount)}
             </Text>
           </View>
 
           <View style={styles.sessionTotalBreakdown}>
             <View style={styles.billRow}>
-              <Text style={[styles.billLabel, { color: theme.textSecondary }]}>
+              <Text style={[styles.billLabel, { color: '#64748B' }]}>
                 Subtotal
               </Text>
-              <Text style={[styles.billValue, { color: theme.text }]}>
+              <Text style={[styles.billValue, { color: '#0F172A' }]}>
                 {formatCurrency(detailedBill.subTotalAmount)}
               </Text>
             </View>
 
             {detailedBill.cgstAmount > 0 && (
               <View style={styles.billRow}>
-                <Text style={[styles.billLabel, { color: theme.textSecondary }]}>
+                <Text style={[styles.billLabel, { color: '#64748B' }]}>
                   CGST
                 </Text>
-                <Text style={[styles.billValue, { color: theme.text }]}>
+                <Text style={[styles.billValue, { color: '#0F172A' }]}>
                   {formatCurrency(detailedBill.cgstAmount)}
                 </Text>
               </View>
@@ -709,10 +681,10 @@ export default function SessionHistoryScreen() {
 
             {detailedBill.sgstAmount > 0 && (
               <View style={styles.billRow}>
-                <Text style={[styles.billLabel, { color: theme.textSecondary }]}>
+                <Text style={[styles.billLabel, { color: '#64748B' }]}>
                   SGST
                 </Text>
-                <Text style={[styles.billValue, { color: theme.text }]}>
+                <Text style={[styles.billValue, { color: '#0F172A' }]}>
                   {formatCurrency(detailedBill.sgstAmount)}
                 </Text>
               </View>
@@ -720,10 +692,10 @@ export default function SessionHistoryScreen() {
 
             {detailedBill.igstAmount > 0 && (
               <View style={styles.billRow}>
-                <Text style={[styles.billLabel, { color: theme.textSecondary }]}>
+                <Text style={[styles.billLabel, { color: '#64748B' }]}>
                   IGST
                 </Text>
-                <Text style={[styles.billValue, { color: theme.text }]}>
+                <Text style={[styles.billValue, { color: '#0F172A' }]}>
                   {formatCurrency(detailedBill.igstAmount)}
                 </Text>
               </View>
@@ -731,10 +703,10 @@ export default function SessionHistoryScreen() {
 
             {detailedBill.taxAmount > 0 && (
               <View style={[styles.billRow, styles.billRowTotal]}>
-                <Text style={[styles.billLabel, { color: theme.text, fontWeight: '600' }]}>
+                <Text style={[styles.billLabel, { color: '#0F172A', fontWeight: '600' }]}>
                   Total Tax
                 </Text>
-                <Text style={[styles.billValue, { color: theme.text, fontWeight: '600' }]}>
+                <Text style={[styles.billValue, { color: '#0F172A', fontWeight: '600' }]}>
                   {formatCurrency(detailedBill.taxAmount)}
                 </Text>
               </View>
@@ -742,10 +714,10 @@ export default function SessionHistoryScreen() {
 
             {detailedBill.discountAmount > 0 && (
               <View style={styles.billRow}>
-                <Text style={[styles.billLabel, { color: theme.textSecondary }]}>
+                <Text style={[styles.billLabel, { color: '#64748B' }]}>
                   Discount
                 </Text>
-                <Text style={[styles.billValue, { color: theme.text }]}>
+                <Text style={[styles.billValue, { color: '#0F172A' }]}>
                   -{formatCurrency(detailedBill.discountAmount)}
                 </Text>
               </View>
@@ -753,10 +725,10 @@ export default function SessionHistoryScreen() {
 
             {detailedBill.roundOffAmount !== 0 && (
               <View style={styles.billRow}>
-                <Text style={[styles.billLabel, { color: theme.textSecondary }]}>
+                <Text style={[styles.billLabel, { color: '#64748B' }]}>
                   Round Off
                 </Text>
-                <Text style={[styles.billValue, { color: theme.text }]}>
+                <Text style={[styles.billValue, { color: '#0F172A' }]}>
                   {detailedBill.roundOffAmount >= 0 ? '+' : ''}{formatCurrency(detailedBill.roundOffAmount)}
                 </Text>
               </View>
@@ -776,8 +748,8 @@ export default function SessionHistoryScreen() {
 
           {/* Tax Type */}
           {detailedBill.taxType && (
-            <View style={[styles.taxTypeSection, { borderTopColor: isDark ? '#3b82f6' : '#bfdbfe' }]}>
-              <Text style={[styles.taxTypeText, { color: theme.textSecondary }]}>
+            <View style={[styles.taxTypeSection, { borderTopColor: '#bfdbfe' }]}>
+              <Text style={[styles.taxTypeText, { color: '#64748B' }]}>
                 Tax Type: {detailedBill.taxType === 'intra-state' ? 'Intra-State (CGST+SGST)' : 'Inter-State (IGST)'}
               </Text>
             </View>
@@ -792,11 +764,11 @@ export default function SessionHistoryScreen() {
       <View style={styles.header}>
         {/* Search Bar */}
         <View style={[styles.searchBar, { backgroundColor: theme.surface }]}>
-          <Ionicons name="search" size={20} color={theme.textTertiary} />
+          <Ionicons name="search" size={20} color={'#94A3B8'} />
           <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
+            style={[styles.searchInput, { color: '#0F172A' }]}
             placeholder="Search sessions or tables..."
-            placeholderTextColor={theme.textTertiary}
+            placeholderTextColor={'#94A3B8'}
             value={filters.search}
             onChangeText={(text) => handleFilterChange('search', text)}
           />
@@ -805,7 +777,7 @@ export default function SessionHistoryScreen() {
               <Ionicons
                 name="close-circle"
                 size={20}
-                color={theme.textTertiary}
+                color={'#94A3B8'}
               />
             </TouchableOpacity>
           )}
@@ -826,12 +798,12 @@ export default function SessionHistoryScreen() {
             <Ionicons
               name="options"
               size={16}
-              color={showFilters ? '#FFFFFF' : theme.textSecondary}
+              color={showFilters ? '#FFFFFF' : '#64748B'}
             />
             <Text
               style={[
                 styles.filterChipText,
-                { color: showFilters ? '#FFFFFF' : theme.textSecondary },
+                { color: showFilters ? '#FFFFFF' : '#64748B' },
               ]}
             >
               Filters
@@ -884,7 +856,7 @@ export default function SessionHistoryScreen() {
             {/* Status Filter */}
             <View style={styles.filterGroup}>
               <Text
-                style={[styles.filterLabel, { color: theme.textSecondary }]}
+                style={[styles.filterLabel, { color: '#64748B' }]}
               >
                 Status
               </Text>
@@ -898,7 +870,7 @@ export default function SessionHistoryScreen() {
                         backgroundColor:
                           filters.status === status
                             ? theme.primary
-                            : theme.background,
+                            : '#FFFFFF',
                         borderColor: theme.border,
                       },
                     ]}
@@ -911,7 +883,7 @@ export default function SessionHistoryScreen() {
                           color:
                             filters.status === status
                               ? '#FFFFFF'
-                              : theme.textSecondary,
+                              : '#64748B',
                           fontWeight: filters.status === status ? '600' : '400',
                         },
                       ]}
@@ -928,7 +900,7 @@ export default function SessionHistoryScreen() {
             {/* Table Number */}
             <View style={styles.filterGroup}>
               <Text
-                style={[styles.filterLabel, { color: theme.textSecondary }]}
+                style={[styles.filterLabel, { color: '#64748B' }]}
               >
                 Table Number
               </Text>
@@ -936,13 +908,13 @@ export default function SessionHistoryScreen() {
                 style={[
                   styles.filterInput,
                   {
-                    backgroundColor: theme.background,
+                    backgroundColor: '#FFFFFF',
                     borderColor: theme.border,
-                    color: theme.text,
+                    color: '#0F172A',
                   },
                 ]}
                 placeholder="e.g., T1, T2, T3..."
-                placeholderTextColor={theme.textTertiary}
+                placeholderTextColor={'#94A3B8'}
                 value={filters.tableNumber}
                 onChangeText={(text) => handleFilterChange('tableNumber', text)}
               />
@@ -951,7 +923,7 @@ export default function SessionHistoryScreen() {
             {/* Date Range */}
             <View style={styles.filterGroup}>
               <Text
-                style={[styles.filterLabel, { color: theme.textSecondary }]}
+                style={[styles.filterLabel, { color: '#64748B' }]}
               >
                 Date Range
               </Text>
@@ -960,18 +932,18 @@ export default function SessionHistoryScreen() {
                   style={[
                     styles.dateInput,
                     {
-                      backgroundColor: theme.background,
+                      backgroundColor: '#FFFFFF',
                       borderColor: theme.border,
-                      color: theme.text,
+                      color: '#0F172A',
                     },
                   ]}
                   placeholder="From (YYYY-MM-DD)"
-                  placeholderTextColor={theme.textTertiary}
+                  placeholderTextColor={'#94A3B8'}
                   value={filters.dateFrom}
                   onChangeText={(text) => handleFilterChange('dateFrom', text)}
                 />
                 <Text
-                  style={[styles.dateSeparator, { color: theme.textTertiary }]}
+                  style={[styles.dateSeparator, { color: '#94A3B8' }]}
                 >
                   to
                 </Text>
@@ -979,13 +951,13 @@ export default function SessionHistoryScreen() {
                   style={[
                     styles.dateInput,
                     {
-                      backgroundColor: theme.background,
+                      backgroundColor: '#FFFFFF',
                       borderColor: theme.border,
-                      color: theme.text,
+                      color: '#0F172A',
                     },
                   ]}
                   placeholder="To (YYYY-MM-DD)"
-                  placeholderTextColor={theme.textTertiary}
+                  placeholderTextColor={'#94A3B8'}
                   value={filters.dateTo}
                   onChangeText={(text) => handleFilterChange('dateTo', text)}
                 />
@@ -997,11 +969,11 @@ export default function SessionHistoryScreen() {
               style={[styles.clearFiltersButton, { borderColor: theme.border }]}
               onPress={clearFilters}
             >
-              <Ionicons name="refresh" size={16} color={theme.textSecondary} />
+              <Ionicons name="refresh" size={16} color={'#64748B'} />
               <Text
                 style={[
                   styles.clearFiltersText,
-                  { color: theme.textSecondary },
+                  { color: '#64748B' },
                 ]}
               >
                 Clear All Filters
@@ -1013,7 +985,7 @@ export default function SessionHistoryScreen() {
         {/* Results Summary */}
         {sessionHistory && sessionHistory.total > 0 && (
           <View style={styles.resultsSummary}>
-            <Text style={[styles.resultsText, { color: theme.textSecondary }]}>
+            <Text style={[styles.resultsText, { color: '#64748B' }]}>
               Showing {sessionHistory.sessions.length} of {sessionHistory.total}{' '}
               sessions
             </Text>
@@ -1022,7 +994,6 @@ export default function SessionHistoryScreen() {
       </View>
     ),
     [
-      isDark,
       theme,
       filters,
       showFilters,
@@ -1038,19 +1009,19 @@ export default function SessionHistoryScreen() {
         <View
           style={[
             styles.emptyIconContainer,
-            { backgroundColor: theme.background },
+            { backgroundColor: '#FFFFFF' },
           ]}
         >
           <Ionicons
             name="receipt-outline"
             size={48}
-            color={theme.textTertiary}
+            color={'#94A3B8'}
           />
         </View>
-        <Text style={[styles.emptyTitle, { color: theme.text }]}>
+        <Text style={[styles.emptyTitle, { color: '#0F172A' }]}>
           No Sessions Found
         </Text>
-        <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+        <Text style={[styles.emptySubtitle, { color: '#64748B' }]}>
           {filters.search || filters.status !== 'all' || filters.tableNumber
             ? 'Try adjusting your filters'
             : 'Customer sessions will appear here once created'}
@@ -1067,17 +1038,17 @@ export default function SessionHistoryScreen() {
         )}
       </View>
     ),
-    [isDark, theme, filters, clearFilters]
+    [ theme, filters, clearFilters]
   );
 
   if (!restaurantId) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
+        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
       >
         <View style={styles.errorState}>
           <Ionicons name="alert-circle" size={48} color={theme.error} />
-          <Text style={[styles.errorText, { color: theme.text }]}>
+          <Text style={[styles.errorText, { color: '#0F172A' }]}>
             No restaurant selected
           </Text>
         </View>
@@ -1087,11 +1058,11 @@ export default function SessionHistoryScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[styles.container, { backgroundColor: '#FFFFFF' }]}
     >
       <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.background}
+        barStyle={'dark-content'}
+        backgroundColor={'#FFFFFF'}
       />
 
       {/* Header */}
@@ -1102,15 +1073,15 @@ export default function SessionHistoryScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
+          <Ionicons name="arrow-back" size={24} color='#0F172A' />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={[styles.title, { color: theme.text }]}>
+          <Text style={[styles.title, { color: '#0F172A' }]}>
             Session History
           </Text>
           {sessionHistory && (
-            <Text style={[styles.subtitle, { color: theme.textTertiary }]}>
+            <Text style={[styles.subtitle, { color: '#94A3B8' }]}>
               {sessionHistory.total} total sessions
             </Text>
           )}
@@ -1124,7 +1095,7 @@ export default function SessionHistoryScreen() {
           <Ionicons
             name="refresh"
             size={24}
-            color={isFetching ? theme.textTertiary : theme.text}
+            color={isFetching ? '#94A3B8' : '#0F172A'}
           />
         </TouchableOpacity>
       </View>
@@ -1163,7 +1134,7 @@ export default function SessionHistoryScreen() {
           isFetching && page > 1 ? (
             <View style={styles.loadingFooter}>
               <ActivityIndicator size="small" color={theme.primary} />
-              <Text style={[styles.loadingText, { color: theme.textTertiary }]}>
+              <Text style={[styles.loadingText, { color: '#94A3B8' }]}>
                 Loading more sessions...
               </Text>
             </View>
@@ -1188,14 +1159,14 @@ export default function SessionHistoryScreen() {
                 { borderBottomColor: theme.border },
               ]}
             >
-              <Text style={[styles.qrModalTitle, { color: theme.text }]}>
+              <Text style={[styles.qrModalTitle, { color: '#0F172A' }]}>
                 Receipt QR Code
               </Text>
               <TouchableOpacity
                 style={styles.qrCloseButton}
                 onPress={() => setShowReceiptQr(false)}
               >
-                <Ionicons name="close" size={24} color={theme.textSecondary} />
+                <Ionicons name="close" size={24} color={'#64748B'} />
               </TouchableOpacity>
             </View>
 
@@ -1216,11 +1187,11 @@ export default function SessionHistoryScreen() {
 
                 <View style={styles.qrInfo}>
                   <Ionicons name="scan" size={24} color={theme.primary} />
-                  <Text style={[styles.qrInstructions, { color: theme.text }]}>
+                  <Text style={[styles.qrInstructions, { color: '#0F172A' }]}>
                     Customer can scan this code
                   </Text>
                   <Text
-                    style={[styles.qrSubtext, { color: theme.textSecondary }]}
+                    style={[styles.qrSubtext, { color: '#64748B' }]}
                   >
                     to download their receipt
                   </Text>
@@ -1230,33 +1201,33 @@ export default function SessionHistoryScreen() {
                   <View
                     style={[
                       styles.qrSessionCard,
-                      { backgroundColor: theme.background },
+                      { backgroundColor: '#FFFFFF' },
                     ]}
                   >
                     <View style={styles.qrSessionRow}>
                       <Text
-                        style={[styles.qrLabel, { color: theme.textTertiary }]}
+                        style={[styles.qrLabel, { color: '#94A3B8' }]}
                       >
                         Session
                       </Text>
-                      <Text style={[styles.qrValue, { color: theme.text }]}>
+                      <Text style={[styles.qrValue, { color: '#0F172A' }]}>
                         #
                         {selectedSessionForQr.sessionId.slice(-6).toUpperCase()}
                       </Text>
                     </View>
                     <View style={styles.qrSessionRow}>
                       <Text
-                        style={[styles.qrLabel, { color: theme.textTertiary }]}
+                        style={[styles.qrLabel, { color: '#94A3B8' }]}
                       >
                         Table
                       </Text>
-                      <Text style={[styles.qrValue, { color: theme.text }]}>
+                      <Text style={[styles.qrValue, { color: '#0F172A' }]}>
                         {selectedSessionForQr.tableNumber}
                       </Text>
                     </View>
                     <View style={styles.qrSessionRow}>
                       <Text
-                        style={[styles.qrLabel, { color: theme.textTertiary }]}
+                        style={[styles.qrLabel, { color: '#94A3B8' }]}
                       >
                         Amount
                       </Text>
@@ -1266,12 +1237,12 @@ export default function SessionHistoryScreen() {
                     </View>
                     <View style={styles.qrSessionRow}>
                       <Text
-                        style={[styles.qrLabel, { color: theme.textTertiary }]}
+                        style={[styles.qrLabel, { color: '#94A3B8' }]}
                       >
                         Valid Until
                       </Text>
                       <Text
-                        style={[styles.qrValue, { color: theme.textSecondary }]}
+                        style={[styles.qrValue, { color: '#64748B' }]}
                       >
                         {new Date(
                           sessionReceiptQr.expiresAt
@@ -1285,7 +1256,7 @@ export default function SessionHistoryScreen() {
               <View style={styles.qrLoadingContainer}>
                 <ActivityIndicator size="large" color={theme.primary} />
                 <Text
-                  style={[styles.qrLoadingText, { color: theme.textSecondary }]}
+                  style={[styles.qrLoadingText, { color: '#64748B' }]}
                 >
                   Generating QR code...
                 </Text>
@@ -1838,9 +1809,6 @@ const styles = StyleSheet.create({
   loadingContainer: {
     padding: 20,
     alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 13,
   },
   allItemsSection: {
     marginBottom: 16,

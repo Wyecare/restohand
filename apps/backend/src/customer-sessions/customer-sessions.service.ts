@@ -30,9 +30,18 @@ import { BillCalculatorService } from '../billing/services/bill-calculator.servi
 import {
   CreateCustomerSessionDto,
   CustomerSessionResponseDto,
-  UpdateSessionStatusDto,
   FindSessionsQueryDto,
+  GhostSessionResponseDto,
 } from './dtos/customer-session.dto';
+
+export interface FindOrCreateSessionParams {
+  restaurantId: string;
+  tableId: string;
+  source?: 'staff' | 'customer';
+  userAgent?: string;
+  ipAddress?: string;
+  deviceFingerprint?: string;
+}
 
 @Injectable()
 export class CustomerSessionsService {
@@ -51,174 +60,111 @@ export class CustomerSessionsService {
   ) {}
 
   /**
-   * Create a new customer session
+   * Find an existing active session for a table, or create a new one.
+   * This is the single entry point for session creation used internally
+   * (called by orders service when creating an order for a table).
    */
-  /**
-   * Create session by restaurant ID (for staff app)
-   */
-  async createSessionByRestaurantId(
-    restaurantId: string,
-    tableId: string,
-    userAgent: string = 'Staff App',
-    ipAddress: string = 'internal'
-  ): Promise<CustomerSessionResponseDto> {
-    // Find restaurant by ID
-    const restaurant = await this.restaurantModel.findById(restaurantId);
-    if (!restaurant) {
-      throw new NotFoundException(
-        `Restaurant with ID '${restaurantId}' not found`
-      );
-    }
+  async findOrCreateForTable(
+    params: FindOrCreateSessionParams
+  ): Promise<CustomerSessionDocument> {
+    const { restaurantId, tableId, source = 'staff', userAgent, ipAddress, deviceFingerprint } = params;
 
-    // Find table
-    const table = await this.tableModel.findById(tableId);
-    if (!table || table.restaurantId.toString() !== restaurant._id.toString()) {
+    const table = await this.tableModel.findById(tableId).lean();
+    if (!table || table.restaurantId.toString() !== restaurantId) {
       throw new NotFoundException(
         'Table not found or does not belong to this restaurant'
       );
     }
 
-    // Check for existing active session at this table
-    const existingSession = await this.sessionModel.findOne({
-      tableId: tableId,
+    // Return existing active session if present, extending expiry if needed
+    const existing = await this.sessionModel.findOne({
+      tableId,
       status: SessionStatus.ACTIVE,
     });
 
-    if (existingSession) {
-      // Extend existing session if it's close to expiry
+    if (existing) {
       const now = new Date();
-      const expiryBuffer = 30 * 60 * 1000; // 30 minutes
-
-      if (existingSession.expiresAt.getTime() - now.getTime() < expiryBuffer) {
-        existingSession.expiresAt = new Date(
-          now.getTime() + 4 * 60 * 60 * 1000
-        ); // Extend by 4 hours
-        existingSession.lastActivityAt = now;
-        await existingSession.save();
-
-        await this.logSessionAction({
-          sessionId: existingSession.sessionId,
-          customerSessionId: existingSession._id.toString(),
-          action: SessionAction.SESSION_REOPENED,
-          description: 'Session extended due to staff activity',
-          userAgent,
-          ipAddress,
-        });
+      const thirtyMinutes = 30 * 60 * 1000;
+      if (existing.expiresAt.getTime() - now.getTime() < thirtyMinutes) {
+        existing.expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+        existing.lastActivityAt = now.getTime();
+        await existing.save();
       }
-
-      return this.toResponseDto(existingSession);
+      return existing;
     }
 
-    // Create new session
-    const sessionId = uuidv4();
+    // Create a fresh session
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
-
     const session = await this.sessionModel.create({
-      sessionId,
-      restaurantId: restaurant._id.toString(),
+      sessionId: uuidv4(),
+      restaurantId,
       branchId: table.branchId,
-      tableId: tableId,
+      tableId,
       tableNumber: table.tableNumber,
+      customerNumber: 1,
       status: SessionStatus.ACTIVE,
       startedAt: now,
-      expiresAt,
+      expiresAt: new Date(now.getTime() + 4 * 60 * 60 * 1000),
+      deviceFingerprint: deviceFingerprint ?? `${source}-app`,
       userAgent,
       ipAddress,
-      deviceFingerprint: 'staff-app',
       lastActivityAt: now.getTime(),
     });
 
-    // Log session creation
     await this.logSessionAction({
       sessionId: session.sessionId,
       customerSessionId: session._id.toString(),
       action: SessionAction.SESSION_CREATED,
-      description: 'Customer session created by staff',
+      description: `Session created via ${source}`,
+      actorType: source === 'staff' ? 'staff' : 'customer',
       userAgent,
       ipAddress,
     });
 
-    return this.toResponseDto(session);
+    return session;
   }
 
+  /**
+   * Public QR-flow session creation (customer scans table QR).
+   * Uses findOrCreateForTable internally so multiple QR scans don't create ghost sessions.
+   */
   async createSession(
     dto: CreateCustomerSessionDto
   ): Promise<CustomerSessionResponseDto> {
-    // Find restaurant by slug
-    const restaurant = await this.restaurantModel.findOne({
-      slug: dto.restaurantSlug,
-    });
+    const restaurant = await this.restaurantModel
+      .findOne({ slug: dto.restaurantSlug })
+      .lean();
+
     if (!restaurant) {
       throw new NotFoundException(
         `Restaurant with slug '${dto.restaurantSlug}' not found`
       );
     }
 
-    // Find table
-    const table = await this.tableModel.findById(dto.tableId);
-    if (!table || table.restaurantId.toString() !== restaurant._id.toString()) {
-      throw new NotFoundException(
-        'Table not found or does not belong to this restaurant'
-      );
-    }
-
-    // Allow multiple customer sessions per table - each customer gets their own session
-
-    // Create new session with auto-generated customer number
-    const sessionId = uuidv4();
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // 4 hours from now
-
-    // Get next customer number for this table (only count active sessions due to unique constraint)
-    const activeSessions = await this.sessionModel.find({
-      tableId: dto.tableId,
-      status: SessionStatus.ACTIVE,
-    });
-    const customerNumber = (activeSessions.length || 0) + 1;
-
-    const session = await this.sessionModel.create({
-      sessionId,
+    const session = await this.findOrCreateForTable({
       restaurantId: restaurant._id.toString(),
-      branchId: table.branchId,
       tableId: dto.tableId,
-      tableNumber: table.tableNumber,
-      customerNumber,
-      status: SessionStatus.ACTIVE,
-      startedAt: now,
-      expiresAt,
+      source: 'customer',
       userAgent: dto.userAgent,
       ipAddress: dto.ipAddress,
       deviceFingerprint: dto.deviceFingerprint,
-      lastActivityAt: now.getTime(),
-    });
-
-    // Log session creation
-    await this.logSessionAction({
-      sessionId: session.sessionId,
-      customerSessionId: session._id.toString(),
-      action: SessionAction.SESSION_CREATED,
-      description: 'Customer session created',
-      userAgent: dto.userAgent,
-      ipAddress: dto.ipAddress,
     });
 
     return this.toResponseDto(session);
   }
 
   /**
-   * Find session by sessionId
+   * Find session by sessionId (UUID).
    */
   async findBySessionId(
     sessionId: string
   ): Promise<CustomerSessionResponseDto | null> {
-    console.log(`Finding session by sessionId: ${sessionId}`);
     const session = await this.sessionModel.findOne({ sessionId });
     return session ? this.toResponseDto(session) : null;
   }
 
   /**
-   * Find active session for a table
+   * Find the active session for a table (returns null if none).
    */
   async findActiveSessionByTable(
     tableId: string
@@ -231,21 +177,18 @@ export class CustomerSessionsService {
   }
 
   /**
-   * Update session activity (keep alive)
+   * Extend session activity timestamp (keep-alive from customer app).
    */
   async updateActivity(sessionId: string): Promise<void> {
     await this.sessionModel.findOneAndUpdate(
       { sessionId },
-      {
-        lastActivityAt: Date.now(),
-        $setOnInsert: { expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000) },
-      },
+      { lastActivityAt: Date.now() },
       { upsert: false }
     );
   }
 
   /**
-   * Close a session
+   * Close a session manually (staff or system).
    */
   async closeSession(
     sessionId: string,
@@ -262,37 +205,32 @@ export class CustomerSessionsService {
       return this.toResponseDto(session);
     }
 
-    // Calculate final bill
+    // Recalculate totals before closing
     await this.billCalculatorService.updateSessionBillingTotals(sessionId);
     const updatedSession = await this.sessionModel.findOne({ sessionId });
 
-    // Check if session has any non-cancelled orders
+    // Delete instead of closing if no non-cancelled orders exist
     const activeOrderCount = await this.orderModel.countDocuments({
       customerSessionId: sessionId,
       status: { $ne: 'cancelled' },
     });
 
-    // If no active orders, delete the session instead of closing it
     if (activeOrderCount === 0) {
-      await this.deleteSession(sessionId);
-      // Return a dummy response since the session was deleted
+      await this.sessionModel.deleteOne({ sessionId });
       throw new NotFoundException(
-        'Session was deleted due to no active orders'
+        'Session deleted — no active orders were found'
       );
     }
 
-    // Close the session
     updatedSession!.status = SessionStatus.CLOSED;
     updatedSession!.closedAt = new Date();
     updatedSession!.closureReason = closureReason;
     updatedSession!.closedBy = closedBy;
     updatedSession!.closureNotes = notes;
-
     await updatedSession!.save();
 
-    // Log session closure
     await this.logSessionAction({
-      sessionId: sessionId,
+      sessionId,
       customerSessionId: updatedSession!._id.toString(),
       action: SessionAction.SESSION_CLOSED,
       description: `Session closed: ${closureReason}`,
@@ -305,7 +243,7 @@ export class CustomerSessionsService {
   }
 
   /**
-   * Delete an empty session
+   * Delete an empty session (no non-cancelled orders).
    */
   async deleteSession(sessionId: string): Promise<void> {
     const session = await this.sessionModel.findOne({ sessionId });
@@ -313,44 +251,36 @@ export class CustomerSessionsService {
       throw new NotFoundException('Session not found');
     }
 
-    // Check if session has any orders
     const orderCount = await this.orderModel.countDocuments({
       customerSessionId: session.sessionId,
-      status: { $ne: 'cancelled' }, // Only count non-cancelled orders
+      status: { $ne: 'cancelled' },
     });
 
     if (orderCount > 0) {
-      throw new BadRequestException('Cannot delete session with active orders');
+      throw new BadRequestException('Cannot delete a session with active orders');
     }
 
-    // Delete the session
     await this.sessionModel.deleteOne({ sessionId });
 
-    // Log session deletion
     await this.logSessionAction({
-      sessionId: sessionId,
+      sessionId,
       customerSessionId: session._id.toString(),
-      action: SessionAction.SESSION_DELETED || ('SESSION_DELETED' as any),
-      description: 'Session deleted due to no active orders',
+      action: SessionAction.SESSION_DELETED as any,
+      description: 'Session deleted — no active orders',
       actorType: 'staff',
       metadata: { reason: 'empty_session' },
     });
   }
 
-  /**
-   * Handle order placement in session
-   */
+  // ─── Session event hooks (called directly by OrdersService) ──────────────
+
   async onOrderPlaced(sessionId: string, orderId: string): Promise<void> {
     const session = await this.sessionModel.findOne({ sessionId });
     if (!session) return;
 
-    // Update session activity
     await this.updateActivity(sessionId);
-
-    // Recalculate session totals
     await this.billCalculatorService.updateSessionBillingTotals(sessionId);
 
-    // Log the order placement
     await this.logSessionAction({
       sessionId,
       customerSessionId: session._id.toString(),
@@ -360,76 +290,57 @@ export class CustomerSessionsService {
     });
   }
 
-  /**
-   * Handle order payment in session
-   */
   async onOrderPaid(sessionId: string, orderId: string): Promise<void> {
     const session = await this.sessionModel.findOne({ sessionId });
     if (!session) return;
 
-    // Recalculate session totals
     await this.billCalculatorService.updateSessionBillingTotals(sessionId);
+    const updated = await this.sessionModel.findOne({ sessionId });
 
-    const updatedSession = await this.sessionModel.findOne({ sessionId });
-
-    // Log the payment
     await this.logSessionAction({
       sessionId,
       customerSessionId: session._id.toString(),
       action: SessionAction.ORDER_PAID,
       orderId,
       description: 'Order paid in session',
-      sessionTotalAmount: updatedSession?.totalAmount,
-      sessionOrderCount: updatedSession?.totalOrders,
+      sessionTotalAmount: updated?.totalAmount,
+      sessionOrderCount: updated?.totalOrders,
     });
 
-    // Auto-close session if all orders are paid
-    if (updatedSession?.allOrdersPaid) {
-      await this.closeSession(
-        sessionId,
-        SessionClosureReason.PAYMENT_COMPLETED
-      );
+    if (updated?.allOrdersPaid) {
+      await this.closeSession(sessionId, SessionClosureReason.PAYMENT_COMPLETED);
     }
   }
 
-  /**
-   * Handle order cancellation in session
-   */
   async onOrderCancelled(sessionId: string, orderId: string): Promise<void> {
     const session = await this.sessionModel.findOne({ sessionId });
     if (!session) return;
 
-    // Recalculate session totals after cancellation
     await this.billCalculatorService.updateSessionBillingTotals(sessionId);
+    const updated = await this.sessionModel.findOne({ sessionId });
 
-    const updatedSession = await this.sessionModel.findOne({ sessionId });
-
-    // Log the cancellation
     await this.logSessionAction({
       sessionId,
       customerSessionId: session._id.toString(),
-      action: SessionAction.ORDER_CANCELLED || ('ORDER_CANCELLED' as any),
+      action: SessionAction.ORDER_CANCELLED as any,
       orderId,
       description: 'Order cancelled in session',
-      sessionTotalAmount: updatedSession?.totalAmount,
-      sessionOrderCount: updatedSession?.totalOrders,
+      sessionTotalAmount: updated?.totalAmount,
+      sessionOrderCount: updated?.totalOrders,
     });
 
-    // Check if session has any non-cancelled orders left
     const activeOrderCount = await this.orderModel.countDocuments({
       customerSessionId: sessionId,
       status: { $ne: 'cancelled' },
     });
 
-    // Auto-delete session if no active orders remain
     if (activeOrderCount === 0) {
-      await this.deleteSession(sessionId);
+      await this.sessionModel.deleteOne({ sessionId });
     }
   }
 
-  /**
-   * Get session with orders and bill calculation
-   */
+  // ─── Queries ──────────────────────────────────────────────────────────────
+
   async getSessionWithBill(sessionId: string): Promise<{
     session: CustomerSessionResponseDto;
     bill: any;
@@ -440,34 +351,20 @@ export class CustomerSessionsService {
       throw new NotFoundException('Session not found');
     }
 
-    // Get bill calculation with detailed category-based tax breakdown
-    const bill = await this.billCalculatorService.calculateDetailedSessionBill(
-      sessionId
-    );
+    const bill = await this.billCalculatorService.calculateDetailedSessionBill(sessionId);
 
-    // Get session orders
     const orders = await this.orderModel
-      .find({
-        customerSessionId: sessionId,
-        status: { $ne: 'cancelled' },
-      })
+      .find({ customerSessionId: sessionId, status: { $ne: 'cancelled' } })
       .sort({ createdAt: -1 });
 
-    return {
-      session,
-      bill,
-      orders,
-    };
+    return { session, bill, orders };
   }
 
-  /**
-   * Find sessions with filtering
-   */
   async findSessions(query: FindSessionsQueryDto): Promise<{
     sessions: CustomerSessionResponseDto[];
     total: number;
-    page: number | string | undefined;
-    limit: number | string | undefined;
+    page: number;
+    limit: number;
   }> {
     const filter: FilterQuery<CustomerSessionDocument> = {};
 
@@ -475,9 +372,6 @@ export class CustomerSessionsService {
     if (query.restaurantId) filter.restaurantId = query.restaurantId;
     if (query.branchId) filter.branchId = query.branchId;
     if (query.tableId) filter.tableId = query.tableId;
-
-    // Only return sessions that have orders
-
     if (!query.returnEmpty) filter.totalOrders = { $gt: 0 };
 
     if (query.startDate && query.endDate) {
@@ -491,20 +385,13 @@ export class CustomerSessionsService {
     const limit = Number(query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    console.log(filter, 'andi');
-
     const [sessions, total] = await Promise.all([
-      this.sessionModel
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
+      this.sessionModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
       this.sessionModel.countDocuments(filter),
     ]);
 
     return {
-      sessions: sessions.map((session) => this.toResponseDto(session)),
+      sessions: sessions.map((s) => this.toResponseDto(s)),
       total,
       page,
       limit,
@@ -512,36 +399,80 @@ export class CustomerSessionsService {
   }
 
   /**
-   * Auto-close expired sessions (background job)
+   * List ghost sessions: active sessions with no non-cancelled orders.
    */
+  async listGhostSessions(
+    restaurantId: string,
+    branchId?: string
+  ): Promise<GhostSessionResponseDto[]> {
+    const filter: FilterQuery<CustomerSessionDocument> = {
+      restaurantId,
+      status: SessionStatus.ACTIVE,
+      totalOrders: { $lte: 0 },
+    };
+    if (branchId) filter.branchId = branchId;
+
+    const sessions = await this.sessionModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return sessions.map((s) => ({
+      sessionId: s.sessionId,
+      tableId: s.tableId,
+      tableNumber: s.tableNumber,
+      createdAt: (s as any).createdAt?.toISOString() ?? new Date().toISOString(),
+      lastActivityAt: s.lastActivityAt
+        ? new Date(s.lastActivityAt).toISOString()
+        : undefined,
+    }));
+  }
+
+  /**
+   * Delete all ghost sessions for a restaurant/branch.
+   * Returns the number of deleted sessions.
+   */
+  async cleanupGhostSessions(
+    restaurantId: string,
+    branchId?: string
+  ): Promise<number> {
+    const filter: FilterQuery<CustomerSessionDocument> = {
+      restaurantId,
+      status: SessionStatus.ACTIVE,
+      totalOrders: { $lte: 0 },
+    };
+    if (branchId) filter.branchId = branchId;
+
+    const result = await this.sessionModel.deleteMany(filter);
+    return result.deletedCount;
+  }
+
+  // ─── Maintenance ──────────────────────────────────────────────────────────
+
   async closeExpiredSessions(): Promise<number> {
-    const expiredSessions = await this.sessionModel.find({
+    const expired = await this.sessionModel.find({
       status: SessionStatus.ACTIVE,
       expiresAt: { $lt: new Date() },
     });
 
     let closedCount = 0;
-    for (const session of expiredSessions) {
-      await this.closeSession(
-        session.sessionId,
-        SessionClosureReason.AUTO_TIMEOUT
-      );
-      closedCount++;
+    for (const session of expired) {
+      try {
+        await this.closeSession(session.sessionId, SessionClosureReason.AUTO_TIMEOUT);
+        closedCount++;
+      } catch {
+        // session may have been deleted (no orders) — that's fine
+      }
     }
-
     return closedCount;
   }
 
-  /**
-   * Mark sessions as abandoned (no activity for long time)
-   */
   async markAbandonedSessions(): Promise<number> {
-    const cutoffTime = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
-
+    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
     const result = await this.sessionModel.updateMany(
       {
         status: SessionStatus.ACTIVE,
-        lastActivityAt: { $lt: cutoffTime.getTime() },
+        lastActivityAt: { $lt: cutoff.getTime() },
       },
       {
         status: SessionStatus.ABANDONED,
@@ -549,9 +480,10 @@ export class CustomerSessionsService {
         closureReason: SessionClosureReason.AUTO_TIMEOUT,
       }
     );
-
     return result.modifiedCount;
   }
+
+  // ─── Internals ────────────────────────────────────────────────────────────
 
   private async logSessionAction(params: {
     sessionId: string;
@@ -574,7 +506,7 @@ export class CustomerSessionsService {
       description: params.description,
       orderId: params.orderId,
       actorId: params.actorId,
-      actorType: params.actorType || 'customer',
+      actorType: params.actorType ?? 'customer',
       metadata: params.metadata,
       sessionTotalAmount: params.sessionTotalAmount,
       sessionOrderCount: params.sessionOrderCount,
@@ -583,9 +515,7 @@ export class CustomerSessionsService {
     });
   }
 
-  private toResponseDto(
-    session: CustomerSessionDocument
-  ): CustomerSessionResponseDto {
+  private toResponseDto(session: CustomerSessionDocument): CustomerSessionResponseDto {
     return {
       sessionId: session.sessionId,
       restaurantId: session.restaurantId,
@@ -609,10 +539,8 @@ export class CustomerSessionsService {
       paidAmount: session.paidAmount,
       pendingAmount: session.pendingAmount,
       allOrdersPaid: session.allOrdersPaid,
-      createdAt:
-        (session as any).createdAt?.toISOString() || new Date().toISOString(),
-      updatedAt:
-        (session as any).updatedAt?.toISOString() || new Date().toISOString(),
+      createdAt: (session as any).createdAt?.toISOString() ?? new Date().toISOString(),
+      updatedAt: (session as any).updatedAt?.toISOString() ?? new Date().toISOString(),
     };
   }
 }

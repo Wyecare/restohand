@@ -1,4 +1,3 @@
-import { Colors } from '@/constants/theme';
 import { useOrdersSSE } from '@/hooks/useOrdersSSE';
 import { useFCMToken } from '@/hooks/useFCMToken';
 import {
@@ -20,7 +19,6 @@ import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   Platform,
   RefreshControl,
   SafeAreaView,
@@ -31,10 +29,20 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
   useWindowDimensions,
 } from 'react-native';
-import logo_white from '../../assets/images/logo_white.png';
+import logo_white from '../../assets/images/logo_black.png';
+
+const BRAND = '#4910bc';
+const PAGE_BG = '#F8FAFC';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#E2E8F0';
+const TEXT_PRIMARY = '#0F172A';
+const TEXT_SECONDARY = '#64748B';
+const STATUS_AVAILABLE = '#10B981';
+const STATUS_OCCUPIED = '#F59E0B';
+const STATUS_READY = '#3B82F6';
+const STATUS_OTHER = '#6B7280';
 
 const getTableStatus = (table: EnhancedRestaurantTable) => {
   if (table.currentStatus) {
@@ -49,35 +57,35 @@ const getTableStatus = (table: EnhancedRestaurantTable) => {
   return 'available';
 };
 
-const getStatusConfig = (status: string, isDark: boolean) => {
+const getStatusConfig = (status: string) => {
   const configs = {
     available: {
-      color: isDark ? '#34D399' : '#10B981',
-      bg: isDark ? '#064E3B' : '#ECFDF5',
+      color: STATUS_AVAILABLE,
+      bg: '#ECFDF5',
       label: 'Available',
       icon: 'checkmark-circle',
     },
     occupied: {
-      color: isDark ? '#FBBF24' : '#F59E0B',
-      bg: isDark ? '#78350F' : '#FEF3C7',
+      color: STATUS_OCCUPIED,
+      bg: '#FEF3C7',
       label: 'Occupied',
       icon: 'time',
     },
     ready: {
-      color: isDark ? '#60A5FA' : '#3B82F6',
-      bg: isDark ? '#1E3A8A' : '#DBEAFE',
+      color: STATUS_READY,
+      bg: '#DBEAFE',
       label: 'Ready',
       icon: 'restaurant',
     },
     cleaning: {
-      color: isDark ? '#9CA3AF' : '#6B7280',
-      bg: isDark ? '#374151' : '#F3F4F6',
+      color: STATUS_OTHER,
+      bg: '#F3F4F6',
       label: 'Cleaning',
       icon: 'brush',
     },
     reserved: {
-      color: isDark ? '#A78BFA' : '#8B5CF6',
-      bg: isDark ? '#5B21B6' : '#F3E8FF',
+      color: '#8B5CF6',
+      bg: '#F3E8FF',
       label: 'Reserved',
       icon: 'calendar',
     },
@@ -87,16 +95,13 @@ const getStatusConfig = (status: string, isDark: boolean) => {
 };
 
 export default function ServiceTablesScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
-  const isDark = colorScheme === 'dark';
   const { width, height } = useWindowDimensions();
 
   // Determine if tablet based on width
   const isTablet = width >= 768;
   const isLandscape = width > height;
 
-  StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
+  StatusBar.setBarStyle('light-content', true);
 
   const dispatch = useAppDispatch();
   const { refreshToken } = useFCMToken();
@@ -275,13 +280,9 @@ export default function ServiceTablesScreen() {
 
   if (!restaurantId) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
+      <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={[styles.errorText, { color: theme.text }]}>
-            No restaurant selected
-          </Text>
+          <Text style={styles.errorText}>No restaurant selected</Text>
         </View>
       </SafeAreaView>
     );
@@ -289,14 +290,10 @@ export default function ServiceTablesScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
+      <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.brand} />
-          <Text style={[styles.loadingText, { color: theme.icon }]}>
-            Loading tables...
-          </Text>
+          <ActivityIndicator size="large" color={BRAND} />
+          <Text style={styles.loadingText}>Loading tables...</Text>
         </View>
       </SafeAreaView>
     );
@@ -310,7 +307,7 @@ export default function ServiceTablesScreen() {
     isAssigned: boolean;
   }) => {
     const status = getTableStatus(table);
-    const statusConfig = getStatusConfig(status, isDark);
+    const statusConfig = getStatusConfig(status);
     const activeOrder = table.activeOrder;
     const hasOrder = !!activeOrder;
 
@@ -318,33 +315,24 @@ export default function ServiceTablesScreen() {
       <TouchableOpacity
         style={[
           styles.tableCard,
-          {
-            width: cardWidth,
-            backgroundColor: theme.background,
-            borderColor: isDark ? '#374151' : '#F3F4F6',
-          },
-          isAssigned && {
-            borderColor: theme.brand,
-            borderWidth: 2,
-          },
+          { width: cardWidth },
+          isAssigned && styles.tableCardAssigned,
         ]}
         onPress={() => handleTableClick(table)}
         activeOpacity={0.7}
       >
-        {/* Compact Header */}
+        {/* Card Header */}
         <View style={styles.tableCardHeader}>
           <View style={styles.tableNumberRow}>
-            <Text style={[styles.tableNumber, { color: theme.text }]}>
+            <Text style={styles.tableNumber}>
               {table.displayName || table.tableNumber}
             </Text>
             {isAssigned && (
-              <View style={[styles.myBadge, { backgroundColor: theme.brand }]}>
+              <View style={styles.myBadge}>
                 <Ionicons name="person" size={10} color="#FFF" />
               </View>
             )}
           </View>
-
-          {/* Status dot - more compact */}
           <View
             style={[styles.statusDot, { backgroundColor: statusConfig.color }]}
           />
@@ -353,14 +341,12 @@ export default function ServiceTablesScreen() {
         {/* Order info or empty state */}
         {hasOrder ? (
           <View style={styles.orderSection}>
-            <Text style={[styles.orderAmount, { color: theme.text }]}>
-              ₹{activeOrder.totalAmount}
-            </Text>
+            <Text style={styles.orderAmount}>₹{activeOrder.totalAmount}</Text>
 
             {(activeOrder.status === 'ready' ||
               activeOrder.paymentStatus === 'paid') && (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: theme.brand }]}
+                style={styles.actionBtn}
                 onPress={(e) => {
                   e.stopPropagation();
                   handleViewBill(table);
@@ -375,20 +361,15 @@ export default function ServiceTablesScreen() {
           </View>
         ) : (
           <View style={styles.emptySection}>
-            <Text style={[styles.emptyText, { color: theme.icon }]}>
-              {statusConfig.label}
-            </Text>
+            <Text style={styles.emptyText}>{statusConfig.label}</Text>
           </View>
         )}
 
         {/* Server name for unassigned */}
         {!isAssigned && table.currentStatus?.assignedServerName && (
           <View style={styles.serverRow}>
-            <Ionicons name="person" size={10} color={theme.icon} />
-            <Text
-              style={[styles.serverText, { color: theme.icon }]}
-              numberOfLines={1}
-            >
+            <Ionicons name="person" size={10} color={TEXT_SECONDARY} />
+            <Text style={styles.serverText} numberOfLines={1}>
               {table.currentStatus.assignedServerName}
             </Text>
           </View>
@@ -398,13 +379,11 @@ export default function ServiceTablesScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      <StatusBar backgroundColor={theme.brand} barStyle="light-content" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor={BRAND} barStyle="light-content" />
 
-      {/* Compact Header */}
-      <View style={[styles.header, { backgroundColor: theme.brand }]}>
+      {/* Header */}
+      <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <Image source={logo_white} style={styles.logo} />
@@ -420,18 +399,18 @@ export default function ServiceTablesScreen() {
               onPress={() => router.push('/(service)/history')}
               style={styles.headerBtn}
             >
-              <Ionicons name="time-outline" size={20} color="#FFF" />
+              <Ionicons name="time-outline" size={20} />
             </TouchableOpacity>
             <TouchableOpacity onPress={onRefresh} style={styles.headerBtn}>
-              <Ionicons name="refresh" size={20} color="#FFF" />
+              <Ionicons name="refresh" size={20} />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleLogout} style={styles.headerBtn}>
-              <Ionicons name="log-out-outline" size={20} color="#FFF" />
+              <Ionicons name="log-out-outline" size={20} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Compact Stats Row */}
+        {/* Stats Row */}
         {stats && (
           <View style={styles.statsRow}>
             <View style={styles.statChip}>
@@ -455,26 +434,18 @@ export default function ServiceTablesScreen() {
       </View>
 
       {/* Search */}
-      <View
-        style={[
-          styles.searchContainer,
-          {
-            backgroundColor: theme.background,
-            borderColor: isDark ? '#374151' : '#E5E7EB',
-          },
-        ]}
-      >
-        <Ionicons name="search" size={18} color={theme.icon} />
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={18} color={TEXT_SECONDARY} />
         <TextInput
-          style={[styles.searchInput, { color: theme.text }]}
+          style={styles.searchInput}
           placeholder="Search tables..."
-          placeholderTextColor={theme.icon}
+          placeholderTextColor={TEXT_SECONDARY}
           value={searchTerm}
           onChangeText={setSearchTerm}
         />
         {searchTerm.length > 0 && (
           <TouchableOpacity onPress={() => setSearchTerm('')}>
-            <Ionicons name="close-circle" size={18} color={theme.icon} />
+            <Ionicons name="close-circle" size={18} color={TEXT_SECONDARY} />
           </TouchableOpacity>
         )}
       </View>
@@ -494,23 +465,14 @@ export default function ServiceTablesScreen() {
         {/* My Tables */}
         {assignedTables.length > 0 && (
           <View style={styles.section}>
-            <View
-              style={[
-                styles.sectionHeader,
-                {
-                  backgroundColor: isDark
-                    ? theme.brandPale
-                    : 'rgba(73, 16, 188, 0.03)',
-                },
-              ]}
-            >
+            <View style={[styles.sectionHeader, styles.sectionHeaderMyTables]}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons
                   name="person-circle-outline"
                   size={18}
-                  color={theme.brand}
+                  color={BRAND}
                 />
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Text style={styles.sectionTitle}>
                   My Tables ({assignedTables.length})
                 </Text>
               </View>
@@ -520,17 +482,11 @@ export default function ServiceTablesScreen() {
               ([zone, zoneTables]) => (
                 <View key={`assigned-${zone}`}>
                   {assignedTablesByZone.size > 1 && (
-                    <Text style={[styles.zoneTitle, { color: theme.icon }]}>
-                      {zone}
-                    </Text>
+                    <Text style={styles.zoneTitle}>{zone}</Text>
                   )}
                   <View style={[styles.tablesGrid, { gap: 12 }]}>
                     {zoneTables.map((table) => (
-                      <TableCard
-                        key={table.id}
-                        table={table}
-                        isAssigned={true}
-                      />
+                      <TableCard key={table.id} table={table} isAssigned={true} />
                     ))}
                   </View>
                 </View>
@@ -542,15 +498,10 @@ export default function ServiceTablesScreen() {
         {/* Other Tables */}
         {unassignedTables.length > 0 && (
           <View style={styles.section}>
-            <View
-              style={[
-                styles.sectionHeader,
-                { backgroundColor: isDark ? '#1F2937' : '#F9FAFB' },
-              ]}
-            >
+            <View style={[styles.sectionHeader, styles.sectionHeaderOther]}>
               <View style={styles.sectionTitleRow}>
-                <Ionicons name="grid-outline" size={18} color={theme.icon} />
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Ionicons name="grid-outline" size={18} color={TEXT_SECONDARY} />
+                <Text style={styles.sectionTitle}>
                   Other Tables ({unassignedTables.length})
                 </Text>
               </View>
@@ -560,17 +511,11 @@ export default function ServiceTablesScreen() {
               ([zone, zoneTables]) => (
                 <View key={`unassigned-${zone}`}>
                   {unassignedTablesByZone.size > 1 && (
-                    <Text style={[styles.zoneTitle, { color: theme.icon }]}>
-                      {zone}
-                    </Text>
+                    <Text style={styles.zoneTitle}>{zone}</Text>
                   )}
                   <View style={[styles.tablesGrid, { gap: 12 }]}>
                     {zoneTables.map((table) => (
-                      <TableCard
-                        key={table.id}
-                        table={table}
-                        isAssigned={false}
-                      />
+                      <TableCard key={table.id} table={table} isAssigned={false} />
                     ))}
                   </View>
                 </View>
@@ -582,14 +527,12 @@ export default function ServiceTablesScreen() {
         {/* Empty State */}
         {filteredTables.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="restaurant-outline" size={40} color={theme.icon} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+            <Ionicons name="restaurant-outline" size={40} color={TEXT_SECONDARY} />
+            <Text style={styles.emptyTitle}>
               {searchTerm ? 'No tables found' : 'No tables available'}
             </Text>
-            <Text style={[styles.emptySubtext, { color: theme.icon }]}>
-              {searchTerm
-                ? 'Try adjusting your search'
-                : 'Contact your manager'}
+            <Text style={styles.emptySubtext}>
+              {searchTerm ? 'Try adjusting your search' : 'Contact your manager'}
             </Text>
           </View>
         )}
@@ -601,6 +544,7 @@ export default function ServiceTablesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: PAGE_BG,
   },
   loadingContainer: {
     flex: 1,
@@ -611,10 +555,12 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     fontWeight: '500',
+    color: TEXT_SECONDARY,
   },
   errorText: {
     fontSize: 16,
     fontWeight: '600',
+    color: TEXT_PRIMARY,
   },
 
   // Compact Header
@@ -650,7 +596,6 @@ const styles = StyleSheet.create({
   },
   restaurantName: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '500',
     marginTop: 2,
   },
@@ -705,11 +650,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
+    color: TEXT_PRIMARY,
   },
 
   // Scroll
@@ -737,14 +685,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  sectionHeaderMyTables: {
+    backgroundColor: 'rgba(73, 16, 188, 0.04)',
+  },
+  sectionHeaderOther: {
+    backgroundColor: '#F9FAFB',
+  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
+    color: TEXT_PRIMARY,
   },
   zoneTitle: {
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 8,
+    color: TEXT_SECONDARY,
   },
 
   // Grid
@@ -753,23 +709,27 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
 
-  // Compact Card
+  // Card
   tableCard: {
     borderRadius: 12,
     borderWidth: 1,
+    borderColor: '#F0F0F0',
+    backgroundColor: CARD_BG,
     padding: 10,
     marginBottom: 12,
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
       },
-      android: {
-        elevation: 2,
-      },
+      android: { elevation: 2 },
     }),
+  },
+  tableCardAssigned: {
+    borderColor: BRAND,
+    borderWidth: 2,
   },
   tableCardHeader: {
     flexDirection: 'row',
@@ -785,11 +745,13 @@ const styles = StyleSheet.create({
   tableNumber: {
     fontSize: 15,
     fontWeight: '800',
+    color: TEXT_PRIMARY,
   },
   myBadge: {
     width: 18,
     height: 18,
     borderRadius: 9,
+    backgroundColor: BRAND,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -806,6 +768,7 @@ const styles = StyleSheet.create({
   orderAmount: {
     fontSize: 18,
     fontWeight: '800',
+    color: TEXT_PRIMARY,
   },
   actionBtn: {
     flexDirection: 'row',
@@ -814,6 +777,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingVertical: 6,
     borderRadius: 8,
+    backgroundColor: BRAND,
   },
   actionText: {
     fontSize: 11,
@@ -828,6 +792,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 12,
     fontWeight: '600',
+    color: TEXT_SECONDARY,
   },
 
   // Server
@@ -838,12 +803,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: BORDER,
   },
   serverText: {
     fontSize: 10,
     fontWeight: '500',
     flex: 1,
+    color: TEXT_SECONDARY,
   },
 
   // Empty State
@@ -855,9 +821,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
+    color: TEXT_PRIMARY,
   },
   emptySubtext: {
     fontSize: 13,
     textAlign: 'center',
+    color: TEXT_SECONDARY,
   },
 });

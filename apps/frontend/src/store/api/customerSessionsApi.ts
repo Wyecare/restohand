@@ -228,40 +228,6 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       ],
     }),
 
-    // Handle order placed event in session
-    onOrderPlaced: builder.mutation<
-      { success: boolean },
-      { sessionId: string; orderId: string }
-    >({
-      query: ({ sessionId, orderId }) => ({
-        url: `/customer-sessions/${sessionId}/events/order-placed`,
-        method: 'POST',
-        body: { orderId },
-      }),
-      invalidatesTags: (result, error, { sessionId }) => [
-        { type: 'CustomerSession', id: sessionId },
-        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
-        { type: 'Bill', id: sessionId },
-      ],
-    }),
-
-    // Handle order paid event in session
-    onOrderPaid: builder.mutation<
-      { success: boolean },
-      { sessionId: string; orderId: string }
-    >({
-      query: ({ sessionId, orderId }) => ({
-        url: `/customer-sessions/${sessionId}/events/order-paid`,
-        method: 'POST',
-        body: { orderId },
-      }),
-      invalidatesTags: (result, error, { sessionId }) => [
-        { type: 'CustomerSession', id: sessionId },
-        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
-        { type: 'Bill', id: sessionId },
-      ],
-    }),
-
     // Close session manually
     closeSession: builder.mutation<
       CustomerSession,
@@ -295,20 +261,31 @@ export const customerSessionsApi = baseApi.injectEndpoints({
       ],
     }),
 
-    // Handle order cancelled event in session
-    onOrderCancelled: builder.mutation<
-      { success: boolean },
-      { sessionId: string; orderId: string }
+    // List ghost sessions (active, no orders)
+    listGhostSessions: builder.query<
+      Array<{ sessionId: string; tableId: string; tableNumber: string; createdAt: string; lastActivityAt?: string }>,
+      { restaurantId: string; branchId?: string }
     >({
-      query: ({ sessionId, orderId }) => ({
-        url: `/customer-sessions/${sessionId}/events/order-cancelled`,
-        method: 'POST',
-        body: { orderId },
+      query: ({ restaurantId, branchId }) => ({
+        url: '/customer-sessions/ghost/list',
+        params: { restaurantId, branchId },
       }),
-      invalidatesTags: (result, error, { sessionId }) => [
-        { type: 'CustomerSession', id: sessionId },
-        { type: 'CustomerSession', id: 'LIST' }, // Invalidate all lists
-        { type: 'Bill', id: sessionId },
+      providesTags: [{ type: 'CustomerSession', id: 'GHOST' }],
+    }),
+
+    // Delete all ghost sessions
+    cleanupGhostSessions: builder.mutation<
+      { deletedCount: number },
+      { restaurantId: string; branchId?: string }
+    >({
+      query: ({ restaurantId, branchId }) => ({
+        url: '/customer-sessions/ghost/cleanup',
+        method: 'DELETE',
+        params: { restaurantId, branchId },
+      }),
+      invalidatesTags: [
+        { type: 'CustomerSession', id: 'GHOST' },
+        { type: 'CustomerSession', id: 'LIST' },
       ],
     }),
   }),
@@ -322,9 +299,8 @@ export const {
   useUpdateSessionActivityMutation,
   useGetSessionBillQuery,
   useGetActiveSessionByTableQuery,
-  useOnOrderPlacedMutation,
-  useOnOrderPaidMutation,
   useCloseSessionMutation,
   useDeleteSessionMutation,
-  useOnOrderCancelledMutation,
+  useListGhostSessionsQuery,
+  useCleanupGhostSessionsMutation,
 } = customerSessionsApi;

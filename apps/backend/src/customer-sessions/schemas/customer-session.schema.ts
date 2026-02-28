@@ -7,7 +7,6 @@ export enum SessionStatus {
   ACTIVE = 'active',
   CLOSED = 'closed',
   ABANDONED = 'abandoned',
-  OPENED = 'opened',
 }
 
 export enum SessionClosureReason {

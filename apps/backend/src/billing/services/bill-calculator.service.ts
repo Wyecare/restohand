@@ -463,9 +463,11 @@ export class BillCalculatorService {
     cgstAmount: number;
     sgstAmount: number;
     igstAmount: number;
+    totalVatAmount: number;
     grossAmount: number;
     totalAmount: number;
     roundOffAmount: number;
+    discountAmount: number;
     branchCharges: Array<{
       name: string;
       type: 'percentage' | 'fixed';
@@ -504,33 +506,87 @@ export class BillCalculatorService {
       isGstEnabled: (gstSchema as any).isGstEnabled !== false,
     };
 
-    // Get branch charges (if branchId is provided)
+    // Get branch charges and state (if branchId is provided)
     let branchCharges: BranchCharge[] = [];
+    let branchState: string | undefined;
     if (branchId) {
       const branch = await this.branchModel.findById(branchId);
-      if (branch && branch.settings?.charges) {
-        branchCharges = branch.settings.charges as BranchCharge[];
+      if (branch) {
+        if (branch.settings?.charges) {
+          branchCharges = branch.settings.charges as BranchCharge[];
+        }
+        branchState = (branch as any).address?.state || (branch as any).state;
       }
     }
 
-    // Use RestaurantBillingService for calculation
-    const billCalculation = this.restaurantBillingService.calculateBill(
-      cartItems,
-      gstConfig,
-      customerState,
-      branchCharges,
-      orderType
+    // Enrich cart items with foodCategory from DB (needed for alcohol VAT detection)
+    const enrichedItems: CartItem[] = await Promise.all(
+      cartItems.map(async (item) => {
+        if ((item as any).foodCategory) return item; // already set
+        try {
+          const menuItem = await this.menuItemModel.findById(item.id);
+          if (menuItem) {
+            // MenuItem has its own foodCategory; also fall back to category's foodCategory
+            let foodCategory: string = (menuItem as any).foodCategory || 'cooked_food';
+            if (!foodCategory || foodCategory === 'cooked_food') {
+              if (menuItem.categoryId) {
+                const category = await this.menuCategoryModel.findById(menuItem.categoryId);
+                if (category && (category as any).foodCategory) {
+                  foodCategory = (category as any).foodCategory;
+                }
+              }
+            }
+            return { ...item, foodCategory } as CartItem;
+          }
+        } catch {
+          // ignore lookup errors, default to cooked_food
+        }
+        return item;
+      })
     );
+
+    // Detect if cart has alcohol or fresh_items → use mixed bill (GST + VAT)
+    const uniqueCategories = Array.from(
+      new Set(enrichedItems.map((item) => (item as any).foodCategory || 'cooked_food'))
+    );
+    const hasMixedTaxCategories =
+      uniqueCategories.some((cat) => cat === 'alcohol') ||
+      uniqueCategories.some((cat) => cat === 'fresh_items');
+
+    let totalVatAmount = 0;
+    let billCalculation: any;
+
+    if (hasMixedTaxCategories) {
+      billCalculation = await this.restaurantBillingService.calculateMixedBill(
+        enrichedItems,
+        gstConfig,
+        branchState || gstConfig.businessState,
+        customerState,
+        branchCharges,
+        orderType
+      );
+      totalVatAmount = billCalculation.totalVatAmount || 0;
+    } else {
+      billCalculation = this.restaurantBillingService.calculateBill(
+        enrichedItems,
+        gstConfig,
+        customerState,
+        branchCharges,
+        orderType
+      );
+    }
 
     return {
       subtotal: billCalculation.subtotal,
-      taxAmount: billCalculation.totalGstAmount,
+      taxAmount: billCalculation.totalTaxAmount ?? billCalculation.totalGstAmount,
       cgstAmount: billCalculation.cgstAmount,
       sgstAmount: billCalculation.sgstAmount,
       igstAmount: billCalculation.igstAmount,
+      totalVatAmount,
       grossAmount: billCalculation.subtotalWithCharges,
       totalAmount: billCalculation.grandTotal,
-      roundOffAmount: 0, // No rounding in current implementation
+      roundOffAmount: 0,
+      discountAmount: 0,
       branchCharges: billCalculation.branchCharges,
       totalBranchCharges: billCalculation.totalBranchCharges,
       taxType: billCalculation.taxType,

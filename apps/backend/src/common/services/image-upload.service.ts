@@ -191,7 +191,7 @@ export class ImageUploadService {
 
   private getPublicUrl(filePath: string): string {
     const bucketName = this.bucket.name;
-    return `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(filePath)}`;
+    return `https://storage.googleapis.com/${bucketName}/${filePath}`;
   }
 
   private async validateImageFile(fileBuffer: Buffer, declaredMimeType: string): Promise<void> {
