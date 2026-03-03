@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -125,37 +125,6 @@ export default function SessionHistoryScreen() {
     skip: !restaurantId,
   });
 
-  // Debug logging for session data when it loads
-  useEffect(() => {
-    if (sessionHistory?.sessions) {
-      console.log('📊 Session History Loaded:', {
-        total: sessionHistory.total,
-        sessionsCount: sessionHistory.sessions.length,
-        closedSessions: sessionHistory.sessions.filter(s => s.status === 'closed').length
-      });
-
-      console.log('📝 All Sessions Summary:');
-      sessionHistory.sessions.forEach((session, index) => {
-        console.log(`   ${index + 1}. Session ${session.sessionId.slice(-6).toUpperCase()}: status='${session.status}', allOrdersPaid=${session.allOrdersPaid}, pending=₹${session.pendingAmount}`);
-      });
-
-      const eligibleSessions = sessionHistory.sessions.filter(s => s.status === 'closed');
-      if (eligibleSessions.length > 0) {
-        console.log('✅ Sessions eligible for QR:', eligibleSessions.map(s => s.sessionId.slice(-6).toUpperCase()));
-      } else {
-        console.log('❌ No sessions eligible for QR button');
-      }
-    }
-  }, [sessionHistory]);
-
-  // Debug logging for expanded sessions state changes
-  useEffect(() => {
-    console.log('🎯 Expanded sessions changed:', {
-      expandedCount: expandedSessions.size,
-      expandedSessionIds: Array.from(expandedSessions).map(id => id.slice(-6).toUpperCase())
-    });
-  }, [expandedSessions]);
-
   const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -247,13 +216,8 @@ export default function SessionHistoryScreen() {
     [restaurantId, generateSessionReceiptQr]
   );
 
+  // Uses functional update only — no stale closure on expandedSessions
   const toggleSession = useCallback((sessionId: string) => {
-    console.log('🔧 Toggling session expansion:', {
-      sessionId: sessionId.slice(-6).toUpperCase(),
-      wasExpanded: expandedSessions.has(sessionId),
-      willBeExpanded: !expandedSessions.has(sessionId)
-    });
-
     setExpandedSessions((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(sessionId)) {
@@ -261,10 +225,9 @@ export default function SessionHistoryScreen() {
       } else {
         newSet.add(sessionId);
       }
-      console.log('📋 Current expanded sessions:', Array.from(newSet).map(id => id.slice(-6).toUpperCase()));
       return newSet;
     });
-  }, [expandedSessions]);
+  }, []);
 
   const getStatusConfig = useCallback(
     (status: CustomerSession['status']) => {
@@ -306,17 +269,6 @@ export default function SessionHistoryScreen() {
     ({ item }: { item: CustomerSession }) => {
       const isExpanded = expandedSessions.has(item.sessionId);
       const statusConfig = getStatusConfig(item.status);
-
-      // Debug logging for QR button visibility
-      console.log('🔍 Rendering session:', {
-        sessionId: item.sessionId.slice(-6).toUpperCase(),
-        status: item.status,
-        allOrdersPaid: item.allOrdersPaid,
-        isExpanded: isExpanded,
-        qrButtonShouldShow: item.status === 'closed',
-        pendingAmount: item.pendingAmount,
-        totalAmount: item.totalAmount
-      });
 
       return (
         <View style={[styles.sessionCard, { backgroundColor: theme.surface }]}>
@@ -408,14 +360,7 @@ export default function SessionHistoryScreen() {
           </TouchableOpacity>
 
           {/* Expanded Details */}
-          {(() => {
-            console.log('🔍 Expanded section check for session', item.sessionId.slice(-6).toUpperCase(), ':', {
-              isExpanded: isExpanded,
-              expandedSessionsCount: expandedSessions.size,
-              isInExpandedSet: expandedSessions.has(item.sessionId)
-            });
-            return isExpanded;
-          })() && (
+          {isExpanded && (
             <View
               style={[styles.expandedSection, { borderTopColor: theme.border }]}
             >
@@ -485,29 +430,10 @@ export default function SessionHistoryScreen() {
               />
 
               {/* Actions */}
-              {/* Debug logging for QR button condition */}
-              {(() => {
-                const shouldShowQr = item.status === 'closed';
-                console.log('🎯 QR Button Debug for session', item.sessionId.slice(-6).toUpperCase(), ':', {
-                  status: item.status,
-                  statusIsClosed: item.status === 'closed',
-                  allOrdersPaid: item.allOrdersPaid,
-                  shouldShowQr: shouldShowQr,
-                  isExpanded: isExpanded
-                });
-
-                if (shouldShowQr) {
-                  console.log('✨ RENDERING QR BUTTON for session', item.sessionId.slice(-6).toUpperCase());
-                }
-
-                return shouldShowQr;
-              })() && (
+              {item.status === 'closed' && (
                 <TouchableOpacity
                   style={[styles.qrButton, { backgroundColor: theme.primary }]}
-                  onPress={() => {
-                    console.log('🚀 QR Button pressed for session', item.sessionId.slice(-6).toUpperCase());
-                    handleGenerateQr(item);
-                  }}
+                  onPress={() => handleGenerateQr(item)}
                   disabled={isQrGenerating}
                 >
                   <Ionicons name="qr-code" size={18} color="#FFFFFF" />
@@ -1102,18 +1028,7 @@ export default function SessionHistoryScreen() {
 
       {/* Session List */}
       <FlatList
-        data={(() => {
-          const sessions = sessionHistory?.sessions || [];
-          console.log('📋 FlatList data:', {
-            totalSessions: sessions.length,
-            sessionsToRender: sessions.map(s => ({
-              id: s.sessionId.slice(-6).toUpperCase(),
-              status: s.status,
-              allOrdersPaid: s.allOrdersPaid
-            }))
-          });
-          return sessions;
-        })()}
+        data={sessionHistory?.sessions || []}
         renderItem={renderSessionItem}
         keyExtractor={(item) => item.sessionId}
         ListHeaderComponent={ListHeader}

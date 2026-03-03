@@ -26,23 +26,22 @@ export function CategoriesView() {
   const restaurantId = user?.restaurantId;
   const branchId = currentBranch?._id;
 
-  // Fetch categories
   const categoriesQueryParams =
     restaurantId && branchId ? { restaurantId, branchId } : skipToken;
+
   const { data: categoriesData, isLoading: categoriesLoading } =
     useListMenuCategoriesByBranchQuery(categoriesQueryParams, {
-      limit: 1000, // Fetch all categories without pagination for sidebar
+      limit: 1000,
     });
   const categories = categoriesData?.data || [];
 
-  // Fetch menu items for selected category
   const itemsQueryParams =
     restaurantId && categoryId ? { restaurantId, categoryId } : skipToken;
-  const { data: itemsData, isLoading: itemsLoading } =
+
+  const { data: itemsData, isLoading: itemsLoading, refetch: refetchItems } =
     useListMenuItemsQuery(itemsQueryParams);
   const items = itemsData?.data || [];
 
-  // Get current category
   const currentCategory = categories.find(
     (cat: any) => (cat._id || cat.id) === categoryId
   );
@@ -60,7 +59,6 @@ export function CategoriesView() {
     data: any;
   } | null>(null);
 
-  // Handlers
   const handleAddCategory = () => {
     setSelectedCategory(null);
     setIsCategoryDialogOpen(true);
@@ -92,8 +90,7 @@ export function CategoriesView() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4.5rem)]">
-      {/* Desktop: Sidebar always visible */}
+    <div className="flex h-[calc(100vh-50px)] bg-slate-50/50 overflow-hidden">
       {isDesktop ? (
         <>
           <CategoriesSidebar
@@ -115,7 +112,6 @@ export function CategoriesView() {
           />
         </>
       ) : (
-        // Mobile: Show categories list, items in dialog
         <>
           <CategoriesSidebar
             categories={categories}
@@ -143,7 +139,6 @@ export function CategoriesView() {
         </>
       )}
 
-      {/* Dialogs */}
       <CategoryFormDialog
         open={isCategoryDialogOpen}
         onOpenChange={setIsCategoryDialogOpen}

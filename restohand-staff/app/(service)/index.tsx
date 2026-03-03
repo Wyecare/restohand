@@ -200,27 +200,12 @@ export default function ServiceTablesScreen() {
     });
   };
 
+  // Route through session-management so all session orders are visible
   const handleViewBill = (table: EnhancedRestaurantTable) => {
-    if (table.activeOrder) {
-      if (table.activeOrder.paymentStatus === 'paid') {
-        router.push({
-          pathname: '/(service)/bill',
-          params: {
-            orderId: table.activeOrder.id,
-            orderData: JSON.stringify(table.activeOrder),
-          },
-        });
-      } else {
-        router.push({
-          pathname: '/(service)/payment',
-          params: {
-            orderId: table.activeOrder.id,
-            tableId: table.id,
-            orderData: JSON.stringify(table.activeOrder),
-          },
-        });
-      }
-    }
+    router.push({
+      pathname: '/(service)/session-management',
+      params: { tableId: table.id, restaurant_slug: restaurant?.slug },
+    });
   };
 
   const refetchTables = useCallback(() => {
@@ -353,9 +338,7 @@ export default function ServiceTablesScreen() {
                 }}
               >
                 <Ionicons name="receipt" size={12} color="#FFF" />
-                <Text style={styles.actionText}>
-                  {activeOrder.paymentStatus === 'paid' ? 'Bill' : 'Pay'}
-                </Text>
+                <Text style={styles.actionText}>View</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -399,13 +382,13 @@ export default function ServiceTablesScreen() {
               onPress={() => router.push('/(service)/history')}
               style={styles.headerBtn}
             >
-              <Ionicons name="time-outline" size={20} />
+              <Ionicons name="time-outline" size={20} color={TEXT_PRIMARY} />
             </TouchableOpacity>
             <TouchableOpacity onPress={onRefresh} style={styles.headerBtn}>
-              <Ionicons name="refresh" size={20} />
+              <Ionicons name="refresh" size={20} color={TEXT_PRIMARY} />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleLogout} style={styles.headerBtn}>
-              <Ionicons name="log-out-outline" size={20} />
+              <Ionicons name="log-out-outline" size={20} color={TEXT_PRIMARY} />
             </TouchableOpacity>
           </View>
         </View>
@@ -607,7 +590,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -620,21 +603,21 @@ const styles = StyleSheet.create({
   },
   statChip: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: '#F8FAFC',
     borderRadius: 10,
     paddingVertical: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: BORDER,
   },
   statValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFF',
+    color: TEXT_PRIMARY,
   },
   statLabel: {
     fontSize: 9,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: TEXT_SECONDARY,
     fontWeight: '600',
     textTransform: 'uppercase',
   },

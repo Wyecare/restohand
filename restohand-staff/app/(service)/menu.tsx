@@ -21,7 +21,8 @@ import { ModifierSelectionModal } from '@/components/ModifierSelectionModal';
 import { Ionicons } from '@expo/vector-icons';
 import { skipToken } from '@reduxjs/toolkit/query';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useOrdersSSE } from '@/hooks/useOrdersSSE';
 import {
   ActivityIndicator,
   Image,
@@ -66,9 +67,15 @@ const formatCurrency = (amount: number) =>
   }).format(amount);
 
 export default function ServiceMenuScreen() {
-  const { tableId, restaurant_slug, sessionId, isNewSession } =
+  const { tableId, restaurant_slug, sessionId: sessionIdParam, isNewSession } =
     useLocalSearchParams();
   const restaurantId = useAppSelector(selectActiveRestaurantId);
+
+  // resolvedSessionId starts from route param; gets set after first order is placed
+  // so session queries activate immediately even for brand-new sessions
+  const [resolvedSessionId, setResolvedSessionId] = useState<string | null>(
+    sessionIdParam ? (sessionIdParam as string) : null
+  );
 
   // Get restaurant details
   const { data: restaurant } = useGetRestaurantQuery(
@@ -102,15 +109,15 @@ export default function ServiceMenuScreen() {
     data: sessionData,
     isLoading: sessionLoading,
     refetch: refetchSession,
-  } = useGetSessionQuery(sessionId as string, {
-    skip: !sessionId,
+  } = useGetSessionQuery(resolvedSessionId ?? skipToken, {
+    skip: !resolvedSessionId,
   });
 
-  // Get session with orders (session-based instead of table-based)
+  // Get session with orders — SSE handles most updates; poll at 15s as a safety net
   const { data: sessionWithBill, refetch: refetchSessionOrders } =
-    useGetSessionWithBillQuery(sessionId as string, {
-      skip: !sessionId,
-      pollingInterval: 30000, // Poll every 30 seconds to ensure fresh data
+    useGetSessionWithBillQuery(resolvedSessionId ?? skipToken, {
+      skip: !resolvedSessionId,
+      pollingInterval: 15000,
     });
 
   // RTK mutation for creating orders and updating status
@@ -118,6 +125,15 @@ export default function ServiceMenuScreen() {
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [updateMenuItem] = useUpdateMenuItemMutation();
   const [calculateCartTotal] = useCalculateCartTotalMutation();
+
+  // SSE: real-time kitchen events refresh session orders immediately
+  const handleSSEEvent = useCallback(() => {
+    refetchSessionOrders();
+    refetchTables();
+    if (resolvedSessionId) refetchSession();
+  }, [refetchSessionOrders, refetchTables, refetchSession, resolvedSessionId]);
+
+  useOrdersSSE({ onEvent: handleSSEEvent, enabled: !!restaurantId });
 
   // Component state
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -128,10 +144,8 @@ export default function ServiceMenuScreen() {
   const [updatingAvailability, setUpdatingAvailability] = useState<
     string | null
   >(null);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [selectedOrderForStatus, setSelectedOrderForStatus] =
-    useState<any>(null);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  // Track which order is being status-updated inline (replaces modal approach)
+  const [updatingStatusOrderId, setUpdatingStatusOrderId] = useState<string | null>(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(
     null
   );
@@ -154,6 +168,9 @@ export default function ServiceMenuScreen() {
   } | null>(null);
   const [calculatedCart, setCalculatedCart] = useState<any>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+
+  // Debounce ref for cart recalculation API calls
+  const recalcDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modifier modal state
   const [modifierModalVisible, setModifierModalVisible] = useState(false);
@@ -293,6 +310,12 @@ export default function ServiceMenuScreen() {
       0
     );
 
+  // Debounced wrapper — prevents rapid add/remove from firing many API calls
+  const debouncedRecalculate = (newCart: Record<string, CartEntry>) => {
+    if (recalcDebounceRef.current) clearTimeout(recalcDebounceRef.current);
+    recalcDebounceRef.current = setTimeout(() => recalculateCart(newCart), 400);
+  };
+
   // Function to calculate cart totals using backend
   const recalculateCart = async (newCart: Record<string, CartEntry>) => {
     if (!restaurant || Object.keys(newCart).length === 0) {
@@ -339,6 +362,16 @@ export default function ServiceMenuScreen() {
     return item.pricing.amount;
   };
 
+  // Returns the single next status action for an order (1-tap advance)
+  const getNextStatusAction = (status: string): { status: string; label: string; icon: any } | null => {
+    switch (status) {
+      case 'pending':    return { status: 'accepted',   label: 'Accept',  icon: 'checkmark-circle' };
+      case 'accepted':   return { status: 'in_progress', label: 'Cooking', icon: 'flame' };
+      case 'in_progress': return { status: 'ready',      label: 'Ready',   icon: 'restaurant' };
+      default: return null;
+    }
+  };
+
   // Modifier modal handlers
   const handleModifierConfirm = (
     selections: any[],
@@ -370,7 +403,7 @@ export default function ServiceMenuScreen() {
     };
 
     setCart(newCart);
-    recalculateCart(newCart);
+    debouncedRecalculate(newCart);
     setSelectedMenuItem(null);
   };
 
@@ -408,7 +441,7 @@ export default function ServiceMenuScreen() {
         [id]: cartItem,
       };
       setCart(newCart);
-      recalculateCart(newCart);
+      debouncedRecalculate(newCart);
     }
   };
 
@@ -428,7 +461,7 @@ export default function ServiceMenuScreen() {
     }
 
     setCart(newCart);
-    recalculateCart(newCart);
+    debouncedRecalculate(newCart);
   };
 
   // Place order function
@@ -468,7 +501,7 @@ export default function ServiceMenuScreen() {
     try {
       const payload = {
         restaurantId: restaurant.id,
-        customerSessionId: sessionId as string,
+        customerSessionId: resolvedSessionId ?? undefined,
         tableId: selectedTable?.id,
         paymentMethod: 'cash' as const,
         items: Object.values(cart).map((entry) => ({
@@ -486,12 +519,17 @@ export default function ServiceMenuScreen() {
 
       const order = await createOrder(payload).unwrap();
 
+      // Persist session ID from the new/existing session so queries
+      // activate immediately — critical for brand-new sessions
+      if (order.sessionId && !resolvedSessionId) {
+        setResolvedSessionId(order.sessionId);
+      }
+
       setCart({});
       setCalculatedCart(null);
 
-      await refetchTables();
-      await refetchSession(); // Refresh session to update order count
-      await refetchSessionOrders(); // Refresh session orders list
+      // SSE will trigger a re-fetch; explicit refetch keeps UI snappy
+      refetchTables();
 
       setSuccessModalData({
         title: 'Order placed! 🎉',
@@ -514,7 +552,7 @@ export default function ServiceMenuScreen() {
       router.push({
         pathname: '/(service)/payment',
         params: {
-          sessionId: sessionId as string,
+          sessionId: resolvedSessionId ?? undefined,
           orderId: activeExistingOrders[0].id,
           tableId: selectedTable?.id,
           orderData: JSON.stringify(activeExistingOrders[0]),
@@ -525,45 +563,23 @@ export default function ServiceMenuScreen() {
     }
   };
 
-  const handleUpdateStatusAction = (order: any) => {
-    setSelectedOrderForStatus(order);
-    setShowStatusModal(true);
-  };
-
-  const handleStatusUpdate = async (status: string, progress?: number) => {
-    if (!restaurant || !selectedOrderForStatus) return;
-
-    console.log(selectedOrderForStatus);
-
-    setIsUpdatingStatus(true);
+  // Inline 1-tap status advance (replaces the old modal flow)
+  const handleStatusUpdate = async (order: any, status: string) => {
+    if (!restaurant) return;
+    setUpdatingStatusOrderId(order.id);
     try {
       await updateOrderStatus({
         restaurantId: restaurant.id,
-        orderId: selectedOrderForStatus._id,
+        orderId: order.id,  // Fixed: was order._id (bug — session orders use .id)
         status: status as any,
-        progress,
       }).unwrap();
-
-      setShowStatusModal(false);
-      setSelectedOrderForStatus(null);
-
-      await refetchTables();
-
-      setSuccessModalData({
-        title: 'Status Updated!',
-        message: `Order #${
-          selectedOrderForStatus.orderNumber
-        } is now ${status.replace('_', ' ')}`,
-      });
-      setShowSuccessModal(true);
-    } catch (error) {
-      setSuccessModalData({
-        title: 'Error',
-        message: 'Failed to update order status',
-      });
+      refetchSessionOrders();
+      refetchTables();
+    } catch {
+      setSuccessModalData({ title: 'Error', message: 'Failed to update order status' });
       setShowSuccessModal(true);
     } finally {
-      setIsUpdatingStatus(false);
+      setUpdatingStatusOrderId(null);
     }
   };
 
@@ -652,66 +668,12 @@ export default function ServiceMenuScreen() {
     }
   };
 
-  const getStatusUpdateOptions = (currentStatus: string) => {
-    const statusOptions = [
-      {
-        status: 'accepted',
-        label: 'Accept Order',
-        icon: 'checkmark-circle',
-        color: '#3B82F6',
-        progress: 20,
-        description: 'Mark order as accepted',
-      },
-      {
-        status: 'in_progress',
-        label: 'Start Cooking',
-        icon: 'flame',
-        color: '#F59E0B',
-        progress: 40,
-        description: 'Begin preparation',
-      },
-      {
-        status: 'in_progress',
-        label: 'Almost Ready',
-        icon: 'hourglass',
-        color: '#10B981',
-        progress: 80,
-        description: 'Order is almost done',
-      },
-      {
-        status: 'ready',
-        label: 'Order Ready',
-        icon: 'restaurant',
-        color: '#059669',
-        progress: 100,
-        description: 'Ready for pickup/serving',
-      },
-    ];
-
-    switch (currentStatus) {
-      case 'pending':
-        return statusOptions.filter(
-          (opt) =>
-            opt.status === 'accepted' ||
-            (opt.status === 'in_progress' && opt.progress === 40)
-        );
-      case 'accepted':
-        return statusOptions.filter(
-          (opt) => opt.status === 'in_progress' && opt.progress === 40
-        );
-      case 'in_progress':
-        return statusOptions.filter(
-          (opt) =>
-            (opt.status === 'in_progress' && opt.progress === 80) ||
-            opt.status === 'ready'
-        );
-      default:
-        return [];
-    }
-  };
-
   const handleRefresh = async () => {
-    await Promise.all([refetchMenu(), refetchTables(), refetchSession()]);
+    const fetches: Promise<any>[] = [refetchMenu(), refetchTables()];
+    if (resolvedSessionId) {
+      fetches.push(refetchSession(), refetchSessionOrders());
+    }
+    await Promise.all(fetches);
   };
 
   if (isLoading) {
@@ -790,31 +752,20 @@ export default function ServiceMenuScreen() {
   // Calculate customer session info for header
   const getSessionDisplayInfo = () => {
     if (sessionData) {
-      // Get session number based on table's session history
-      // For now, show session timing
       const startTime = new Date(sessionData.startedAt);
-      const now = new Date();
-      const diffMs = now.getTime() - startTime.getTime();
-      const diffMins = Math.floor(diffMs / (1000 * 60));
-
-      let duration = '';
-      if (diffMins < 60) {
-        duration = `${diffMins}m`;
-      } else {
-        const hours = Math.floor(diffMins / 60);
-        const mins = diffMins % 60;
-        duration = `${hours}h ${mins}m`;
-      }
-
+      const diffMins = Math.floor((Date.now() - startTime.getTime()) / 60000);
+      const duration = diffMins < 60
+        ? `${diffMins}m`
+        : `${Math.floor(diffMins / 60)}h ${diffMins % 60}m`;
       return {
         sessionInfo: `Session • ${duration}`,
-        isNewSession: isNewSession === 'true',
+        isNewSession: false,
         orderCount: sessionData.totalOrders || 0,
       };
     }
     return {
-      sessionInfo: 'New Session',
-      isNewSession: true,
+      sessionInfo: resolvedSessionId ? 'Loading session…' : 'New Session',
+      isNewSession: !resolvedSessionId,
       orderCount: 0,
     };
   };
@@ -980,19 +931,27 @@ export default function ServiceMenuScreen() {
                           )}
                         </TouchableOpacity>
                       )}
-                      {!['ready', 'completed', 'cancelled'].includes(
-                        order.status
-                      ) && (
-                        <TouchableOpacity
-                          style={[
-                            styles.individualStatusButton,
-                            { backgroundColor: '#4910bc' },
-                          ]}
-                          onPress={() => handleUpdateStatusAction(order)}
-                        >
-                          <Ionicons name="refresh" size={12} color="#ffffff" />
-                        </TouchableOpacity>
-                      )}
+                      {(() => {
+                        const nextAction = getNextStatusAction(order.status);
+                        if (!nextAction) return null;
+                        const isUpdating = updatingStatusOrderId === order.id;
+                        return (
+                          <TouchableOpacity
+                            style={[styles.statusAdvanceBtn]}
+                            onPress={() => handleStatusUpdate(order, nextAction.status)}
+                            disabled={isUpdating}
+                          >
+                            {isUpdating ? (
+                              <ActivityIndicator size={12} color="#ffffff" />
+                            ) : (
+                              <>
+                                <Ionicons name={nextAction.icon} size={11} color="#ffffff" />
+                                <Text style={styles.statusAdvanceBtnText}>{nextAction.label}</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })()}
                     </View>
                   </View>
                 </View>
@@ -1350,123 +1309,6 @@ export default function ServiceMenuScreen() {
         </View>
       )}
 
-      {/* Status Update Modal */}
-      <Modal
-        visible={showStatusModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowStatusModal(false)}
-      >
-        <SafeAreaView
-          style={[styles.modalContainer, { backgroundColor: '#FFFFFF' }]}
-        >
-          <View
-            style={[
-              styles.modalHeader,
-              {
-                backgroundColor: '#FFFFFF',
-                borderBottomColor: '#e5e7eb',
-              },
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: '#0F172A' }]}>
-              Update Status - #{selectedOrderForStatus?.orderNumber}
-            </Text>
-            <TouchableOpacity
-              style={
-                styles.modalCloseButton}
-              onPress={() => setShowStatusModal(false)}
-            >
-              <Ionicons name="close" size={24} color='#64748B' />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.modalContent}>
-            <Text style={[styles.currentStatusText, { color: '#64748B' }]}>
-              Current Status:{' '}
-              <Text style={[styles.currentStatusValue, { color: '#0F172A' }]}>
-                {selectedOrderForStatus?.status?.replace('_', ' ')}
-              </Text>
-            </Text>
-
-            <View style={styles.statusOptionsContainer}>
-              {selectedOrderForStatus &&
-                getStatusUpdateOptions(selectedOrderForStatus.status).map(
-                  (option, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.statusOptionButton,
-                        {
-                          backgroundColor: '#FFFFFF',
-                          borderColor: option.color,
-                        },
-                      ]}
-                      onPress={() =>
-                        handleStatusUpdate(option.status, option.progress)
-                      }
-                      disabled={isUpdatingStatus}
-                    >
-                      <View
-                        style={[
-                          styles.statusOptionIcon,
-                          { backgroundColor: option.color },
-                        ]}
-                      >
-                        <Ionicons
-                          name={option.icon as any}
-                          size={24}
-                          color="#FFFFFF"
-                        />
-                      </View>
-                      <View style={styles.statusOptionContent}>
-                        <Text
-                          style={[
-                            styles.statusOptionLabel,
-                            { color: '#0F172A' },
-                          ]}
-                        >
-                          {option.label}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.statusOptionDescription,
-                            { color: '#64748B' },
-                          ]}
-                        >
-                          {option.description}
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name="arrow-forward"
-                        size={20}
-                        color={option.color}
-                      />
-                    </TouchableOpacity>
-                  )
-                )}
-            </View>
-
-            {isUpdatingStatus && (
-              <View
-                style={[
-                  styles.updatingContainer,
-                  {
-                    backgroundColor: '#f0f9ff',
-                    borderColor: '#bfdbfe',
-                  },
-                ]}
-              >
-                <ActivityIndicator size="small" color='#4910bc' />
-                <Text style={[styles.updatingText, { color: '#4910bc' }]}>
-                  Updating status...
-                </Text>
-              </View>
-            )}
-          </View>
-        </SafeAreaView>
-      </Modal>
-
       {/* Item Popover Modal */}
       <Modal
         visible={showItemPopover !== null}
@@ -1735,7 +1577,7 @@ export default function ServiceMenuScreen() {
                           router.push({
                             pathname: '/(service)/payment',
                             params: {
-                              sessionId: sessionId as string,
+                              sessionId: resolvedSessionId ?? undefined,
                               tableId: selectedTable?.id,
                             },
                           });
@@ -1922,6 +1764,22 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  statusAdvanceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#4910bc',
+    minWidth: 60,
+    justifyContent: 'center',
+  },
+  statusAdvanceBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '600',
   },
   existingOrderMeta: {
     flexDirection: 'row',

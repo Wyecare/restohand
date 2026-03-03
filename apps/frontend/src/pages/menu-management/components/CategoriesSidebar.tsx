@@ -1,25 +1,26 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Plus,
-  MoreVertical,
   Edit,
   Trash2,
-  ImagePlus,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  FileText,
   Loader2,
+  UtensilsCrossed,
+  Wine,
+  Coffee,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GlobalMenuSearch } from '@/components/menu/GlobalMenuSearch';
 import { useToast } from '@/hooks/use-toast';
 import { MenuSearchResultItem } from '@/store/api/restaurantsApi';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CategoriesSidebarProps {
   categories: any[];
@@ -31,6 +32,224 @@ interface CategoriesSidebarProps {
   onCategoryClick?: () => void;
 }
 
+// ─── Food Category Config ─────────────────────────────────────────────────────
+
+const FOOD_CATEGORY_META: Record<
+  string,
+  { label: string; icon: React.ElementType; accent: string; dot: string }
+> = {
+  cooked_food: {
+    label: 'Food',
+    icon: UtensilsCrossed,
+    accent: 'text-amber-600',
+    dot: 'bg-amber-400',
+  },
+  alcohol: {
+    label: 'Alcohol',
+    icon: Wine,
+    accent: 'text-violet-600',
+    dot: 'bg-violet-400',
+  },
+  beverages: {
+    label: 'Beverages',
+    icon: Coffee,
+    accent: 'text-blue-600',
+    dot: 'bg-blue-400',
+  },
+  other: {
+    label: 'Other',
+    icon: Layers,
+    accent: 'text-slate-500',
+    dot: 'bg-slate-400',
+  },
+};
+
+function getFoodCategoryMeta(key: string) {
+  return FOOD_CATEGORY_META[key] || FOOD_CATEGORY_META['other'];
+}
+
+// ─── Category Item ────────────────────────────────────────────────────────────
+
+function CategoryItem({
+  category,
+  isSelected,
+  onClick,
+  onEdit,
+  onDelete,
+}: {
+  category: any;
+  isSelected: boolean;
+  onClick: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [showActions, setShowActions] = useState(false);
+
+  return (
+    <div
+      className={cn(
+        'group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer border-l-2 transition-all duration-100',
+        isSelected
+          ? 'bg-slate-900 border-l-slate-900 text-white'
+          : 'border-l-transparent hover:bg-slate-100 text-slate-700'
+      )}
+      onClick={onClick}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
+      {/* Active dot */}
+      <div
+        className={cn(
+          'h-1.5 w-1.5 rounded-full shrink-0 transition-colors',
+          category.isActive
+            ? isSelected
+              ? 'bg-emerald-400'
+              : 'bg-emerald-500'
+            : isSelected
+            ? 'bg-slate-500'
+            : 'bg-slate-300'
+        )}
+      />
+
+      {/* Name */}
+      <span
+        className={cn(
+          'flex-1 text-sm font-medium truncate leading-tight',
+          isSelected ? 'text-white' : 'text-slate-800'
+        )}
+      >
+        {category.name}
+      </span>
+
+      {/* Actions — shown on hover, hidden when selected to avoid clutter */}
+      {showActions && !isSelected && (
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+          >
+            <Edit className="h-3 w-3" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+
+      {/* Selected indicator arrow */}
+      {isSelected && (
+        <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+      )}
+    </div>
+  );
+}
+
+// ─── Category Group ───────────────────────────────────────────────────────────
+
+function CategoryGroup({
+  foodCategory,
+  categories,
+  selectedCategoryId,
+  onCategoryClick,
+  onEdit,
+  onDelete,
+  defaultOpen = true,
+}: {
+  foodCategory: string;
+  categories: any[];
+  selectedCategoryId?: string;
+  onCategoryClick: (id: string) => void;
+  onEdit: (cat: any) => void;
+  onDelete: (cat: any) => void;
+  defaultOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const meta = getFoodCategoryMeta(foodCategory);
+  const Icon = meta.icon;
+  const hasSelected = categories.some(
+    (c) => (c._id || c.id) === selectedCategoryId
+  );
+
+  // Auto-open if a selected category is in this group
+  useEffect(() => {
+    if (hasSelected) setIsOpen(true);
+  }, [hasSelected]);
+
+  return (
+    <div className="mb-1">
+      {/* Group header */}
+      <button
+        onClick={() => setIsOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-100 transition-colors group"
+      >
+        <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)} />
+        <Icon className={cn('h-3.5 w-3.5 shrink-0', meta.accent)} />
+        <span className={cn('text-xs font-semibold uppercase tracking-wider flex-1 text-left', meta.accent)}>
+          {meta.label}
+        </span>
+        <span className="text-xs text-slate-400 font-medium">
+          {categories.length}
+        </span>
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 text-slate-400 transition-transform duration-200',
+            !isOpen && '-rotate-90'
+          )}
+        />
+      </button>
+
+      {/* Category items */}
+      {isOpen && (
+        <div className="ml-2 mt-0.5 space-y-0.5 border-l border-slate-100 pl-2">
+          {categories.map((category) => {
+            const categoryId = category._id || category.id;
+            return (
+              <CategoryItem
+                key={categoryId}
+                category={category}
+                isSelected={categoryId === selectedCategoryId}
+                onClick={() => onCategoryClick(categoryId)}
+                onEdit={() => onEdit(category)}
+                onDelete={() => onDelete(category)}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SidebarSkeleton() {
+  return (
+    <div className="space-y-3 p-3 animate-pulse">
+      {[1, 2, 3].map((g) => (
+        <div key={g}>
+          <div className="h-3 bg-slate-100 rounded w-20 mb-2" />
+          <div className="space-y-1 pl-2">
+            {Array.from({ length: g + 1 }).map((_, i) => (
+              <div key={i} className="h-8 bg-slate-100 rounded-lg" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main Sidebar ─────────────────────────────────────────────────────────────
+
 export function CategoriesSidebar({
   categories,
   isLoading,
@@ -41,8 +260,6 @@ export function CategoriesSidebar({
   onCategoryClick,
 }: CategoriesSidebarProps) {
   const navigate = useNavigate();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const selectedCategoryRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
 
   const handleCategoryClick = (categoryId: string) => {
@@ -50,210 +267,109 @@ export function CategoriesSidebar({
     onCategoryClick?.();
   };
 
-  // Auto-scroll to selected category
-  useEffect(() => {
-    if (
-      selectedCategoryId &&
-      selectedCategoryRef.current &&
-      scrollAreaRef.current
-    ) {
-      // Small timeout to ensure DOM has updated after navigation
-      const timeoutId = setTimeout(() => {
-        const scrollContainer = scrollAreaRef.current?.querySelector(
-          '[data-radix-scroll-area-viewport]'
-        );
-        const selectedElement = selectedCategoryRef.current;
-
-        if (scrollContainer && selectedElement) {
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const elementRect = selectedElement.getBoundingClientRect();
-
-          // Check if element is outside the visible area
-          const isAboveView = elementRect.top < containerRect.top;
-          const isBelowView = elementRect.bottom > containerRect.bottom;
-
-          if (isAboveView || isBelowView) {
-            // Calculate scroll position to center the element
-            const scrollTop =
-              selectedElement.offsetTop -
-              scrollContainer.clientHeight / 2 +
-              selectedElement.clientHeight / 2;
-            scrollContainer.scrollTo({
-              top: Math.max(0, scrollTop),
-              behavior: 'smooth',
-            });
-          }
-        }
-      }, 100);
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [selectedCategoryId]);
-
   const handleSearchResultSelect = (result: MenuSearchResultItem) => {
     if (result.type === 'category') {
       navigate(`/menu/items/categories/${result.id}`);
-      toast({
-        title: 'Category Selected',
-        description: `Navigated to ${result.name}`,
-      });
-    } else if (result.type === 'item') {
-      // Navigate to the item's category with highlight parameter
-      if (result.categoryId) {
-        navigate(
-          `/menu/items/categories/${result.categoryId}?highlight=${result.id}`
-        );
-        toast({
-          title: 'Menu Item Found',
-          description: `Found "${result.name}" in ${
-            result.categoryName || 'category'
-          }`,
-        });
-      }
+    } else if (result.type === 'item' && result.categoryId) {
+      navigate(
+        `/menu/items/categories/${result.categoryId}?highlight=${result.id}`
+      );
     }
   };
 
+  // Group categories by foodCategory
+  const grouped = categories.reduce((acc: Record<string, any[]>, cat) => {
+    const key = cat.foodCategory || 'other';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(cat);
+    return acc;
+  }, {});
+
+  // Sort groups: cooked_food first, then alcohol, beverages, other
+  const groupOrder = ['cooked_food', 'alcohol', 'beverages'];
+  const sortedGroups = [
+    ...groupOrder.filter((k) => grouped[k]),
+    ...Object.keys(grouped).filter((k) => !groupOrder.includes(k)),
+  ];
+
+  const activeCount = categories.filter((c) => c.isActive).length;
+
   return (
-    <div className="w-70 p-1 bg-muted/30 flex flex-col h-full overflow-x-auto justify-center shadow-md">
+    <div className="w-64 flex flex-col bg-white border-r border-slate-200 h-full shrink-0">
+
       {/* Header */}
-      <GlobalMenuSearch
-        onResultSelect={handleSearchResultSelect}
-        placeholder="Search menu categories and items..."
-        className="w-full"
-      />
-      <div className="p-2 flex border-b flex-shrink-0 grid-cols-2 justify-between">
-        <Button onClick={onAddCategory} className="gap-2 w-[48%]">
-          Add Category
-        </Button>
-        <Button
-          onClick={() => {
-            navigate('/extract-menu');
-          }}
-          className="gap-2 w-[48%]"
-        >
-          Extract from pdf
-        </Button>
+      <div className="p-3 border-b border-slate-100">
+        <div className="flex items-center justify-between mb-2.5">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Categories</h2>
+            {!isLoading && categories.length > 0 && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                {categories.length} total · {activeCount} active
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onAddCategory}
+            className="h-7 w-7 flex items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-700 text-white transition-colors"
+            title="Add category"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <GlobalMenuSearch
+          onResultSelect={handleSearchResultSelect}
+          placeholder="Search menu..."
+          className="w-full"
+        />
       </div>
 
-      {/* Categories List */}
-      <ScrollArea
-        ref={scrollAreaRef}
-        className="flex-1 overflow-y-auto overflow-x-auto"
-      >
+      {/* Extract from PDF — secondary action */}
+      <div className="px-3 py-2 border-b border-slate-100">
+        <button
+          onClick={() => navigate('/extract-menu')}
+          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors border border-slate-200 border-dashed"
+        >
+          <FileText className="h-3.5 w-3.5" />
+          Extract from PDF
+        </button>
+      </div>
+
+      {/* Category list */}
+      <div className="flex-1 overflow-y-auto py-2 px-2">
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
+          <SidebarSkeleton />
         ) : categories.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-sm text-muted-foreground">No categories yet</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Create your first category to get started
-            </p>
+          <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+              <UtensilsCrossed className="h-4 w-4 text-slate-400" />
+            </div>
+            <p className="text-xs font-medium text-slate-600 mb-1">No categories yet</p>
+            <p className="text-xs text-slate-400">Add your first category to get started</p>
           </div>
         ) : (
-          <div className="p-2 space-y-1 overflow-x-auto">
-            {categories.map((category) => {
-              const categoryId = category._id || category.id;
-              const isSelected = categoryId === selectedCategoryId;
-
-              return (
-                <div
-                  key={categoryId}
-                  className={cn(
-                    'group relative rounded-lg border transition-all',
-                    isSelected
-                      ? 'bg-primary border-secondary shadow-sm text-gray-50'
-                      : 'bg-background/50 shadow-sm hover:bg-background hover:border-border'
-                  )}
-                >
-                  <button
-                    ref={isSelected ? selectedCategoryRef : undefined}
-                    onClick={() => handleCategoryClick(categoryId)}
-                    className="w-full p-3 flex items-start gap-3 text-left cursor-pointer olo"
-                  >
-                    {/* Category Image */}
-                    {category.imageUrl ? (
-                      <img
-                        src={category.imageUrl}
-                        alt={category.name}
-                        className="h-12 w-12 rounded-md object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                        <ImagePlus className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    )}
-
-                    {/* Category Info */}
-                    <div className="flex-1 min-w-0 pr-8">
-                      <div className="font-medium text-sm leading-tight line-clamp-2 break-words">
-                        {category.name}
-                      </div>
-                      {category.description && (
-                        <div className="text-xs text-muted-foreground line-clamp-1 mt-1 break-words">
-                          {category.description}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span
-                          className={cn(
-                            'text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap',
-                            category.isActive
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                          )}
-                        >
-                          {category.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Actions Menu */}
-                  <div className="absolute top-2 right-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => onEditCategory(category)}
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => onDeleteCategory(category)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          sortedGroups.map((foodCategory) => (
+            <CategoryGroup
+              key={foodCategory}
+              foodCategory={foodCategory}
+              categories={grouped[foodCategory]}
+              selectedCategoryId={selectedCategoryId}
+              onCategoryClick={handleCategoryClick}
+              onEdit={onEditCategory}
+              onDelete={onDeleteCategory}
+              defaultOpen={true}
+            />
+          ))
         )}
-      </ScrollArea>
+      </div>
 
       {/* Footer */}
-      {categories.length > 0 && (
-        <div className="p-3 border-t bg-background/50 flex-shrink-0">
-          <div className="text-xs text-muted-foreground text-center">
-            {categories.length}{' '}
-            {categories.length === 1 ? 'category' : 'categories'}
-          </div>
+      {!isLoading && categories.length > 0 && (
+        <div className="px-3 py-2 border-t border-slate-100 bg-slate-50/50">
+          <p className="text-xs text-slate-400 text-center">
+            {categories.length} {categories.length === 1 ? 'category' : 'categories'}
+          </p>
         </div>
       )}
     </div>
